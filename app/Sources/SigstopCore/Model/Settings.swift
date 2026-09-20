@@ -130,6 +130,12 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     public var launchAtLogin: Bool
     public var showBreakOverlay: Bool
     public var breakQuestsEnabled: Bool
+    /// Hold a due break back for a bounded time after a microphone or camera stops.
+    ///
+    /// Off disables the call latch and NOTHING else: a microphone or camera that is
+    /// actually running still hard-blocks, because that is a fact and it predates this
+    /// switch. Turning off a new mechanism must not turn off an old one.
+    public var holdBreaksDuringCalls: Bool
 
     public init(
         workIntervalMinutes: Int = 45,
@@ -149,7 +155,8 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         showInDock: Bool = true,
         launchAtLogin: Bool = false,
         showBreakOverlay: Bool = true,
-        breakQuestsEnabled: Bool = true
+        breakQuestsEnabled: Bool = true,
+        holdBreaksDuringCalls: Bool = true
     ) {
         self.workIntervalMinutes = workIntervalMinutes
         self.breakDurationMinutes = breakDurationMinutes
@@ -169,6 +176,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.launchAtLogin = launchAtLogin
         self.showBreakOverlay = showBreakOverlay
         self.breakQuestsEnabled = breakQuestsEnabled
+        self.holdBreaksDuringCalls = holdBreaksDuringCalls
     }
 
     public static let `default` = SigstopSettings()
@@ -201,5 +209,6 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         showBreakOverlay = try c.decodeIfPresent(Bool.self, forKey: .showBreakOverlay) ?? d.showBreakOverlay
         breakQuestsEnabled = try c.decodeIfPresent(Bool.self, forKey: .breakQuestsEnabled) ?? d.breakQuestsEnabled
+        holdBreaksDuringCalls = try c.decodeIfPresent(Bool.self, forKey: .holdBreaksDuringCalls) ?? d.holdBreaksDuringCalls
     }
 }
