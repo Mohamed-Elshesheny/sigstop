@@ -106,7 +106,8 @@ final class AppModel {
     /// quiet hours the last measured value is shown unchanged, because inventing seconds
     /// the engine has not credited is exactly the lie this project does not tell.
     var displayedContinuousWork: TimeInterval {
-        guard indicator == .working || indicator == .breakDue || indicator == .escalating else {
+        guard indicator == .working || indicator == .breakDue || indicator == .escalating
+            || indicator == .held else {
             return continuousWork
         }
         guard continuousWorkMeasuredAt > 0 else { return continuousWork }
@@ -174,6 +175,19 @@ final class AppModel {
     @ObservationIgnored private var lastFocusLogAt: Date?
     @ObservationIgnored private var idleBeganAt: Date?
     @ObservationIgnored private var seamsForNextStep: Set<Seam> = []
+    /// The call latch. Owned here rather than on `EngineState` because `verdict` is
+    /// handed only an `EngineInput` and a `CycleBudget`, and rather than inside
+    /// `InterruptionPolicy` because that struct is stateless and pure. Every transition
+    /// still lives in `SigstopCore`, which is what makes it testable at all.
+    ///
+    /// It is never persisted: a latch restored from disk is a suppression that can
+    /// outlive the bug that created it, invisibly. Only the day's accumulated hold
+    /// survives a relaunch, because a counter can only ever make the app noisier.
+    @ObservationIgnored private var latch = MeetingLatch()
+    @ObservationIgnored private var lastPersistedHold: TimeInterval = 0
+    /// The verdict the engine last acted on, so the presentation layer cannot put a
+    /// prompt on screen that the engine has already refused.
+    @ObservationIgnored private var lastVerdict: InterruptionVerdict?
     @ObservationIgnored private var rollupComputedAt: Date?
     /// The last summary handed to the store, so a minute that changed nothing does not
     /// rewrite the month file.
@@ -207,6 +221,13 @@ final class AppModel {
         self.decision = BreakDecisionEngine(policy: policy)
         self.engineState = .initial(policy: policy)
         self.permissionStatus = sensors.permissions.status()
+
+        let dayIndex = LocalDay.index(
+            of: time.now, calendar: .current, boundaryHour: policy.dayBoundaryHour
+        )
+        self.latch = MeetingLatch
+            .started(at: time.monotonicSeconds, wall: time.now, dayIndex: dayIndex)
+            .restoringDailyHold(seconds: CallHoldLedger.load(dayIndex: dayIndex), dayIndex: dayIndex)
     }
 
     /// The product policy, with the app's real sampling cadence written into it.
@@ -232,6 +253,7 @@ final class AppModel {
         append(.start(at: time.now))
 
         sensors.context.start()
+        sensors.startExtraCollectors()
         subscribeToSystemEvents()
         subscribeToWorkspaceEvents()
         subscribeToPermissionChanges()
@@ -256,6 +278,7 @@ final class AppModel {
         overlay.dismissAll()
         notifier.withdrawAll()
         sensors.context.stop()
+        sensors.stopExtraCollectors()
         append(.stop(at: time.now))
     }
 
@@ -320,8 +343,11 @@ final class AppModel {
             concurrent: sample.context.concurrent
         )
 
+        advanceLatch(raw, now: now, monotonic: monotonic)
+
         var signals = raw.systemSignals
         signals.frontmostIsFullscreen = sample.context.concurrent.fullscreen
+        signals.meetingLatch = latchSignal(now: now, monotonic: monotonic)
 
         let input = EngineInput(
             now: now,
@@ -361,6 +387,64 @@ final class AppModel {
     private var isPaused: Bool {
         if case .quiet(let q) = engineState, q.cause == .userPaused { return true }
         return false
+    }
+
+    // MARK: - The call latch
+
+    private var latchPolicy: BreakPolicy { Self.policy(for: settings) }
+
+    private func dayIndex(at now: Date) -> Int {
+        LocalDay.index(
+            of: now, calendar: .current, boundaryHour: latchPolicy.dayBoundaryHour
+        )
+    }
+
+    private func advanceLatch(_ raw: RawSignals, now: Date, monotonic: Double) {
+        let before = latch.heldSecondsToday
+        latch = latch.advanced(
+            MeetingLatchInput(
+                monotonic: monotonic,
+                wall: now,
+                dayIndex: dayIndex(at: now),
+                micLive: raw.micLiveForLatch,
+                cameraLive: raw.camera.contributesToMeeting,
+                callCapableRunning: raw.callCapableRunning,
+                attributedCallCapable: raw.attributedCallCapable,
+                frontmostCallCapable: raw.frontmostCallCapable,
+                enabled: settings.holdBreaksDuringCalls,
+                screenLocked: raw.session.screenLocked,
+                sessionActive: raw.session.sessionActive
+            ),
+            policy: latchPolicy
+        )
+        if latch.heldSecondsToday - lastPersistedHold >= 60 || latch.heldSecondsToday < before {
+            lastPersistedHold = latch.heldSecondsToday
+            CallHoldLedger.save(seconds: latch.heldSecondsToday, dayIndex: latch.dayIndex)
+        }
+    }
+
+    private func latchSignal(now: Date, monotonic: Double) -> MeetingLatchSignal {
+        latch.signal(at: monotonic, wall: now, policy: latchPolicy)
+    }
+
+    /// The menu bar's "why?" line, when the app is holding a break for a call.
+    var callHoldSummary: String? {
+        latchSignal(now: time.now, monotonic: time.monotonicSeconds).summary
+    }
+
+    /// "I'm in a meeting". The only answer available for the states no Tier 0 signal can
+    /// reach: a Meet call in Safari, a screen share with the microphone muted, and a
+    /// phone dial-in while presenting from the Mac.
+    func assertMeeting() {
+        latch = latch.assertedByUser(at: time.monotonicSeconds, policy: latchPolicy)
+        Task { [weak self] in await self?.tick() }
+    }
+
+    /// "Not in a meeting". Closes the latch and stops it re-opening from the same still
+    /// running app for half an hour.
+    func clearMeetingHold() {
+        latch = latch.clearedByUser(at: time.monotonicSeconds, policy: latchPolicy)
+        Task { [weak self] in await self?.tick() }
     }
 
     // MARK: - Effects
@@ -424,6 +508,7 @@ final class AppModel {
             snoozeUntil = nil
 
         case .recordVerdict(let verdict):
+            lastVerdict = verdict
             gateReason = Self.explain(verdict)
 
         case .recordSkip:
@@ -501,6 +586,11 @@ final class AppModel {
     /// attempts the failure is also said out loud in the dropdown.
     private func verifyPromptPresentation() {
         guard var current = presentation, current.verifiedAt == nil else { return }
+        /// A correct verdict that the presentation layer ignores fixes nothing. This ran
+        /// unconditionally on every tick and re-ordered a full-screen panel to the front
+        /// every five seconds, consulting no verdict at all, which meant it kept shoving
+        /// the panel in front for the whole of a call.
+        guard canPresentNow else { return }
         let now = time.now
         if overlay.promptPanelIsOnScreen {
             current.verifiedAt = now
@@ -517,6 +607,16 @@ final class AppModel {
                 "The \(current.request.signal) prompt has not reached the screen after "
                 + "\(current.attempts) attempts. It is not being counted against you."
         }
+    }
+
+    /// May anything be drawn on screen right now?
+    ///
+    /// A hard block is the engine's answer to "never deliver". It is checked here as well
+    /// as in the engine because the two routes that can put a prompt on screen without
+    /// going back through `step` (the panel re-assert loop and the notifier's suppressed
+    /// banner fallback) both bypass it entirely.
+    private var canPresentNow: Bool {
+        !(lastVerdict?.isHardBlocked ?? false)
     }
 
     /// Whether the prompt the engine is judging was actually seen. A prompt the window
@@ -539,7 +639,13 @@ final class AppModel {
             self?.notificationState = state
         }
         notifier.onFallbackNeeded = { [weak self] request, message in
-            self?.presentPanel(request, message: message)
+            guard let self else { return }
+            /// macOS withholds a banner exactly when someone is screen sharing or has a
+            /// Focus on, so this fallback is at its most likely to fire during the thing
+            /// the app is trying not to interrupt. It drew a full-screen panel with no
+            /// re-check of the verdict; now it checks.
+            guard self.canPresentNow else { return }
+            self.presentPanel(request, message: message)
         }
     }
 
@@ -878,9 +984,12 @@ final class AppModel {
         case .willSleep:
             append(.system(at: at, .sleep))
             sensors.audio.setSystemAwake(false)
+            sensors.camera.setSystemAwake(false)
         case .didWake:
             append(.system(at: at, .wake))
             sensors.audio.setSystemAwake(true)
+            sensors.camera.setSystemAwake(true)
+            sensors.refreshExtraCollectors()
             sensors.frontmost.reconcile()
             sensors.system.reconcile()
             refreshPermissions()
@@ -954,7 +1063,8 @@ final class AppModel {
         case .hardBlocked(let block):
             switch block {
             case .audioInputInUse:        return "an audio input device is running, you may be on a call"
-            case .cameraInUse:            return "the camera is in use"
+            case .cameraInUse:            return "a camera is running, you may be on a call"
+            case .recentCallContinuing:   return "a microphone or camera was live until a moment ago, so this may still be a call"
             case .screenBeingShared:      return "your screen is being shared"
             case .presentationFullscreen: return "something fullscreen looks like a presentation"
             case .focusModeActive:        return "a Focus mode is on"

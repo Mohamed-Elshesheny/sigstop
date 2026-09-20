@@ -31,6 +31,8 @@ enum Doctor {
         let sensors = SensorStack(settings: settings)
 
         sensors.audio.refresh()
+        sensors.camera.refresh()
+        sensors.audioProcesses.refresh()
         sensors.system.reconcile()
         sensors.frontmost.reconcile()
         sensors.permissions.refresh()
@@ -42,7 +44,8 @@ enum Doctor {
         out.append(contentsOf: headerSection(settings: settings))
         out.append(contentsOf: permissionSection(sensors.permissions.status()))
         out.append(contentsOf: signalSection(raw, sensors: sensors))
-        out.append(contentsOf: inferenceSection(sample))
+        out.append(contentsOf: callHoldSection(raw, settings: settings))
+        out.append(contentsOf: inferenceSection(sample, raw: raw, settings: settings))
         out.append(contentsOf: unavailableSection(raw))
         out.append(contentsOf: storageSection())
         out.append("")
@@ -125,6 +128,32 @@ enum Doctor {
         if let caveat = raw.audioCaveat {
             out.append("        \(caveat)")
         }
+        switch raw.audioProcesses.inputBundleIDs {
+        case .none:
+            row("0", "audio input, by app", "the process table could not be read, so the")
+            out.append("                              microphone bit above carries no attribution.")
+            out.append("                              That is reported as unknown, never as nobody.")
+        case .some(let holders) where holders.isEmpty:
+            row("0", "audio input, by app", "nobody. \(raw.audioProcesses.processCount) processes are known to")
+            out.append("                              CoreAudio and none of them is running input.")
+        case .some(let holders):
+            row("0", "audio input, by app", holders.sorted().joined(separator: ", "))
+            out.append("                              kAudioProcessPropertyIsRunningInput, per process object.")
+            out.append("                              No permission, no prompt. The bundle id is matched")
+            out.append("                              against a fixed list and discarded; nothing else about")
+            out.append("                              the process is read.")
+        }
+        row("0", "camera in use", cameraText(raw.camera))
+        for device in raw.cameraDevices {
+            out.append("                              \(device)")
+        }
+        out.append("                              kCMIODevicePropertyDeviceIsRunningSomewhere, a property")
+        out.append("                              read. No capture session is opened, no Camera permission")
+        out.append("                              is requested, and a read failure is reported as unknown")
+        out.append("                              here, never as no.")
+        if let caveat = raw.cameraCaveat {
+            out.append("        \(caveat)")
+        }
         row("0", "on battery", raw.power.onBattery ? "yes" : "no")
         row("0", "low power mode", raw.power.lowPowerMode ? "on" : "off")
         row("0", "thermal", raw.power.thermal.description)
@@ -150,7 +179,57 @@ enum Doctor {
         return out
     }
 
-    private static func inferenceSection(_ sample: ContextSample) -> [String] {
+    /// What the call latch would do with the signals above.
+    ///
+    /// `--doctor` is a separate process (`AppMain`) that builds a fresh `SensorStack`. It
+    /// therefore starts with the latch closed and **cannot** see the latch the running app
+    /// is holding. Printing "not holding" would be exactly the kind of lie this file
+    /// exists to prevent, so it prints what it can observe and what the latch would make
+    /// of it, and says which is which.
+    private static func callHoldSection(_ raw: RawSignals, settings: SigstopSettings) -> [String] {
+        let policy = BreakPolicy(settings: settings)
+        var out = [
+            "CALL HOLD",
+            "  This process starts with the latch closed and cannot see the running app's",
+            "  latch. Everything below is what --doctor can observe by itself, right now.",
+            "",
+        ]
+        out.append("  enabled              " + (settings.holdBreaksDuringCalls ? "yes" : "no, turned off in Settings"))
+        out.append("  arms after           \(Int(policy.latchArmDwell))s of continuous microphone or camera use")
+        let capture = raw.micLiveForLatch || raw.camera.contributesToMeeting
+        out.append("  capture live now     " + (capture ? "yes" : "no"))
+        let anchor = raw.attributedCallCapable ?? raw.frontmostCallCapable
+            ?? raw.callCapableRunning.first { $0.isConferencing }
+        out.append("  anchor it would take " + (anchor.map { "\($0.name) (\($0.bundleID))" }
+            ?? "none. A browser anchors a call only when the audio"))
+        if anchor == nil {
+            out.append("                       process table names it or it is frontmost, because a")
+            out.append("                       browser being open all day is not evidence of anything")
+        }
+        let base = Int(policy.latchFactHold / 60)
+        let extra = Int(policy.latchAnchorExtension / 60)
+        out.append("  hold it would give   \(base)m unconditionally"
+            + (anchor == nil ? "" : ", plus \(extra)m more while that app keeps running,"))
+        if anchor != nil {
+            out.append("                       dropping to \(Int(policy.latchAnchorQuitHold))s the moment it quits")
+        }
+        out.append("  ceilings             \(Int(policy.latchEpisodeCeiling / 60))m of holding per call, "
+            + "\(Int(policy.latchDailyCeiling / 3600))h per day, then it stops")
+        out.append("                       holding and says so in the menu")
+        out.append("  call-capable running " + (raw.callCapableRunning.isEmpty
+            ? "none" : raw.callCapableRunning.map(\.name).joined(separator: ", ")))
+        out.append("")
+        out.append("  What this is NOT: a meeting detector. The app cannot tell a call from a voice")
+        out.append("  memo. It knows only that a capture device on this machine was running, for how")
+        out.append("  long, and how long ago it stopped. It holds the break for a bounded time on")
+        out.append("  that basis and names the fact on screen the whole time.")
+        out.append("")
+        return out
+    }
+
+    private static func inferenceSection(
+        _ sample: ContextSample, raw: RawSignals, settings: SigstopSettings
+    ) -> [String] {
         let context = sample.context
         var out = ["INFERENCE"]
 
@@ -187,17 +266,39 @@ enum Doctor {
         }
 
         out.append("")
+        out.append("  MEETING INFERENCE  (separate from the call hold above, and weaker)")
+        out.append("    in a meeting       \(context.concurrent.inMeeting ? "yes" : "no")")
+        out.append(String(format: "    meeting confidence %.2f", context.concurrent.meetingConfidence.value))
+        out.append(String(
+            format: "    tier 0 ceiling     %.2f     specific-claim threshold  %.2f",
+            ConfidenceEngine.tier0Ceiling, Confidence.specificClaimThreshold.value
+        ))
+        out.append("    The ceiling sits below the threshold, so the meeting INFERENCE can never")
+        out.append("    fire without Accessibility, however much evidence accumulates. It would")
+        out.append("    only ever have postponed a prompt, never blocked one. The call hold above")
+        out.append("    needs none of it and works with zero permissions granted.")
+
+        out.append("")
         out.append("  PROMPTS")
-        switch sample.gate {
-        case .allowed:
-            out.append("    allowed right now")
-        case .softDeferred(let reason):
-            out.append("    deferred, \(reason)")
-            out.append("    (a guess may delay a prompt. It may never suppress one.)")
-        case .hardBlocked(let reason):
-            out.append("    blocked, \(reason)")
+        /// The engine's own verdict, not the sensors-layer gate that used to be printed
+        /// here. The two can disagree, and after the call latch they will: the gate knows
+        /// nothing about it. Hard blocks depend only on the signals and on when the last
+        /// break ended, so this line is the truth. Soft deferrals and rate limits depend
+        /// on cycle state that lives in the running app and is not visible from here, so
+        /// they are not printed at all rather than printed wrong.
+        var signals = raw.systemSignals
+        signals.frontmostIsFullscreen = context.concurrent.fullscreen
+        let probe = EngineInput(
+            now: Date(), monotonic: 0, context: context, signals: signals, settings: settings
+        )
+        if let block = InterruptionPolicy(policy: BreakPolicy(settings: settings)).hardBlock(probe) {
+            out.append("    BLOCKED, \(AppModel.explain(.hardBlocked(block)) ?? block.rawValue)")
             out.append("    (an OS fact, not an inference. This is the only thing allowed to block.)")
+        } else {
+            out.append("    no hard block right now")
         }
+        out.append("    Computed in this process by calling InterruptionPolicy.hardBlock on the")
+        out.append("    signals above, not by asking the running app.")
         out.append("")
         return out
     }
@@ -222,8 +323,23 @@ enum Doctor {
             "                       be selected.",
             "  calendar             EventKit is declined outright. Reading it would mean every event",
             "                       title, attendee and location to answer one yes/no question.",
-            "  camera in use        No permission-free API. Reported as absent, never as false.",
-            "  screen being shared  Would need ScreenCaptureKit and the Screen Recording grant.",
+            "  screen being shared  No permission-free signal, and this is the weaker claim: I",
+            "                       looked and did not find one. CGDisplayIsCaptured, which the",
+            "                       design doc used to name, has been deprecated since macOS 10.9",
+            "                       and no longer compiles. CoreMediaIO enumerates no capture",
+            "                       device. ScreenCaptureKit needs the Screen Recording grant,",
+            "                       which this app does not request. CONSEQUENCE, said plainly:",
+            "                       the screenBeingShared hard block never fires. If you are",
+            "                       presenting, use \"I'm in a meeting\" in the menu.",
+            "  a call you never     If you joined muted with the camera off and never unmuted, no",
+            "  spoke in             capture fact ever happened and the latch cannot open. Nothing",
+            "                       at Tier 0 tells that apart from a Meet tab you forgot to",
+            "                       close. Use the menu.",
+            "  Google Meet in       Safari attributes page audio to com.apple.WebKit.GPU, which",
+            "  Safari               serves every WebKit client and so names no app. The latch can",
+            "                       still open from the unattributed device bit, but it cannot say",
+            "                       which app and gets the shorter hold. Meet in Chrome, Arc or",
+            "                       Brave is attributed properly.",
             "  Focus mode           No public API. Passed to the engine as nil, which the policy",
             "                       distinguishes from false, rather than assumed off.",
             "  battery percentage   Not read. Charging state is, and it is permission-free.",
@@ -266,6 +382,15 @@ enum Doctor {
     }
 
     // MARK: Small renderings
+
+    private static func cameraText(_ state: CameraInputState) -> String {
+        switch state {
+        case .running:        return "a camera IS running, treated as a possible call"
+        case .notRunning:     return "no camera device is running"
+        case .noCameraDevice: return "this Mac has no camera device, or none could be read"
+        case .unreliable:     return "DISABLED on this Mac, the signal never turns off"
+        }
+    }
 
     private static func audioText(_ state: AudioInputState) -> String {
         switch state {

@@ -57,7 +57,7 @@ struct MenuBarIcon: View {
     private var level: Double {
         switch indicator {
         case .onBreak: return 0
-        case .breakDue, .escalating: return 1
+        case .breakDue, .escalating, .held: return 1
         default: return min(1, max(0, fraction))
         }
     }
@@ -77,6 +77,7 @@ struct MenuBarIcon: View {
         case .working:    return "sigstop, working"
         case .breakDue:   return "sigstop, a break is due"
         case .escalating: return "sigstop, a break is overdue"
+        case .held:       return "sigstop, a break is due and being held for a call"
         case .onBreak:    return "sigstop, on a break"
         case .idle:       return "sigstop, idle"
         case .quiet:      return "sigstop, quiet"

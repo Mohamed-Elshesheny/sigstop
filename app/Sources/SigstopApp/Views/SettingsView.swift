@@ -190,6 +190,12 @@ struct SettingsView: View {
                 SettingRow("Suggest something to do", detail: "A small, finishable nudge to leave the chair.") {
                     TerminalSwitch(isOn: settings.breakQuestsEnabled)
                 }
+                SettingRow(
+                    "Hold my break during calls",
+                    detail: "After a microphone or camera stops, hold the prompt for up to 20 minutes in case you only muted. A live microphone or camera still blocks it either way; that is a fact and this switch does not touch it."
+                ) {
+                    TerminalSwitch(isOn: settings.holdBreaksDuringCalls)
+                }
             }
 
             SettingsSection("system") {

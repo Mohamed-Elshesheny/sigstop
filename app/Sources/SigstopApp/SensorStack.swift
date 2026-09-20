@@ -22,6 +22,8 @@ struct SensorStack {
     let frontmost: FrontmostAppCollector
     let system: SystemStateCollector
     let audio: AudioDeviceCollector
+    let camera: CameraDeviceCollector
+    let audioProcesses: AudioProcessCollector
     let accessibility: AccessibilityCollector
     let idle: IdleCollector
     let context: ContextEngine
@@ -31,6 +33,8 @@ struct SensorStack {
         let frontmost = FrontmostAppCollector(time: time)
         let system = SystemStateCollector(time: time)
         let audio = AudioDeviceCollector(time: time)
+        let camera = CameraDeviceCollector(time: time)
+        let audioProcesses = AudioProcessCollector(time: time)
         let accessibility = AccessibilityCollector()
         let idle = IdleCollector()
 
@@ -39,6 +43,8 @@ struct SensorStack {
         self.frontmost = frontmost
         self.system = system
         self.audio = audio
+        self.camera = camera
+        self.audioProcesses = audioProcesses
         self.accessibility = accessibility
         self.idle = idle
         self.context = ContextEngine(
@@ -53,6 +59,23 @@ struct SensorStack {
         )
     }
 
+    /// The two collectors the context engine does not own. Both are permission-free and
+    /// both are event-driven, so this is registration, not polling.
+    func startExtraCollectors() {
+        camera.start()
+        audioProcesses.start()
+    }
+
+    func stopExtraCollectors() {
+        camera.stop()
+        audioProcesses.stop()
+    }
+
+    func refreshExtraCollectors() {
+        camera.refresh()
+        audioProcesses.refresh()
+    }
+
     /// Read every Tier 0 collector at one instant.
     ///
     /// Grouped into a value so the model and the doctor cannot drift into asking the
@@ -63,6 +86,10 @@ struct SensorStack {
             power: system.powerState(),
             audio: audio.state(),
             audioCaveat: audio.unreliabilityExplanation(),
+            camera: camera.state(),
+            cameraCaveat: camera.unreliabilityExplanation(),
+            cameraDevices: camera.devices(),
+            audioProcesses: audioProcesses.snapshot(),
             input: idle.read(),
             frontmost: frontmost.snapshot(),
             systemAsleep: system.isSystemAsleep,
@@ -77,6 +104,12 @@ struct RawSignals: Sendable {
     let power: PowerState
     let audio: AudioInputState
     let audioCaveat: String?
+    let camera: CameraInputState
+    let cameraCaveat: String?
+    /// Device names, for `--doctor`. Never anything a camera saw.
+    let cameraDevices: [String]
+    /// Which processes have the microphone, when CoreAudio's process table could be read.
+    let audioProcesses: AudioProcessSnapshot
     let input: InputActivity
     let frontmost: FrontmostSnapshot
     let systemAsleep: Bool
@@ -88,9 +121,11 @@ struct RawSignals: Sendable {
     /// a permission this app refuses to request* (docs/PRIVACY.md §3.3). Each one is
     /// named in `--doctor` with the reason, rather than being quietly reported as absent:
     ///
-    ///   * `cameraRunning`, no permission-free API; the camera-in-use bit requires
-    ///     either a capture session or a private symbol.
     ///   * `displayCaptured`, would need ScreenCaptureKit and the Screen Recording grant.
+    ///     `CGDisplayIsCaptured`, which docs/BREAK-DECISION.md used to name as the
+    ///     source, has been deprecated since macOS 10.9 and no longer compiles, and
+    ///     CoreMediaIO enumerates no display-capture device. Consequence, said out loud
+    ///     in `--doctor`: `HardBlock.screenBeingShared` cannot fire.
     ///   * `focusModeActive`, `nil`, which the policy already distinguishes from `false`:
     ///     the only public route is the Focus status Shortcuts action, not an API.
     ///   * `frontmostIsPresentationApp`, depends on a window title (Tier 1) we may not
@@ -101,10 +136,52 @@ struct RawSignals: Sendable {
     /// `frontmostIsFullscreen` is left false here and filled in by the caller from the
     /// window-geometry hint the context engine already computed, so the geometry API is
     /// asked once per sample rather than twice.
+    /// Call-capable apps running right now, folded to canonical apps.
+    var callCapableRunning: [CallCapableApp] {
+        CallCapableApps.resolve(frontmost.runningBundleIDs)
+    }
+
+    /// The call-capable app CoreAudio attributes microphone input to, when the process
+    /// table could be read and it named one. This is the latch's best anchor, and the
+    /// only route by which a browser can anchor a call without being frontmost.
+    var attributedCallCapable: CallCapableApp? {
+        guard let holders = audioProcesses.inputBundleIDs else { return nil }
+        return CallCapableApps.resolve(holders).first
+    }
+
+    var frontmostCallCapable: CallCapableApp? {
+        frontmost.frontmost.bundleID.flatMap(CallCapableApps.match)
+    }
+
+    /// Is a microphone live *for the purposes of the call latch*?
+    ///
+    /// Deliberately not the same question as `SystemSignals.audioInputRunning`, which is
+    /// left exactly as it was. Attribution is used here in three narrow ways and nowhere
+    /// else:
+    ///
+    ///  * a call-capable app holding input counts even when the device signal has been
+    ///    downgraded to `.unreliable`. On a Krisp or Loopback Mac that downgrade
+    ///    currently switches meeting detection off completely, mic live or not, which is
+    ///    the worst gap in the whole feature;
+    ///  * a readable-and-empty process table is evidence of *absence*, so a device left
+    ///    open by nobody does not arm the latch;
+    ///  * a table in which the only holders are Siri and dictation does not arm it either.
+    ///
+    /// When the table cannot be read at all, this falls back to the unattributed device
+    /// bit, which is what the app has always used.
+    var micLiveForLatch: Bool {
+        guard let holders = audioProcesses.inputBundleIDs else {
+            return audio.contributesToMeeting
+        }
+        if !CallCapableApps.resolve(holders).isEmpty { return true }
+        guard audio.contributesToMeeting else { return false }
+        return holders.contains { !CallCapableApps.isNeverAMeeting($0) }
+    }
+
     var systemSignals: SystemSignals {
         SystemSignals(
             audioInputRunning: audio.contributesToMeeting,
-            cameraRunning: false,
+            cameraRunning: camera.contributesToMeeting,
             displayCaptured: false,
             screenLocked: session.screenLocked,
             systemSleeping: systemAsleep || session.displaysAsleep,
