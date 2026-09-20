@@ -47,6 +47,7 @@ enum Doctor {
         out.append(contentsOf: callHoldSection(raw, settings: settings))
         out.append(contentsOf: inferenceSection(sample, raw: raw, settings: settings))
         out.append(contentsOf: unavailableSection(raw))
+        out.append(contentsOf: outlookSection(settings: settings))
         out.append(contentsOf: storageSection())
         out.append("")
         return out
@@ -362,6 +363,52 @@ enum Doctor {
             "                       omitted by macOS without Screen Recording, and are not wanted.",
             "",
         ]
+    }
+
+    /// "Why has it not prompted me", answered without anyone reading JSON.
+    ///
+    /// This section exists because that question had no answer. The owner watched a panel
+    /// read RUNNING for eighteen minutes against a five minute interval; the real cause,
+    /// a dismissed prompt that re-armed the engine twenty minutes late, was recoverable
+    /// only by noticing that the gap between two cycles was exactly `rearmAfterSkip` minus
+    /// the work interval. A `--doctor` that cannot answer the app's own central question
+    /// is not doing the job §4.1 gives it.
+    ///
+    /// It reads the log rather than the running engine, because `--doctor` is a separate
+    /// process from the menu bar app and pretending otherwise would be the same class of
+    /// lie the rest of this file exists to avoid.
+    private static func outlookSection(settings: SigstopSettings) -> [String] {
+        var out = ["WHY IT HAS NOT PROMPTED YOU"]
+        let policy = BreakPolicy(settings: settings)
+        guard
+            let store = try? FileEventStore(root: AppPaths.storageRoot),
+            let events = try? loadToday(store: store, policy: policy)
+        else {
+            out.append("  The event log could not be read, so this cannot be answered honestly.")
+            out.append("")
+            return out
+        }
+
+        let outlook = PromptOutlook.read(
+            events: events, now: Date(), policy: policy, calendar: .current
+        )
+        out.append("  \(outlook.headline)")
+        for line in outlook.detail { out.append("    \(line)") }
+        out.append("")
+        out.append("  Read from \(AppPaths.storageRoot.path)/events, not from the running app:")
+        out.append("  --doctor is a separate process and cannot see the menu bar app's state.")
+        out.append("")
+        return out
+    }
+
+    /// A logical day straddles up to three UTC files, so all three are read and merged.
+    private static func loadToday(store: FileEventStore, policy: BreakPolicy) throws -> [LoggedEvent] {
+        let today = CalendarDay.local(
+            of: Date(), calendar: .current, boundaryHour: policy.dayBoundaryHour
+        )
+        return [today.adding(days: -1), today, today.adding(days: 1)]
+            .flatMap { (try? store.load(day: $0).events) ?? [] }
+            .sorted { $0.at < $1.at }
     }
 
     private static func storageSection() -> [String] {
