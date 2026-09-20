@@ -329,6 +329,20 @@ final class AppModel {
     func takeBreakNow() { enqueue(.startBreakNow) }
     func acceptBreak() { enqueue(.acceptBreak) }
     func snooze() { enqueue(.snooze) }
+
+    /// SIGTSTP, caught. The prompt goes off the screen and the engine is told **nothing**.
+    ///
+    /// This is what ignoring means in this codebase: the prompt stands, times out after
+    /// `promptTimeout`, is recorded as `ignored`, and the ladder climbs. It is the cheap
+    /// answer and it costs the user nothing they cannot undo by waiting ninety seconds.
+    ///
+    /// Escape and the button that says "Ignore it" used to call `skip()` instead, which
+    /// is the most expensive response in the state machine: it ends the cycle and buys
+    /// twenty minutes of silence. A control labelled ignore that does not ignore is how
+    /// the 20:06:51Z incident started.
+    func ignorePrompt() { overlay.dismissPromptPanel() }
+
+    /// A deliberate no. Ends this opportunity and re-arms twenty minutes late.
     func skip() { enqueue(.skip) }
     func endBreak() { enqueue(.endBreak) }
     func pause(for duration: TimeInterval) { enqueue(.pauseApp(duration)) }

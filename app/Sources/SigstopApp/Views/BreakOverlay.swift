@@ -164,7 +164,7 @@ final class BreakOverlayController {
             )
             panel.onCancel = { [weak model, weak self] in
                 self?.dismissPromptPanel()
-                model?.skip()
+                model?.ignorePrompt()
             }
             panel.isOpaque = false
             panel.backgroundColor = .clear
@@ -180,7 +180,8 @@ final class BreakOverlayController {
                     request: request,
                     message: message,
                     onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
-                    onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
+                    onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
+                    onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
                 )
             )
             hosting.sizingOptions = []
@@ -360,15 +361,26 @@ struct BreakOverlayView: View {
 /// monospaced buttons. The signal is amber at levels 1–3 and red at level 4, which is
 /// the only red in the product, `SIGSTOP` is the one rung that cannot be ignored, and
 /// the colour says so once.
-/// The prompt, full screen on every display.
+/// The prompt.
 ///
-/// Two choices only. A third option is a third decision to make while the whole point is
-/// that deciding is what you have been avoiding for fifty minutes.
+/// This used to be two choices, "Take it" and "Ignore it", and the second one was a lie:
+/// it called `skip()`, which is the most expensive response the state machine has. It
+/// ends the opportunity and re-arms twenty minutes late. Escape did the same, with no
+/// confirmation, no undo and, until recently, no log line. A prompt reflexively waved off
+/// inside one tick therefore bought twenty minutes of silence the user never asked for
+/// and could not see.
+///
+/// So there are three now, and the extra one is the difference between "later" and "no",
+/// which is exactly the distinction that was erased. `Not now` is free: the prompt stands
+/// in the engine, times out after ninety seconds and escalates, which is what CLAUDE.md
+/// §0 means by a rung you are allowed to ignore. `Skip it` is the deliberate no, and it
+/// says so.
 struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage
     let onTake: () -> Void
     let onIgnore: () -> Void
+    let onSkip: () -> Void
 
     private var isIncident: Bool { request.level == .incident }
 
@@ -414,12 +426,14 @@ struct FallbackPromptView: View {
                 HStack(spacing: 14) {
                     TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
                         .fixedSize()
-                    TerminalButton("Ignore it", action: onIgnore)
+                    TerminalButton("Not now", action: onIgnore)
+                        .fixedSize()
+                    TerminalButton("Skip it · 20m", style: .quiet, action: onSkip)
                         .fixedSize()
                 }
                 .padding(.top, 44)
 
-                Text("esc to ignore")
+                Text("esc for not now, it comes back in 90 seconds")
                     .font(Brand.mono(11))
                     .foregroundStyle(Brand.Dark.fgFaint)
                     .padding(.top, 18)
