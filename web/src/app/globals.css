@@ -1,21 +1,91 @@
 @import "tailwindcss";
 
 /* ──────────────────────────────────────────────────────────────────────────
-   sigstop — design tokens
+   sigstop, design tokens
 
    The palette is derived from the metaphor, not chosen for decoration.
    A process is either RUNNING or it is in state T (suspended). Those two
    states are the entire product, so they get the two signal colours, and
    everything else stays neutral so they can carry meaning.
 
-     running   — green, the terminal's own "this is alive" colour
-     suspended — amber, a held job; also CRT amber, which reads as a terminal
+     running  , green, the terminal's own "this is alive" colour
+     suspend  , amber, a held job; also CRT amber, which reads as a terminal
                  without resorting to a fake scanline filter
-     alert     — red, used ONLY at escalation L4. If it is everywhere it is
+     alert    , red, used ONLY at escalation L4. If it is everywhere it is
                  nowhere.
+
+   THEMING. @theme below holds the LIGHT values, so light is the base and the
+   dark palette is layered on top. Tailwind v4 compiles `bg-bg` to
+   `background-color: var(--color-bg)`, so overriding the variable under a
+   selector re-themes every utility at runtime with no duplicated classes.
+
+   Dark applies when the OS asks for it (unless the reader has explicitly
+   chosen light) or when data-theme="dark" is set. Both signal colours are
+   re-tuned per theme rather than reused: #f5a524 on white is a 2.1:1 contrast
+   failure, so light mode gets a deeper amber and pairs it with white text.
    ────────────────────────────────────────────────────────────────────────── */
 
 @theme {
+  /* ---- light (base) ---- */
+  --color-bg: #fbfbf9;
+  --color-bg-raised: #ffffff;
+  --color-surface: #f4f4f1;
+  --color-surface-hi: #e9e9e4;
+  --color-line: #e7e7e1;
+  --color-line-hi: #cfcfc7;
+
+  --color-fg: #17191c;
+  --color-fg-muted: #53585e;
+  --color-fg-faint: #6b7177;
+
+  --color-running: #15803d;
+  --color-running-ink: #146c34;
+  /* The brand amber stays VIVID as a fill in both themes, muting it to a
+     brown for contrast reasons loses the brand. Contrast is solved instead by
+     flipping the text drawn on top (--color-accent-fg) to near-black. */
+  --color-suspend: #f0a020;
+  /* Amber used as TEXT on the page background needs its own, darker value:
+     #f0a020 on #fbfbf9 is ~2:1 and unreadable. */
+  --color-suspend-ink: #8a4e00;
+  --color-alert: #c0322b;
+  --color-alert-ink: #a82820;
+  --color-accent-fg: #1b1206;
+
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --text-hero: clamp(2.75rem, 9vw, 7rem);
+  --text-section: clamp(2rem, 5vw, 3.5rem);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---- dark ---- */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #08090b;
+    --color-bg-raised: #0e1013;
+    --color-surface: #131619;
+    --color-surface-hi: #1a1e23;
+    --color-line: #21262d;
+    --color-line-hi: #2d343d;
+
+    --color-fg: #e8eaed;
+    --color-fg-muted: #9aa2ad;
+    --color-fg-faint: #656d78;
+
+    --color-running: #3fb950;
+    --color-running-ink: #3fb950;
+    --color-suspend: #f5a524;
+    --color-suspend-ink: #f5a524;
+    --color-alert: #f85149;
+    --color-alert-ink: #f85149;
+    --color-accent-fg: #000000;
+  }
+}
+
+:root[data-theme="dark"] {
   --color-bg: #08090b;
   --color-bg-raised: #0e1013;
   --color-surface: #131619;
@@ -28,29 +98,19 @@
   --color-fg-faint: #656d78;
 
   --color-running: #3fb950;
-  --color-running-dim: #1a4028;
+  --color-running-ink: #3fb950;
   --color-suspend: #f5a524;
-  --color-suspend-dim: #43320c;
+  --color-suspend-ink: #f5a524;
   --color-alert: #f85149;
-
-  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-
-  --text-hero: clamp(2.75rem, 9vw, 7rem);
-  --text-section: clamp(2rem, 5vw, 3.5rem);
-
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --color-alert-ink: #f85149;
+  --color-accent-fg: #000000;
 }
-
-/* Light mode is deliberately not offered.
-   This is a menu bar utility for people who keep their editor dark; a light
-   theme here would be a costume. The site respects the OS setting by simply
-   being dark either way, which is honest rather than half-supported. */
 
 html {
   scroll-behavior: smooth;
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
+  color-scheme: light dark;
 }
 
 body {
@@ -62,10 +122,10 @@ body {
 
 ::selection {
   background: var(--color-suspend);
-  color: #000;
+  color: var(--color-accent-fg);
 }
 
-/* Focus states must survive the dark palette — keyboard users are half this audience. */
+/* Focus states must survive BOTH palettes, keyboard users are half this audience. */
 :focus-visible {
   outline: 2px solid var(--color-suspend);
   outline-offset: 3px;
@@ -85,7 +145,7 @@ body {
 
   /* Scroll-reveal. Elements start hidden and are revealed by IntersectionObserver
      adding [data-visible]. Under reduced-motion they are simply visible from the
-     start — never animated-then-shown, which would flash. */
+     start, never animated-then-shown, which would flash. */
   .reveal {
     opacity: 0;
     transform: translateY(18px);

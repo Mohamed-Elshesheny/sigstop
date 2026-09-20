@@ -3,7 +3,7 @@
  *
  * Each entry mirrors what the real MessageEngine would produce for that context:
  * an inferred activity, an honest confidence, the evidence behind it, and a line
- * chosen for that situation. The confidences here are the same ones the app uses —
+ * chosen for that situation. The confidences here are the same ones the app uses ,
  * a browser with no window-title access really is only ~0.40, and the demo says so
  * rather than flattering itself.
  */
@@ -14,7 +14,7 @@ export type AppKey =
 export interface AppDemo {
   key: AppKey;
   name: string;
-  /** Monospace glyph used in place of a logo — we don't ship other people's marks. */
+  /** Monospace glyph used in place of a logo, we don't ship other people's marks. */
   glyph: string;
   accent: string;
   activity: string;
@@ -74,7 +74,7 @@ export const appDemos: AppDemo[] = [
     evidence: [
       "Frontmost app is iTerm2 (exact bundle id match)",
       "38 min continuous active input",
-      "Cannot distinguish building from scripting — reporting the parent class",
+      "Cannot distinguish building from scripting, so reporting the parent class",
     ],
     messages: [
       { tone: "friendly", text: "Whatever you're compiling can wait five minutes." },
@@ -130,7 +130,7 @@ export const appDemos: AppDemo[] = [
     minutes: 22,
     evidence: [
       "Frontmost app is Slack (exact bundle id match)",
-      "Microphone is NOT active — this is typing, not a call",
+      "Microphone is NOT active, so this is typing, not a call",
       "22 min continuous active input",
     ],
     messages: [
@@ -149,7 +149,7 @@ export const appDemos: AppDemo[] = [
     minutes: 34,
     evidence: [
       "Frontmost app is Docker Desktop (exact bundle id match)",
-      "Cannot tell building from waiting — reporting the parent class",
+      "Cannot tell building from waiting, so reporting the parent class",
     ],
     messages: [
       { tone: "friendly", text: "It's still building. That's a free five minutes, take it." },
@@ -168,7 +168,7 @@ export const appDemos: AppDemo[] = [
     evidence: [
       "Frontmost app is Figma (exact bundle id match)",
       "No reliable signal for what you're doing inside it",
-      "Below the confidence threshold — the app will NOT name an activity",
+      "Below the confidence threshold, so the app will NOT name an activity",
     ],
     messages: [
       { tone: "friendly", text: "29 minutes at the screen. No idea what you're doing in there, but it can wait." },
@@ -178,7 +178,7 @@ export const appDemos: AppDemo[] = [
   },
 ];
 
-/** Escalation ladder — POSIX does the writing for us. */
+/** Escalation ladder, POSIX does the writing for us. */
 export const escalation = [
   { signal: "SIGTSTP", level: 1, note: "Catchable. You're allowed to ignore this one.", text: "You've been going 45 minutes. Good a time as any." },
   { signal: "SIGINT", level: 2, note: "Catchable, but ignoring it is rude.", text: "Still going. Your chair is starting to think this arrangement is permanent." },

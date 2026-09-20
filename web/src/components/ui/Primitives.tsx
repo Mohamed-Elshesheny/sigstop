@@ -43,7 +43,7 @@ export function Button({
     "group inline-flex items-center justify-center gap-2 rounded-lg px-6 py-3.5 font-mono text-sm font-semibold transition-all duration-200";
   const styles =
     variant === "primary"
-      ? "bg-suspend text-black hover:bg-suspend/90 hover:-translate-y-0.5 active:translate-y-0"
+      ? "bg-suspend text-accent-fg hover:opacity-90 hover:-translate-y-0.5 active:translate-y-0"
       : "border border-line-hi text-fg hover:border-fg-faint hover:bg-surface";
   return (
     <a href={href} className={cn(base, styles, className)}>

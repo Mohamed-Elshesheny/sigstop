@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- This file is deliberately almost empty, and that IS the privacy architecture.
+
+	     Absent, and never to be added:
+	       com.apple.security.network.client     the app cannot open a connection
+	       com.apple.security.network.server     the app cannot listen
+	       com.apple.security.device.camera
+	       com.apple.security.device.audio-input mic STATE is read from CoreAudio
+	                                             without ever opening a stream
+
+	     Verify for yourself with the codesign entitlements flag, or run `make verify`.
+
+	     The App Sandbox is not enabled because Tier 1 (Accessibility reading window
+	     titles of other processes) is incompatible with it. That is a real trade-off,
+	     and docs/PRIVACY.md states it plainly rather than hiding it. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<false/>
+</dict>
+</plist>

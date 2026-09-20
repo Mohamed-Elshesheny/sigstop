@@ -7,7 +7,7 @@ import { StateDot } from "./Primitives";
  * A faithful mock of the app's menu bar dropdown.
  *
  * The numbers shown are the real fields the app tracks. The "why" list is the
- * evidence trail — the product's rule is that it must always be able to answer
+ * evidence trail, the product's rule is that it must always be able to answer
  * "why do you think that?", so the UI shows its reasoning rather than asserting.
  */
 export function MenuBarPanel({
@@ -25,7 +25,7 @@ export function MenuBarPanel({
   const pct = Math.round(confidence * 100);
 
   return (
-    <div className="w-full max-w-[340px] overflow-hidden rounded-xl border border-line-hi bg-bg-raised shadow-2xl shadow-black/60">
+    <div className="w-full max-w-[340px] overflow-hidden rounded-xl border border-line-hi bg-bg-raised shadow-2xl shadow-fg/10">
       {/* fake menu bar strip */}
       <div className="flex items-center justify-end gap-3 border-b border-line bg-surface px-3 py-1.5">
         <span className="font-mono text-[10px] text-fg-faint">100%</span>
@@ -47,7 +47,7 @@ export function MenuBarPanel({
         <div className="mt-2 flex items-baseline gap-2">
           <span
             className="font-mono text-4xl font-bold tabular-nums tracking-tight"
-            style={{ color: due ? "var(--color-suspend)" : "var(--color-fg)" }}
+            style={{ color: due ? "var(--color-suspend-ink)" : "var(--color-fg)" }}
           >
             {String(Math.floor(minutes / 60)).padStart(2, "0")}:{String(minutes % 60).padStart(2, "0")}
           </span>
@@ -58,7 +58,7 @@ export function MenuBarPanel({
         <div className="mt-3 h-1 overflow-hidden rounded-full bg-surface-hi">
           <div
             className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${fill * 100}%`, background: due ? "var(--color-suspend)" : "var(--color-running)" }}
+            style={{ width: `${fill * 100}%`, background: due ? "var(--color-suspend-ink)" : "var(--color-running)" }}
           />
         </div>
 
@@ -73,7 +73,7 @@ export function MenuBarPanel({
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-fg-faint">confidence</dt>
-            <dd style={{ color: confidence >= 0.6 ? "var(--color-running)" : "var(--color-suspend)" }}>
+            <dd style={{ color: confidence >= 0.6 ? "var(--color-running)" : "var(--color-suspend-ink)" }}>
               {confidence.toFixed(2)}
               <span className="ml-1 text-fg-faint">({pct}%)</span>
             </dd>

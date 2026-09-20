@@ -3,7 +3,7 @@
  * and so no component has to be edited to fix a sentence.
  *
  * Voice: deadpan accomplice. The app is on your side and funny about it.
- * It is NOT a warden. "Cannot be ignored" is a bluff the reader is in on —
+ * It is NOT a warden. "Cannot be ignored" is a bluff the reader is in on ,
  * a menu bar app cannot suspend anyone, and the copy never pretends otherwise.
  *
  * Hard rules (CLAUDE.md §4.5):
@@ -19,7 +19,7 @@ export const site = {
   repo: "https://github.com/sigstop/sigstop",
   tagline: "Suspend. Resume. Nothing lost.",
   description:
-    "An open-source macOS menu bar app that notices what you're actually working on and tells you to step away — in a language you'll recognise.",
+    "An open-source macOS menu bar app that notices what you're actually working on and tells you to step away, in a language you'll recognise.",
 } as const;
 
 export const nav = [
@@ -32,7 +32,7 @@ export const nav = [
 export const hero = {
   eyebrow: "open source · macOS · local-first",
   headline: ["You're a developer.", "Not a server."],
-  sub: "You spend your day debugging, reviewing PRs, arguing with an AI, and staring at the same forty lines. sigstop watches your workflow — never your code — and works out when it's actually a good moment to stop.",
+  sub: "You spend your day debugging, reviewing PRs, arguing with an AI, and staring at the same forty lines. sigstop watches your workflow, never your code, and works out when it's actually a good moment to stop.",
   primaryCta: "Download for macOS",
   secondaryCta: "View on GitHub",
   note: "Free forever. No account. No telemetry. Works with zero permissions granted.",
@@ -47,7 +47,7 @@ export const namePitch = {
   kicker: "Why sigstop",
   lines: [
     { sig: "SIGSTOP", desc: "The one signal a process cannot catch, block, or ignore." },
-    { sig: "SIGCONT", desc: "Resumes it exactly where it left off. Registers, memory, open files — all intact." },
+    { sig: "SIGCONT", desc: "Resumes it exactly where it left off. Registers, memory, open files, all intact." },
   ],
   punch: "That's what a break is. It isn't a restart.",
   body: "You don't avoid breaks because you're busy. You avoid them because you're holding something fragile in your head and you're afraid of dropping it. Stopping doesn't drop it.",
@@ -119,16 +119,16 @@ export const notPomodoro = {
       "Is the mic live? Screen shared? Fullscreen?",
       "Wait for a natural seam",
       "Say something worth reading",
-      "SIGCONT — back to work",
+      "SIGCONT, back to work",
     ],
-    note: "If the microphone is on, it does not fire. Not \"fires quietly\" — does not fire.",
+    note: "If the microphone is on, it does not fire. Not \"fires quietly\". Does not fire.",
   },
 } as const;
 
 export const beforeAfter = {
   kicker: "Same work, redistributed",
   headline: "It's the same eight hours.",
-  sub: "This isn't a productivity claim and it isn't a health claim. It's a shape. The work gets done either way — one version just has seams in it.",
+  sub: "This isn't a productivity claim and it isn't a health claim. It's a shape. The work gets done either way. One version just has seams in it.",
   before: {
     title: "Without",
     items: [
@@ -145,12 +145,12 @@ export const beforeAfter = {
     title: "With sigstop",
     items: [
       { t: "09:00", label: "Start", tone: "work" },
-      { t: "09:45", label: "SIGTSTP — a good seam", tone: "break" },
+      { t: "09:45", label: "SIGTSTP, a good seam", tone: "break" },
       { t: "09:50", label: "SIGCONT", tone: "work" },
       { t: "10:35", label: "SIGTSTP", tone: "break" },
       { t: "10:40", label: "SIGCONT", tone: "work" },
-      { t: "11:25", label: "Skipped — you're on a call", tone: "held" },
-      { t: "11:50", label: "SIGTSTP — call ended", tone: "break" },
+      { t: "11:25", label: "Skipped, you're on a call", tone: "held" },
+      { t: "11:50", label: "SIGTSTP, call ended", tone: "break" },
     ],
   },
   disclaimer:
@@ -160,7 +160,7 @@ export const beforeAfter = {
 export const privacy = {
   kicker: "Privacy",
   headline: "Your code stays yours.",
-  sub: "You're going to read the source before you run this. Good — that's the point. Here is exactly what it touches, and why you don't have to take our word for any of it.",
+  sub: "You're going to read the source before you run this. Good. That's the point. Here is exactly what it touches, and why you don't have to take our word for any of it.",
   sees: {
     title: "What it reads",
     items: [
@@ -199,10 +199,10 @@ export const privacy = {
 export const openSource = {
   kicker: "Open source",
   headline: "Built in the open.",
-  sub: "MIT licensed. No paid tier, no \"pro\" version withholding the useful half, no account to create. If it's useful, star it. If it's wrong, open an issue. If you have a better joke, open a PR — the message corpus is a JSON file.",
+  sub: "Apache-2.0 licensed. No paid tier, no \"pro\" version withholding the useful half, no account to create. If it's useful, star it. If it's wrong, open an issue. If you have a better joke, open a PR, because the message corpus is a plain JSON file.",
   cards: [
     { title: "Read the architecture", body: "Four design documents written before a line of Swift. The activity detection doc is honest about what macOS will and won't let an app know.", cta: "docs/", href: "https://github.com/sigstop/sigstop/tree/main/docs" },
-    { title: "Add your editor", body: "Support for a new app is one provider file and a bundle id. It requires zero changes to core code — if it did, the extension point would be wrong.", cta: "Providers", href: "https://github.com/sigstop/sigstop/tree/main/app/Sources/SigstopSensors/Providers" },
+    { title: "Add your editor", body: "Support for a new app is one provider file and a bundle id. It requires zero changes to core code. If it did, the extension point would be wrong.", cta: "Providers", href: "https://github.com/sigstop/sigstop/tree/main/app/Sources/SigstopSensors/Providers" },
     { title: "Write a better line", body: "The corpus is plain JSON with structured preconditions. Contribute a joke that only fires when someone's been in Xcode for 90 minutes on a Friday.", cta: "corpus.json", href: "https://github.com/sigstop/sigstop/blob/main/app/Sources/SigstopCore/Message/corpus.json" },
   ],
   ctaPrimary: "Star on GitHub",
@@ -233,7 +233,7 @@ export const footer = {
   blurb: "An open-source macOS menu bar app for developers who forget to stop.",
   columns: [
     { title: "Product", links: [ { label: "Download", href: "#download" }, { label: "How it works", href: "#how-it-works" }, { label: "Privacy", href: "#privacy" }, { label: "Changelog", href: "https://github.com/sigstop/sigstop/releases" } ] },
-    { title: "Source", links: [ { label: "GitHub", href: "https://github.com/sigstop/sigstop" }, { label: "Architecture docs", href: "https://github.com/sigstop/sigstop/tree/main/docs" }, { label: "Contributing", href: "https://github.com/sigstop/sigstop/blob/main/CONTRIBUTING.md" }, { label: "License (MIT)", href: "https://github.com/sigstop/sigstop/blob/main/LICENSE" } ] },
+    { title: "Source", links: [ { label: "GitHub", href: "https://github.com/sigstop/sigstop" }, { label: "Architecture docs", href: "https://github.com/sigstop/sigstop/tree/main/docs" }, { label: "Contributing", href: "https://github.com/sigstop/sigstop/blob/main/CONTRIBUTING.md" }, { label: "License (Apache-2.0)", href: "https://github.com/sigstop/sigstop/blob/main/LICENSE" } ] },
   ],
   colophon: "No analytics on this page either. It would have been a strange thing to do.",
 } as const;

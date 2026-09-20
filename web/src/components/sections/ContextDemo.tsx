@@ -140,7 +140,7 @@ export function ContextDemo() {
                 </span>
               </div>
 
-              {/* the evidence trail — the product's core promise made visible */}
+              {/* the evidence trail, the product's core promise made visible */}
               <div className="mt-7 border-t border-line pt-5">
                 <p className="mb-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-fg-faint">
                   why it thinks that
@@ -155,7 +155,7 @@ export function ContextDemo() {
                 </ul>
               </div>
 
-              {/* the honesty case — this is the section's real argument */}
+              {/* the honesty case, this is the section's real argument */}
               {!confident && (
                 <p className="mt-5 rounded-lg border border-suspend/25 bg-suspend/[0.06] px-4 py-3 font-mono text-[11px] leading-relaxed text-suspend">
                   Below the confidence threshold, so it refuses to name an activity. Claiming

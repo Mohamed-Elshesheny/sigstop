@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- sigstop mark: two terminal block bars, the glyph for a suspended job.
+       At 16px the fill level is illegible, so the tab icon shows both bars
+       solid and leaves the filling animation to the menu bar and the site. -->
+  <rect width="32" height="32" rx="7" fill="#08090b"/>
+  <rect x="9"  y="8" width="5.5" height="16" rx="1.4" fill="#f5a524"/>
+  <rect x="17.5" y="8" width="5.5" height="16" rx="1.4" fill="#f5a524"/>
+</svg>

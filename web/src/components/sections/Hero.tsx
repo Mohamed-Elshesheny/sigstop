@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { hero, namePitch, site } from "@/content/copy";
 import { MenuBarPanel } from "../ui/MenuBarPanel";
+import { PixelDev } from "../ui/PixelDev";
 import { Button } from "../ui/Primitives";
 
 export function Hero() {
-  // The session clock ticks so the icon visibly fills — the mark is the timer,
+  // The session clock ticks so the icon visibly fills, the mark is the timer,
   // and a static screenshot would not show that. Starts near the threshold so a
   // visitor sees the interesting part within a few seconds rather than in 45 min.
   const [minutes, setMinutes] = useState(41);
@@ -33,7 +34,7 @@ export function Hero() {
           {hero.eyebrow}
         </p>
 
-        {/* Full-bleed headline. Both statements need to land on their own line —
+        {/* Full-bleed headline. Both statements need to land on their own line ,
             orphaning "Not a" above "server." breaks the rhythm of the joke. */}
         <h1 className="font-mono text-[length:var(--text-hero)] font-bold leading-[0.92] tracking-[-0.045em]">
           <span className="block">{hero.headline[0]}</span>
@@ -89,11 +90,23 @@ export function Hero() {
               evidence={[
                 "Frontmost app is Cursor (exact bundle id match)",
                 `${minutes} min continuous active input`,
-                "Microphone is not active — you're not on a call",
+                "Microphone is not active, you're not on a call",
               ]}
             />
-            <p className="mt-4 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
-              Live. The bars fill as the session does.
+            {/* The character is driven by the same clock as the panel, so the
+                posture and the timer are never telling different stories. */}
+            <div className="mt-6 flex items-end justify-center gap-4">
+              <PixelDev
+                state={minutes >= 46 ? "stretching" : minutes >= 44 ? "slumped" : "typing"}
+                className="h-28 w-40"
+              />
+            </div>
+            <p className="mt-3 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
+              {minutes >= 46
+                ? "SIGCONT. Back in five, nothing lost."
+                : minutes >= 44
+                  ? "Posture degrading. The timer has noticed."
+                  : "Live. The bars fill as the session does."}
             </p>
           </div>
         </div>

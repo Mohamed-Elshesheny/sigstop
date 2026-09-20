@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { nav, site, hero } from "@/content/copy";
 import { MenuBarIcon } from "./ui/MenuBarIcon";
+import { ThemeToggle } from "./ui/ThemeToggle";
 import { cn } from "@/lib/cn";
 
 export function Nav() {
@@ -42,6 +43,7 @@ export function Nav() {
         </ul>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <a
             href={site.repo}
             className="hidden rounded-lg border border-line-hi px-4 py-2 font-mono text-[13px] text-fg-muted transition-colors hover:border-fg-faint hover:text-fg sm:block"
@@ -50,7 +52,7 @@ export function Nav() {
           </a>
           <a
             href="#download"
-            className="rounded-lg bg-suspend px-4 py-2 font-mono text-[13px] font-semibold text-black transition-opacity hover:opacity-90"
+            className="rounded-lg bg-suspend px-4 py-2 font-mono text-[13px] font-semibold text-accent-fg transition-opacity hover:opacity-90"
           >
             {hero.primaryCta.replace(" for macOS", "")}
           </a>

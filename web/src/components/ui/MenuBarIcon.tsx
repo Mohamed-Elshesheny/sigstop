@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
  * The product mark: two terminal block bars.
  *
  * The bars are hollow while the session is young and fill from the bottom as
- * continuous work accrues — so the icon IS the timer rather than decoration
+ * continuous work accrues, so the icon IS the timer rather than decoration
  * sitting next to one. At 100% it flips to the suspend colour, which is the
  * only moment it ever changes colour.
  *

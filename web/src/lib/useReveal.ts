@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
  * Scroll reveal via IntersectionObserver.
  *
  * Deliberately not a motion library. The whole effect is ~20 lines and adding a
- * dependency for it would violate the project's own dependency rule — on a page
+ * dependency for it would violate the project's own dependency rule, on a page
  * that makes a point about restraint, that matters.
  *
  * Under prefers-reduced-motion the element is reported visible immediately, so
