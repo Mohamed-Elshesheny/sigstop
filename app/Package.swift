@@ -61,6 +61,14 @@ let package = Package(
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // Scripted days against the real engine. Not a test target on purpose: its output
+        // is a timeline a person reads, and it is meant to be run and looked at when the
+        // question is "when does this actually prompt", which no assertion answers well.
+        .executableTarget(
+            name: "Scenarios",
+            dependencies: ["SigstopCore"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         .testTarget(
             name: "SigstopCoreTests",
             dependencies: ["SigstopCore"],
