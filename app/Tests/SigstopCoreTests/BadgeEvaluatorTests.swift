@@ -73,7 +73,7 @@ private enum Fix {
     ) -> [LoggedEvent] {
         let id = CycleID(rawValue: cycle)
         return [
-            .breakPrompt(at: promptedAt, cycle: id, reason: "SIGTSTP"),
+            .breakPrompt(at: promptedAt, cycle: id, reason: .sigtstp),
             .breakBegin(at: promptedAt.addingTimeInterval(afterSeconds), origin: .accepted, cycle: id),
         ]
     }
@@ -204,7 +204,7 @@ struct ReflexBadgeTests {
         let days = (1...5).map { n -> BadgeDay in
             let cycle = CycleID(rawValue: n)
             return Fix.events(n, [
-                .breakPrompt(at: Fix.at(n, 10), cycle: cycle, reason: "SIGTSTP", deferred: "meeting"),
+                .breakPrompt(at: Fix.at(n, 10), cycle: cycle, reason: .sigtstp, deferred: .inferredMeeting),
                 .breakBegin(at: Fix.at(n, 10, 0, 3), origin: .accepted, cycle: cycle),
             ])
         }
@@ -216,7 +216,7 @@ struct ReflexBadgeTests {
         let days = (1...5).map { n -> BadgeDay in
             let cycle = CycleID(rawValue: n)
             return Fix.events(n, [
-                .breakPrompt(at: Fix.at(n, 10), cycle: cycle, reason: "SIGTSTP"),
+                .breakPrompt(at: Fix.at(n, 10), cycle: cycle, reason: .sigtstp),
                 .breakBegin(at: Fix.at(n, 10, 0, 3), origin: .idleInferred, cycle: cycle),
             ])
         }
@@ -233,8 +233,8 @@ struct SigstopBadgeTests {
     func reaching_sigstop() {
         let ledger = Fix.evaluate([
             Fix.events(1, [
-                .breakPrompt(at: Fix.at(1, 11), cycle: .initial, reason: "SIGTSTP"),
-                .breakPrompt(at: Fix.at(1, 11, 20), cycle: .initial, reason: "SIGSTOP"),
+                .breakPrompt(at: Fix.at(1, 11), cycle: .initial, reason: .sigtstp),
+                .breakPrompt(at: Fix.at(1, 11, 20), cycle: .initial, reason: .sigstop),
             ])
         ])
         #expect(ledger.contains(.einval))
@@ -244,9 +244,9 @@ struct SigstopBadgeTests {
     func stopping_at_sigterm() {
         let ledger = Fix.evaluate([
             Fix.events(1, [
-                .breakPrompt(at: Fix.at(1, 11), cycle: .initial, reason: "SIGTSTP"),
-                .breakPrompt(at: Fix.at(1, 11, 10), cycle: .initial, reason: "SIGINT"),
-                .breakPrompt(at: Fix.at(1, 11, 20), cycle: .initial, reason: "SIGTERM"),
+                .breakPrompt(at: Fix.at(1, 11), cycle: .initial, reason: .sigtstp),
+                .breakPrompt(at: Fix.at(1, 11, 10), cycle: .initial, reason: .sigint),
+                .breakPrompt(at: Fix.at(1, 11, 20), cycle: .initial, reason: .sigterm),
             ])
         ])
         #expect(!ledger.contains(.einval))
@@ -257,7 +257,7 @@ struct SigstopBadgeTests {
         let ledger = Fix.evaluate([
             Fix.events(1, [
                 .breakPrompt(
-                    at: Fix.at(1, 11), cycle: .initial, reason: "SIGSTOP", deferred: "quiet_hours"
+                    at: Fix.at(1, 11), cycle: .initial, reason: .sigstop, deferred: .quietHours
                 )
             ])
         ])

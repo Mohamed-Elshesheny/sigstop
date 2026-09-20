@@ -136,7 +136,9 @@ enum EngineHarness {
                 switch effect {
                 case .deliverPrompt(let request):
                     confirmed = request.cycle
-                    lines.append(.breakPrompt(at: now, cycle: request.cycle, reason: request.signal))
+                    lines.append(
+                        .breakPrompt(at: now, cycle: request.cycle, reason: request.level.signal)
+                    )
                 case .closeCycle, .withdrawPrompt:
                     confirmed = nil
                 default:

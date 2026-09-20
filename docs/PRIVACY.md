@@ -679,7 +679,16 @@ Field reference:
 | `dur_s` | int? | Measured length of a break, in seconds |
 | `outcome` | string? | On `cycle_close`, how the opportunity ended: one of the six `CycleOutcome` values |
 | `gate` | string? | On `gate`, why a prompt was or was not allowed: one of the twenty-five `GateReason` values |
-| `reason`, `action`, `snooze_s`, `deferred` | | Break engine bookkeeping |
+| `reason` | string? | On `break_prompt`, the signal that rung is named after: one of `SIGTSTP`, `SIGINT`, `SIGTERM`, `SIGSTOP` |
+| `deferred` | string? | On `break_prompt`, why it was withheld: one of the `GateReason` values |
+| `action`, `snooze_s` | | Break engine bookkeeping |
+
+Every one of those is a fixed enum in the source, not a free string. That matters more than
+it looks: the type's own doc comment claims there is no field in `LoggedEvent` that could
+hold a window title, and that this is enforced by the type rather than by review
+convention. `reason` and `deferred` were `String?` and quietly were that field. They are
+`SignalName?` and `GateReason?` now, with the same words on disk, so old logs still parse
+and the claim is true again.
 
 Two of those kinds were added because their absence was itself a privacy-adjacent problem,
 in the sense that matters here: an app that cannot show its working cannot be audited.

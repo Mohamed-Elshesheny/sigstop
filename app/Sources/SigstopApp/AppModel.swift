@@ -646,7 +646,7 @@ final class AppModel {
         } else {
             notifier.deliver(request, message: message)
             presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: now)
-            append(.breakPrompt(at: now, cycle: request.cycle, reason: request.signal))
+            append(.breakPrompt(at: now, cycle: request.cycle, reason: request.level.signal))
         }
     }
 
@@ -695,7 +695,11 @@ final class AppModel {
             current.verifiedAt = now
             presentation = current
             promptDeliveryFailure = nil
-            append(.breakPrompt(at: now, cycle: current.request.cycle, reason: current.request.signal))
+            append(
+                .breakPrompt(
+                    at: now, cycle: current.request.cycle, reason: current.request.level.signal
+                )
+            )
             return
         }
         current.attempts += 1

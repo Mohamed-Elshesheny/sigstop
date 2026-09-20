@@ -301,7 +301,10 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// Length of the idle period that just ended. Kept for auditability only, the
     /// rollup diffs real timestamps instead of trusting this (CLAUDE.md §3.4).
     public var idleSeconds: Int?
-    public var reason: String?
+    /// The signal a prompt was named after, on `break_prompt`. Typed, because the
+    /// paragraph above promises no field here can hold free text and a `String?` was
+    /// quietly the one that could.
+    public var reason: SignalName?
     /// How a break opportunity ended. Typed, so the field can hold one of six values and
     /// nothing else.
     public var outcome: CycleOutcome?
@@ -314,7 +317,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// Present on `break_prompt` when the prompt was **not** delivered: why it was
     /// withheld (`meeting`, `quiet_hours`, `rate_limit`, …). Its presence is what makes
     /// an opportunity excludable rather than missed.
-    public var deferred: String?
+    public var deferred: GateReason?
     public var origin: BreakOrigin?
     public var durationSeconds: Int?
     /// The `CycleID` this event belongs to, so counters scope to a cycle.
@@ -329,12 +332,12 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         activity: Activity? = nil,
         titleSignal: String? = nil,
         idleSeconds: Int? = nil,
-        reason: String? = nil,
+        reason: SignalName? = nil,
         outcome: CycleOutcome? = nil,
         gate: GateReason? = nil,
         action: BreakResponseAction? = nil,
         snoozeSeconds: Int? = nil,
-        deferred: String? = nil,
+        deferred: GateReason? = nil,
         origin: BreakOrigin? = nil,
         durationSeconds: Int? = nil,
         cycle: Int? = nil
@@ -401,12 +404,12 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         activity = try c.decodeIfPresent(Activity.self, forKey: .activity)
         titleSignal = try c.decodeIfPresent(String.self, forKey: .titleSignal)
         idleSeconds = try c.decodeIfPresent(Int.self, forKey: .idleSeconds)
-        reason = try c.decodeIfPresent(String.self, forKey: .reason)
+        reason = try c.decodeIfPresent(SignalName.self, forKey: .reason)
         outcome = try c.decodeIfPresent(CycleOutcome.self, forKey: .outcome)
         gate = try c.decodeIfPresent(GateReason.self, forKey: .gate)
         action = try c.decodeIfPresent(BreakResponseAction.self, forKey: .action)
         snoozeSeconds = try c.decodeIfPresent(Int.self, forKey: .snoozeSeconds)
-        deferred = try c.decodeIfPresent(String.self, forKey: .deferred)
+        deferred = try c.decodeIfPresent(GateReason.self, forKey: .deferred)
         origin = try c.decodeIfPresent(BreakOrigin.self, forKey: .origin)
         durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
         cycle = try c.decodeIfPresent(Int.self, forKey: .cycle)
@@ -463,12 +466,12 @@ extension LoggedEvent {
         LoggedEvent(at: at, kind: kind)
     }
 
-    public static func breakOpen(at: Date, cycle: CycleID, reason: String? = nil) -> LoggedEvent {
-        LoggedEvent(at: at, kind: .breakOpen, reason: reason, cycle: cycle.rawValue)
+    public static func breakOpen(at: Date, cycle: CycleID) -> LoggedEvent {
+        LoggedEvent(at: at, kind: .breakOpen, cycle: cycle.rawValue)
     }
 
     public static func breakPrompt(
-        at: Date, cycle: CycleID, reason: String? = nil, deferred: String? = nil
+        at: Date, cycle: CycleID, reason: SignalName? = nil, deferred: GateReason? = nil
     ) -> LoggedEvent {
         LoggedEvent(
             at: at, kind: .breakPrompt, reason: reason,

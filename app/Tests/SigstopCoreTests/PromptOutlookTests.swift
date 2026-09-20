@@ -29,7 +29,7 @@ struct PromptOutlookTests {
         let events: [LoggedEvent] = [
             .start(at: Self.at(0)),
             .breakOpen(at: Self.at(303), cycle: .initial),
-            .breakPrompt(at: Self.at(303), cycle: .initial, reason: "SIGTSTP"),
+            .breakPrompt(at: Self.at(303), cycle: .initial, reason: .sigtstp),
             .cycleClose(at: Self.at(308), cycle: .initial, outcome: .skipped),
         ]
         let outlook = PromptOutlook.read(
@@ -45,7 +45,7 @@ struct PromptOutlookTests {
         let events: [LoggedEvent] = [
             .start(at: Self.at(0)),
             .breakOpen(at: Self.at(300), cycle: .initial),
-            .breakPrompt(at: Self.at(300), cycle: .initial, reason: "SIGTSTP"),
+            .breakPrompt(at: Self.at(300), cycle: .initial, reason: .sigtstp),
             .gate(at: Self.at(310), reason: .audioInputInUse, cycle: .initial),
         ]
         let outlook = PromptOutlook.read(

@@ -7,15 +7,34 @@ import Foundation
 /// `SIGKILL` appears nowhere: it is unrecoverable and destroys exactly the thing the name
 /// promises to preserve. `SIGHUP` is never a rung either, its default disposition is
 /// *terminate*, so an L1 labelled SIGHUP would quietly mean "die". It reloads settings.
+/// The four rungs, as the four signals the ladder is named after.
+///
+/// A closed enum rather than four strings, because it is written to the event log and
+/// `LoggedEvent` claims, in its own doc comment, that no field of it can hold free text.
+/// A `String?` there defeated that claim whatever anybody happened to put in it. The raw
+/// values are the same four words that were already on disk, so old logs still parse.
+public enum SignalName: String, Sendable, Codable, CaseIterable, Hashable {
+    /// Catchable. You are allowed to ignore it.
+    case sigtstp = "SIGTSTP"
+    /// Catchable, but ignoring it is rude.
+    case sigint = "SIGINT"
+    /// Catchable. This is your warning.
+    case sigterm = "SIGTERM"
+    /// Cannot be caught, blocked or ignored.
+    case sigstop = "SIGSTOP"
+}
+
 public extension EscalationLevel {
-    var signalName: String {
+    var signal: SignalName {
         switch self {
-        case .first:    return "SIGTSTP"   // catchable, you are allowed to ignore it
-        case .second:   return "SIGINT"    // catchable, but ignoring it is rude
-        case .third:    return "SIGTERM"   // catchable. this is your warning
-        case .incident: return "SIGSTOP"   // cannot be caught, blocked or ignored
+        case .first:    return .sigtstp
+        case .second:   return .sigint
+        case .third:    return .sigterm
+        case .incident: return .sigstop
         }
     }
+
+    var signalName: String { signal.rawValue }
 
     /// True when this rung may not be reached under the ignore backoff (§11.5).
     var isBeyondBackoff: Bool { self > .second }
