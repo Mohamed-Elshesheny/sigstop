@@ -76,7 +76,12 @@ export function Hero() {
               </Button>
             </div>
 
-            <p className="mt-6 font-mono text-xs leading-relaxed text-fg-faint">{hero.note}</p>
+            {/* He shares a baseline with the fine print, so he sits beside real
+                content rather than floating in the right margin. */}
+            <div className="mt-6 flex items-end gap-5">
+              <p className="max-w-sm font-mono text-xs leading-relaxed text-fg-faint">{hero.note}</p>
+              <PixelDevStanding className="h-[4.5rem] w-[2.93rem] shrink-0 sm:h-20 sm:w-[3.25rem]" />
+            </div>
           </div>
 
           {/* The product, shown rather than described. */}
@@ -96,16 +101,6 @@ export function Hero() {
             <p className="mt-3 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
               Live. The bars fill as the session does.
             </p>
-
-            {/* He gets up and stretches on a loop, standing on the floor rule. */}
-            <div className="mt-6 flex items-end justify-between gap-3 border-b border-line pb-0">
-              <p className="pb-3 font-mono text-[10px] leading-relaxed text-fg-faint">
-                45:00
-                <br />
-                <span className="text-suspend-ink">SIGTSTP</span>
-              </p>
-              <PixelDevStanding className="h-28 w-[4.55rem] shrink-0 sm:h-32 sm:w-[5.2rem]" />
-            </div>
           </div>
         </div>
       </div>
