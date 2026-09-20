@@ -178,6 +178,17 @@ struct RawSignals: Sendable {
         return holders.contains { !CallCapableApps.isNeverAMeeting($0) }
     }
 
+    /// Are the two live hard blocks the interruption policy already owns covering this
+    /// instant? Exactly `systemSignals.audioInputRunning || .cameraRunning`, named here
+    /// so the latch can be told the one thing `micLiveForLatch` deliberately hides: on a
+    /// Krisp / Loopback / BlackHole Mac the device signal is `.unreliable`, so both of
+    /// those are false for the whole of a real call while attribution says the mic is
+    /// live. The latch has to block during the call itself on that Mac, because nothing
+    /// else will.
+    var liveCaptureAlreadyBlocks: Bool {
+        audio.contributesToMeeting || camera.contributesToMeeting
+    }
+
     var systemSignals: SystemSignals {
         SystemSignals(
             audioInputRunning: audio.contributesToMeeting,

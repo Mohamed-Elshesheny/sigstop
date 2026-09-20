@@ -750,14 +750,24 @@ says what was observed and when rather than what to conclude from it.
 | `closed → arming` | capture live |
 | `arming → live` | capture continuously live for `latchArmDwell` (45 s) |
 | `arming → closed` | capture stops before the dwell, or an unobserved gap |
-| `live → held` | capture stops. `isHolding` becomes true *here*, and not before |
+| `live → held` | capture stops, or an unobserved gap ended while it was not running |
 | `held → live` | capture returns. No second dwell inside one episode |
 | `held → closed` | `now - lastLive >= holdBudget`, or a ceiling, or a gap |
 
-`isHolding` is deliberately **false** while capture is live, because the two live blocks already
-cover that. `heldSeconds` therefore measures the latch's *own* footprint and nothing else, which is
-what makes the ceilings below mean anything at all: a developer idling in a Discord voice channel
-with the microphone open cannot accumulate a single second of hold.
+`isHolding` is normally **false** while capture is live, because the two live blocks already cover
+that. `heldSeconds` therefore measures the latch's *own* footprint and nothing else, which is what
+makes the ceilings below mean anything at all: a developer idling in a Discord voice channel with
+the microphone open cannot accumulate a single second of hold.
+
+**The one exception, and why it is not a hole in that reasoning.** `audioInputRunning` and
+`cameraRunning` are `.running`-only, so on a Mac with Krisp, Loopback or BlackHole installed they
+are both false for the whole of a genuinely live call (§2.3a of ACTIVITY-DETECTION). There the two
+live blocks are not covering anything, the latch is the only thing left, and staying silent in
+`.live` inverted the protection: absent during the meeting, present for twenty minutes after it. So
+the latch is handed `liveCaptureAlreadyBlocks` — precisely `audioInputRunning || cameraRunning`, not
+inferred from its own `micLive`, which on that Mac is true from attribution alone — and when it is
+false the latch holds during the call and **charges itself for the time**. The accounting property
+above survives: the latch is charged exactly when the latch is the thing blocking.
 
 **The hold budget**, recomputed every tick:
 
@@ -786,6 +796,22 @@ clock does not advance across a system sleep while the wall clock does, so the g
 the two deltas. `MutableTimeSource.sleepAndWake` advances both and therefore models a throttle, not
 a sleep; the test for this uses two separately-advanced values.
 
+Three clauses of that rule are load-bearing and were each missing once:
+
+- **It applies in `live`, not only in `held`.** A lid closed mid-call used to fall straight through
+  to `live → held` on wake and start a fresh twenty-minute hold, however long the machine had been
+  asleep, under a sentence claiming the microphone was live "until just now". A gap in `live` with
+  capture no longer running is charged as though capture stopped at the *start* of it, and a gap
+  longer than the whole hold closes the latch, because a call cannot still be running after one.
+- **The forgiveness accumulates, and is bounded.** Refunding each short gap into `lastLive` without
+  a total meant a process throttled to 12-second samples — App Nap, or heavy load, CLAUDE.md §3.4 —
+  held a break back indefinitely, while `heldSeconds` stayed at zero so no ceiling could catch it
+  either. The per-episode total of forgiven time is capped at the hold budget; past that the latch
+  closes as a discontinuity.
+- **Forgiven time still costs the ceilings.** It is time the latch spent holding, so it is charged
+  to `heldSeconds` even though it is not charged to the hold. The bound above is what stops one long
+  sleep from spending the whole day's ceiling on a call that ended before it.
+
 **Why it is not persisted.** A latch restored from disk is a suppression that can outlive the bug
 that created it, across launches, invisibly, and quitting the app is a user's crude escape hatch
 that has to keep working. `EngineState` is rebuilt `.initial` at every launch for the same reason.
@@ -794,16 +820,21 @@ without it the daily ceiling is defeated by quitting and reopening.
 
 **The circuit breakers**, in order of how visible they are:
 
-1. `.unreliable` inheritance. The latch arms only from `.running`, so a Mac whose device signal has
-   been downgraded cannot arm it at all. Attribution (§2.3a of ACTIVITY-DETECTION) repairs the
-   common case of that rather than leaving the Mac unprotected.
+1. `.unreliable` inheritance. Attribution (§2.3a of ACTIVITY-DETECTION) is what keeps a downgraded
+   Mac protected at all, at both edges of the call — but it is per-process evidence, so it can only
+   name apps the bundle-id list already knows, and it degrades visibly to the device bit when the
+   process table cannot be read.
 2. Episode ceiling, 90 minutes of hold, then 10 minutes of quiet capture before it may re-arm.
 3. Daily ceiling, 3 hours of hold, until the next local day.
 4. `IndicatorState.held`, a distinct menu bar state, and a dropdown line naming the fact and the
    closing time, with "Not in a meeting" one click away. `--doctor` is not a safety valve, because
    nobody runs it; this is.
 5. `holdBreaksDuringCalls` in Settings, which disables the latch and **nothing else**: a live
-   microphone or camera still blocks, because that is a fact and it predates the switch.
+   microphone or camera still blocks, because that is a fact and it predates the switch. The switch
+   ends every hold this file produces, the manual "I'm in a meeting" one included — a row that says
+   it controls holding and leaves a two-hour assertion running would be lying. And it is a switch,
+   not a fuse: the disabled state clears the moment it comes back on, which it did not do at first,
+   so turning the feature off and on again used to kill it until the app was relaunched.
 
 **The weak states defer rather than block.** `arming`, and a 90-second cold-start window when a
 call-capable app is running, both produce `SoftDeferReason.inferredMeeting`. That is also the only

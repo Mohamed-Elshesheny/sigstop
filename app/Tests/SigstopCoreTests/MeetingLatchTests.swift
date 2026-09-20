@@ -28,6 +28,7 @@ struct MeetingLatchTests {
         _ t: Double,
         mic: Bool = false,
         camera: Bool = false,
+        deviceBlocks: Bool = true,
         running: [CallCapableApp] = [],
         attributed: CallCapableApp? = nil,
         frontmost: CallCapableApp? = nil,
@@ -43,6 +44,7 @@ struct MeetingLatchTests {
             dayIndex: dayIndex,
             micLive: mic,
             cameraLive: camera,
+            liveCaptureAlreadyBlocks: deviceBlocks,
             callCapableRunning: running,
             attributedCallCapable: attributed,
             frontmostCallCapable: frontmost,
@@ -341,6 +343,91 @@ struct MeetingLatchTests {
         #expect(!signal.isHolding, "a manual hold that never expires is a mute button")
     }
 
+    @Test("Turning the setting off and on again leaves a working latch")
+    func settingOffThenOnReArms() {
+        var l = Self.fresh()
+        /// One tick with the switch off is all it takes to record the disabled state.
+        l = l.advanced(Self.sample(5, enabled: false), policy: Self.policy)
+        #expect(l.inhibition == .disabled)
+
+        /// Five minutes later they change their mind, and then join a call.
+        l = Self.run(l, from: 310, to: 600) {
+            Self.sample($0, mic: true, running: [Self.slack], attributed: Self.slack)
+        }
+        #expect(l.phase == .live, "the switch is a switch, not a one-way fuse")
+        l = l.advanced(Self.sample(605, running: [Self.slack]), policy: Self.policy)
+        #expect(l.isHolding, "and the latch still holds through mute afterwards")
+    }
+
+    @Test("Flicking the setting off and on does not buy a fresh daily budget")
+    func settingDoesNotResetATrippedCeiling() {
+        var l = Self.fresh()
+        l = l.restoringDailyHold(seconds: Self.policy.latchDailyCeiling + 60, dayIndex: 0)
+        #expect(l.inhibition == .dailyCeiling)
+
+        l = l.advanced(Self.sample(5, enabled: false), policy: Self.policy)
+        l = l.advanced(Self.sample(10), policy: Self.policy)
+        #expect(l.inhibition == .dailyCeiling, "the switch clears its own footprint and nothing else")
+
+        l = Self.run(l, from: 15, to: 200) {
+            Self.sample($0, mic: true, running: [Self.slack], attributed: Self.slack)
+        }
+        l = l.advanced(Self.sample(205, running: [Self.slack]), policy: Self.policy)
+        #expect(!l.isHolding, "the day's budget is spent, and a switch is not a way to refill it")
+    }
+
+    @Test("The setting ends a manual hold too, because that is what the row says it does")
+    func settingEndsAManualHold() {
+        var l = Self.fresh()
+        l = l.assertedByUser(at: 10, policy: Self.policy)
+        #expect(l.signal(at: 20, wall: Self.wall0, policy: Self.policy).isHolding)
+
+        l = l.advanced(Self.sample(300, enabled: false), policy: Self.policy)
+        #expect(
+            !l.signal(at: 300, wall: Self.wall0, policy: Self.policy).isHolding,
+            "the Settings row claims this switch controls holding, so it has to control all of it"
+        )
+        l = l.advanced(Self.sample(3900, enabled: false), policy: Self.policy)
+        #expect(!l.signal(at: 3900, wall: Self.wall0, policy: Self.policy).isHolding)
+    }
+
+    @Test("A sustained throttle cannot refund the hold for ever")
+    func sustainedThrottleStillCloses() {
+        var l = Self.fresh()
+        l = Self.run(l, from: 5, to: 50) {
+            Self.sample($0, mic: true, running: [Self.slack], attributed: Self.slack)
+        }
+        l = l.advanced(Self.sample(55, running: [Self.slack]), policy: Self.policy)
+        #expect(l.isHolding)
+
+        /// 12 s apart: just over `latchGapTolerance`, which is a 2.4x slip on a 5 s tick
+        /// and is exactly the App Nap / heavy-load case CLAUDE.md 3.4 names. Every one of
+        /// these gaps is individually far shorter than the remaining hold, so the
+        /// single-gap rule alone can never trip.
+        l = Self.run(l, from: 67, to: 67 + 6 * 3600, step: 12) { Self.sample($0, running: [Self.slack]) }
+        #expect(!l.isHolding, "politeness cannot become silence, and a throttle is not consent")
+        #expect(l.closeReason != nil)
+    }
+
+    @Test("A lid closed during a live call does not become a fresh hold on wake")
+    func longSleepDuringALiveCall() {
+        var l = Self.fresh()
+        l = Self.run(l, from: 5, to: 120) {
+            Self.sample($0, mic: true, running: [Self.slack], attributed: Self.slack)
+        }
+        #expect(l.phase == .live)
+
+        /// A real sleep: the wall clock jumps fifteen hours, the monotonic clock does not.
+        /// The mic is not running on wake, and the call ended some time last night.
+        let wake = Self.wall0.addingTimeInterval(120 + 15 * 3600)
+        l = l.advanced(Self.sample(125, running: [Self.slack], wall: wake), policy: Self.policy)
+        #expect(
+            !l.isHolding,
+            "a fifteen-hour-old capture fact must not hard-block the first twenty minutes of the next day"
+        )
+        #expect(l.heldSecondsToday == 0, "and it must not charge yesterday's call against today's ceiling")
+    }
+
     @Test("Turning the setting off disables the latch and nothing else")
     func settingDisablesOnlyTheLatch() {
         var l = Self.fresh()
@@ -359,6 +446,67 @@ struct MeetingLatchTests {
             signals: SystemSignals(audioInputRunning: true)
         )
         #expect(policy.hardBlock(input) == .audioInputInUse)
+    }
+
+    @Test("A throttle charges the day's ceiling instead of vanishing from it")
+    func throttledHoldStillCostsTheDay() {
+        var l = Self.fresh()
+        l = Self.run(l, from: 5, to: 50) {
+            Self.sample($0, mic: true, running: [Self.slack], attributed: Self.slack)
+        }
+        l = l.advanced(Self.sample(55, running: [Self.slack]), policy: Self.policy)
+        l = Self.run(l, from: 67, to: 900, step: 12) { Self.sample($0, running: [Self.slack]) }
+        #expect(
+            l.heldSecondsToday > 0,
+            "time the latch spent holding is time it spent holding, watched or not"
+        )
+    }
+
+    // MARK: The Mac where nothing else is blocking
+
+    @Test("On a Mac whose device signal is unreliable the latch blocks during the call, not after it")
+    func unreliableDeviceGetsTheLiveBlockToo() {
+        /// Krisp / Loopback / BlackHole downgrade the device signal to `.unreliable`, so
+        /// `audioInputRunning` and `cameraRunning` are false for the whole of a real
+        /// call and neither live hard block ever fires. Attribution still names the app,
+        /// which is what arms the latch — and if the latch stays quiet in `.live` the
+        /// protection is inverted: absent during the meeting, present after it.
+        var l = Self.fresh()
+        l = Self.run(l, from: 5, to: 120) {
+            Self.sample($0, mic: true, deviceBlocks: false, running: [Self.slack], attributed: Self.slack)
+        }
+        #expect(l.phase == .live)
+        #expect(l.isHolding, "nothing else is blocking this call, so the latch has to")
+
+        let signal = l.signal(at: 120, wall: Self.wall0, policy: Self.policy)
+        #expect(signal.isHolding)
+        #expect(signal.captureLive, "and it says the microphone is live now, not that it just stopped")
+        #expect(signal.summary?.contains("is live right now") == true)
+        #expect(!signal.suspectsCall, "a block is not a suspicion")
+
+        /// It charges itself for the time, so the circuit breakers still work.
+        #expect(l.heldSecondsThisEpisode > 0)
+    }
+
+    @Test("A reliable device keeps the live block where it already was")
+    func reliableDeviceDoesNotDoubleBlock() {
+        var l = Self.fresh()
+        l = Self.run(l, from: 5, to: 50) {
+            Self.sample($0, mic: true, running: [Self.slack], attributed: Self.slack)
+        }
+        #expect(l.phase == .live)
+        #expect(!l.isHolding, "audioInputInUse explains this one, and explains it better")
+        #expect(l.heldSecondsThisEpisode == 0, "so the latch is charged nothing for it")
+    }
+
+    @Test("The latch's own live block is bounded by the episode ceiling like every other hold")
+    func unreliableLiveBlockIsBounded() {
+        var l = Self.fresh()
+        l = Self.run(l, from: 5, to: 5 + Self.policy.latchEpisodeCeiling + 300) {
+            Self.sample($0, mic: true, deviceBlocks: false, running: [Self.slack], attributed: Self.slack)
+        }
+        #expect(!l.isHolding, "politeness cannot become silence here either")
+        #expect(l.closeReason == .episodeCeiling)
     }
 
     // MARK: The line the design is not allowed to cross

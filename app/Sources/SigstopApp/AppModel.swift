@@ -408,6 +408,7 @@ final class AppModel {
                 dayIndex: dayIndex(at: now),
                 micLive: raw.micLiveForLatch,
                 cameraLive: raw.camera.contributesToMeeting,
+                liveCaptureAlreadyBlocks: raw.liveCaptureAlreadyBlocks,
                 callCapableRunning: raw.callCapableRunning,
                 attributedCallCapable: raw.attributedCallCapable,
                 frontmostCallCapable: raw.frontmostCallCapable,

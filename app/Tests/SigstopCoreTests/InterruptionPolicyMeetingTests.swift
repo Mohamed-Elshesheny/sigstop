@@ -294,4 +294,63 @@ struct BreakDecisionCallBlockTests {
         #expect(prompts == 0, "not one prompt reached the call")
         #expect(day.notificationsDelivered >= 1, "and it does arrive once the hold is spent")
     }
+
+    @Test("The same scenario on a Mac with a virtual audio driver installed")
+    func theOwnersScenarioOnAnUnreliableMac() {
+        /// Krisp / Loopback / BlackHole downgrade the device signal to `.unreliable`, so
+        /// `audioInputRunning` is false for the whole of a genuinely live call and the
+        /// `audioInputInUse` hard block never fires. Attribution still names the app.
+        ///
+        /// Before the latch blocked in `.live` this delivered: the call's forty-five
+        /// minutes produced only `SoftDeferReason.inferredMeeting`, soft deferrals are
+        /// capped at fifteen minutes, and the prompt landed in the meeting — which is
+        /// the one state this whole feature exists to prevent.
+        let policy = BreakPolicy.default
+        var latch = MeetingLatch.started(at: 0, wall: Self.now, dayIndex: 0)
+        let teams = CallCapableApp(
+            bundleID: "com.microsoft.teams2", name: "Microsoft Teams", isConferencing: true
+        )
+
+        var state = EngineState.breakDue(Self.due(prompted: false))
+        var day = DailyCounters()
+        var prompts = 0
+        var mono = 5.0
+        let callEnds = 45.0 * 60
+
+        while mono <= callEnds {
+            latch = latch.advanced(
+                MeetingLatchInput(
+                    monotonic: mono,
+                    wall: Self.now.addingTimeInterval(mono),
+                    micLive: true,
+                    liveCaptureAlreadyBlocks: false,
+                    callCapableRunning: [teams],
+                    attributedCallCapable: teams
+                ),
+                policy: policy
+            )
+            /// Both device-level facts stay false for the whole call. That is the bug.
+            var signals = SystemSignals(audioInputRunning: false)
+            signals.meetingLatch = latch.signal(
+                at: mono, wall: Self.now.addingTimeInterval(mono), policy: policy
+            )
+            let outcome = Self.engine.step(
+                state,
+                EngineInput(
+                    now: Self.now.addingTimeInterval(mono),
+                    monotonic: mono,
+                    context: TestContext.make(continuousWork: 46 * 60 + mono),
+                    signals: signals,
+                    seams: mono == 600 ? [.applicationSwitch] : [],
+                    day: day
+                )
+            )
+            state = outcome.state
+            day = outcome.day
+            prompts += outcome.prompts.count
+            mono += 5
+        }
+
+        #expect(prompts == 0, "forty-five minutes of call, and not one prompt in it")
+    }
 }

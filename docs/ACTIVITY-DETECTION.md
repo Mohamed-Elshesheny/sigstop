@@ -195,8 +195,19 @@ Three jobs, and it is used for nothing else:
    in front.
 2. **Repairing `.unreliable`.** A persistent holder holds the *device*; it does not make Slack's
    process object report input. So on a Krisp / Loopback / BlackHole Mac, where the device signal
-   is worthless and meeting detection is currently switched off entirely, an attributed call-capable
-   holder still counts.
+   is worthless and meeting detection would otherwise be switched off entirely, an attributed
+   call-capable holder still counts.
+
+   This repair reaches both edges of the call, and it took two changes to do it. The first was the
+   latch's trailing edge, which is all attribution can give on its own. The second is the call
+   itself: `SystemSignals.audioInputRunning` is `.running`-only and therefore false for the whole of
+   a real call on this Mac, so `HardBlock.audioInputInUse` never fires and the latch's `.live` phase
+   was the only thing left — and it used to be deliberately silent there, on the reasoning that the
+   device-level block already covered it. On this Mac it does not. So the latch is now told whether
+   the policy's live blocks are covering the instant (`MeetingLatchInput.liveCaptureAlreadyBlocks`),
+   holds during the live call when they are not, and charges itself for that time so the episode and
+   daily ceilings keep applying. On every Mac with a reliable device signal nothing changes: the
+   more precise block still explains it, and the latch is charged nothing.
 3. **Not being fooled.** A readable-and-empty table is evidence of *absence*. A table whose only
    holders are Siri and dictation is not a call. `com.apple.CoreSpeech` was observed holding input
    for a single sample and releasing it.

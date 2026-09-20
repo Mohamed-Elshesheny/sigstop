@@ -198,6 +198,21 @@ enum Doctor {
         out.append("  arms after           \(Int(policy.latchArmDwell))s of continuous microphone or camera use")
         let capture = raw.micLiveForLatch || raw.camera.contributesToMeeting
         out.append("  capture live now     " + (capture ? "yes" : "no"))
+        /// Which block covers a call while it is actually running. On most Macs it is the
+        /// device fact and the latch only ever handles the trailing edge. On a Mac with a
+        /// virtual audio driver the device fact is not a usable positive at all, so the
+        /// latch is the only thing left and it has to block during the call itself. That
+        /// is a real difference in behaviour between two Macs and it is printed, not
+        /// smoothed over.
+        if raw.audio == .unreliable || raw.camera == .unreliable {
+            out.append("  live call blocked by the latch itself. The device signal on this Mac is not a")
+            out.append("                       usable positive, so audioInputInUse and cameraInUse stay")
+            out.append("                       false through a real call. The latch holds during the call")
+            out.append("                       as well as after it, and charges its own ceilings for it.")
+        } else {
+            out.append("  live call blocked by audioInputInUse / cameraInUse, which are device facts.")
+            out.append("                       The latch stays out of the way until capture stops.")
+        }
         let anchor = raw.attributedCallCapable ?? raw.frontmostCallCapable
             ?? raw.callCapableRunning.first { $0.isConferencing }
         out.append("  anchor it would take " + (anchor.map { "\($0.name) (\($0.bundleID))" }
