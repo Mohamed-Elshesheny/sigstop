@@ -169,7 +169,8 @@ final class AppModel {
     @ObservationIgnored private var observerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var pendingAction: UserAction?
     @ObservationIgnored private var currentCycle: CycleID?
-    @ObservationIgnored private var breakStartedAt: Date?
+    /// Decides when the gate's answer is worth a line. See `VerdictLedger`.
+    @ObservationIgnored private var verdicts = VerdictLedger()
     @ObservationIgnored private var loggedApp: String??
     @ObservationIgnored private var loggedActivity: Activity?
     @ObservationIgnored private var lastFocusLogAt: Date?
@@ -392,9 +393,16 @@ final class AppModel {
         pendingAction = nil
         seamsForNextStep.removeAll()
 
+        let openBefore = engineState.openCycle
         let outcome = decision.step(engineState, input)
         engineState = outcome.state
         day = outcome.day
+
+        if let line = verdicts.observe(
+            outcome.verdict.map(GateReason.init), cycle: openBefore, at: now, monotonic: monotonic
+        ) {
+            append(line)
+        }
 
         for effect in outcome.effects {
             execute(effect, context: context, now: now)
@@ -472,15 +480,25 @@ final class AppModel {
 
     // MARK: - Effects
 
+    /// Every effect, with its log lines written first and its side effects second.
+    ///
+    /// The mapping from effect to log line is not here any more, it is
+    /// `EventLogWriter.lines(for:at:context:)` in `SigstopCore`, where it is an exhaustive
+    /// switch a test can drive without a window server. What is left here is only the
+    /// things that genuinely need AppKit, the tracker, or this object's own state.
     private func execute(_ effect: Effect, context: DeveloperContext, now: Date) {
+        for line in EventLogWriter.lines(for: effect, at: now, context: logContext) {
+            append(line)
+        }
+
         switch effect {
         case .openCycle(let cycle):
             currentCycle = cycle
-            append(.breakOpen(at: now, cycle: cycle))
 
         case .closeCycle(let cycle, _):
             if currentCycle == cycle { currentCycle = nil }
             if presentation?.request.cycle == cycle { presentation = nil }
+            verdicts.reset()
 
         case .deliverPrompt(let request):
             deliver(request, context: context, now: now)
@@ -493,9 +511,8 @@ final class AppModel {
         case .setIndicator(let state):
             indicator = state
 
-        case .beginBreak(let cycle, let origin, let plannedEnd):
+        case .beginBreak(_, let origin, let plannedEnd):
             tracker.beginBreak(origin: origin)
-            breakStartedAt = now
             breakEndsAt = plannedEnd
             breakContent = BreakContent.make(
                 for: context,
@@ -506,22 +523,12 @@ final class AppModel {
             overlay.dismissPromptPanel()
             presentation = nil
             if settings.showBreakOverlay { overlay.presentBreak(model: self) }
-            append(.breakBegin(at: now, origin: origin, cycle: cycle))
-            if let cycle { append(.breakResponse(at: now, cycle: cycle, action: .taken)) }
 
-        case .endBreak(let origin, _):
+        case .endBreak(_, let origin, _, _):
             tracker.endBreak(origin: origin)
-            let duration = max(0, now.timeIntervalSince(breakStartedAt ?? now))
             overlay.dismissBreak()
             breakEndsAt = nil
             breakContent = nil
-            breakStartedAt = nil
-            append(
-                .breakEnd(
-                    at: now, origin: origin,
-                    durationSeconds: Int(duration.rounded()), cycle: currentCycle
-                )
-            )
             refreshRollup(force: true)
 
         case .scheduleWake(let date):
@@ -534,23 +541,15 @@ final class AppModel {
             lastVerdict = verdict
             gateReason = Self.explain(verdict)
 
-        case .recordSkip(let cycle):
+        case .recordSkip:
             tracker.recordSkip()
-            append(.breakResponse(at: now, cycle: cycle, action: .skipped))
 
         case .recordIgnoredPrompt(let cycle):
             guard promptWasPresented(cycle: cycle) else { break }
             tracker.recordIgnoredPrompt()
-            append(.breakResponse(at: now, cycle: cycle, action: .ignored))
 
-        case .recordSnooze(let cycle, let duration):
+        case .recordSnooze:
             tracker.recordSnooze()
-            append(
-                .breakResponse(
-                    at: now, cycle: cycle, action: .snoozed,
-                    snoozeSeconds: Int(duration.rounded())
-                )
-            )
 
         case .resumeWorkClock:
             break
@@ -641,6 +640,12 @@ final class AppModel {
     private func promptWasPresented(cycle: CycleID?) -> Bool {
         guard let cycle, let presentation, presentation.request.cycle == cycle else { return false }
         return presentation.verifiedAt != nil
+    }
+
+    /// The one fact `EventLogWriter` needs and the engine cannot know.
+    private var logContext: EffectLogContext {
+        guard let presentation, presentation.verifiedAt != nil else { return EffectLogContext() }
+        return EffectLogContext(confirmedPromptCycle: presentation.request.cycle)
     }
 
     private func wireNotifier() {
@@ -1074,42 +1079,7 @@ final class AppModel {
     /// The verdict, in the user's words. Never a raw enum case: the menu's "why do you
     /// think that?" is the same promise `--doctor` makes.
     static func explain(_ verdict: InterruptionVerdict) -> String? {
-        switch verdict {
-        case .deliver:
-            return nil
-        case .hardBlocked(let block):
-            switch block {
-            case .audioInputInUse:        return "an audio input device is running, you may be on a call"
-            case .cameraInUse:            return "a camera is running, you may be on a call"
-            case .recentCallContinuing:   return "a microphone or camera was live until a moment ago, so this may still be a call"
-            case .screenBeingShared:      return "your screen is being shared"
-            case .presentationFullscreen: return "something fullscreen looks like a presentation"
-            case .focusModeActive:        return "a Focus mode is on"
-            case .screenLocked:           return "the screen is locked"
-            case .systemSleeping:         return "the machine is asleep"
-            case .fastUserSwitched:       return "someone else is signed in at the console"
-            case .settleInAfterBreak:     return "you just got back, settling in"
-            case .videoEventInProgress:   return "a video meeting is in progress"
-            case .imminentMeeting:        return "a meeting starts in a moment"
-            }
-        case .softDeferred(let reason):
-            switch reason {
-            case .deepFocus:               return "you look deep in it, waiting for a seam"
-            case .typingBurst:             return "you are mid-burst, waiting for a pause"
-            case .terminalCommandRunning:  return "a command is still running"
-            case .preMeetingWindow:        return "a meeting is close, waiting"
-            case .recentAppLaunch:         return "you just switched app, waiting a moment"
-            case .inferredMeeting:         return "a conferencing app is up, so you might be in a meeting"
-            case .calendarEventInProgress: return "a calendar event is in progress"
-            }
-        case .rateLimited(let limit):
-            switch limit {
-            case .quietHours:           return "quiet hours"
-            case .dailyCapReached:      return "today's notification budget is spent, passive only from here"
-            case .cycleNotificationCap: return "this cycle has had its notifications"
-            case .minimumSpacing:       return "too soon after the last one"
-            case .ignoreBackoff:        return "these have been going unanswered, so the ladder is shortened"
-            }
-        }
+        let reason = GateReason(verdict)
+        return reason == .delivered ? nil : reason.summary
     }
 }

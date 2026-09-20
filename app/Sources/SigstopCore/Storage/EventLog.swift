@@ -228,10 +228,13 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     /// the engine entered `breakDue`, including entries immediately suppressed by
     /// quiet hours or a hard block (docs/BREAK-DECISION.md §14.1).
     ///
-    /// Added beyond the vocabulary listed in docs/PRIVACY.md §4.3, because compliance
-    /// is undefined without it: a prompt that was never delivered still opened an
-    /// opportunity, and the difference between "missed" and "never asked" is the whole
-    /// honesty of the metric.
+    /// Compliance is undefined without it: a prompt that was never delivered still
+    /// opened an opportunity, and the difference between "missed" and "never asked" is
+    /// the whole honesty of the metric.
+    ///
+    /// This shipped for a while without being listed in docs/PRIVACY.md §4.3, which
+    /// claims to be the complete vocabulary. It is listed there now, along with
+    /// `break_begin` and `break_end` which had drifted the same way.
     case breakOpen = "break_open"
     case breakPrompt = "break_prompt"
     case breakResponse = "break_response"
@@ -240,6 +243,23 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     /// It ended. `dur_s` is the measured duration; the *reader*, not the writer, decides
     /// whether that was long enough to qualify.
     case breakEnd = "break_end"
+    /// A break opportunity ended, with the `CycleOutcome` that ended it.
+    ///
+    /// Without this a cycle could be closed as expired, quietSuppressed, dailyCapReached,
+    /// ignoredExhausted, skipped or honored and leave no trace at all. The day that
+    /// produced the 20:06:51Z incident holds seventeen `break_open` lines and twelve
+    /// `break_response` lines: five opportunities simply stop existing mid-file, and the
+    /// difference between "the user said no" and "the app gave up" was unrecoverable.
+    case cycleClose = "cycle_close"
+    /// Why the app is or is not allowed to speak right now, written when the answer
+    /// changes rather than when it is computed.
+    ///
+    /// The verdict is recomputed on every five second tick. A fourteen minute hold
+    /// produces 168 identical answers and used to keep none of them, so "why did you say
+    /// nothing at 20:12" had no answer after the fact. CLAUDE.md §4.1 requires the app to
+    /// always be able to say why it thinks what it thinks; this is that promise for the
+    /// one question the whole product turns on.
+    case gate
 }
 
 /// What the developer did with a delivered prompt.
@@ -277,6 +297,13 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// rollup diffs real timestamps instead of trusting this (CLAUDE.md §3.4).
     public var idleSeconds: Int?
     public var reason: String?
+    /// How a break opportunity ended. Typed, so the field can hold one of six values and
+    /// nothing else.
+    public var outcome: CycleOutcome?
+    /// Why a prompt was or was not allowed. Typed for the same reason: a closed
+    /// vocabulary of twenty-four, never a sentence, and never anything derived from a
+    /// window title (CLAUDE.md §4.4).
+    public var gate: GateReason?
     public var action: BreakResponseAction?
     public var snoozeSeconds: Int?
     /// Present on `break_prompt` when the prompt was **not** delivered: why it was
@@ -298,6 +325,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         titleSignal: String? = nil,
         idleSeconds: Int? = nil,
         reason: String? = nil,
+        outcome: CycleOutcome? = nil,
+        gate: GateReason? = nil,
         action: BreakResponseAction? = nil,
         snoozeSeconds: Int? = nil,
         deferred: String? = nil,
@@ -314,6 +343,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         self.titleSignal = titleSignal
         self.idleSeconds = idleSeconds
         self.reason = reason
+        self.outcome = outcome
+        self.gate = gate
         self.action = action
         self.snoozeSeconds = snoozeSeconds
         self.deferred = deferred
@@ -338,6 +369,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         case titleSignal = "sig"
         case idleSeconds = "idle_s"
         case reason
+        case outcome
+        case gate
         case action
         case snoozeSeconds = "snooze_s"
         case deferred
@@ -364,6 +397,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         titleSignal = try c.decodeIfPresent(String.self, forKey: .titleSignal)
         idleSeconds = try c.decodeIfPresent(Int.self, forKey: .idleSeconds)
         reason = try c.decodeIfPresent(String.self, forKey: .reason)
+        outcome = try c.decodeIfPresent(CycleOutcome.self, forKey: .outcome)
+        gate = try c.decodeIfPresent(GateReason.self, forKey: .gate)
         action = try c.decodeIfPresent(BreakResponseAction.self, forKey: .action)
         snoozeSeconds = try c.decodeIfPresent(Int.self, forKey: .snoozeSeconds)
         deferred = try c.decodeIfPresent(String.self, forKey: .deferred)
@@ -383,6 +418,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         try c.encodeIfPresent(titleSignal, forKey: .titleSignal)
         try c.encodeIfPresent(idleSeconds, forKey: .idleSeconds)
         try c.encodeIfPresent(reason, forKey: .reason)
+        try c.encodeIfPresent(outcome, forKey: .outcome)
+        try c.encodeIfPresent(gate, forKey: .gate)
         try c.encodeIfPresent(action, forKey: .action)
         try c.encodeIfPresent(snoozeSeconds, forKey: .snoozeSeconds)
         try c.encodeIfPresent(deferred, forKey: .deferred)
@@ -456,6 +493,14 @@ extension LoggedEvent {
             at: at, kind: .breakEnd, origin: origin,
             durationSeconds: durationSeconds, cycle: cycle?.rawValue
         )
+    }
+
+    public static func cycleClose(at: Date, cycle: CycleID, outcome: CycleOutcome) -> LoggedEvent {
+        LoggedEvent(at: at, kind: .cycleClose, outcome: outcome, cycle: cycle.rawValue)
+    }
+
+    public static func gate(at: Date, reason: GateReason, cycle: CycleID? = nil) -> LoggedEvent {
+        LoggedEvent(at: at, kind: .gate, gate: reason, cycle: cycle?.rawValue)
     }
 }
 

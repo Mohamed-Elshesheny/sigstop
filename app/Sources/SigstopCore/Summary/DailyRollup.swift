@@ -357,7 +357,7 @@ public enum DailyRollup {
             case .breakEnd:
                 suspensions.remove(.breakBegin)
                 isIdle = false
-            case .breakOpen, .breakPrompt, .breakResponse:
+            case .breakOpen, .breakPrompt, .breakResponse, .cycleClose, .gate:
                 break // bookkeeping only; does not move the clock
             }
 

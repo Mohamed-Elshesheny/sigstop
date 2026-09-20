@@ -17,176 +17,39 @@ import Testing
 @Suite("a dismissed prompt leaves a trace")
 struct SkipIsUnloggableTests {
 
-    // MARK: - The world
-
-    /// The owner's settings, read from
-    /// `~/Library/Application Support/dev.sigstop.app/settings.json` on the machine that
-    /// produced the log. Five minute interval, quiet hours off, panel delivery.
-    static var ownerSettings: SigstopSettings {
-        var s = SigstopSettings()
-        s.workIntervalMinutes = 5
-        s.breakDurationMinutes = 5
-        s.microIdleThresholdSeconds = 90
-        s.maxNotificationsPerDay = 14
-        s.maxSnoozesPerBreak = 2
-        s.snoozeMinutes = 5
-        s.idleCountsAsBreakMinutes = 5
-        s.useSystemNotifications = false
-        s.tone = .nuclear
-        s.quietHours = QuietHours(enabled: false)
-        return s
-    }
-
-    /// The shipping engine, stepped at the shipping five second cadence with the clock
-    /// injected. Nothing is mocked but time and the machine's signals.
-    struct Driver {
-        static let tick: TimeInterval = 5
-
-        let engine: BreakDecisionEngine
-        let settings: SigstopSettings
-        var state: EngineState
-        var day = DailyCounters()
-        var now: Date
-        var monotonic: Double = 0
-        var continuousWork: TimeInterval = 0
-        var micRunning = false
-
-        private(set) var effects: [Effect] = []
-
-        init(settings: SigstopSettings, start: Date = Date(timeIntervalSince1970: 1_700_000_000)) {
-            self.settings = settings
-            self.engine = BreakDecisionEngine(settings: settings)
-            self.now = start
-            self.state = .working(
-                WorkingState(armThreshold: TimeInterval(settings.workIntervalMinutes) * 60)
-            )
-        }
-
-        /// One tick. Returns the effects this step produced, and also appends them to the
-        /// running stream so a whole scenario can be asserted on at the end.
-        @discardableResult
-        mutating func step(action: UserAction? = nil) -> [Effect] {
-            monotonic += Self.tick
-            now = now.addingTimeInterval(Self.tick)
-            if case .breakActive = state {} else { continuousWork += Self.tick }
-
-            let context = DeveloperContext(
-                timestamp: now,
-                application: AppIdentity(bundleID: "com.apple.dt.Xcode", localizedName: "Xcode", pid: 1),
-                activity: .coding,
-                confidence: Confidence(0.8),
-                continuousWork: continuousWork,
-                idleSeconds: 0
-            )
-            let input = EngineInput(
-                now: now,
-                monotonic: monotonic,
-                context: context,
-                signals: SystemSignals(audioInputRunning: micRunning),
-                settings: settings,
-                day: day,
-                userAction: action
-            )
-
-            let outcome = engine.step(state, input)
-            state = outcome.state
-            day = outcome.day
-            effects.append(contentsOf: outcome.effects)
-            return outcome.effects
-        }
-
-        /// Steps until `predicate` holds, up to `limit` ticks. Returns the tick's effects.
-        @discardableResult
-        mutating func step(untilLimit limit: Int = 600, _ predicate: ([Effect]) -> Bool) -> [Effect] {
-            for _ in 0..<limit {
-                let produced = step()
-                if predicate(produced) { return produced }
-            }
-            return []
-        }
-    }
-
-    // MARK: - The app's cycle bookkeeping, transcribed
-
-    /// A faithful transcription of the only part of `AppModel.execute` that decides
-    /// whether a decision reaches the event log: `AppModel.swift:370-376` nils
-    /// `currentCycle` on `.closeCycle`, and `:429-451` reconstructs the id from it.
-    ///
-    /// This lives in the test rather than in the app because `SigstopApp` has no test
-    /// target: there is no Xcode and no window server in CI, which is exactly why the
-    /// defect could not be caught where it lives. Replacing this transcription with the
-    /// real code is the point of `EventLogWriter`.
-    struct CycleBookkeeping {
-        private(set) var log: [String] = []
-        private var currentCycle: CycleID?
-
-        mutating func execute(_ effect: Effect) {
-            switch effect {
-            case .openCycle(let cycle):
-                currentCycle = cycle
-                log.append("break_open")
-
-            case .closeCycle(let cycle, _):
-                if currentCycle == cycle { currentCycle = nil }
-
-            case .deliverPrompt:
-                log.append("break_prompt")
-
-            case .recordSkip:
-                log.append("break_response.skipped")
-
-            case .recordIgnoredPrompt:
-                log.append("break_response.ignored")
-
-            case .recordSnooze:
-                log.append("break_response.snoozed")
-
-            case .beginBreak(let cycle, _, _):
-                log.append("break_begin")
-                if cycle != nil { log.append("break_response.taken") }
-
-            case .endBreak:
-                log.append("break_end")
-
-            case .withdrawPrompt, .setIndicator, .scheduleWake, .cancelScheduledWake,
-                 .recordVerdict, .resumeWorkClock:
-                break
-            }
-        }
-
-        mutating func execute(_ effects: [Effect]) {
-            for effect in effects { execute(effect) }
-        }
-    }
-
     // MARK: - The reproduction
 
-    /// THE FAILING TEST. Drive the engine to a prompt, dismiss it on the next tick, and
-    /// replay the effect stream through the app's cycle bookkeeping.
+    /// The regression itself. Drive the engine to a prompt, dismiss it on the next tick,
+    /// and replay the effect stream through the shipping log writer.
     ///
-    /// Today this produces `["break_open", "break_prompt"]`, which is character for
-    /// character the entire trace cycle 0 left in the owner's log.
+    /// Before the fix this produced exactly `["break_open", "break_prompt"]`, which is
+    /// character for character the entire trace cycle 0 left in the owner's file.
     @Test("dismissing a prompt records that it was dismissed")
     func skipIsRecorded() {
-        var driver = Driver(settings: Self.ownerSettings)
-        var app = CycleBookkeeping()
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
+        var log = EngineHarness.LogReplay()
 
         let opened = driver.step(untilLimit: 200) { effects in
             effects.contains { if case .deliverPrompt = $0 { return true } else { return false } }
         }
         #expect(!opened.isEmpty, "the engine must prompt at all before anything else is meaningful")
-        app.execute(driver.effects)
-        #expect(app.log == ["break_open", "break_prompt"], "the prompt reached the screen")
+        log.execute(driver.effects, at: driver.now)
+        #expect(log.kinds == ["break_open", "break_prompt"], "the prompt reached the screen")
 
         let dismissal = driver.step(action: .skip)
-        app.execute(dismissal)
+        log.execute(dismissal, at: driver.now)
 
+        let responses = log.lines.filter { $0.kind == .breakResponse }
         #expect(
-            app.log.contains("break_response.skipped"),
+            responses.contains { $0.action == .skipped },
             """
             the app wrote nothing when the user answered the prompt.
-            log was \(app.log)
+            log was \(log.kinds)
             """
+        )
+        #expect(
+            log.lines.contains { $0.kind == .cycleClose && $0.outcome == .skipped },
+            "and the opportunity must say how it ended"
         )
     }
 
@@ -197,7 +60,7 @@ struct SkipIsUnloggableTests {
     /// that the effect names its own cycle, so this pins that instead.
     @Test("a user decision names the cycle it belongs to, whatever the effect order")
     func decisionsCarryTheirCycle() {
-        var driver = Driver(settings: Self.ownerSettings)
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
         driver.step(untilLimit: 200) { effects in
             effects.contains { if case .deliverPrompt = $0 { return true } else { return false } }
         }
@@ -225,7 +88,7 @@ struct SkipIsUnloggableTests {
     /// Snooze and ignore carry the same payload, so neither survives on ordering luck.
     @Test("snooze names its cycle too")
     func snoozeCarriesItsCycle() {
-        var driver = Driver(settings: Self.ownerSettings)
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
         driver.step(untilLimit: 200) { effects in
             effects.contains { if case .deliverPrompt = $0 { return true } else { return false } }
         }
@@ -247,7 +110,7 @@ struct SkipIsUnloggableTests {
     /// classified ignored ninety seconds later and the ladder starts climbing.
     @Test("an unanswered prompt still times out at ninety seconds")
     func unansweredPromptTimesOut() {
-        var driver = Driver(settings: Self.ownerSettings)
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
         driver.step(untilLimit: 200) { effects in
             effects.contains { if case .deliverPrompt = $0 { return true } else { return false } }
         }
@@ -280,7 +143,7 @@ struct SkipIsUnloggableTests {
     /// continuous work sets `armThreshold` to 305 + 1200 = 1505, and 1505 - 300 is 1205.
     @Test("a skip re-arms for twenty minutes, to the second")
     func skipRearmsForTwentyMinutes() {
-        var driver = Driver(settings: Self.ownerSettings)
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
 
         driver.step(untilLimit: 200) { effects in
             effects.contains { if case .deliverPrompt = $0 { return true } else { return false } }

@@ -628,7 +628,11 @@ chosen so that `cat` is a complete audit tool.
 
 ### 4.3 What you see if you open the files
 
-`events/2026-09-20.jsonl`, verbatim and complete — this is the entire event vocabulary:
+`events/2026-09-20.jsonl`, verbatim and complete — this is the entire event vocabulary,
+and it is checked against `EventKind` rather than written from memory. It drifted once:
+`break_open`, `break_begin` and `break_end` shipped without appearing here, which made a
+document that claims to be exhaustive quietly incomplete. Adding a kind without adding it
+below is a bug under CLAUDE.md §7, not a documentation chore.
 
 ```
 {"v":1,"t":"2026-09-20T08:58:03Z","e":"start"}
@@ -637,10 +641,15 @@ chosen so that `cat` is a complete audit tool.
 {"v":1,"t":"2026-09-20T09:31:02Z","e":"idle_begin"}
 {"v":1,"t":"2026-09-20T09:37:20Z","e":"idle_end","idle_s":378}
 {"v":1,"t":"2026-09-20T09:48:10Z","e":"focus","app":"us.zoom.xos","cat":"meet","sig":"meeting"}
-{"v":1,"t":"2026-09-20T10:20:00Z","e":"break_prompt","reason":"streak_50m","deferred":"meeting"}
-{"v":1,"t":"2026-09-20T10:34:12Z","e":"break_prompt","reason":"streak_50m"}
-{"v":1,"t":"2026-09-20T10:34:31Z","e":"break_response","action":"snooze","snooze_s":600}
-{"v":1,"t":"2026-09-20T10:44:31Z","e":"break_response","action":"taken"}
+{"v":1,"t":"2026-09-20T10:19:55Z","e":"break_open","cycle":4}
+{"v":1,"t":"2026-09-20T10:20:00Z","e":"gate","gate":"audioInputInUse","cycle":4}
+{"v":1,"t":"2026-09-20T10:34:07Z","e":"gate","gate":"delivered","cycle":4}
+{"v":1,"t":"2026-09-20T10:34:12Z","e":"break_prompt","reason":"SIGTSTP","cycle":4}
+{"v":1,"t":"2026-09-20T10:34:31Z","e":"break_response","action":"snoozed","snooze_s":600,"cycle":4}
+{"v":1,"t":"2026-09-20T10:44:31Z","e":"break_response","action":"taken","cycle":4}
+{"v":1,"t":"2026-09-20T10:44:31Z","e":"break_begin","origin":"accepted","cycle":4}
+{"v":1,"t":"2026-09-20T10:49:34Z","e":"break_end","origin":"accepted","dur_s":303,"cycle":4}
+{"v":1,"t":"2026-09-20T10:49:34Z","e":"cycle_close","outcome":"honored","cycle":4}
 {"v":1,"t":"2026-09-20T10:52:04Z","e":"lock"}
 {"v":1,"t":"2026-09-20T11:31:55Z","e":"unlock"}
 {"v":1,"t":"2026-09-20T18:02:11Z","e":"stop"}
@@ -652,12 +661,36 @@ Field reference:
 |---|---|---|
 | `v` | int | Schema version. Bumped on any breaking change; readers reject unknown majors |
 | `t` | string | ISO-8601 UTC, second resolution. Sub-second precision is deliberately discarded |
-| `e` | string | One of: `start`, `stop`, `focus`, `idle_begin`, `idle_end`, `lock`, `unlock`, `sleep`, `wake`, `session_out`, `session_in`, `break_prompt`, `break_response` |
+| `e` | string | One of: `start`, `stop`, `focus`, `idle_begin`, `idle_end`, `lock`, `unlock`, `sleep`, `wake`, `session_out`, `session_in`, `break_open`, `break_prompt`, `break_response`, `break_begin`, `break_end`, `cycle_close`, `gate` |
 | `app` | string? | Bundle identifier. Absent if app tracking is off |
 | `cat` | string? | One of `code`, `browse`, `meet`, `write`, `other` — from `categories.json` |
 | `sig` | string? | Title signal. Present only if Accessibility fidelity is on. **Never the title itself** |
 | `idle_s` | int? | Length of the idle period that just ended |
+| `cycle` | int? | Which break opportunity this line belongs to, so counters scope to a cycle |
+| `origin` | string? | How a break started: `accepted`, `idleInferred`, `userInitiated` |
+| `dur_s` | int? | Measured length of a break, in seconds |
+| `outcome` | string? | On `cycle_close`, how the opportunity ended: one of the six `CycleOutcome` values |
+| `gate` | string? | On `gate`, why a prompt was or was not allowed: one of the twenty-five `GateReason` values |
 | `reason`, `action`, `snooze_s`, `deferred` | | Break engine bookkeeping |
+
+Two of those kinds were added because their absence was itself a privacy-adjacent problem,
+in the sense that matters here: an app that cannot show its working cannot be audited.
+
+* **`cycle_close`** says how a break opportunity ended. Without it a cycle could be closed
+  as `expired`, `quietSuppressed`, `dailyCapReached`, `ignoredExhausted`, `skipped` or
+  `honored` and leave no trace, so `cat` could not tell "the user said no" from "the app
+  gave up". The value is the `CycleOutcome` enum, never a sentence.
+* **`gate`** says why the app was holding a prompt. It is written when the answer
+  **changes**, debounced over two ticks, plus once per open cycle every ten minutes so an
+  open cycle is never silent for longer than that. Writing it on every five second tick
+  would turn a 555 line day into a 17,000 line one and stop `cat` being an audit tool;
+  writing it never, which is what the app used to do, meant a fourteen minute hold
+  computed the same answer 168 times and kept none of them. Expect roughly 20–60 lines a
+  day. The value is the `GateReason` enum, a closed vocabulary of twenty-five listed in
+  `app/Sources/SigstopCore/Decision/GateReason.swift`, every one of them a fact about the
+  machine or a name for a rate limit. **None of them is derived from a window title, a URL,
+  a file path or anything you typed**, which is the same guarantee every other field here
+  carries (CLAUDE.md §4.4).
 
 `summaries/2026-09.json`:
 ```json

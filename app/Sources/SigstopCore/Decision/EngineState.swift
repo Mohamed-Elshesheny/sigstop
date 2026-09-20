@@ -357,7 +357,11 @@ public enum Effect: Sendable, Codable, Hashable {
     case beginBreak(cycle: CycleID?, origin: BreakOrigin, plannedEnd: Date)
     /// `honored` false means the break was abandoned under the qualifying threshold: no
     /// reset, no break recorded.
-    case endBreak(origin: BreakOrigin, honored: Bool)
+    ///
+    /// `elapsed` is measured on the monotonic clock by the engine, so the log carries the
+    /// duration that was actually judged rather than a wall-clock difference the app
+    /// recomputes from a remembered start.
+    case endBreak(cycle: CycleID?, origin: BreakOrigin, honored: Bool, elapsed: TimeInterval)
     /// SIGALRM.
     case scheduleWake(at: Date)
     case cancelScheduledWake

@@ -527,7 +527,9 @@ public struct BreakDecisionEngine: Sendable {
         effects: inout [Effect]
     ) -> EngineState {
         let honored = elapsed >= policy.qualifyingBreak
-        effects.append(.endBreak(origin: active.origin, honored: honored))
+        effects.append(
+            .endBreak(cycle: active.cycle, origin: active.origin, honored: honored, elapsed: elapsed)
+        )
         effects.append(.resumeWorkClock)
         if let cycle = active.cycle {
             effects.append(.closeCycle(cycle, honored ? .honored : .skipped))
