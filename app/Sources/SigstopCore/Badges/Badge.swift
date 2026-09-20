@@ -31,32 +31,38 @@ public enum BadgeID: String, Sendable, Hashable, CaseIterable, Codable {
     case stoppedHundred = "stopped-100"
 }
 
-/// The geometry, fixed per badge by the naming panel and not a decoration.
+/// The object each badge is drawn as, fixed per badge and part of its identity.
 ///
-/// Side count rises roughly with difficulty, circle, triangle, square, diamond,
-/// pentagon, hexagon, octagon, so the pane reads as a progression without anyone
-/// having to explain it. The App layer draws these; `SigstopCore` only names them,
-/// because a shape is part of a badge's identity and identity belongs in the domain.
-public enum BadgeShape: String, Sendable, Hashable, Codable {
-    case circle
-    case triangle
-    case square
-    case diamond
-    case pentagon
-    case hexagon
-    case octagon
-
-    /// Sides of the regular polygon, or `nil` for the circle.
-    public var sides: Int? {
-        switch self {
-        case .circle: return nil
-        case .triangle: return 3
-        case .square, .diamond: return 4
-        case .pentagon: return 5
-        case .hexagon: return 6
-        case .octagon: return 8
-        }
-    }
+/// This used to be a geometry: circle, triangle, square, up to octagon, with the side
+/// count rising with difficulty. It was replaced because a set of ten things that differ
+/// only by how many sides they have gives nobody a reason to want the next one, which is
+/// the only job a badge has. Each case below names a small, specific object from the
+/// world its badge is about, so the ten read as ten different things at a glance instead
+/// of as one thing counted seven ways.
+///
+/// `SigstopCore` only names them. The App layer draws them, and the pair that bookends
+/// the set, `jobLine` and `jobLineFull`, is deliberately the same object twice.
+public enum BadgeMotif: String, Sendable, Hashable, Codable {
+    /// A shell job line: brackets with one suspended job standing between them.
+    case jobLine = "job-line"
+    /// A staircase going down. Your own priority, lowered a step at a time.
+    case descent
+    /// A barrier arm swung clear of the road. Nothing is in the way of the signal.
+    case liftedGate = "lifted-gate"
+    /// A proof narrowing to its last line, closed by a tombstone.
+    case tombstone
+    /// An arrow through the gap where a handler would have sat, entirely unbent.
+    case straightThrough = "straight-through"
+    /// The four-rung escalation ladder from `CLAUDE.md` §0, with the top rung reached.
+    case escalation
+    /// A run queue with its front slot vacated, the yielder arcing round to the back.
+    case handoff
+    /// A function whose last statements are never reached, and the arrow that left.
+    case earlyExit = "early-exit"
+    /// A process still running under a terminal that is no longer there.
+    case detached
+    /// The same brackets as `jobLine`, with every slot in them filled.
+    case jobLineFull = "job-line-full"
 }
 
 // MARK: - Thresholds
@@ -148,10 +154,9 @@ public struct Badge: Sendable, Identifiable {
     public let id: BadgeID
     /// The name, exactly as the naming panel fixed it. Not renamed, not title-cased.
     public let title: String
-    public let shape: BadgeShape
-    /// The character knocked out of the filled shape. One or two, because a glyph that
-    /// needs three is a glyph nobody can read at 28 points.
-    public let glyph: String
+    /// What it is drawn as. Part of the badge's identity, not a rendering choice, which
+    /// is why it lives here beside the name rather than in a switch in the view layer.
+    public let motif: BadgeMotif
     /// What it means, once it is yours.
     public let blurb: String
     /// What it takes, said plainly. Shown while it is locked, so it must read as a
@@ -163,16 +168,14 @@ public struct Badge: Sendable, Identifiable {
     public init(
         id: BadgeID,
         title: String,
-        shape: BadgeShape,
-        glyph: String,
+        motif: BadgeMotif,
         blurb: String,
         lockedHint: String,
         isEarned: @escaping @Sendable (BadgeEvidence) -> Bool
     ) {
         self.id = id
         self.title = title
-        self.shape = shape
-        self.glyph = glyph
+        self.motif = motif
         self.blurb = blurb
         self.lockedHint = lockedHint
         self.isEarned = isEarned
@@ -191,14 +194,13 @@ extension Badge: Hashable {
 
 extension Badge {
 
-    /// The ten, in the order they are shown. Sides rise with difficulty, so the order is
-    /// also the shape progression.
+    /// The ten, in the order they are shown. The order is the order they tend to arrive
+    /// in, and it puts the two bracketed job lines at either end of the list on purpose.
     public static let all: [Badge] = [
         Badge(
             id: .stoppedOnce,
             title: "[1]+ Stopped",
-            shape: .circle,
-            glyph: "1",
+            motif: .jobLine,
             blurb: "Your first break. It is what the shell prints when a job is suspended, "
                 + "and the job is fine: registers, memory, all of it still there.",
             lockedHint: "Take one break."
@@ -207,8 +209,7 @@ extension Badge {
         Badge(
             id: .niceN10,
             title: "nice -n 10",
-            shape: .triangle,
-            glyph: "n",
+            motif: .descent,
             blurb: "Ten breaks. You have lowered your own priority ten times without anyone "
                 + "having to do it for you.",
             lockedHint: "Ten breaks in total. The count is in the name."
@@ -217,8 +218,7 @@ extension Badge {
         Badge(
             id: .unmasked,
             title: "unmasked",
-            shape: .square,
-            glyph: "u",
+            motif: .liftedGate,
             blurb: "A day where every break the app actually asked for happened. Nothing "
                 + "blocked, nothing pending, no handler in the way.",
             lockedHint: "One day where every break offered was taken."
@@ -227,8 +227,7 @@ extension Badge {
         Badge(
             id: .provablyHalts,
             title: "provably halts",
-            shape: .hexagon,
-            glyph: "h",
+            motif: .tombstone,
             blurb: "Ten of those days. Whether an arbitrary program halts is undecidable. "
                 + "You are not an arbitrary program, and here is the evidence.",
             lockedHint: "Ten days where every break offered was taken."
@@ -237,8 +236,7 @@ extension Badge {
         Badge(
             id: .sigDFL,
             title: "SIG_DFL",
-            shape: .pentagon,
-            glyph: "D",
+            motif: .straightThrough,
             blurb: "Five prompts accepted inside fifteen seconds. No handler installed, "
                 + "no deliberation, the signal just runs.",
             lockedHint: "Accept five prompts within fifteen seconds of being asked."
@@ -247,8 +245,7 @@ extension Badge {
         Badge(
             id: .einval,
             title: "EINVAL",
-            shape: .diamond,
-            glyph: "E",
+            motif: .escalation,
             blurb: "You let one prompt climb all four rungs to SIGSTOP. sigaction() answers "
                 + "EINVAL if you try to install a handler for that one. The refusal is "
                 + "documented; the attempt was always the funny part.",
@@ -258,8 +255,7 @@ extension Badge {
         Badge(
             id: .schedYield,
             title: "sched_yield",
-            shape: .hexagon,
-            glyph: "y",
+            motif: .handoff,
             blurb: "Four hours of work and not one stretch past the hour. You gave up the "
                 + "CPU before anything had to take it from you.",
             lockedHint: "A day of at least four hours where no single stretch passed an hour."
@@ -270,8 +266,7 @@ extension Badge {
         Badge(
             id: .earlyReturn,
             title: "early return",
-            shape: .triangle,
-            glyph: "r",
+            motif: .earlyExit,
             blurb: "Five days with a break before ten in the morning. Out before the "
                 + "branching got complicated.",
             lockedHint: "Take a break before 10:00 on five separate days."
@@ -280,8 +275,7 @@ extension Badge {
         Badge(
             id: .nohup,
             title: "nohup",
-            shape: .pentagon,
-            glyph: "&",
+            motif: .detached,
             blurb: "Five nights with a break after one in the morning. Whatever you are "
                 + "running, it has stopped caring whether the terminal is still there.",
             lockedHint: "Take a break after 01:00 on five separate days."
@@ -290,8 +284,7 @@ extension Badge {
         Badge(
             id: .stoppedHundred,
             title: "[100]+ Stopped",
-            shape: .octagon,
-            glyph: "00",
+            motif: .jobLineFull,
             blurb: "A hundred breaks. The shell prints the same line it printed the first "
                 + "time. Only the number in the brackets moved.",
             lockedHint: "A hundred breaks in total."

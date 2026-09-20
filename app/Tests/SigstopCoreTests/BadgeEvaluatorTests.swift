@@ -539,7 +539,7 @@ struct BadgeDesignRuleTests {
         #expect(Fix.evaluate([grind]).isEmpty)
     }
 
-    @Test("Every badge has copy, a glyph and a distinct id")
+    @Test("Every badge has copy and a distinct id")
     func the_catalogue_is_complete() {
         #expect(Badge.all.count == BadgeID.allCases.count)
         #expect(Set(Badge.all.map(\.id)).count == Badge.all.count)
@@ -547,30 +547,36 @@ struct BadgeDesignRuleTests {
             #expect(!badge.title.isEmpty)
             #expect(!badge.blurb.isEmpty)
             #expect(!badge.lockedHint.isEmpty)
-            #expect(!badge.glyph.isEmpty)
-            #expect(badge.glyph.count <= 2)
             #expect(!badge.isEarned(BadgeEvidence()))
         }
     }
 
-    /// The shapes are part of each badge's identity, not a rendering choice, so they are
-    /// pinned here: a refactor that reassigns one is a rename, and this fails first.
-    @Test("Every badge keeps the shape it was given")
-    func the_shapes_are_fixed() {
-        let expected: [BadgeID: BadgeShape] = [
-            .stoppedOnce: .circle,
-            .niceN10: .triangle,
-            .unmasked: .square,
-            .provablyHalts: .hexagon,
-            .sigDFL: .pentagon,
-            .einval: .diamond,
-            .schedYield: .hexagon,
-            .earlyReturn: .triangle,
-            .nohup: .pentagon,
-            .stoppedHundred: .octagon,
+    /// A motif is part of a badge's identity, not a rendering choice, so they are pinned
+    /// here: a refactor that reassigns one is a rename, and this fails first.
+    @Test("Every badge keeps the motif it was given")
+    func the_motifs_are_fixed() {
+        let expected: [BadgeID: BadgeMotif] = [
+            .stoppedOnce: .jobLine,
+            .niceN10: .descent,
+            .unmasked: .liftedGate,
+            .provablyHalts: .tombstone,
+            .sigDFL: .straightThrough,
+            .einval: .escalation,
+            .schedYield: .handoff,
+            .earlyReturn: .earlyExit,
+            .nohup: .detached,
+            .stoppedHundred: .jobLineFull,
         ]
         for badge in Badge.all {
-            #expect(badge.shape == expected[badge.id])
+            #expect(badge.motif == expected[badge.id])
         }
+    }
+
+    /// The old geometry gave two badges the same shape and called it a progression. Ten
+    /// objects that a reader is meant to tell apart have to actually be ten objects, and
+    /// the one place that can go wrong silently is the catalogue.
+    @Test("No two badges share a motif")
+    func the_motifs_are_distinct() {
+        #expect(Set(Badge.all.map(\.motif)).count == Badge.all.count)
     }
 }

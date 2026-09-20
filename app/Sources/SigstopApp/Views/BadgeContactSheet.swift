@@ -11,6 +11,10 @@ import SwiftUI
 /// command now rather than a favour: build, run one line, open a PNG, and see all
 /// twenty states at both sizes next to the real row layout they ship in.
 ///
+/// The two sections at 28pt are the important ones, because 28 is what ships and because
+/// ten objects laid side by side is the only view that answers the question the set has
+/// to pass: can you tell them apart without reading the titles under them.
+///
 /// It renders through a real off-screen window rather than `ImageRenderer` because
 /// `Brand`'s colours are `NSColor` values that resolve per appearance, and an
 /// `ImageRenderer` has no appearance to resolve against: it silently picks one and the
@@ -34,16 +38,11 @@ struct BadgeContactSheet: View {
             section("locked, 28pt") {
                 marks(size: 28, unlocked: false)
             }
-            section("56pt, earned then locked") {
-                HStack(spacing: 20) {
-                    ForEach(Badge.all.prefix(5)) { badge in
-                        BadgeMark(shape: badge.shape, glyph: badge.glyph, unlocked: true, size: 56)
-                    }
-                    Divider().frame(height: 56)
-                    ForEach(Badge.all.prefix(5)) { badge in
-                        BadgeMark(shape: badge.shape, glyph: badge.glyph, unlocked: false, size: 56)
-                    }
-                }
+            section("56pt, earned") {
+                marks(size: 56, unlocked: true)
+            }
+            section("56pt, locked") {
+                marks(size: 56, unlocked: false)
             }
             section("the row, as it ships") {
                 VStack(spacing: 0) {
@@ -67,14 +66,14 @@ struct BadgeContactSheet: View {
         HStack(spacing: 16) {
             ForEach(Badge.all) { badge in
                 VStack(spacing: 6) {
-                    BadgeMark(shape: badge.shape, glyph: badge.glyph, unlocked: unlocked, size: size)
+                    BadgeMark(motif: badge.motif, unlocked: unlocked, size: size)
                     Text(badge.title)
                         .font(Brand.mono(7))
                         .foregroundStyle(Brand.fgFaint)
                         .lineLimit(1)
                         .fixedSize()
                 }
-                .frame(width: 66)
+                .frame(width: max(66, size + 38))
             }
         }
     }

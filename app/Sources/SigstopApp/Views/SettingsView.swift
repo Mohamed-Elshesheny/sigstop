@@ -743,12 +743,7 @@ struct BadgeRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 14) {
-                BadgeMark(
-                    shape: badge.shape,
-                    glyph: badge.glyph,
-                    unlocked: unlocked,
-                    size: 28
-                )
+                BadgeMark(motif: badge.motif, unlocked: unlocked, size: 28)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(badge.title)
                         .font(Brand.mono(12, weight: .medium))
