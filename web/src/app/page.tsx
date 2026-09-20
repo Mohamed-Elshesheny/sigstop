@@ -4,6 +4,7 @@ import { Hero } from "@/components/sections/Hero";
 import { ContextDemo } from "@/components/sections/ContextDemo";
 import { ProductDemo } from "@/components/sections/ProductDemo";
 import { NotPomodoro } from "@/components/sections/NotPomodoro";
+import { Badges } from "@/components/sections/Badges";
 import { Comparison } from "@/components/sections/Comparison";
 import { BeforeAfter } from "@/components/sections/BeforeAfter";
 import { Privacy } from "@/components/sections/Privacy";
@@ -21,6 +22,7 @@ export default function Home() {
         <ContextDemo />
         <ProductDemo />
         <NotPomodoro />
+        <Badges />
         <Comparison />
         <BeforeAfter />
         <Privacy />

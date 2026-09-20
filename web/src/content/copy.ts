@@ -363,3 +363,36 @@ export const comparison = {
   },
 
   } as const;
+
+/**
+ * The ten badges, named exactly as `SigstopCore/Badges/Badge.swift` names them.
+ *
+ * The marks themselves are drawn in the app and are not reproduced here, because
+ * a second copy of ten drawings is a second copy to keep in sync. What the page
+ * owes a reader is the names, what each one costs, and the three properties that
+ * separate this from a streak.
+ */
+export const badges = {
+  kicker: "The ten",
+  headline: "There is a shelf, and it cannot be taken off you.",
+  sub: "Ten badges, kept in Settings and never in a prompt. Every one is arithmetic over the log already on disk, so none of them made the app watch you any more closely than it already did.",
+  columnLabels: { name: "badge", earns: "what it takes" },
+  items: [
+    { name: "[1]+ Stopped", earns: "Take one break." },
+    { name: "ten down", earns: "Ten breaks in total." },
+    { name: "nothing blocked", earns: "One day where every break offered was taken." },
+    { name: "always halts", earns: "Ten days where every break offered was taken." },
+    { name: "no handler", earns: "Accept five prompts within fifteen seconds of being asked." },
+    { name: "uncatchable", earns: "Let one prompt climb all four rungs to SIGSTOP." },
+    { name: "yielded", earns: "A day of at least four hours where no single stretch passed an hour." },
+    { name: "early return", earns: "Take a break before 10:00 on five separate days." },
+    { name: "still running", earns: "Take a break after 01:00 on five separate days." },
+    { name: "[100]+ Stopped", earns: "A hundred breaks in total." },
+  ],
+  rules: [
+    { k: "Nothing expires", v: "Miss a day, miss a month. A badge records something that happened and there is no number to protect." },
+    { k: "Nothing can go down", v: "There is no counter to lose, so there is nothing here to hold hostage." },
+    { k: "Nothing rewards working longer", v: "The app exists to interrupt long stretches. Paying you for one would have it arguing with itself, and yielded is explicitly for a day where nothing ran past the hour." },
+  ],
+  note: "No levels, no tiers, no points, no shareable card. If that sounds like a thin version of what other apps do here, it is, deliberately.",
+} as const;
