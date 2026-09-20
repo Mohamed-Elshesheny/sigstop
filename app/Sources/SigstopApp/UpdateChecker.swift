@@ -32,9 +32,13 @@ import Sparkle
 ///
 ///   * One URL, compiled in: `SUFeedURL` in Info.plist. A static file on GitHub Pages,
 ///     byte-identical for everyone, with no query string and nothing to personalise.
-///   * It is fetched when the user presses Check for updates. There is no launch check
-///     and no timer unless the user switches `automaticallyChecks` on, which is off by
-///     default (`SUEnableAutomaticChecks` is `<false/>`).
+///   * It is fetched when the user presses Check for updates, and at no other time. There
+///     is no launch check and no timer at all. `SUEnableAutomaticChecks` is `<false/>` in
+///     Info.plist, which is only a default, so `start()` below also writes the setting
+///     off on every launch. Sparkle's scheduler reads that value out of `UserDefaults`,
+///     where it survives an app update and where anything on the machine can set it; a
+///     default nobody can see and nobody can clear is not a setting, it is a leak with a
+///     preference key.
 ///   * The request carries no identifier: `SUEnableSystemProfiling` is off, so Sparkle
 ///     appends no profile parameters, and `userAgentString` below is overridden to a
 ///     constant that does not even carry the app version.
@@ -141,6 +145,7 @@ final class UpdateChecker {
         updater.userAgentString = "sigstop"
         updater.sendsSystemProfile = false
         updater.automaticallyDownloadsUpdates = false
+        updater.automaticallyChecksForUpdates = false
 
         do {
             try updater.start()
@@ -159,18 +164,6 @@ final class UpdateChecker {
     var canCheck: Bool {
         guard let updater else { return false }
         return updater.canCheckForUpdates && !state.isBusy
-    }
-
-    /// Whether Sparkle may check on its own schedule.
-    ///
-    /// This one setting lives in Sparkle's own `UserDefaults` rather than in
-    /// `settings.json` with everything else, and that is not an oversight: Sparkle's
-    /// scheduler reads the default directly, there is no supported way to feed it from a
-    /// file, and a copy in `settings.json` that the scheduler ignored would be a switch
-    /// that lies. docs/PRIVACY.md §5.3 notes the exception.
-    var automaticallyChecks: Bool {
-        get { updater?.automaticallyChecksForUpdates ?? false }
-        set { updater?.automaticallyChecksForUpdates = newValue }
     }
 
     /// The only entry point that starts a network request. Called from a button and from

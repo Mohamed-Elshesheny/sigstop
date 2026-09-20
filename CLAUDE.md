@@ -178,9 +178,16 @@ paragraph of the old version demanded and is the only reason it was allowed to c
 
 - The app makes **one** kind of request: a `GET` of the appcast at `SUFeedURL`, a static XML file
   that is byte-identical for every user.
-- It is made **only** when someone presses *Check for updates* in Settings → About, or on a daily
-  schedule **if and only if** the user ticked the box. `SUEnableAutomaticChecks` is `<false/>`, and
-  Sparkle's first-run "may I check automatically?" prompt is answered `no` without being shown.
+- It is made **only** when someone presses *Check for updates* in Settings → About. There is no
+  schedule, no launch check and no timer. `SUEnableAutomaticChecks` is `<false/>` in Info.plist and
+  `UpdateChecker` writes `automaticallyChecksForUpdates = false` on every launch, because the plist
+  key is only a default and the live value lives in `UserDefaults` where it survives an update and
+  where anything on the machine can turn it on. Sparkle's first-run "may I check automatically?"
+  prompt is answered `no` without being shown.
+- There used to be a toggle for the daily schedule. It was removed, and removing a switch that
+  governs a network call is not a UI change: the scheduler does not go away with its checkbox, so
+  the app now forces the value instead of offering it. A network path the user can neither see nor
+  revoke is worse than one they can.
 - It carries **no identifier**: no account, no install id, no machine id, no system profile
   (`SUEnableSystemProfiling` is `<false/>`), and the user agent is overridden to the constant
   `"sigstop"` so it does not carry the app version either.

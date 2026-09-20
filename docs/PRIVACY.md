@@ -885,8 +885,8 @@ concrete objection in the quoted text is either answered or admitted:
 | Old objection | Now |
 |---|---|
 | "reveals your app version" | Answered. The user agent is overridden to the constant `sigstop`; `SUEnableSystemProfiling` is off. The version comparison happens on your machine against a file that is the same for everyone |
-| "on a schedule that correlates with when your machine is awake" | Answered by default. There is no schedule unless you tick the box; the default is off and there is no check at launch |
-| "reveals your IP address and a timestamp" | **Admitted. Not fixable.** Any HTTPS request does this. If it matters to you, leave the box unticked, never press the button, and use Homebrew |
+| "on a schedule that correlates with when your machine is awake" | Answered outright. There is no schedule. The app writes Sparkle's scheduling flag off on every launch, so there is no daily check, no launch check and no toggle that could turn one on |
+| "reveals your IP address and a timestamp" | **Admitted. Not fixable.** Any HTTPS request does this. If it matters to you, never press the button, and use Homebrew. Nothing else in the app will make the request for you |
 | "to a server that can log it" | Admitted, and defanged where it counts: the server cannot make you install anything, because of §2.8 |
 
 **What did NOT change.** There is still no telemetry, still no payload, still nothing about you in

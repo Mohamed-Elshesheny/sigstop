@@ -210,7 +210,7 @@ check_plist_false() {  # check_plist_false <key> <human description>
   fi
 }
 
-check_plist_false SUEnableAutomaticChecks "no scheduled check unless the user turns it on"
+check_plist_false SUEnableAutomaticChecks "no scheduled check, and the app also forces it off at launch"
 check_plist_false SUAutomaticallyUpdate   "nothing downloads or installs without being asked"
 check_plist_false SUEnableSystemProfiling "no system profile is appended to the request"
 
