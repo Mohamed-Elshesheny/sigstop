@@ -286,7 +286,7 @@ export const productDemo = {
       minutes: 45,
       pose: "slumped",
       title: "It waits for a seam",
-      body: "An app switch, or a quiet moment.",
+      body: "An app switch, or a quiet moment. It does not wait forever.",
     },
     {
       id: "break",
@@ -322,10 +322,10 @@ export const comparison = {
   headline: "We are not the first thing that tells you to take a break.",
   sub: "Here is the honest version, including the parts we lose.",
   columns: [
-    { key: "sigstop", label: "sigstop", note: "this", highlight: true },
-    { key: "pomodoro", label: "Pomodoro timers", note: "the 25 minute crowd", highlight: false },
-    { key: "wellness", label: "Wellness apps", note: "streaks to protect, a subscription", highlight: false },
-    { key: "nothing", label: "Your current setup", note: "nothing", highlight: false },
+    { key: "sigstop", label: "sigstop", short: "sigstop", note: "this", highlight: true },
+    { key: "pomodoro", label: "Pomodoro timers", short: "timers", note: "the 25 minute crowd", highlight: false },
+    { key: "wellness", label: "Wellness apps", short: "wellness", note: "streaks to protect, a subscription", highlight: false },
+    { key: "nothing", label: "Your current setup", short: "nothing", note: "nothing", highlight: false },
   ],
   rows: [
     { trait: "Knows which app you are in", sigstop: "yes", pomodoro: "no", wellness: "some", nothing: "no" },
@@ -341,7 +341,7 @@ export const comparison = {
     { trait: "Runs on Windows and Linux", sigstop: "no", pomodoro: "yes", wellness: "yes", nothing: "yes" },
     { trait: "Keeps a streak you can lose", sigstop: "no", pomodoro: "no", wellness: "yes", nothing: "no" },
     { trait: "Tracks anything for your manager", sigstop: "no", pomodoro: "no", wellness: "some", nothing: "no" },
-    { trait: "Will make you a better engineer", sigstop: "yes", pomodoro: "no", wellness: "no", nothing: "no" },
+    { trait: "Will make you a better engineer", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "no" },
   ],
   legend: {
     yes: "yes",
@@ -466,7 +466,7 @@ export const badges = {
   rules: [
     { k: "Nothing expires", v: "Miss a day, miss a month. A badge records something that happened and there is no number to protect." },
     { k: "Nothing can go down", v: "There is no counter to lose, so there is nothing here to hold hostage." },
-    { k: "Nothing rewards working longer", v: "The app exists to interrupt long stretches. Paying you for one would have it arguing with itself." },
+    { k: "Nothing rewards working longer", v: "The app exists to interrupt long stretches. Paying you for one would have it arguing with itself. yielded is for a day where nothing ran past the hour." },
   ],
   note: "No levels, no tiers, no points, no shareable card. If that sounds like a thin version of what other apps do here, it is, deliberately.",
 } as const;

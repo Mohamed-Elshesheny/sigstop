@@ -92,30 +92,48 @@ export function Comparison() {
           </table>
         </div>
 
-        {/* Mobile: the table restructured per column, not scrolled sideways. */}
-        <div className="mt-10 space-y-3 md:hidden">
-          {copy.columns.map((c) => (
-            <div
-              key={c.key}
-              className={cn(
-                "rounded-xl border p-4",
-                c.highlight ? "border-suspend/40 bg-suspend/[0.05]" : "border-line bg-surface/30",
-              )}
-            >
-              <p className={cn("font-mono text-sm font-bold", c.highlight ? "text-suspend-ink" : "text-fg")}>{c.label}</p>
-              <p className="mt-0.5 font-mono text-[10px] text-fg-faint">{c.note}</p>
-              <ul className="mt-3 space-y-1.5">
-                {copy.rows.map((r) => (
-                  <li key={r.trait} className="flex items-start gap-2.5 text-[13px] leading-snug">
-                    <span className="mt-0.5 shrink-0">
-                      <Mark v={r[c.key as keyof typeof r] as Verdict} strong={c.highlight} />
-                    </span>
-                    <span className="text-fg-muted">{r.trait}</span>
-                  </li>
+        {/* Mobile: the same table, narrow. This was four column-major cards,
+            which reprinted all fourteen traits once per column. */}
+        <div className="mt-8 overflow-hidden rounded-xl border border-line md:hidden">
+          <table className="w-full border-collapse">
+            <caption className="sr-only">
+              Feature comparison between sigstop, Pomodoro timers, wellness apps and using nothing
+            </caption>
+            <thead>
+              <tr className="border-b border-line bg-surface/50">
+                <th scope="col" className="px-3 py-2.5 text-left font-mono text-[9px] uppercase tracking-[0.12em] text-fg-faint">
+                  {" "}
+                </th>
+                {copy.columns.map((c) => (
+                  <th
+                    key={c.key}
+                    scope="col"
+                    className={cn(
+                      "w-[13%] px-1 py-2.5 text-center font-mono text-[9px] font-bold leading-tight",
+                      c.highlight ? "bg-suspend/[0.06] text-suspend-ink" : "text-fg-muted",
+                    )}
+                  >
+                    {c.short}
+                  </th>
                 ))}
-              </ul>
-            </div>
-          ))}
+              </tr>
+            </thead>
+            <tbody>
+              {copy.rows.map((r, i) => (
+                <tr key={r.trait} className={cn("border-b border-line last:border-0", i % 2 === 1 && "bg-surface/25")}>
+                  <th scope="row" className="px-3 py-2.5 text-left text-[12.5px] font-normal leading-snug text-fg-muted">
+                    {r.trait}
+                  </th>
+                  {keys.map((k) => (
+                    <td key={k} className={cn("px-1 py-2.5", k === "sigstop" && "bg-suspend/[0.06]")}>
+                      <Mark v={r[k] as Verdict} strong={k === "sigstop"} />
+                      <span className="sr-only">{copy.legend[r[k] as Verdict]}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {/* The last row is a performance claim, so it carries its sources,
