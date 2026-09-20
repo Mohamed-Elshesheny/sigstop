@@ -92,11 +92,17 @@ public struct PromptRequest: Sendable, Codable, Hashable {
     }
 }
 
+/// Why a prompt that was on screen is being taken down.
+///
+/// `userSkipped` exists because the skip path used to name `breakStarted`, on a path
+/// where no break starts at all. A withdraw reason is the app's own account of what it
+/// just did; one that names the wrong event is worse than none.
 public enum WithdrawReason: String, Sendable, Codable, Hashable {
     case quietHoursStarted
     case userLeft
     case cycleExpired
     case breakStarted
+    case userSkipped
     case dailyCapReached
     case userSnoozed
     /// A hard block began while the prompt was on screen. Without this a notification or

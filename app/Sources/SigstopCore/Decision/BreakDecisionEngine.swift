@@ -642,7 +642,7 @@ public struct BreakDecisionEngine: Sendable {
 
         case .skip:
             guard let cycle = state.openCycle else { return state }
-            effects.append(.withdrawPrompt(cycle: cycle, reason: .breakStarted))
+            effects.append(.withdrawPrompt(cycle: cycle, reason: .userSkipped))
             effects.append(.closeCycle(cycle, .skipped))
             effects.append(.recordSkip(cycle: cycle))
             effects.append(.setIndicator(.working))
