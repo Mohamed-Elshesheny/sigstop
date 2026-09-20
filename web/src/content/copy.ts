@@ -360,29 +360,4 @@ export const comparison = {
     "n/a": "not applicable",
   },
 
-  /**
-   * The last row claims something, so it has to carry its evidence, including the
-   * paper that disagrees. Citing only the half that suits us is the exact move a
-   * technical reader is scanning for.
-   */
-  evidence: {
-    kicker: "About that last row",
-    headline: "Sustained attention decays. Short breaks are how it comes back.",
-    body: "The claim is narrow and it is not a health claim. Hold one task long enough and performance on it degrades; psychologists call it the vigilance decrement, and it is one of the oldest findings in attention research. A brief, deliberate break from the task restores it.",
-    sources: [
-      {
-        claim: "Brief diversions from a task restore sustained focus on it",
-        cite: "Ariga & Lleras, Cognition (2011)",
-        doi: "10.1016/j.cognition.2010.12.007",
-        agrees: true,
-      },
-      {
-        claim: "A direct rebuttal: brief breaks did not preserve focus in this replication",
-        cite: "Helton & Russell, Experimental Brain Research (2012)",
-        doi: "10.1007/s00221-012-3065-0",
-        agrees: false,
-      },
-    ],
-    caveat: "Two papers, opposite results, and the honest summary is that the effect is real but the size and the conditions are argued over. What is not argued over is the decline itself. sigstop does not promise you a better brain. It notices when you have been holding one thing for fifty minutes and says so, which is the part software can actually do.",
-  }
-} as const;
+  } as const;

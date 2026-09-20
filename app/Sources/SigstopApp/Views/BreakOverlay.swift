@@ -41,7 +41,7 @@ final class NonActivatingPanel: NSPanel {
 @MainActor
 final class BreakOverlayController {
     private var breakPanels: [NonActivatingPanel] = []
-    private var fallbackPanel: NonActivatingPanel?
+    private var fallbackPanels: [NonActivatingPanel] = []
     private var screenObserver: NSObjectProtocol?
     private var keyMonitor: Any?
     private weak var model: AppModel?
@@ -153,35 +153,42 @@ final class BreakOverlayController {
     @discardableResult
     func presentPromptPanel(_ request: PromptRequest, message: RenderedMessage, model: AppModel) -> Bool {
         dismissPromptPanel()
-        guard let screen = Self.promptScreen() else { return false }
+        guard !NSScreen.screens.isEmpty else { return false }
 
-        let panel = NonActivatingPanel(
-            contentRect: Self.promptFrame(on: screen),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.onCancel = { [weak self] in self?.dismissPromptPanel() }
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.hidesOnDeactivate = false
-        panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        let hosting = NSHostingView(
-            rootView: FallbackPromptView(
-                request: request,
-                message: message,
-                onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
-                onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
-                onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
+        for screen in NSScreen.screens {
+            let panel = NonActivatingPanel(
+                contentRect: screen.frame,
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false
             )
-        )
-        hosting.sizingOptions = []
-        panel.contentView = hosting
-        panel.orderFrontRegardless()
-        fallbackPanel = panel
-        return true
+            panel.onCancel = { [weak model, weak self] in
+                self?.dismissPromptPanel()
+                model?.skip()
+            }
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = false
+            panel.isMovable = false
+            panel.hidesOnDeactivate = false
+            panel.level = .statusBar
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            panel.setFrame(screen.frame, display: true)
+
+            let hosting = NSHostingView(
+                rootView: FallbackPromptView(
+                    request: request,
+                    message: message,
+                    onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
+                    onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
+                )
+            )
+            hosting.sizingOptions = []
+            panel.contentView = hosting
+            panel.orderFrontRegardless()
+            fallbackPanels.append(panel)
+        }
+        return !fallbackPanels.isEmpty
     }
 
     /// Whether the prompt panel is composited on screen right now, according to the
@@ -193,16 +200,16 @@ final class BreakOverlayController {
     /// `kCGWindowIsOnscreen` for the panel's own window number, which is the same bit a
     /// screenshot sees. It needs no permission for the process's own windows.
     var promptPanelIsOnScreen: Bool {
-        guard let panel = fallbackPanel else { return false }
-        return Self.isOnScreen(windowNumber: panel.windowNumber)
+        return fallbackPanels.contains { Self.isOnScreen(windowNumber: $0.windowNumber) }
     }
 
     /// Puts the prompt panel back where it belongs and orders it front again. Idempotent
     /// and cheap, so the model can call it on every tick until the window server agrees.
     func reassertPromptPanel() {
-        guard let panel = fallbackPanel, let screen = Self.promptScreen() else { return }
-        panel.setFrame(Self.promptFrame(on: screen), display: true)
-        panel.orderFrontRegardless()
+        for (panel, screen) in zip(fallbackPanels, NSScreen.screens) {
+            panel.setFrame(screen.frame, display: true)
+            panel.orderFrontRegardless()
+        }
     }
 
     /// The screen with the menu bar. `NSScreen.main` is the screen of this app's key
@@ -212,17 +219,6 @@ final class BreakOverlayController {
         NSScreen.main ?? NSScreen.screens.first
     }
 
-    /// Top-right corner of the visible area, inset, and clamped so the whole panel is on
-    /// the screen whatever the visible area turns out to be.
-    private static func promptFrame(on screen: NSScreen) -> NSRect {
-        let size = FallbackPromptView.size
-        let area = screen.visibleFrame
-        let origin = NSPoint(
-            x: max(area.minX, area.maxX - size.width - 18),
-            y: max(area.minY, area.maxY - size.height - 18)
-        )
-        return NSRect(origin: origin, size: size)
-    }
 
     private static func isOnScreen(windowNumber: Int) -> Bool {
         guard windowNumber > 0,
@@ -233,10 +229,12 @@ final class BreakOverlayController {
     }
 
     func dismissPromptPanel() {
-        fallbackPanel?.orderOut(nil)
-        fallbackPanel?.contentView = nil
-        fallbackPanel?.close()
-        fallbackPanel = nil
+        for panel in fallbackPanels {
+            panel.orderOut(nil)
+            panel.contentView = nil
+            panel.close()
+        }
+        fallbackPanels.removeAll()
     }
 
     func dismissAll() {
@@ -362,79 +360,71 @@ struct BreakOverlayView: View {
 /// monospaced buttons. The signal is amber at levels 1–3 and red at level 4, which is
 /// the only red in the product — `SIGSTOP` is the one rung that cannot be ignored, and
 /// the colour says so once.
+/// The prompt, full screen on every display.
+///
+/// Two choices only. A third option is a third decision to make while the whole point is
+/// that deciding is what you have been avoiding for fifty minutes.
 struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage
     let onTake: () -> Void
-    let onSnooze: () -> Void
-    let onSkip: () -> Void
-
-    /// The panel's size, owned by the view so the frame the controller opens and the
-    /// frame the view lays out for are the same number. The hosting view is told not to
-    /// size its window, because a `Spacer` in a flexible frame reports an ideal height
-    /// the window would otherwise grow to.
-    static let size = CGSize(width: 420, height: 176)
+    let onIgnore: () -> Void
 
     private var isIncident: Bool { request.level == .incident }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                StateDot(state: isIncident ? .alert : .suspend)
-                Text(request.signal)
-                    .font(Brand.mono(11, weight: .semibold))
-                    .tracking(1)
-                    .foregroundStyle(isIncident ? Brand.alert : Brand.amber)
-                Text("L\(request.level.rawValue)")
-                    .font(Brand.mono(10))
-                    .foregroundStyle(Brand.fgFaint)
-                Spacer()
+        ZStack {
+            Rectangle()
+                .fill(.black.opacity(0.78))
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    StateDot(state: isIncident ? .alert : .suspend)
+                    Text(request.signal)
+                        .font(Brand.mono(13, weight: .semibold))
+                        .tracking(3)
+                        .foregroundStyle(isIncident ? Brand.alert : Brand.Dark.amber)
+                    Text("L\(request.level.rawValue)")
+                        .font(Brand.mono(12))
+                        .foregroundStyle(Brand.Dark.fgFaint)
+                }
+
                 Text("\(DurationText.short(request.continuousWork)) continuous")
-                    .font(Brand.mono(10))
-                    .foregroundStyle(Brand.fgFaint)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(Brand.surface)
+                    .font(Brand.mono(12))
+                    .foregroundStyle(Brand.Dark.fgFaint)
+                    .padding(.top, 10)
 
-            Rule()
-
-            VStack(alignment: .leading, spacing: 5) {
                 if let title = message.title {
                     Text(title)
-                        .font(Brand.sans(13, weight: .semibold))
-                        .foregroundStyle(Brand.fg)
+                        .font(Brand.sans(20, weight: .semibold))
+                        .foregroundStyle(Brand.Dark.fgMuted)
+                        .padding(.top, 34)
                 }
+
                 Text(message.text)
-                    .font(Brand.sans(13))
-                    .foregroundStyle(Brand.fg)
-                    .lineSpacing(2)
+                    .font(Brand.sans(38, weight: .medium))
+                    .foregroundStyle(Brand.Dark.fg)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(6)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 12)
+                    .frame(maxWidth: 820)
+                    .padding(.top, message.title == nil ? 34 : 14)
 
-            Spacer(minLength: 10)
-
-            HStack(spacing: 6) {
-                TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
-                    .fixedSize()
-                if !request.snoozeOffered.isEmpty {
-                    TerminalButton("Snooze · SIGALRM", action: onSnooze)
+                HStack(spacing: 14) {
+                    TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
+                        .fixedSize()
+                    TerminalButton("Ignore it", action: onIgnore)
                         .fixedSize()
                 }
-                TerminalButton("Skip", style: .quiet, action: onSkip)
-                    .fixedSize()
+                .padding(.top, 44)
+
+                Text("esc to ignore")
+                    .font(Brand.mono(11))
+                    .foregroundStyle(Brand.Dark.fgFaint)
+                    .padding(.top, 18)
             }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 12)
+            .padding(48)
         }
-        .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
-        .background(Brand.bgRaised)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Brand.lineHi, lineWidth: 1)
-        )
     }
 }
