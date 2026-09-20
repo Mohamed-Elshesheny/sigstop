@@ -100,6 +100,16 @@ public struct SessionTracker: Sendable {
     private var lastInputMono: Double
     private var dayIndex: Int
     private var gap: ActiveGap?
+
+    /// When the current break started, tracked apart from the idle gap.
+    ///
+    /// The gap is closed by input, which is correct for idleness and wrong for a break: a
+    /// break does not end because you moved the mouse, it ends when the app says it ends.
+    /// Measuring the break from the gap meant any input during it wiped the start marker,
+    /// `endBreak` then measured roughly zero, the break failed the qualifying threshold,
+    /// the work clock was never reset, and the engine re-prompted in the same second the
+    /// break finished.
+    private var breakStart: (mono: Double, wall: Date)?
     private var pendingWakeCause: PauseCause?
     private var awaitingNewSession: Bool = false
 
@@ -142,6 +152,7 @@ public struct SessionTracker: Sendable {
         session.revokeProvisionalCredit()
         session.pauseClock(cause: .breakActive, since: now)
         gap = ActiveGap(cause: .breakActive, startMono: mono, startWall: now, paused: true)
+        breakStart = (mono: mono, wall: now)
         return [.clockPaused(cause: .breakActive, since: now)]
     }
 
@@ -152,8 +163,8 @@ public struct SessionTracker: Sendable {
         let now = time.now
         let mono = time.monotonicSeconds
         var events: [SessionEvent] = []
-        let start = gap?.startWall ?? now
-        let duration = mono - (gap?.startMono ?? mono)
+        let start = breakStart?.wall ?? gap?.startWall ?? now
+        let duration = mono - (breakStart?.mono ?? gap?.startMono ?? mono)
         if duration >= policy.qualifyingBreak {
             session.reset(reason: .qualifyingBreak)
             session.recordBreak(start: start, end: now)
@@ -163,6 +174,7 @@ public struct SessionTracker: Sendable {
             session.recordAbandonedBreak()
         }
         gap = nil
+        breakStart = nil
         lastInputMono = mono
         session.resumeClock()
         events.append(.clockResumed(at: now))
@@ -285,6 +297,7 @@ public struct SessionTracker: Sendable {
 
     private mutating func closeGap(now: Date, mono: Double, events: inout [SessionEvent]) {
         guard let existing = gap else { return }
+        guard existing.cause != .breakActive else { return }
         let duration = mono - existing.startMono
         if existing.lastReportedKind == nil {
             events.append(.gapClassified(.microIdle, duration: duration, cause: existing.cause))

@@ -354,7 +354,7 @@ struct MenuBarView: View {
                             Text(stat.label)
                                 .font(Brand.mono(9))
                                 .tracking(0.4)
-                                .foregroundStyle(Brand.fgFaint)
+                                .foregroundStyle(Brand.fgMuted)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
