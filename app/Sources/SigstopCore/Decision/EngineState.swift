@@ -377,8 +377,6 @@ public enum Effect: Sendable, Codable, Hashable {
     case recordSkip(cycle: CycleID)
     case recordIgnoredPrompt(cycle: CycleID)
     case recordSnooze(cycle: CycleID, duration: TimeInterval)
-    /// SIGCONT, the work clock resumes exactly where it left off.
-    case resumeWorkClock
 }
 
 // MARK: - Daily counters

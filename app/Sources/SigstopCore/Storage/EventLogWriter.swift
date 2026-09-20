@@ -90,9 +90,6 @@ public enum EventLogWriter {
                     snoozeSeconds: Int(max(0, duration).rounded())
                 )
             ]
-
-        case .resumeWorkClock:
-            return []
         }
     }
 }

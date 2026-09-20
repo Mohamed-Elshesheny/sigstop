@@ -549,7 +549,6 @@ public struct BreakDecisionEngine: Sendable {
         effects.append(
             .endBreak(cycle: active.cycle, origin: active.origin, honored: honored, elapsed: elapsed)
         )
-        effects.append(.resumeWorkClock)
         if let cycle = active.cycle {
             effects.append(.closeCycle(cycle, honored ? .honored : .skipped))
             if honored {

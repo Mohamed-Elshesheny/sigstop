@@ -591,8 +591,6 @@ final class AppModel {
         case .recordSnooze:
             tracker.recordSnooze()
 
-        case .resumeWorkClock:
-            break
         }
     }
 

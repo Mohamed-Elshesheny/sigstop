@@ -35,7 +35,6 @@ struct ObservabilityTests {
         case .recordSkip:          return "recordSkip"
         case .recordIgnoredPrompt: return "recordIgnoredPrompt"
         case .recordSnooze:        return "recordSnooze"
-        case .resumeWorkClock:     return "resumeWorkClock"
         }
     }
 
@@ -61,7 +60,6 @@ struct ObservabilityTests {
             .recordSkip(cycle: cycle),
             .recordIgnoredPrompt(cycle: cycle),
             .recordSnooze(cycle: cycle, duration: 300),
-            .resumeWorkClock,
         ]
     }
 
@@ -77,7 +75,6 @@ struct ObservabilityTests {
                 "openCycle", "closeCycle", "deliverPrompt", "withdrawPrompt", "setIndicator",
                 "beginBreak", "endBreak", "scheduleWake", "cancelScheduledWake",
                 "recordVerdict", "recordSkip", "recordIgnoredPrompt", "recordSnooze",
-                "resumeWorkClock",
             ],
             "a new Effect was added; say here what it writes"
         )
