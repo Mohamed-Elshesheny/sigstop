@@ -44,6 +44,10 @@ enum EngineHarness {
         var monotonic: Double = 0
         var continuousWork: TimeInterval = 0
         var micRunning = false
+        /// A second capture fact, which is what makes a microphone block *corroborated*
+        /// and therefore unbounded. A mic on its own is bounded now, because a mic on its
+        /// own is what a virtual audio device looks like.
+        var cameraRunning = false
         /// Seconds since the last input event. Above `microIdleThresholdSeconds` the
         /// engine suspends the cycle and goes `.idle`, which is a second state that holds
         /// a cycle open while computing no verdict.
@@ -83,7 +87,7 @@ enum EngineHarness {
                 now: now,
                 monotonic: monotonic,
                 context: context,
-                signals: SystemSignals(audioInputRunning: micRunning),
+                signals: SystemSignals(audioInputRunning: micRunning, cameraRunning: cameraRunning),
                 settings: settings,
                 day: day,
                 userAction: action
@@ -172,6 +176,17 @@ enum EngineHarness {
         var micRunning: Bool {
             get { driver.micRunning }
             set { driver.micRunning = newValue }
+        }
+
+        var cameraRunning: Bool {
+            get { driver.cameraRunning }
+            set { driver.cameraRunning = newValue }
+        }
+
+        /// A microphone the app has a second, independent reason to believe: a real call.
+        mutating func startCorroboratedCall() {
+            driver.micRunning = true
+            driver.cameraRunning = true
         }
 
         @discardableResult

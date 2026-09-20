@@ -91,9 +91,9 @@ struct ObservabilityTests {
     /// `LoggedEvent.gate`, and docs/PRIVACY.md §4.3. A count in prose drifts silently, so
     /// it is asserted here.
     @Test("the gate vocabulary is the size the docs say it is")
-    func gateVocabularyIsTwentyEight() {
+    func gateVocabularyIsTwentyNine() {
         #expect(
-            GateReason.allCases.count == 28,
+            GateReason.allCases.count == 29,
             "GateReason changed size; update GateReason.swift, EventLog.swift and PRIVACY.md §4.3"
         )
         for reason in GateReason.allCases {
@@ -300,11 +300,14 @@ struct ObservabilityTests {
     /// out. A hard-blocked `breakDue` returns itself every tick and never reaches
     /// `handleWorking`, which is the only place a cycle id is taken. A second `break_open`
     /// in the owner's file is therefore proof the engine was back in `.working`.
-    @Test("a sustained microphone block never opens a second cycle")
+    ///
+    /// Corroborated, because this is a claim about what a HARD BLOCK does and a lone
+    /// microphone stops being one after `uncorroboratedAudioCeiling`.
+    @Test("a sustained call block never opens a second cycle")
     func sustainedBlockNeverOpensASecondCycle() {
         var session = EngineHarness.Session()
         session.stepToPrompt()
-        session.micRunning = true
+        session.startCorroboratedCall()
         session.step(times: 320)
 
         let opens = session.log.lines.filter { $0.kind == .breakOpen }
@@ -315,6 +318,12 @@ struct ObservabilityTests {
     /// An escalating cycle under a sustained block used to be unbounded: `ladderElapsed`
     /// accrues below the hard-block early return, so the ladder froze and `exhausted`
     /// could never become true, and unlike `breakDue` this state had no ceiling at all.
+    ///
+    /// The block here is a *corroborated* one, mic and camera together, because that is
+    /// the only kind that is still unbounded and therefore the only kind the stale
+    /// ceiling has to catch. A microphone on its own now stops blocking after
+    /// `uncorroboratedAudioCeiling`, which is what a virtual audio device looks like and
+    /// is covered by `uncorroboratedMicrophoneStopsBlocking` below.
     @Test("an escalating cycle cannot outlive the stale ceiling")
     func escalatingCycleIsBounded() {
         var session = EngineHarness.Session()
@@ -324,7 +333,7 @@ struct ObservabilityTests {
         }
         #expect(session.driver.state.name == "ignored", "the ladder must have started")
 
-        session.micRunning = true
+        session.startCorroboratedCall()
         let closed = session.step(untilLimit: 900) { effects in
             effects.contains { if case .closeCycle = $0 { return true } else { return false } }
         }

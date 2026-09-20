@@ -57,7 +57,7 @@ public struct PromptOutlook: Sendable, Hashable {
         let cycleIsOpen = opened != nil && (closed == nil || closed!.at < opened!.at)
 
         if let opened, cycleIsOpen {
-            return openCycle(opened, in: sorted, now: now, clock: clock)
+            return openCycle(opened, in: sorted, now: now, policy: policy, clock: clock)
         }
 
         guard let closed, let outcome = closed.outcome else {
@@ -145,10 +145,25 @@ public struct PromptOutlook: Sendable, Hashable {
     /// old, and no matter what the user had already done about it. On the log it was
     /// designed from it was wrong three ways at once: a `start` had orphaned the cycle, a
     /// `break_response` had answered it, and the newest line was a day old.
+    /// Consecutive opportunities closed `ignoredExhausted` since the last one that was
+    /// honored. The engine's own `consecutiveIgnoredCycles`, recovered from the file,
+    /// because a separate process cannot read the running counter.
+    private static func ignoredRun(in sorted: [LoggedEvent]) -> Int {
+        sorted.reduce(into: 0) { run, event in
+            guard event.kind == .cycleClose, let outcome = event.outcome else { return }
+            switch outcome {
+            case .ignoredExhausted: run += 1
+            case .honored:          run = 0
+            case .skipped, .expired, .quietSuppressed, .dailyCapReached: break
+            }
+        }
+    }
+
     private static func openCycle(
         _ opened: LoggedEvent,
         in sorted: [LoggedEvent],
         now: Date,
+        policy: BreakPolicy,
         clock: (Date) -> String
     ) -> PromptOutlook {
         // Engine state is deliberately not persisted, so a relaunch forgets an open cycle.
@@ -200,6 +215,22 @@ public struct PromptOutlook: Sendable, Hashable {
                     $0.kind == .breakPrompt && $0.at >= opened.at && $0.reason != nil
                 }?.reason
                 let named = rung.map { " The last rung delivered was \($0.rawValue)." } ?? ""
+                /// Both of the sentences below are false once the backoff has capped the
+                /// ladder: nothing further can be delivered in this cycle, so it is not
+                /// climbing and four escalations are not coming. Saying so anyway is
+                /// exactly the confident wrong claim CLAUDE.md §4.1 forbids, in the one
+                /// file written to answer "why has it not prompted me".
+                if ignoredRun(in: sorted) >= policy.ignoreBackoffThreshold {
+                    return PromptOutlook(
+                        headline: "The prompt from \(clock(opened.at)) went unanswered.\(named)",
+                        detail: [
+                            "Enough opportunities have gone unanswered in a row that each one"
+                                + " now gets a single prompt, so nothing further is coming for"
+                                + " this one and it closes on its own.",
+                            "Taking a break clears that and the full ladder comes back.",
+                        ]
+                    )
+                }
                 return PromptOutlook(
                     headline: "The prompt from \(clock(opened.at)) went unanswered, so the ladder"
                         + " is climbing.\(named)",

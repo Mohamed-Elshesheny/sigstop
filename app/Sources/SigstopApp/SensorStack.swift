@@ -98,6 +98,15 @@ struct SensorStack {
     }
 }
 
+/// What an input device that is running means, once attribution has been consulted.
+enum AudioDeviceHold: Sendable, Hashable {
+    case notRunning
+    /// Running, and either a process has it or the process table could not be read.
+    case held
+    /// Running, the table was read, and nothing at all has input open. A virtual device.
+    case runningButUnheld
+}
+
 /// One instant of Tier 0, before anything interprets it.
 struct RawSignals: Sendable {
     let session: SessionState
@@ -175,7 +184,33 @@ struct RawSignals: Sendable {
         }
         if !CallCapableApps.resolve(holders).isEmpty { return true }
         guard audio.contributesToMeeting else { return false }
+        if audioProcesses.unnamedInputHolders > 0 { return true }
         return holders.contains { !CallCapableApps.isNeverAMeeting($0) }
+    }
+
+    /// The device bit the interruption policy is allowed to hard-block on.
+    ///
+    /// This used to be the bare device bit, while `micLiveForLatch` one method above asked
+    /// the attributed question and was handed only to the call latch. On a Mac where a
+    /// driver holds the input open and no process has it, the two therefore disagreed in
+    /// the same instant, from the same signal: the latch correctly declined to arm and the
+    /// hard block fired anyway, for an hour, until the collector's calibration rescued it.
+    ///
+    /// Three answers, in the order they are trusted:
+    ///
+    ///  * device bit false, nothing is running, false;
+    ///  * process table unreadable, no better evidence exists, so the bare bit, exactly as
+    ///    before;
+    ///  * table read and nobody at all has input, named or not, evidence of absence.
+    ///
+    /// The dwell that guards the third one lives in `AppModel`, which is the only place
+    /// with a clock: the per-object `IsRunningInput` listener's latency against the device
+    /// bit is unmeasured, and a transient disagreement at the start of every real call
+    /// would be worse than the bug this fixes.
+    var audioDeviceHold: AudioDeviceHold {
+        guard audio.contributesToMeeting else { return .notRunning }
+        guard let any = audioProcesses.anyInputRunning else { return .held }
+        return any ? .held : .runningButUnheld
     }
 
     /// Are the two live hard blocks the interruption policy already owns covering this

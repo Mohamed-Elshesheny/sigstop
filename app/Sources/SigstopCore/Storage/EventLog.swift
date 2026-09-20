@@ -309,7 +309,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// nothing else.
     public var outcome: CycleOutcome?
     /// Why a prompt was or was not allowed. Typed for the same reason: a closed
-    /// vocabulary of twenty-eight, never a sentence, and never anything derived from a
+    /// vocabulary of twenty-nine, never a sentence, and never anything derived from a
     /// window title (CLAUDE.md §4.4).
     public var gate: GateReason?
     public var action: BreakResponseAction?

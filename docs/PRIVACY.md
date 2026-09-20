@@ -678,7 +678,7 @@ Field reference:
 | `origin` | string? | How a break started: `accepted`, `idleInferred`, `userInitiated` |
 | `dur_s` | int? | Measured length of a break, in seconds |
 | `outcome` | string? | On `cycle_close`, how the opportunity ended: one of the six `CycleOutcome` values |
-| `gate` | string? | On `gate`, why a prompt was or was not allowed: one of the twenty-eight `GateReason` values |
+| `gate` | string? | On `gate`, why a prompt was or was not allowed: one of the twenty-nine `GateReason` values |
 | `reason` | string? | On `break_prompt`, the signal that rung is named after: one of `SIGTSTP`, `SIGINT`, `SIGTERM`, `SIGSTOP` |
 | `deferred` | string? | On `break_prompt`, why it was withheld: one of the `GateReason` values |
 | `action`, `snooze_s` | | Break engine bookkeeping |
@@ -703,13 +703,13 @@ in the sense that matters here: an app that cannot show its working cannot be au
   would turn a 555 line day into a 17,000 line one and stop `cat` being an audit tool;
   writing it never, which is what the app used to do, meant a fourteen minute hold
   computed the same answer 168 times and kept none of them. Expect roughly 20–60 lines a
-  day. The value is the `GateReason` enum, a closed vocabulary of twenty-eight listed in
+  day. The value is the `GateReason` enum, a closed vocabulary of twenty-nine listed in
   `app/Sources/SigstopCore/Decision/GateReason.swift`, every one of them a fact about the
   machine or a name for a rate limit. **None of them is derived from a window title, a URL,
   a file path or anything you typed**, which is the same guarantee every other field here
   carries (CLAUDE.md §4.4).
 
-  Three of the twenty-eight — `userSnoozed`, `userAway`, `breakRunning` — are not gate
+  Three of the twenty-nine — `userSnoozed`, `userAway`, `breakRunning` — are not gate
   answers at all. They exist because the ten minute rule above was a claim the code did not
   keep: a snooze, an idle suspension and a running break each hold a cycle open while the
   gate is never asked, so the heartbeat had nothing to write and a thirty minute snooze

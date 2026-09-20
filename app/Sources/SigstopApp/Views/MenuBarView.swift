@@ -96,9 +96,17 @@ struct MenuBarView: View {
                                 .foregroundStyle(status.accent ? Brand.amber : Brand.fg)
                                 .contentTransition(reduceMotion ? .identity : .numericText())
                         }
-                        Text("/ \(Format.clock(model.workTarget))")
-                            .font(Brand.mono(11))
-                            .foregroundStyle(Brand.fgMuted)
+                        /// Hidden while no work threshold is in force at all. During the
+                        /// cooldown after an unanswered opportunity the clock is not
+                        /// counting towards anything, and the header drew `169:00 / 5:00`
+                        /// with the mark pinned full, every number on screen contradicting
+                        /// the one sentence under it that was right. The wait is a
+                        /// wall-clock one and it is on that line.
+                        if model.workTargetInForce {
+                            Text("/ \(Format.clock(model.workTarget))")
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fgMuted)
+                        }
                     }
                     Text(subtitle)
                         .font(Brand.mono(10.5))
@@ -120,7 +128,7 @@ struct MenuBarView: View {
     private var markFill: Double {
         switch model.indicator {
         case .onBreak: return 0
-        case .breakDue, .escalating, .held: return 1
+        case .breakDue, .escalating, .held, .backedOff: return 1
         default:
             guard model.workTarget > 0 else { return 0 }
             return min(1, max(0, model.continuousWork / model.workTarget))
@@ -146,6 +154,12 @@ struct MenuBarView: View {
     private var status: Status {
         if model.pausedUntil != nil {
             return Status(title: "paused", signal: "state T", dot: .off, accent: false)
+        }
+        /// A break is owed and the app has decided not to ask. The engine state under this
+        /// is `working`, which is why it drew as "running" with a running dot for the
+        /// whole of a twenty-five minute deliberate silence.
+        if model.indicator == .backedOff {
+            return Status(title: "stood down", signal: "state R", dot: .off, accent: false)
         }
         switch model.engineStateName {
         case "working": return Status(title: "running", signal: "state R", dot: .running, accent: false)
@@ -319,16 +333,25 @@ struct MenuBarView: View {
                 }
                 .font(Brand.mono(10.5))
                 .foregroundStyle(Brand.fgMuted)
+            } else if model.inputDeviceIsHoldingABreak {
+                /// The same button, named for what it actually does here. Offering "I'm
+                /// in a meeting" while the line above says a device is open and nobody is
+                /// using it is the panel contradicting itself in two adjacent rows, and
+                /// this is the one Mac where the answer matters.
+                TerminalButton(model.ignoreInputDeviceLabel, style: .quiet) { model.clearMeetingHold() }
+                    .fixedSize()
             } else {
                 TerminalButton("I'm in a meeting", style: .quiet) { model.assertMeeting() }
                     .fixedSize()
             }
 
-            if let reason = model.gateReason {
-                hold("holding off, \(reason).")
-            } else if let reason = model.holdReason {
-                hold("not asking yet, \(reason).")
-            }
+            /// Always. Not sometimes.
+            ///
+            /// A panel that says nothing when it is quiet is indistinguishable from a
+            /// panel that is broken, and the user who cannot tell those apart deletes the
+            /// app rather than filing a bug. The claim in front of the sentence says
+            /// which kind of quiet this is; `WaitingLine` owns both.
+            hold(model.waiting.text)
 
             HStack(spacing: 4) {
                 if model.pausedUntil == nil {
@@ -347,13 +370,14 @@ struct MenuBarView: View {
         }
     }
 
-    /// One muted line saying why the app is quiet.
+    /// The one muted line saying what the app is waiting for.
     ///
-    /// There are two of these and they are different claims. "holding off" means
-    /// something is blocking a prompt right now; "not asking yet" means nothing is, and
-    /// the engine is simply waiting for a target it raised earlier. Collapsing them would
-    /// put the app back where it was, telling a user it was running while it had no
-    /// intention of saying anything for twenty minutes.
+    /// The three claims it can carry are different and stay different. "holding off"
+    /// means something is blocking a prompt right now; "not asking yet" means nothing is,
+    /// and the engine is waiting on its own clock; "waiting on you" means the ask is out
+    /// and the silence is the user's. Collapsing any two of them would put the app back
+    /// where it was, telling a user it was running while it had no intention of saying
+    /// anything for an hour.
     private func hold(_ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("→")
@@ -366,7 +390,7 @@ struct MenuBarView: View {
 
     private var breakWanted: Bool {
         switch model.indicator {
-        case .breakDue, .escalating, .held: return true
+        case .breakDue, .escalating, .held, .backedOff: return true
         default: return false
         }
     }

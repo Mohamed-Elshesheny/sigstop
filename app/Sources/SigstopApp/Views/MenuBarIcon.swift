@@ -45,10 +45,16 @@ struct MenuBarIcon: View {
     /// pair of bars means a break is due, a half pair means half a session. Swapping the
     /// colour as well would be saying the same thing twice and would cost the mark its
     /// identity at the one moment people actually look at it.
+    ///
+    /// Opacity is the second channel and it says one thing: IS THE APP GOING TO ASK.
+    /// `.backedOff` joins the two that already dimmed, so dim-and-full reads as "owed,
+    /// but it has stood down" and a user who never opens the panel can still tell a
+    /// deliberate quiet from a break that is genuinely imminent. No new hue, no new
+    /// glyph, no motion: this is the same 0.4 that has shipped in both appearances.
     private var tint: Color {
         switch indicator {
-        case .idle, .quiet: return brand.opacity(0.4)
-        default:            return brand
+        case .idle, .quiet, .backedOff: return brand.opacity(0.4)
+        default:                        return brand
         }
     }
 
@@ -57,7 +63,7 @@ struct MenuBarIcon: View {
     private var level: Double {
         switch indicator {
         case .onBreak: return 0
-        case .breakDue, .escalating, .held: return 1
+        case .breakDue, .escalating, .held, .backedOff: return 1
         default: return min(1, max(0, fraction))
         }
     }
@@ -78,6 +84,7 @@ struct MenuBarIcon: View {
         case .breakDue:   return "sigstop, a break is due"
         case .escalating: return "sigstop, a break is overdue"
         case .held:       return "sigstop, a break is due and being held for a call"
+        case .backedOff:  return "sigstop, a break is owed and it has stood down for now"
         case .onBreak:    return "sigstop, on a break"
         case .idle:       return "sigstop, idle"
         case .quiet:      return "sigstop, quiet"
