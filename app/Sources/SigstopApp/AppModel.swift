@@ -621,9 +621,20 @@ final class AppModel {
     /// line is **not** written here: it is written by `verifyPromptPresentation()` once
     /// the window server has confirmed the panel is on screen, because the line means
     /// "this reached the screen" and the rollup holds the user to exactly that.
+    ///
+    /// `presentPromptPanel` returns false when there is no screen at all, which used to
+    /// be discarded: the app then retried on every tick forever, never fell back, and
+    /// never said so. There is nothing to fall back to in that case, so it says so
+    /// instead of pretending to keep trying.
     private func presentPanel(_ request: PromptRequest, message: RenderedMessage) {
-        overlay.presentPromptPanel(request, message: message, model: self)
+        let drawn = overlay.presentPromptPanel(request, message: message, model: self)
         presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: nil)
+        if !drawn {
+            promptDeliveryFailure =
+                "The \(request.signal) prompt has nowhere to go: this Mac reports no screen. "
+                + "It is not being counted against you."
+            return
+        }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
             self?.verifyPromptPresentation()
