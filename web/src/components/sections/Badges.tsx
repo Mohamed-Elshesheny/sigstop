@@ -66,14 +66,14 @@ export function Badges() {
           {copy.items.map((item, i) => (
             <li
               key={item.name}
-              className="reveal flex gap-5 bg-bg-raised p-5 sm:p-6"
+              className="reveal flex gap-5 bg-bg-raised p-5 sm:gap-6 sm:p-6"
               data-visible={visible}
               style={{ transitionDelay: `${i * 45}ms` }}
             >
               <BadgeMark
                 motif={item.motif as Motif}
                 earned={earned}
-                className="mt-0.5 h-14 w-14 sm:h-[68px] sm:w-[68px]"
+                className="mt-0.5 h-[60px] w-[60px] sm:h-[76px] sm:w-[76px]"
               />
 
               <div className="min-w-0 flex-1">
@@ -82,17 +82,19 @@ export function Badges() {
                   <span
                     className={cn(
                       "font-mono text-[10px] uppercase tracking-[0.16em]",
-                      earned ? "text-suspend-ink" : "text-fg-faint",
+                      earned ? "text-suspend-ink" : "text-fg-muted",
                     )}
                   >
                     {earned ? copy.chip.earned : copy.chip.locked}
                   </span>
                 </div>
 
-                <p className="mt-2.5 text-pretty text-[13.5px] leading-relaxed text-fg-muted">
+                {/* The price first and at full strength, because that is the
+                    scannable part. The meaning sits under it, one step back. */}
+                <p className="mt-2.5 text-pretty text-[13.5px] leading-relaxed text-fg">
                   {item.earns}
                 </p>
-                <p className="mt-1.5 text-pretty text-[13.5px] leading-relaxed text-fg-faint">
+                <p className="mt-1.5 text-pretty text-[13.5px] leading-relaxed text-fg-muted">
                   {item.earned}
                 </p>
               </div>

@@ -27,6 +27,10 @@ export default function Home() {
             section that says what this one actually does about a call follows it
             directly, and lands before the Comparison row that claims it. */}
         <Meetings />
+        {/* Badges answer the same objection NotPomodoro just answered, one
+            register down: that one says this is not a timer, this one says it is
+            not a streak either. It also has to land before Comparison, which
+            claims the shelf in a row of its own. */}
         <Badges />
         <Comparison />
         <BeforeAfter />
