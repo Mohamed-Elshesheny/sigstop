@@ -190,6 +190,11 @@ final class AppModel {
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private var observerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var pendingAction: UserAction?
+    /// True while a pass of the loop is in flight. See `tick()`.
+    @ObservationIgnored private var ticking = false
+    /// Set when a tick arrives during one, so the running pass repeats rather than a
+    /// second pass starting alongside it.
+    @ObservationIgnored private var tickAgain = false
     @ObservationIgnored private var currentCycle: CycleID?
     /// Decides when the gate's answer is worth a line. See `VerdictLedger`.
     @ObservationIgnored private var verdicts = VerdictLedger()
@@ -374,7 +379,36 @@ final class AppModel {
 
     // MARK: - The tick
 
+    /// One pass of the loop, and never two at once.
+    ///
+    /// `enqueue` fires an extra tick on top of the five second timer so a button press
+    /// takes effect immediately. Being on the main actor is not enough to serialise them:
+    /// `tickOnce` awaits `sampleAndPublish()`, and two ticks can interleave across that
+    /// suspension. Whichever resumed first consumed `pendingAction` and finished the
+    /// break, and the other then ran the working state against a session clock that had
+    /// not been reset yet and opened a fresh cycle in the same second.
+    ///
+    /// That is in the owner's log twice: `break_end dur_s=303` at 18:52:20Z followed by
+    /// `break_open` and `break_prompt` at 18:52:20Z, and the identical pattern at
+    /// 19:06:40Z. The `breakEndedThisTick` guard in the engine cannot help, because these
+    /// are two separate steps.
+    ///
+    /// A tick that arrives while one is running sets a flag instead of starting a second
+    /// pass, and the running one loops again before it returns, so no press is lost.
     private func tick() async {
+        if ticking {
+            tickAgain = true
+            return
+        }
+        ticking = true
+        repeat {
+            tickAgain = false
+            await tickOnce()
+        } while tickAgain
+        ticking = false
+    }
+
+    private func tickOnce() async {
         let sample = await sensors.context.sampleAndPublish()
         let raw = sensors.readSignals()
         let now = time.now
