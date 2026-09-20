@@ -28,12 +28,12 @@ public struct EffectLogContext: Sendable, Hashable {
 ///
 /// Two effects deliberately write nothing, and say so rather than falling through:
 ///
-///   * `.deliverPrompt` — `break_prompt` means "this reached the screen", and only the
-///     app can know that. It is appended by `verifyPromptPresentation()` once the window
-///     server confirms the panel's own window number.
-///   * `.recordVerdict` — the verdict is computed on every tick and is the same value for
-///     minutes at a time. Writing it here would add thousands of identical lines a day.
-///     `VerdictLedger` writes it on transition instead.
+///   * `.deliverPrompt`, because `break_prompt` means "this reached the screen" and only
+///     the app can know that. It is appended by `verifyPromptPresentation()` once the
+///     window server confirms the panel's own window number.
+///   * `.recordVerdict`, because the verdict is computed on every tick and is the same
+///     value for minutes at a time. Writing it here would add thousands of identical
+///     lines a day. `VerdictLedger` writes it on transition instead.
 public enum EventLogWriter {
 
     public static func lines(
