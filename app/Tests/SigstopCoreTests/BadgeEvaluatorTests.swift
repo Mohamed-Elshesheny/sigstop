@@ -55,7 +55,7 @@ private enum Fix {
         )
     }
 
-    /// A day carrying raw events, with an otherwise empty summary — the four
+    /// A day carrying raw events, with an otherwise empty summary, the four
     /// event-derived badges do not read the aggregates at all.
     static func events(_ n: Int, _ events: [LoggedEvent]) -> BadgeDay {
         BadgeDay(summary: DailySummary(day: day(n)), events: events)
@@ -291,7 +291,7 @@ struct YieldBadgeTests {
         #expect(!ledger.contains(.schedYield))
     }
 
-    @Test("Exactly an hour still counts — the badge is for not passing it")
+    @Test("Exactly an hour still counts, the badge is for not passing it")
     func exactly_an_hour() {
         #expect(Fix.evaluate([Fix.summary(1, work: 4 * 3600, longest: 3600)]).contains(.schedYield))
     }
@@ -524,7 +524,7 @@ struct BadgeDesignRuleTests {
 
     /// The one rule that decided the catalogue, as an executable check: no badge may be
     /// won by working longer. Every predicate is fed a day of ten hours at the desk with
-    /// one unbroken stretch — the exact day this product exists to prevent — and nothing
+    /// one unbroken stretch, the exact day this product exists to prevent, and nothing
     /// may fire.
     @Test("A ten hour day with no breaks unlocks nothing")
     func nothing_rewards_working_longer() {

@@ -514,19 +514,6 @@ struct SettingsView: View {
             }
             .padding(.top, 12)
 
-            if case .unavailable = updater.state {} else {
-                SettingRow(
-                    "Check once a day on its own",
-                    detail: "Off by default. One GET of a file that is identical for everyone, "
-                        + "carrying no identifier. Nothing downloads without a second press."
-                ) {
-                    TerminalSwitch(isOn: Binding(
-                        get: { updater.automaticallyChecks },
-                        set: { updater.automaticallyChecks = $0 }
-                    ))
-                }
-                .padding(.top, 8)
-            }
         }
     }
 

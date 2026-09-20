@@ -3,59 +3,118 @@ import SwiftUI
 
 /// The ten marks, drawn.
 ///
-/// Flat geometry and nothing else: no gradient, no bevel, no gloss, no drop shadow. A
-/// shiny trophy would be the single most off-brand object in a terminal-native product,
-/// and the pane it lives in is a settings page, not a prize cabinet. The whole visual
-/// vocabulary is the one `Brand` already defines — amber fill, near-black glyph, a muted
-/// outline — so a badge sits next to a `TerminalSwitch` without either looking borrowed.
+/// A mark is built, not filled. Each one is three things in a fixed relationship: an
+/// **edge**, an amber-ink stroke laid down one side at a time with the corners left open,
+/// so a triangle is three bars meeting at nothing, an octagon is eight short dashes, and
+/// a circle is a ring broken once at the top, the standby glyph, which is what `SIGSTOP`
+/// is; a **field**, the same polygon set inside the edge with a sliver of the pane showing
+/// between them, filled in the vivid amber; and the **glyph**, knocked out of the field
+/// in near-black and sized to the field it actually has rather than to the frame. Side
+/// count still rises with difficulty, and the construction is what makes six sides read
+/// as a different object from none.
 ///
-/// Side count rises with difficulty, which is the only thing carrying "this one is
-/// harder" and is why the shapes are fixed per badge rather than assigned by the view.
+/// Every colour is `Brand`'s. Amber is spent on the edge and the field of an earned mark
+/// and nowhere on an unearned one. Depth, where it exists, is a single engraved line
+/// inside the field at the larger size; there is no gradient, no gloss and no shadow,
+/// because this pane sits next to a `TerminalSwitch` and has to look like it does.
+///
+/// The polygons are not all inscribed in the same circle. Inscribed that way the triangle
+/// holds a third of the octagon's area and its field would be too small for any glyph
+/// once an edge and a gap are taken out of it; each shape gets its own radius so the ten
+/// carry similar visual mass and every field has room for its letter.
 
 // MARK: - Geometry
 
-/// A regular polygon inscribed in the frame's shorter side.
-///
-/// `rotation` is applied on top of "first vertex at the top", so a four-sided polygon at
-/// 0° is a diamond — a square standing on its point — and the same polygon at 45° is an
-/// axis-aligned square. That is exactly the distinction the catalogue draws between
-/// `unmasked` and `EINVAL`, so it is one type and one parameter rather than two shapes.
-///
-/// `InsettableShape` is the reason the locked state can be drawn with `strokeBorder`: a
-/// plain `stroke` centres the line on the path and spills half its width outside the
-/// frame, which at 28 points is a visible difference in how big the locked and unlocked
-/// marks look.
-struct RegularPolygon: InsettableShape {
-    let sides: Int
-    var rotation: Angle = .zero
-    var insetAmount: CGFloat = 0
+/// The construction of one mark at one size: where its edge runs, where its field lies,
+/// and how much room the glyph has.
+struct BadgeGeometry {
+    let shape: BadgeShape
+    let size: CGFloat
 
-    func path(in rect: CGRect) -> Path {
-        let radius = min(rect.width, rect.height) / 2 - insetAmount
-        guard sides >= 3, radius > 0 else { return Path() }
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let step = 2 * Double.pi / Double(sides)
-        let start = -Double.pi / 2 + rotation.radians
+    /// Outer radius: the circumradius for a polygon, the radius for the circle.
+    var radius: CGFloat { size * shape.radiusFactor }
+    /// The edge stroke. Thick enough to be a component, not an outline.
+    var edgeWidth: CGFloat { max(1.5, size * 0.085) }
+    /// The pane showing between the edge and the field.
+    var gap: CGFloat { max(1, size * 0.045) }
+    /// How much of each side is left open at a vertex, measured along the side.
+    var cornerGap: CGFloat { size * 0.11 }
+    var center: CGPoint { CGPoint(x: size / 2, y: size / 2) }
 
+    /// The field's circumradius. The edge and the gap are measured perpendicular to the
+    /// sides, which for a polygon shortens the circumradius by `1/cos(π/n)` times that.
+    var fieldRadius: CGFloat {
+        let inward = edgeWidth + gap
+        guard let sides = shape.sides else { return radius - inward }
+        return radius - inward / cos(.pi / CGFloat(sides))
+    }
+
+    /// The largest disc inside the field. Every glyph is sized from this.
+    var fieldInradius: CGFloat {
+        guard let sides = shape.sides else { return fieldRadius }
+        return fieldRadius * cos(.pi / CGFloat(sides))
+    }
+
+    var glyphSize: CGFloat { fieldInradius * shape.glyphFactor }
+    var glyphOffset: CGFloat { size * shape.glyphOffsetFactor }
+
+    // MARK: Paths
+
+    /// The edge, as open subpaths: one per side, each stopping short of both vertices,
+    /// or for the circle a single arc broken at the top.
+    func edgePath() -> Path {
         var path = Path()
-        for index in 0..<sides {
-            let angle = start + step * Double(index)
-            let point = CGPoint(
-                x: center.x + radius * cos(angle),
-                y: center.y + radius * sin(angle)
+        let r = radius - edgeWidth / 2
+        guard r > 0 else { return path }
+        guard let sides = shape.sides else {
+            let opening = Angle.degrees(21)
+            path.addArc(
+                center: center, radius: r,
+                startAngle: .degrees(-90) + opening,
+                endAngle: .degrees(270) - opening,
+                clockwise: false
             )
-            if index == 0 {
-                path.move(to: point)
-            } else {
-                path.addLine(to: point)
-            }
+            return path
         }
+        let corners = vertices(sides: sides, radius: r)
+        for index in 0..<sides {
+            let a = corners[index]
+            let b = corners[(index + 1) % sides]
+            let length = hypot(b.x - a.x, b.y - a.y)
+            let trim = min(cornerGap, length * 0.3)
+            let unit = CGPoint(x: (b.x - a.x) / length, y: (b.y - a.y) / length)
+            path.move(to: CGPoint(x: a.x + unit.x * trim, y: a.y + unit.y * trim))
+            path.addLine(to: CGPoint(x: b.x - unit.x * trim, y: b.y - unit.y * trim))
+        }
+        return path
+    }
+
+    /// The field, optionally drawn a little smaller: `inset` is measured perpendicular
+    /// to the sides, like the edge and the gap.
+    func fieldPath(inset: CGFloat = 0) -> Path {
+        var path = Path()
+        guard let sides = shape.sides else {
+            let r = fieldRadius - inset
+            guard r > 0 else { return path }
+            path.addEllipse(in: CGRect(x: center.x - r, y: center.y - r, width: 2 * r, height: 2 * r))
+            return path
+        }
+        let r = fieldRadius - inset / cos(.pi / CGFloat(sides))
+        guard r > 0 else { return path }
+        let corners = vertices(sides: sides, radius: r)
+        path.move(to: corners[0])
+        for corner in corners.dropFirst() { path.addLine(to: corner) }
         path.closeSubpath()
         return path
     }
 
-    func inset(by amount: CGFloat) -> RegularPolygon {
-        RegularPolygon(sides: sides, rotation: rotation, insetAmount: insetAmount + amount)
+    private func vertices(sides: Int, radius r: CGFloat) -> [CGPoint] {
+        let step = 2 * CGFloat.pi / CGFloat(sides)
+        let start = -CGFloat.pi / 2 + CGFloat(shape.rotation.radians)
+        return (0..<sides).map { index in
+            let angle = start + step * CGFloat(index)
+            return CGPoint(x: center.x + r * cos(angle), y: center.y + r * sin(angle))
+        }
     }
 }
 
@@ -74,41 +133,46 @@ extension BadgeShape {
         }
     }
 
-    /// The glyph's point size as a fraction of the mark's width.
+    /// Outer radius as a fraction of the frame, chosen so the ten look the same weight.
     ///
-    /// Every one of these polygons is inscribed in the same circle, so they are the same
-    /// *height* and nothing like the same *area*: the triangle encloses a little under a
-    /// third of what the octagon does. One font size across all seven therefore does not
-    /// read as one family — the octagon looks roomy and the triangle looks stuffed, which
-    /// is exactly what the first render showed.
-    ///
-    /// What these numbers hold constant is the margin between the glyph and the edge, not
-    /// the glyph. The ceiling on each is the shape's inscribed circle, which is the only
-    /// disc guaranteed to be inside a convex polygon whichever way the glyph leans: at
-    /// radius `R` that is `R/2` for the triangle, `R·cos(π/n)` for the rest, and `R` for
-    /// the circle. Each value below is set so a bold monospace capital clears it.
-    var glyphScale: CGFloat {
+    /// A triangle inscribed in the frame's circle is a small, low object with a big
+    /// empty crown above it; it is drawn larger, and lets its base corners run a point
+    /// past the frame, which the row's spacing absorbs. The circle and the octagon are
+    /// the roundest and fill their circle, so they take the frame exactly.
+    var radiusFactor: CGFloat {
         switch self {
-        case .triangle: return 0.30
-        case .diamond: return 0.34
-        case .pentagon, .square: return 0.38
-        case .hexagon, .octagon: return 0.42
-        case .circle: return 0.40
+        case .triangle: return 0.58
+        case .square: return 0.54
+        case .diamond: return 0.52
+        case .pentagon: return 0.54
+        case .hexagon: return 0.52
+        case .circle, .octagon: return 0.50
         }
     }
 
-    /// The fraction of the mark's width a glyph may occupy.
+    /// Glyph point size as a multiple of the field's inradius.
     ///
-    /// A backstop for the two-character glyph, and only for that: `[100]+ Stopped` puts
-    /// `00` inside the octagon, which is the one mark whose glyph can be wider than it is
-    /// tall. Every single-character glyph is far inside this and is sized by `glyphScale`.
-    var glyphWidthFraction: CGFloat {
+    /// The inradius is the only disc guaranteed inside the field, but a letter is not a
+    /// disc: a lowercase glyph is wider than it is tall and a capital is taller than it
+    /// is wide, and both may run past the incircle where the field's sides leave room.
+    /// The triangle's does, because the field is widest where the letter's base sits.
+    var glyphFactor: CGFloat {
         switch self {
-        case .triangle: return 0.46
-        case .diamond: return 0.50
-        case .pentagon: return 0.56
-        case .square, .circle: return 0.62
-        case .hexagon, .octagon: return 0.68
+        case .triangle: return 1.95
+        case .diamond: return 1.45
+        case .pentagon: return 1.5
+        case .square: return 1.45
+        case .hexagon, .octagon, .circle: return 1.5
+        }
+    }
+
+    /// Where the glyph's centre sits relative to the frame's, as a fraction of the size.
+    /// A triangle's mass is below its centre and the letter belongs with the mass.
+    var glyphOffsetFactor: CGFloat {
+        switch self {
+        case .triangle: return 0.06
+        case .pentagon: return 0.02
+        default: return 0
         }
     }
 }
@@ -117,30 +181,16 @@ extension BadgeShape {
 
 /// One badge at one size, in one of two states.
 ///
-/// **Unlocked** is the shape filled in the brand amber with the glyph knocked out in
-/// `Brand.onAmber` — the same pairing the primary button uses, so the contrast is the
-/// one already verified in both appearances.
+/// **Unlocked** is edge, field and glyph as the file comment describes them: amber ink
+/// edge, vivid amber field, near-black glyph. From 40 points up the field also carries
+/// one engraved line just inside its boundary, the one concession to depth, so the
+/// larger mark reads as a made object rather than a scaled-up icon.
 ///
-/// **Locked** is the same outline with nothing inside, at reduced opacity. It has to
-/// read as *not yet*: no cross, no lock icon, no grey slab, nothing that could be
-/// mistaken for a control that failed or an image that did not load. An empty outline is
-/// the most that can be said without saying something wrong.
-///
-/// The locked outline is drawn in `Brand.fgFaint`, which is a deliberate departure from
-/// the hairline colours and is worth the two lines it takes to justify.
-///
-/// `Brand.line` and `Brand.lineHi` are *divider* colours. They are tuned to disappear —
-/// `line` measures about 1.2:1 against the light background and `lineHi` about 1.5:1,
-/// and against the near-black dark background `lineHi` is 1.6:1 before the row's own
-/// dimming takes it below 1.5:1. That is right for a one-point rule the eye is supposed
-/// to read past and wrong for a polygon the eye is supposed to read *as a shape*. The
-/// first render of this pane confirmed it: on dark, the locked marks were present but
-/// only just, and a mark nobody can see does not say "not yet", it says "this pane is
-/// broken" — the one thing locked must never say.
-///
-/// `fgFaint` at the row's dimming lands near 3:1 on light and 2.6:1 on dark: plainly a
-/// shape, plainly secondary to the amber, and the same colour the row already uses for
-/// its "not yet" date, so the outline and the words carry identical weight.
+/// **Locked** is the same construction with the amber withheld: the edge in muted ink,
+/// the field drawn only as a dotted guide where the fill would go, and the glyph set in
+/// muted ink on nothing. It says *not yet* three ways at once, the shape is there, the
+/// letter is there, the fill is not, and none of them can be read as broken: nothing is
+/// crossed out, greyed to invisibility or replaced by a lock.
 struct BadgeMark: View {
     let shape: BadgeShape
     let glyph: String
@@ -148,42 +198,49 @@ struct BadgeMark: View {
     var size: CGFloat = 28
 
     var body: some View {
+        let geometry = BadgeGeometry(shape: shape, size: size)
         ZStack {
             if unlocked {
-                filled
-                Text(glyph)
-                    .font(Brand.mono(size * shape.glyphScale, weight: .bold))
-                    .foregroundStyle(Brand.onAmber)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                    .frame(width: size * shape.glyphWidthFraction)
+                earned(geometry)
             } else {
-                outlined
+                pending(geometry)
             }
+            Text(glyph)
+                .font(Brand.mono(geometry.glyphSize, weight: unlocked ? .bold : .medium))
+                .foregroundStyle(unlocked ? Brand.onAmber : Brand.fgMuted)
+                .lineLimit(1)
+                .fixedSize()
+                .offset(y: geometry.glyphOffset)
         }
         .frame(width: size, height: size)
-        .opacity(unlocked ? 1 : 0.75)
         .accessibilityHidden(true)
     }
 
-    private var lineWidth: CGFloat { max(1, size * 0.045) }
-
-    @ViewBuilder
-    private var filled: some View {
-        if let sides = shape.sides {
-            RegularPolygon(sides: sides, rotation: shape.rotation).fill(Brand.amberFill)
-        } else {
-            Circle().fill(Brand.amberFill)
+    private func earned(_ geometry: BadgeGeometry) -> some View {
+        ZStack {
+            geometry.fieldPath()
+                .fill(Brand.amberFill)
+            if size >= 40 {
+                geometry.fieldPath(inset: size * 0.055)
+                    .stroke(Brand.onAmber.opacity(0.22), lineWidth: max(1, size * 0.02))
+            }
+            geometry.edgePath()
+                .stroke(Brand.amber, style: StrokeStyle(lineWidth: geometry.edgeWidth, lineCap: .butt))
         }
     }
 
-    @ViewBuilder
-    private var outlined: some View {
-        if let sides = shape.sides {
-            RegularPolygon(sides: sides, rotation: shape.rotation)
-                .strokeBorder(Brand.fgFaint, lineWidth: lineWidth)
-        } else {
-            Circle().strokeBorder(Brand.fgFaint, lineWidth: lineWidth)
+    private func pending(_ geometry: BadgeGeometry) -> some View {
+        ZStack {
+            geometry.fieldPath(inset: size * 0.02)
+                .stroke(
+                    Brand.fgMuted.opacity(0.45),
+                    style: StrokeStyle(lineWidth: max(1, size * 0.03), dash: [1, max(2, size * 0.09)])
+                )
+            geometry.edgePath()
+                .stroke(
+                    Brand.fgMuted.opacity(0.6),
+                    style: StrokeStyle(lineWidth: geometry.edgeWidth, lineCap: .butt)
+                )
         }
     }
 }

@@ -6,8 +6,8 @@ import Foundation
 ///
 /// Six of the ten conditions are arithmetic over `DailySummary` alone, so a day that
 /// survives only as a stored summary still counts towards them. The four that need the
-/// raw log — the fifteen-second accepts, the prompt that reached `SIGSTOP`, and the two
-/// clock badges — can only be seen inside the retention window, which is exactly why
+/// raw log, the fifteen-second accepts, the prompt that reached `SIGSTOP`, and the two
+/// clock badges, can only be seen inside the retention window, which is exactly why
 /// `BadgeLedger` is the durable record and this type is not.
 public struct BadgeDay: Sendable, Hashable {
     public let summary: DailySummary
@@ -46,14 +46,14 @@ public struct BadgeDay: Sendable, Hashable {
 ///
 /// **There is no clock here and no `TimeSource` parameter, because there is nothing to
 /// ask one.** A badge unlocks on the day whose evidence completed it, which the fold
-/// below reads off the day it is currently accumulating — so the same days in the same
+/// below reads off the day it is currently accumulating, so the same days in the same
 /// order always produce the same ledger with the same dates, whatever time it is when
 /// the app happens to run this. The rest of `SigstopCore` injects a clock; this is the
 /// stronger position of not needing one (CLAUDE.md §3.2).
 ///
 /// The fold is also what makes the dates honest. Evidence accumulates day by day in
 /// ascending order, and after each day every still-locked badge is asked its question
-/// once. The first day on which a badge says yes is the day recorded — not "today",
+/// once. The first day on which a badge says yes is the day recorded, not "today",
 /// which is what a naive recompute would stamp on a badge that was actually earned last
 /// Tuesday.
 public enum BadgeEvaluator {
@@ -156,7 +156,7 @@ public enum BadgeEvaluator {
     /// Matched by cycle, against the most recent prompt in that cycle that was actually
     /// *delivered*: a prompt withheld for a meeting never reached anyone, so accepting
     /// "quickly" after one would be measuring the app's silence rather than a reflex.
-    /// Only `.accepted` breaks count — walking away and hitting "take a break now" are
+    /// Only `.accepted` breaks count, walking away and hitting "take a break now" are
     /// both breaks, but neither is a default disposition.
     private static func reflexAccepts(in events: [LoggedEvent]) -> Int {
         var promptedAt: [Int: Date] = [:]

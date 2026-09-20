@@ -696,7 +696,7 @@ final class AppModel {
                 try store.writeSummary(today)
                 lastWrittenSummary = today
             } catch {
-                lastStoreError = "Could not write the daily summary — \(error)"
+                lastStoreError = "Could not write the daily summary, \(error)"
             }
         }
 
@@ -754,9 +754,9 @@ final class AppModel {
     private static func badgeNote(for unlocked: [BadgeID]) -> String? {
         guard let first = unlocked.first else { return nil }
         if unlocked.count == 1 {
-            return "unlocked: \(Badge.badge(first).title) — Settings → Badges"
+            return "unlocked: \(Badge.badge(first).title), Settings → Badges"
         }
-        return "unlocked: \(unlocked.count) badges — Settings → Badges"
+        return "unlocked: \(unlocked.count) badges, Settings → Badges"
     }
 
     /// Clears the footer note. Called when the Badges pane appears: the notice is shown

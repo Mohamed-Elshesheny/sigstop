@@ -12,7 +12,7 @@ import Foundation
 /// **Second rule: nothing new is observed.** Every condition below is arithmetic over
 /// the `DailySummary` values and the event vocabulary that already existed. No field was
 /// added to `LoggedEvent`, no signal was added to the sensors, and `docs/PRIVACY.md`'s
-/// inventory grew by exactly one derived artefact — the ledger of which of these ten
+/// inventory grew by exactly one derived artefact, the ledger of which of these ten
 /// have unlocked. A badge is not a reason to watch someone more closely.
 ///
 /// **There is no streak.** Nothing here expires, nothing is lost by missing a day, and
@@ -33,8 +33,8 @@ public enum BadgeID: String, Sendable, Hashable, CaseIterable, Codable {
 
 /// The geometry, fixed per badge by the naming panel and not a decoration.
 ///
-/// Side count rises roughly with difficulty — circle, triangle, square, diamond,
-/// pentagon, hexagon, octagon — so the pane reads as a progression without anyone
+/// Side count rises roughly with difficulty, circle, triangle, square, diamond,
+/// pentagon, hexagon, octagon, so the pane reads as a progression without anyone
 /// having to explain it. The App layer draws these; `SigstopCore` only names them,
 /// because a shape is part of a badge's identity and identity belongs in the domain.
 public enum BadgeShape: String, Sendable, Hashable, Codable {
@@ -70,24 +70,24 @@ public enum BadgeThreshold {
     public static let tenBreaks = 10
     /// `[100]+ Stopped`.
     public static let hundredBreaks = 100
-    /// `provably halts` — days where every break offered was taken.
+    /// `provably halts`, days where every break offered was taken.
     public static let haltingDays = 10
-    /// `SIG_DFL` — how many prompts must be accepted inside `reflexWindow`.
+    /// `SIG_DFL`, how many prompts must be accepted inside `reflexWindow`.
     public static let reflexAccepts = 5
     /// The default disposition runs immediately. Fifteen seconds is "you did not think
     /// about it", which is the whole joke.
     public static let reflexWindow: TimeInterval = 15
-    /// `sched_yield` — a real working day, so the badge cannot be won by doing nothing.
+    /// `sched_yield`, a real working day, so the badge cannot be won by doing nothing.
     public static let yieldMinimumWork: TimeInterval = 4 * 3600
     /// …in which no single continuous stretch passed this. Yielding before you are
     /// preempted is the entire point of the mark.
     public static let yieldStretchCeiling: TimeInterval = 3600
-    /// `early return` / `nohup` — how many separate days each needs.
+    /// `early return` / `nohup`, how many separate days each needs.
     public static let clockDays = 5
     /// Local hour before which a break counts as an `early return`.
     public static let earlyHour = 10
     /// Local hour after which a break counts as `nohup`. The window closes at the
-    /// logical day boundary, which is 04:00 — so this is 01:00 to 04:00, the hours the
+    /// logical day boundary, which is 04:00, so this is 01:00 to 04:00, the hours the
     /// command is named for.
     public static let lateHour = 1
 }
@@ -142,7 +142,7 @@ public struct BadgeEvidence: Sendable, Hashable {
 ///
 /// The predicate is a stored property rather than a `switch` somewhere else so that a
 /// reader can check the claim in the copy against the arithmetic without leaving the
-/// line. `Equatable` and `Hashable` are by `id` alone — two values with the same id are
+/// line. `Equatable` and `Hashable` are by `id` alone, two values with the same id are
 /// the same badge whatever the copy says this release.
 public struct Badge: Sendable, Identifiable {
     public let id: BadgeID
@@ -155,7 +155,7 @@ public struct Badge: Sendable, Identifiable {
     /// What it means, once it is yours.
     public let blurb: String
     /// What it takes, said plainly. Shown while it is locked, so it must read as a
-    /// description of a thing that has not happened yet — never as a failure.
+    /// description of a thing that has not happened yet, never as a failure.
     public let lockedHint: String
     /// The whole condition.
     public let isEarned: @Sendable (BadgeEvidence) -> Bool
@@ -307,7 +307,7 @@ extension Badge {
 
 /// Which of the ten have unlocked, and on what day.
 ///
-/// **Once earned, it stays earned — including across a prune.** Raw events are kept for
+/// **Once earned, it stays earned, including across a prune.** Raw events are kept for
 /// seven days by default (`docs/PRIVACY.md` §4.5), so the tallies the evaluator can
 /// recompute shrink as the log ages. If the unlocked set were recomputed from scratch
 /// every time, a badge would silently disappear the week after it was won, which is the
@@ -324,7 +324,7 @@ public struct BadgeLedger: Sendable, Hashable {
     /// Entries this build does not recognise, kept verbatim and written back unchanged.
     ///
     /// An older build opening a newer file would otherwise drop a badge it has never
-    /// heard of and then rewrite the file without it — the same permanent loss the type
+    /// heard of and then rewrite the file without it, the same permanent loss the type
     /// exists to prevent, just arriving by a different route.
     private var unrecognised: [String: String]
 

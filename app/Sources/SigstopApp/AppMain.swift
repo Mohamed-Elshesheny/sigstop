@@ -14,7 +14,22 @@ enum SigstopEntryPoint {
         if CommandLine.arguments.contains("--doctor") {
             runDoctorAndExit()
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-badges") {
+            let next = index + 1
+            let stem = next < CommandLine.arguments.count ? CommandLine.arguments[next] : "badges"
+            renderBadgesAndExit(stem: stem)
+        }
         SigstopScene.main()
+    }
+
+    /// Badge art cannot be reviewed in a diff. This writes the contact sheet so it can be
+    /// reviewed the only way that works, by looking at it. It needs AppKit but not the
+    /// app: no status item, no tick loop, no storage, nothing observed.
+    private static func renderBadgesAndExit(stem: String) -> Never {
+        MainActor.assumeIsolated {
+            NSApplication.shared.setActivationPolicy(.prohibited)
+            BadgeSheetRenderer.runAndExit(stem: stem)
+        }
     }
 
     /// `dispatchMain()` rather than a semaphore: the collectors and the context engine are

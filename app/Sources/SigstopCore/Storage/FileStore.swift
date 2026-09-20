@@ -261,7 +261,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     /// Every stored summary, newest month included, keyed by logical day.
     ///
     /// The badge evaluator needs the whole window rather than one month, and summaries
-    /// outlive raw events by design — so this is where "what did the last three months
+    /// outlive raw events by design, so this is where "what did the last three months
     /// look like" is answered without keeping the trace that produced it.
     public func readAllSummaries() throws -> [CalendarDay: DailySummary] {
         lock.lock()
@@ -295,7 +295,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     /// **This file is the only reason a badge survives retention.** Raw events are kept
     /// for seven days, so the tallies behind most of the ten stop being recomputable
     /// long before the badges would stop being true. Callers must merge into what is
-    /// already on disk rather than overwrite it — `BadgeLedger.merging` is that merge,
+    /// already on disk rather than overwrite it, `BadgeLedger.merging` is that merge,
     /// and it only ever adds.
     public func writeBadges(_ ledger: BadgeLedger) throws {
         lock.lock()
