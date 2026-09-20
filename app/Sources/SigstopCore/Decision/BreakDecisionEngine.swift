@@ -619,6 +619,14 @@ public struct BreakDecisionEngine: Sendable {
 
     // MARK: - user actions
 
+    /// What the developer did to a prompt. Actions are events, not state.
+    ///
+    /// One rule worth stating because it was wrong: `.skip` neither increments nor resets
+    /// `consecutiveIgnoredCycles`. It is not an ignore, the user answered, but it used to
+    /// reset the counter, which made waving a prompt off worth exactly as much to the
+    /// ladder backoff as taking the break, while `CycleOutcome.skipped` still counts
+    /// against compliance. Clearing the backoff is what a break earns. A skip already
+    /// costs the user twenty minutes of quiet; it should buy nothing on top.
     private func handle(
         _ action: UserAction,
         state: EngineState,
@@ -667,7 +675,6 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.closeCycle(cycle, .skipped))
             effects.append(.recordSkip(cycle: cycle))
             effects.append(.setIndicator(.working))
-            day.consecutiveIgnoredCycles = 0
             return .working(WorkingState(
                 armThreshold: input.context.continuousWork + policy.rearmAfterSkip,
                 lastWorkSeen: input.context.continuousWork
