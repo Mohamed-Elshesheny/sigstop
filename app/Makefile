@@ -45,14 +45,7 @@ lint: ## Lint sources
 	@swift-format lint -r Sources Tests
 
 verify: bundle ## Prove the privacy claims against the built binary
-	@echo "== linked frameworks (expect no Network/CFNetwork) =="
-	@otool -L $(BUNDLE)/Contents/MacOS/$(APP) | grep -Ei 'network|socket' \
-		&& { echo "FAIL: a networking framework is linked"; exit 1; } \
-		|| echo "  ok — no networking framework linked"
-	@echo "== entitlements (expect no network entitlement) =="
-	@codesign -d --entitlements - $(BUNDLE) 2>/dev/null | grep -i 'network' \
-		&& { echo "FAIL: a network entitlement is present"; exit 1; } \
-		|| echo "  ok — no network entitlement"
+	@BUNDLE=$(BUNDLE) ./Scripts/verify.sh
 
 dev-cert: ## One-time: create a stable self-signed identity so TCC grants survive rebuilds
 	@if security find-identity -v -p codesigning | grep -q "sigstop-dev"; then \

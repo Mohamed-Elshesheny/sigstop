@@ -10,7 +10,10 @@ momentum, attention to the clock. The app makes no health claims and none of its
 It is a timekeeper for a work pattern the user chose, not an advisor. See
 [Copy rules](#16-copy-rules-non-negotiable).
 
-**Privacy constraint.** All state is local. No network calls, ever. Window titles are used transiently
+**Privacy constraint.** All state is local. Nothing in this subsystem makes a network call, and
+nothing it computes is ever transmitted: the app's one request is the update check described in
+`docs/PRIVACY.md` §5, which carries no data and is triggered by a button, not by the engine.
+Window titles are used transiently
 for classification and are never persisted. Raw input samples are never persisted — only classified
 gaps and per-minute attribution buckets.
 
@@ -865,7 +868,8 @@ struct QuietHours: Codable, Equatable {
 
 ## 13. Persistence & recovery
 
-- Local store (SQLite via GRDB or Core Data) in the app container. No network stack is linked.
+- Local store (SQLite via GRDB or Core Data) in the app container. Nothing here is ever uploaded,
+  and the app's own binary references no networking symbol at all (`docs/PRIVACY.md` §2.7).
 - Persisted: session records, classified gaps, break records, cycle outcomes, per-minute app
   attribution buckets (bundle id + credited seconds), daily counters.
 - Not persisted: raw idle samples, keystroke timings, window titles, URLs.

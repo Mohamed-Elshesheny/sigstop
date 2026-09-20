@@ -197,11 +197,34 @@ export const privacy = {
     copiedLabel: "Copied",
     copyFailLabel: "Copy failed. Select the line and copy it yourself, which you were probably going to do anyway.",
     checks: [
-      { cmd: "otool -L /Applications/sigstop.app/Contents/MacOS/sigstop", desc: "No networking framework is linked. It cannot phone home because it has no mouth." },
-      { cmd: "codesign -d --entitlements - /Applications/sigstop.app", desc: "No network entitlement. No screen recording. No input monitoring." },
+      { cmd: "nm -u /Applications/sigstop.app/Contents/MacOS/sigstop | grep -E 'NSURLSession|_socket|getaddrinfo'", desc: "Silence. The app's own binary references no networking at all. Every byte of network code is in Sparkle." },
+      { cmd: "ls /Applications/sigstop.app/Contents/Frameworks", desc: "Sparkle.framework, and nothing else. One dependency, named, versioned, diffable." },
+      { cmd: "plutil -p /Applications/sigstop.app/Contents/Info.plist | grep SU", desc: "The one URL it can fetch, the key it verifies updates against, and automatic checks set to false." },
       { cmd: "sigstop --doctor", desc: "Prints everything it can currently see about you, and why it believes it." },
       { cmd: "cat ~/Library/Application\\ Support/sigstop/events.jsonl", desc: "Your entire stored history. Plain JSON, one event per line. Read it yourself." },
     ],
+  },
+  /**
+   * The network section.
+   *
+   * This used to be a one line joke ("it cannot phone home because it has no
+   * mouth") back when the app made no requests at all. The app now has an
+   * in app updater, so the joke became a lie and had to go. What replaces it is
+   * longer, because the true version needs more words than the false one did,
+   * and it is written to survive somebody checking every line rather than to
+   * sound reassuring.
+   */
+  network: {
+    title: "One connection",
+    sub: "The app used to make no network requests at all. It makes one now. Here is the whole of it, including the part that is not flattering.",
+    items: [
+      { k: "How many endpoints", v: "One. A static file listing the latest version, identical for every user." },
+      { k: "When", v: "When you click Check for updates. Never at launch. On a daily schedule only if you switch that on, and it ships off." },
+      { k: "What it sends", v: "A plain GET. No account, no install id, no machine id, no system profile, and a user agent that does not even carry your version." },
+      { k: "What it cannot hide", v: "Your IP address and the time you checked, to GitHub, who serve the file. No app can avoid that. Use Homebrew if it matters to you." },
+      { k: "What protects the download", v: "Every update is signed with a key that lives only in the maintainer's keychain, and verified against the public half compiled into the app." },
+    ],
+    note: "That last line is the one that matters. sigstop is not signed with a paid Apple Developer ID, so Apple's signature would prove nothing about who built an update. The EdDSA signature does. Somebody who takes over the GitHub account, the CDN, or your network can stop you getting updates and still cannot make this app run their code.",
   },
   zeroPermLabel: "Zero permissions",
   zeroPerm:
@@ -221,8 +244,8 @@ export const openSource = {
     { k: "Language", v: "Swift 6" },
     { k: "License", v: "Apache-2.0" },
     { k: "Minimum", v: "macOS 14" },
-    { k: "Binary", v: "2.1 MB" },
-    { k: "Dependencies", v: "0" },
+    { k: "Bundle", v: "7.5 MB, 2.8 of it Sparkle" },
+    { k: "Dependencies", v: "1, and you can name it" },
   ],
   factsNote:
     "Facts, not social proof. A star count tells you how a repo trended, not whether the code does what it says.",
@@ -342,7 +365,9 @@ export const comparison = {
     { trait: "Tells you why it believes that", sigstop: "yes", pomodoro: "n/a", wellness: "no", nothing: "n/a" },
     { trait: "Admits when it does not know", sigstop: "yes", pomodoro: "n/a", wellness: "no", nothing: "n/a" },
     { trait: "Works with zero permissions granted", sigstop: "yes", pomodoro: "yes", wellness: "no", nothing: "yes" },
-    { trait: "Opens no network connection, ever", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "yes" },
+    { trait: "Sends nothing about you, anywhere", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "yes" },
+    { trait: "Its only connection is an update check you triggered", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "n/a" },
+    { trait: "Verifies every update against a key inside the app", sigstop: "yes", pomodoro: "some", wellness: "some", nothing: "n/a" },
     { trait: "Source you can read and fork", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "n/a" },
     { trait: "Free, no account, no tier", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "yes" },
     { trait: "Escalates instead of nagging identically", sigstop: "yes", pomodoro: "no", wellness: "no", nothing: "no" },
@@ -359,5 +384,6 @@ export const comparison = {
   footnotes: [
     "macOS only, and honestly so. The detection is built on NSWorkspace, CoreGraphics and CoreAudio. A Windows port would not be a port, it would be a rewrite, and pretending otherwise on a landing page is how you get issues you cannot close.",
     "The last row is not a joke at our expense so much as the point. Nothing on this page claims to make you faster, healthier or more focused. It picks better moments to interrupt you than a timer does. That is the whole product.",
+    "This table used to have a row reading \"Opens no network connection, ever\", and sigstop scored yes on it. That stopped being true when the in app updater shipped, so the row is gone rather than quietly reinterpreted. The three rows that replace it are narrower and each one is checkable from a terminal. What did not change: nothing about you is ever sent anywhere.",
   ],
 } as const;

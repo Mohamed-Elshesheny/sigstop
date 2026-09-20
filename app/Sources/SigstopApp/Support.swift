@@ -1,0 +1,125 @@
+import Foundation
+import SigstopCore
+import SigstopSensors
+
+// This file is Foundation-only plumbing for the app layer: where state lives on disk,
+// how settings are read and written, and the tiny box that lets a `@Sendable` closure
+// and a main-actor model share a value without a data race.
+//
+// No networking symbol appears anywhere in THIS FILE, and every `URL` below is a `file://`
+// path. That used to be true of the whole target; it is now true of everything in it except
+// `UpdateChecker.swift`, which is the app's one network capability and is documented at
+// length there. CLAUDE.md §4.3 is the current statement of what the app may and may not do.
+
+// MARK: - Where things live
+
+enum AppPaths {
+    /// The Info.plist identifier when bundled; the same literal when run straight from
+    /// `swift run`, so a development run and a bundled run share one store instead of
+    /// silently keeping two histories.
+    static var bundleID: String { Bundle.main.bundleIdentifier ?? "dev.sigstop.app" }
+
+    /// True only inside a real `.app`. `swift run sigstop` is false, and several macOS
+    /// APIs (UNUserNotificationCenter, SMAppService) are unusable without a bundle — so
+    /// the app degrades and says so instead of trapping.
+    static var isBundled: Bool { Bundle.main.bundleIdentifier != nil }
+
+    static var applicationSupport: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+                .appendingPathComponent("Library/Application Support", isDirectory: true)
+    }
+
+    /// `~/Library/Application Support/dev.sigstop.app`
+    static var storageRoot: URL {
+        FileEventStore.defaultRoot(applicationSupport: applicationSupport, bundleID: bundleID)
+    }
+
+    static var settingsFile: URL {
+        storageRoot.appendingPathComponent("settings.json", isDirectory: false)
+    }
+}
+
+// MARK: - Settings persistence
+
+/// Settings are one small JSON file next to the event log, not `UserDefaults`.
+///
+/// `UserDefaults` writes into a preferences plist the user cannot easily read, cannot
+/// diff, and cannot delete along with the rest of their data. A file in the same
+/// directory as everything else means "Delete my data" really does remove everything,
+/// and `cat` stays a complete audit tool (docs/PRIVACY.md §4.6).
+enum SettingsStore {
+    static func load() -> SigstopSettings {
+        guard let data = FileManager.default.contents(atPath: AppPaths.settingsFile.path) else {
+            return .default
+        }
+        // `SigstopSettings.init(from:)` tolerates missing keys and clamps hostile values,
+        // so a hand-edited file cannot put the engine into a bad state.
+        return (try? JSONDecoder().decode(SigstopSettings.self, from: data)) ?? .default
+    }
+
+    @discardableResult
+    static func save(_ settings: SigstopSettings) -> Bool {
+        do {
+            try FileManager.default.createDirectory(
+                at: AppPaths.storageRoot,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            try encoder.encode(settings).write(to: AppPaths.settingsFile, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+}
+
+// MARK: - Cross-isolation box
+
+/// The context engine asks for the work clock through a `@Sendable` closure, from
+/// whatever isolation it happens to be on. The clock itself lives in a
+/// main-actor-isolated `SessionTracker`. This lock-guarded box is the whole bridge: the
+/// model publishes a reading after each tick, the closure reads the last published one.
+///
+/// The one-tick lag is deliberate and harmless — the number is used for display and for
+/// message slots, while every decision reads the tracker directly.
+final class WorkClockBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: WorkClockReading = .zero
+
+    func publish(_ reading: WorkClockReading) { lock.withLock { value = reading } }
+    func read() -> WorkClockReading { lock.withLock { value } }
+}
+
+// MARK: - Small formatting helpers
+
+enum Format {
+    /// `h:mm:ss` / `m:ss`, for a clock that is being watched tick by tick.
+    static func clock(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
+        return String(format: "%d:%02d", m, s)
+    }
+
+    static func percent(_ fraction: Double) -> String {
+        "\(Int((min(max(fraction, 0), 1) * 100).rounded()))%"
+    }
+
+    /// Signed log-odds, the unit the confidence model actually works in. Printed so a
+    /// reader can add the column up and land on the number the app is claiming.
+    static func logOdds(_ value: Double) -> String {
+        String(format: "%+.2f", value)
+    }
+
+    /// `HH:mm`, 24-hour, used for quiet-hours labels where a locale-dependent string
+    /// would make the two ends of the window hard to compare at a glance.
+    static func minuteOfDay(_ minutes: Int) -> String {
+        let m = ((minutes % 1440) + 1440) % 1440
+        return String(format: "%02d:%02d", m / 60, m % 60)
+    }
+}

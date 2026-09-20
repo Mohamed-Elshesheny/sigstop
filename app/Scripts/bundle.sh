@@ -30,6 +30,7 @@ rm -rf "${BUNDLE}"
 mkdir -p "${BUNDLE}/Contents/MacOS" "${BUNDLE}/Contents/Resources"
 cp "${BIN}" "${BUNDLE}/Contents/MacOS/${APP_NAME}"
 cp Resources/Info.plist "${BUNDLE}/Contents/"
+cp Resources/sigstop.icns "${BUNDLE}/Contents/Resources/"
 
 # SwiftPM emits resource bundles next to the binary; the app expects them inside
 # Contents/Resources, so copy any that exist.
@@ -37,16 +38,104 @@ for b in .build/"${CONFIG}"/*.bundle; do
   [ -e "$b" ] && cp -R "$b" "${BUNDLE}/Contents/Resources/"
 done
 
+# ---------------------------------------------------------------------------
+# Sparkle
+#
+# SwiftPM links Sparkle as @rpath/Sparkle.framework/... and drops the framework
+# next to the build product, which is why `swift run` works. A .app has to carry
+# its own copy in Contents/Frameworks, and the executable needs an rpath that
+# points there — without it the app launches fine from .build and dies with a
+# dyld "Library not loaded" the moment you double-click the bundle.
+#
+# The framework is copied WHOLE, symlinks and all (`cp -a`, not `cp -RL`).
+# Inside it are the XPC services and the Autoupdate helper that actually perform
+# the install; flattening the Versions/B symlink farm produces a bundle that
+# codesign accepts and that macOS then refuses to load.
+FRAMEWORK=".build/${CONFIG}/Sparkle.framework"
+if [ -d "${FRAMEWORK}" ]; then
+  echo "==> embedding Sparkle.framework"
+  mkdir -p "${BUNDLE}/Contents/Frameworks"
+  cp -a "${FRAMEWORK}" "${BUNDLE}/Contents/Frameworks/"
+  # dSYMs are build output, not runtime. Shipping them doubles the bundle.
+  rm -rf "${BUNDLE}/Contents/Frameworks/Sparkle.framework/Versions/B/dSYMs" 2>/dev/null || true
+  install_name_tool -add_rpath "@executable_path/../Frameworks" \
+                    "${BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
+else
+  echo "==> WARNING: ${FRAMEWORK} missing — the bundle will not launch" >&2
+fi
+
+# ---------------------------------------------------------------------------
+# Signing
+#
+# Order matters and is not negotiable: nested code first, outermost last. A
+# framework that contains its own XPC services and helper app has to be sealed
+# from the inside out, because signing the outer bundle computes a hash over the
+# inner signatures. Signing the .app first and the framework second produces a
+# bundle that fails Gatekeeper with a vague "code has been modified".
+#
+# `codesign --deep` would do this in one line and is explicitly discouraged by
+# Apple: it re-signs vendor code with our entitlements, which for Sparkle's
+# installer XPC service is exactly the wrong thing.
 echo "==> codesign (identity: ${SIGN_IDENTITY})"
+
+sign() {  # sign <path> [extra args...]
+  local target="$1"; shift
+  codesign --force --sign "${SIGN_IDENTITY}" --timestamp=none "$@" "${target}" 2>&1 \
+    | sed 's/^/    /' || return 1
+}
+
+SPARKLE_IN_BUNDLE="${BUNDLE}/Contents/Frameworks/Sparkle.framework"
+if [ -d "${SPARKLE_IN_BUNDLE}" ]; then
+  # Deepest first. These paths are Sparkle 2's layout; if a future version moves
+  # them the loop below simply signs nothing extra and the framework signature
+  # still covers them.
+  for nested in \
+    "${SPARKLE_IN_BUNDLE}/Versions/B/XPCServices/Installer.xpc" \
+    "${SPARKLE_IN_BUNDLE}/Versions/B/XPCServices/Downloader.xpc" \
+    "${SPARKLE_IN_BUNDLE}/Versions/B/Autoupdate" \
+    "${SPARKLE_IN_BUNDLE}/Versions/B/Updater.app"
+  do
+    [ -e "${nested}" ] && sign "${nested}" || true
+  done
+  sign "${SPARKLE_IN_BUNDLE}" || true
+fi
+
+# Hardened runtime is now OPT-IN, and the reason is worth reading before you turn
+# it back on by default.
+#
+# --options runtime enables Library Validation, which makes dyld refuse to load a
+# library signed by a different Team ID than the main executable. Ad-hoc and
+# self-signed certificates carry no Team ID, so two separately ad-hoc-signed
+# Mach-Os are treated as different teams even when the same command signed both.
+# With Sparkle.framework embedded, the result is an app that passes
+# `codesign --verify --deep --strict` and then dies at launch with:
+#
+#   Library not loaded: @rpath/Sparkle.framework/Versions/B/Sparkle
+#   ... mapping process and mapped file (non-platform) have different Team IDs
+#
+# Before this framework existed the bundle had nothing to load, so hardened
+# runtime cost nothing and was on. It is not free any more. The honest options
+# are a real Developer ID (both halves get the same Team ID, HARDENED=1 works),
+# or no hardened runtime. Disabling library validation with
+# com.apple.security.cs.disable-library-validation is NOT one of the options:
+# docs/PRIVACY.md §2.8 names the absence of that entitlement as the thing that
+# stops the app loading code nobody reviewed, and trading it away to keep a
+# checkbox would be exactly backwards.
+#
+# What carries the guarantee in the meantime is Sparkle's EdDSA signature, which
+# is checked against a key compiled into the app and does not depend on Apple
+# issuing anybody a certificate. See docs/RELEASING.md.
+HARDENED="${HARDENED:-0}"
+RUNTIME_FLAGS=()
+if [ "${HARDENED}" = "1" ]; then
+  RUNTIME_FLAGS=(--options runtime)
+  echo "    (hardened runtime requested — needs a Developer ID or the app will not launch)"
+fi
+
 codesign --force --sign "${SIGN_IDENTITY}" \
          --entitlements Resources/sigstop.entitlements \
-         --options runtime \
-         "${BUNDLE}" 2>&1 | sed 's/^/    /' || {
-  # --options runtime requires a real identity; fall back for ad-hoc local builds.
-  echo "    (hardened runtime needs a real identity; signing ad-hoc instead)"
-  codesign --force --sign "${SIGN_IDENTITY}" \
-           --entitlements Resources/sigstop.entitlements "${BUNDLE}"
-}
+         ${RUNTIME_FLAGS[@]+"${RUNTIME_FLAGS[@]}"} \
+         "${BUNDLE}" 2>&1 | sed 's/^/    /'
 
 echo
 echo "built ${BUNDLE}"

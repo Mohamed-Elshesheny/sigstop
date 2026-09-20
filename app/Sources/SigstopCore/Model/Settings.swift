@@ -108,6 +108,10 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     /// Record the browser HOST only. Explicit opt-in, off by default.
     public var browserHostEnabled: Bool
 
+    /// Show a Dock icon. Menu bar utilities conventionally have none, which is why the
+    /// app is LSUIElement, but the activation policy is changeable at runtime and some
+    /// people want the app where they look for apps.
+    public var showInDock: Bool
     public var launchAtLogin: Bool
     public var showBreakOverlay: Bool
     public var breakQuestsEnabled: Bool
@@ -125,6 +129,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         accessibilityEnabled: Bool = false,
         gitContextEnabled: Bool = false,
         browserHostEnabled: Bool = false,
+        showInDock: Bool = true,
         launchAtLogin: Bool = false,
         showBreakOverlay: Bool = true,
         breakQuestsEnabled: Bool = true
@@ -141,6 +146,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.accessibilityEnabled = accessibilityEnabled
         self.gitContextEnabled = gitContextEnabled
         self.browserHostEnabled = browserHostEnabled
+        self.showInDock = showInDock
         self.launchAtLogin = launchAtLogin
         self.showBreakOverlay = showBreakOverlay
         self.breakQuestsEnabled = breakQuestsEnabled
@@ -170,6 +176,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         accessibilityEnabled = try c.decodeIfPresent(Bool.self, forKey: .accessibilityEnabled) ?? d.accessibilityEnabled
         gitContextEnabled = try c.decodeIfPresent(Bool.self, forKey: .gitContextEnabled) ?? d.gitContextEnabled
         browserHostEnabled = try c.decodeIfPresent(Bool.self, forKey: .browserHostEnabled) ?? d.browserHostEnabled
+        showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? d.showInDock
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         showBreakOverlay = try c.decodeIfPresent(Bool.self, forKey: .showBreakOverlay) ?? d.showBreakOverlay
         breakQuestsEnabled = try c.decodeIfPresent(Bool.self, forKey: .breakQuestsEnabled) ?? d.breakQuestsEnabled

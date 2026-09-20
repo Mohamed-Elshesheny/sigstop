@@ -65,6 +65,7 @@ decide which, fix it, and say so in the PR.
 | `docs/BREAK-DECISION.md` | Session clock, engine state machine, interruption policy |
 | `docs/MESSAGE-ENGINE.md` | Template selection, tone, escalation, corpus format |
 | `docs/PRIVACY.md` | Data inventory and the enforceable no-collection properties |
+| `docs/RELEASING.md` | Cutting a release: EdDSA signing, the appcast, and publishing |
 
 ---
 
@@ -79,6 +80,7 @@ make bundle         # assemble + sign sigstop.app
 make run            # bundle, then launch
 make test           # swift test — Core only, no GUI session required
 make doctor         # print exactly what the app can observe right now
+make verify         # assert the §4.3 claims against the BUILT bundle, not the source
 ```
 
 There is **no Xcode project and no Xcode requirement**. Command Line Tools are enough.
@@ -166,14 +168,46 @@ and produces no prompts**. This is empirically verified — see §6.
 Accessibility (Tier 1) and git context (Tier 2) are *upgrades*, never gates. A feature that
 hard-requires a permission is a design error.
 
-### 4.3 The app never opens a network connection
+### 4.3 The app opens exactly one connection, only when you ask, and verifies what comes back
 
-No telemetry, no update check, no crash reporting, no font CDN, no "anonymous" anything.
-This is enforced structurally, not by policy: the network entitlement is absent and no networking
-framework is linked. It is verifiable with `otool -L` and `codesign -d --entitlements`.
+This invariant used to read "the app never opens a network connection." It does not say that any
+more, and the change was made here, in its own commit, before the code — which is what the last
+paragraph of the old version demanded and is the only reason it was allowed to change at all.
 
-Adding *any* network call to the app requires changing this file first, in its own PR, with the
-argument written out. Do not bundle it with a feature.
+**What is true now:**
+
+- The app makes **one** kind of request: a `GET` of the appcast at `SUFeedURL`, a static XML file
+  that is byte-identical for every user.
+- It is made **only** when someone presses *Check for updates* in Settings → About, or on a daily
+  schedule **if and only if** the user ticked the box. `SUEnableAutomaticChecks` is `<false/>`, and
+  Sparkle's first-run "may I check automatically?" prompt is answered `no` without being shown.
+- It carries **no identifier**: no account, no install id, no machine id, no system profile
+  (`SUEnableSystemProfiling` is `<false/>`), and the user agent is overridden to the constant
+  `"sigstop"` so it does not carry the app version either.
+- Nothing downloads or installs without a second, separate press.
+- **Every update is verified before it can run.** Sparkle checks an EdDSA signature against
+  `SUPublicEDKey`, which is compiled into the app; the private half lives only in the maintainer's
+  login keychain. A compromised GitHub account, CDN, or network can serve a malicious archive and
+  still not get it installed.
+
+**What is still true and still structural:** the app's *own* binary links no networking framework
+and references no networking symbol — not `NSURLSession`, not a socket, not `getaddrinfo`. All the
+network code in the bundle lives in `Sparkle.framework`, which you can name, version and diff, and
+the download itself runs in Sparkle's out-of-process XPC service. There is no network **server**
+entitlement: nothing listens.
+
+**What cannot be claimed:** an HTTPS request reveals the client's IP address and a timestamp to
+whoever serves the file. No client-side choice changes that. `docs/PRIVACY.md` §5 says so plainly
+rather than talking around it.
+
+`make verify` asserts all of the above against the built bundle. It is no longer "prove there is no
+networking"; it is "prove the only networking is Sparkle's, prove nothing schedules itself, prove
+updates are signature-gated". Read `app/Scripts/verify.sh` — it is commented with what each check is
+for and why the old one was not just deleted.
+
+Adding a **second** endpoint, a launch-time check, or anything that sends state upward requires
+changing this file first, in its own PR, with the argument written out. Do not bundle it with a
+feature.
 
 ### 4.4 Never read content
 
@@ -196,7 +230,10 @@ the app or on the site: this is a workflow tool, not a health product. Say "your
 
 **Swift** — Swift 6 language mode, strict concurrency. Public API in `Core` is `Sendable`.
 Prefer `struct` + `enum`; reach for a class only for genuine identity/lifetime. No force-unwraps
-outside tests. No third-party dependencies in the app, at all.
+outside tests. **Exactly one third-party dependency in the app — Sparkle — and it is attached to
+`SigstopApp` only.** `SigstopCore` and `SigstopSensors` are dependency-free and must stay that way:
+they must not import Sparkle, and the layering rule in §3.1 still holds. A second dependency needs
+the same argument Sparkle had to make (§5, Dependencies).
 
 **TypeScript / web** — Copy lives in `src/content/`, never inline in components, so the writing can
 be reviewed as writing. Components are presentational and take props. Server Components by default;
@@ -205,8 +242,20 @@ be reviewed as writing. Components are presentational and take props. Server Com
 **Motion** — Every animation must respect `prefers-reduced-motion`. No motion library; CSS
 animations plus `IntersectionObserver` are sufficient and keep the bundle honest.
 
-**Dependencies** — The bar is high in both trees. The app has zero. The site has Next, React,
-Tailwind and nothing else. "It's only 4kb" is not an argument.
+**Dependencies** — The bar is high in both trees. The app has **one**: Sparkle, pinned to an exact
+version, linked into `SigstopApp` only. The site has Next, React, Tailwind and nothing else. "It's
+only 4kb" is not an argument.
+
+The bar Sparkle cleared, written down so the next proposal has something to clear too. The app is
+distributed outside the App Store and is **ad-hoc signed with no Team ID**, so Apple's code
+signature proves nothing about who produced a build — Gatekeeper would be checking a signature
+against nobody. An updater that downloads and installs therefore has to carry its own proof of
+authorship, and Sparkle's is EdDSA: signed with a key that never leaves the maintainer's keychain,
+verified against a public key compiled into the app, refused if it does not match. The only way to
+avoid the dependency was to write download-and-verify by hand, and hand-rolled verification of
+signed executables is the single worst thing in this repo to get subtly wrong. One audited,
+widely-deployed dependency beat one bespoke security-critical code path. *That* is the shape of
+argument a new dependency needs — not convenience, not line count.
 
 ---
 

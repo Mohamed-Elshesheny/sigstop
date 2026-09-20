@@ -132,7 +132,31 @@ export function Privacy() {
           <p role="status" aria-live="polite" className="sr-only">{status}</p>
         </div>
 
-        {/* ── (c) The claim everything above rests on. ────────────────────── */}
+        {/* ── (c) The one connection. ───────────────────────────────────────
+            Placed AFTER the commands on purpose. A reader who has just been
+            handed five things to run is in the right frame of mind for the
+            paragraph that admits the app does open a socket; the same paragraph
+            above the commands reads like a disclaimer being got out of the way.
+            It is a single full-width block rather than a card in the grid
+            because it is the one thing on this page that concedes something,
+            and burying a concession in a two-up layout is how you make it look
+            like you were hoping nobody would read it. */}
+        <div className="mt-8 overflow-hidden rounded-xl border border-line bg-bg p-5">
+          <h3 className="flex items-center gap-2 font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-fg-faint">
+            <StateDot state="suspend" />
+            {copy.network.title}
+          </h3>
+          <p className="mt-2 text-[13px] leading-snug text-fg-muted">{copy.network.sub}</p>
+          <dl className="mt-3 space-y-1.5">
+            {copy.network.items.map((item) => (
+              <div key={item.k} className="flex items-baseline gap-2 text-[13px] leading-snug">
+                <dt className="shrink-0 font-mono text-fg">{item.k}</dt>
+                <dd className="text-fg-faint">{item.v}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-[12px] leading-snug text-fg-muted">{copy.network.note}</p>
+        </div>
       </div>
     </Section>
   );

@@ -961,7 +961,9 @@ public struct Corpus: Sendable {
 Packs load from `~/Library/Application Support/<app>/packs/*.json`, validated against the
 schema at load time. A pack that fails validation is rejected wholesale with a diagnostic —
 never partially loaded, because a half-loaded pack produces exactly the coverage holes the
-lint exists to prevent. Third-party packs are data only: no code, no URLs, no network access.
+lint exists to prevent. Third-party packs are data only: no code, no URLs, no network access. The app's one network
+request is a compile-time constant (`docs/PRIVACY.md` §2.9), so a pack has no endpoint to reach even
+if it smuggled one in.
 
 ### 7.4 Localization readiness
 

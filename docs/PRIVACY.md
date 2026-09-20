@@ -53,8 +53,14 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 22 | **Notification authorization status** | `UNUserNotificationCenter.notificationSettings()` | Decide whether to use a system notification or the in-app fallback window | Memory-only (the real record is TCC's) | n/a | n/a |
 | 23 | **Unified log lines** | `os.Logger` | Debugging | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
 
-That is the complete list. There is no row for network, account, device identifier, hardware serial,
-IP address, locale beacon, install ID, or first-run ping, because none of those exist in the code.
+That is the complete list. There is no row for account, device identifier, hardware serial, locale
+beacon, install ID, or first-run ping, because none of those exist in the code.
+
+There is one row's worth of network activity, and it is not in the table above because nothing about
+it is *collected*: when you press **Check for updates**, the app fetches one static XML file over
+HTTPS. It sends no identifier and stores nothing about the request. What it necessarily reveals is
+your IP address and the time, to whoever serves that file. §5 is the whole account of it, including
+the parts that cannot be proven from this side.
 
 ### 1.3 What a "focus" sample looks like end to end
 
@@ -323,42 +329,132 @@ otool -L <BIN> | grep -Ei 'ScreenCaptureKit|CoreMedia'   # expect no output
 nm -u <BIN> | grep -E 'CGWindowList|CGDisplayStream'      # expect no output
 ```
 
-### 2.7 No network transmission of any kind
+### 2.7 No network transmission of your data, and exactly one network request
 
-This is the claim developers care about most, so here is the honest, layered version.
+This section used to be titled "No network transmission of any kind" and it is not called that any
+more. The app now contains an in-app updater (Sparkle), so the old sentence became false the moment
+that shipped, and an untrue privacy claim is worse than no claim. Here is the replacement, layered
+the same way.
 
-**In the sandboxed flavor (the default build):** the entitlement
-`com.apple.security.network.client` is absent and `com.apple.security.network.server` is absent.
-Under App Sandbox this is enforced by the kernel — a `connect(2)` from the process fails with
-`EPERM` regardless of what the code tries to do. This is a real guarantee, not a policy.
+**What is transmitted about you: nothing.** No event, no summary, no bundle ID, no window title, no
+duration, no setting, no identifier of any kind ever leaves the machine. The updater sends a `GET`
+with no query string and no body. There is no endpoint that accepts data from this app, because the
+only endpoint is a static file.
 
-**In the Accessibility flavor (§3.6):** the app cannot be sandboxed, so the missing entitlement
-guarantees nothing. What remains is: no networking symbol in the binary, no networking code in the
-tree, CI enforcement of both, and your own runtime monitor. That is weaker. It is stated plainly
-in §8.1 rather than buried.
+**What requests exist: one.** An HTTPS `GET` of the appcast at `SUFeedURL`, which is a static XML
+file on GitHub Pages, identical for everyone. It is made when you press **Check for updates**, and
+on a daily schedule only if you ticked the box in Settings → About, which is off by default. If an
+update is offered, pressing the second button fetches the archive itself.
+
+**What the app's own binary can do: still nothing.** This is the part that survived intact and is
+worth checking yourself. `sigstop`'s executable links no networking framework and references no
+networking symbol — not `NSURLSession`, not `socket`, not `getaddrinfo`. All the network code is
+inside `Sparkle.framework`, and the download runs in Sparkle's own out-of-process XPC service, so
+the process holding your Accessibility grant is not the process doing the transfer.
+
+**What is enforced by the OS: nothing, and that was already true.** The app cannot be sandboxed
+(§3.6), so the absence of `com.apple.security.network.client` never guaranteed anything on its own —
+an unsandboxed process may open sockets freely. What is real is the symbol-level absence above, the
+signature gate below, and your own runtime monitor. §8.1 states this without softening it.
+
+**What cannot be claimed.** An HTTPS request reveals your IP address and a timestamp to whoever
+serves the file, which today is GitHub. Nothing the client does changes that. If that matters to
+you, never press the button, leave the daily check off, and install from Homebrew instead — the app
+makes no request at all unless you ask it to.
+
+**What replaces the old guarantee: signature verification.** See §2.8.
 
 **Check.**
 ```
-codesign -d --entitlements - --xml <APP> | plutil -p -    # look for network.client — must be absent
-nm -u <BIN> | grep -E '^_(socket|connect|getaddrinfo|res_9_init|SCNetworkReachability)' # expect none
-nm <BIN> | grep -E 'OBJC_CLASS_\$_(NSURLSession|NSURLConnection|NWConnection|NWBrowser)' # expect none
-sudo lsof -i -a -p "$(pgrep -f '<BUNDLE_ID>')"            # expect no sockets, ever
+BIN=<APP>/Contents/MacOS/sigstop
+
+# the app's own binary references no networking at all
+nm -u "$BIN" | grep -E '^_(socket|connect|getaddrinfo|res_9_init)$'            # expect none
+nm -u "$BIN" | grep -E 'NSURLSession|NSURLConnection|NWConnection|CFHost'      # expect none
+otool -L "$BIN" | grep -Ei 'CFNetwork|Network\.framework'                      # expect none
+
+# the only networking in the bundle, named and versioned
+ls <APP>/Contents/Frameworks                                                   # expect: Sparkle.framework
+
+# the only endpoint
+plutil -p <APP>/Contents/Info.plist | grep -E 'SUFeedURL|SUEnableAutomaticChecks|SUEnableSystemProfiling'
+
+# no server entitlement: nothing listens
+codesign -d --entitlements - --xml <APP> | plutil -p - | grep network.server   # expect none
+
+# while it is running and you have not pressed anything
+sudo lsof -i -a -p "$(pgrep -f '<BUNDLE_ID>')"                                 # expect no sockets
 ```
-See §6.3 for the Little Snitch / `nettop` procedure, and §8.1 for what `otool -L` can and cannot
-prove.
+`make verify` runs the whole set against a built bundle and prints a line per assertion. See §6.3
+for the Little Snitch / `nettop` procedure, and §8.1 for what `otool -L` can and cannot prove.
 
-### 2.8 No covert exfiltration channels
+### 2.8 Updates cannot install unless the maintainer signed them
 
-A process with no sockets can still leak. The following are also absent, and CI enforces each:
+This is the property that made an in-app updater defensible at all, and it is stronger than what
+Apple's code signing would give this project.
+
+The app is distributed outside the App Store and is **ad-hoc signed: there is no Developer ID and no
+Team ID.** Gatekeeper therefore has no identity to check an update against. An updater that
+downloads and runs code, with nothing but TLS between it and the user, would be trusting whoever
+controls the server — and "whoever controls the server" includes anyone who compromises a GitHub
+account or a CDN edge.
+
+Sparkle closes that with EdDSA (Ed25519):
+
+- The **private key** exists in exactly one place: the maintainer's macOS login keychain, as a
+  generic password under service `https://sparkle-project.org`, account `sigstop`. It is not in this
+  repository, not in CI, and not on any build server. `make verify` greps the whole tree for a
+  private key and fails if one appears.
+- The **public key** is compiled into the app as `SUPublicEDKey` in `Info.plist`. You can read it
+  with `plutil -p`.
+- Every release archive is signed with `sign_update` and the signature is written into the appcast.
+  Sparkle verifies it **before** the archive is unpacked or installed. A signature that does not
+  verify is not a warning; the update simply does not happen.
+
+The consequence, stated as plainly as it deserves: **an attacker who fully owns the update server
+can stop you getting updates, and cannot make this app run their code.** That is a different and
+much better position than TLS alone.
+
+The honest limit: this protects the *channel*, not the *maintainer*. If the private key is stolen,
+signed malicious updates become possible, and the only remedy is key rotation — which does not reach
+anyone already running an old build, because they verify against the key inside the copy they have.
+`docs/RELEASING.md` §6 says what that would actually involve. §8 lists it as a limitation rather
+than pretending it away.
+
+### 2.9 No covert exfiltration channels
+
+A process with no sockets can still leak, and now that one framework in the bundle *does* have
+sockets, the channels below matter more rather than less. Each is absent, with the guard named:
 
 | Channel | Why it matters | Guard |
 |---|---|---|
-| `NSWorkspace.open(URL)` | Opening `https://collector/?data=…` in the browser exfiltrates without a socket in this process | Allowlisted: the only call sites pass a compile-time constant from `Links.swift`, and CI asserts the call appears nowhere else |
-| `Process` / `NSTask` / `posix_spawn` | Shelling out to `curl` | Forbidden symbols; not referenced anywhere |
+| The updater's own request | A `GET` can carry data in a query string, a header, or a hostname | The feed URL is a compile-time constant in `Info.plist` with no query string; `SUEnableSystemProfiling` is `false` so Sparkle appends no parameters; `sendsSystemProfile` is set `false` in code as well; the user agent is overridden to the literal `"sigstop"` and does not even carry the app version. `make verify` asserts the plist keys |
+| A second endpoint | One allowed URL is checkable; two is a policy | `make verify` extracts every URL string from the binary and fails on anything that is not an allowlisted `github.com/Mohamed-Elshesheny/sigstop` browser link. The feed URL is not even in the binary — it is a plist key |
+| `NSWorkspace.open(URL)` | Opening `https://collector/?data=…` in the browser exfiltrates without a socket in this process | Allowlisted: the only call sites pass a compile-time constant from the `Links` enum in `SettingsView.swift`, and the URL check above covers them |
+| `Process` / `NSTask` / `posix_spawn` | Shelling out to `curl` | Forbidden symbols; not referenced anywhere in app code |
 | `NSAppleScript` / `osascript` | Scripting another app into making the request | Forbidden symbols; no Automation usage string |
-| `NSXPCConnection` to a helper | A helper could hold the network code | The app ships no helper tool, no `Contents/Library/LaunchServices`, no privileged helper. `ls <APP>/Contents` shows the whole bundle |
-| `dlopen` / plugin loading | Loading code not in the reviewed binary | Hardened Runtime with Library Validation on, `com.apple.security.cs.disable-library-validation` absent |
-| DNS via `CFHost` | Data in a hostname | Forbidden symbols |
+| `NSXPCConnection` to a helper | A helper could hold the network code | The app ships no helper of its own. It does ship Sparkle's two XPC services inside `Sparkle.framework`, which is the point — the downloader and the installer are deliberately *not* in the app process. `ls <APP>/Contents/Frameworks` shows exactly one framework |
+| `dlopen` / plugin loading | Loading code not in the reviewed binary | `com.apple.security.cs.disable-library-validation` is absent and `make verify` fails if it ever appears. **But see the honest caveat below: the shipped build no longer has Hardened Runtime enabled.** |
+| Analytics SDK arriving as a transitive dependency | The usual way telemetry actually gets in | Sparkle has no dependencies of its own, and `make verify` greps the whole bundle against a list of ~25 analytics and crash-reporting SDKs by name |
+| DNS via `CFHost` | Data in a hostname | Forbidden symbols; checked by `make verify` |
+
+**The Hardened Runtime regression, stated rather than buried.** Before Sparkle, the bundle was
+signed with `--options runtime`, which enables Library Validation. That is no longer possible for
+ad-hoc builds: Library Validation makes dyld refuse a library whose Team ID differs from the main
+executable's, ad-hoc signatures carry no Team ID, and so an ad-hoc-signed app with an embedded
+framework passes `codesign --verify --deep --strict` and then dies at launch with *"mapping process
+and mapped file (non-platform) have different Team IDs."*
+
+The two ways out were a real Developer ID certificate, or turning Library Validation off with
+`com.apple.security.cs.disable-library-validation`. The second was refused, because the absence of
+that entitlement is the guard in the `dlopen` row above and trading it away to keep a checkbox would
+be exactly backwards. So `make bundle` signs without Hardened Runtime by default, and
+`HARDENED=1 make bundle` turns it back on for anyone who has a Developer ID. The comment in
+`app/Scripts/bundle.sh` explains this at the point where somebody would otherwise "fix" it.
+
+What this costs: a local attacker who can already write to the app bundle could inject a library.
+That attacker could also simply replace the binary, so the practical loss is smaller than it sounds
+— but it is a real reduction from the previous position and it is listed in §8.
 
 ---
 
@@ -450,11 +546,20 @@ There is a genuine, unavoidable conflict: **an App-Sandboxed app cannot use the 
 inspect other processes.** The sandbox denies the `com.apple.axserver` mach lookup, and the
 exceptions that would restore it are not generally granted. So the choice is real:
 
-- **Default flavor — sandboxed.** `com.apple.security.app-sandbox` = true, no network entitlements.
-  "No network" is kernel-enforced. No window-title fidelity: the Accessibility toggle is hidden and
-  the AX code path is compiled out with `#if !SANDBOXED`. Distributable through the Mac App Store.
-- **AX flavor — unsandboxed, Hardened Runtime, notarized.** Window-title fidelity available. "No
-  network" is enforced only by code review, CI symbol checks, and whatever monitor you run.
+- **Default flavor — sandboxed.** `com.apple.security.app-sandbox` = true, **and no network
+  entitlement at all, which also means no in-app updater**: Sparkle needs
+  `com.apple.security.network.client` to make its one request, and a sandboxed build deliberately
+  does not get it. So in this flavor "no network" really is kernel-enforced, and updates come from
+  the Mac App Store or Homebrew instead. No window-title fidelity either: the Accessibility toggle
+  is hidden and the AX code path is compiled out with `#if !SANDBOXED`.
+- **AX flavor — unsandboxed.** Window-title fidelity available, and the in-app updater described in
+  §2.7 and §2.8. There is no kernel guarantee here and there never was: an unsandboxed process may
+  open sockets freely regardless of entitlements. What holds instead is that the app's own binary
+  contains no networking code, all of it lives in one named framework, and every update is
+  signature-verified before it can install.
+
+**This is the flavor this repository currently builds.** The sandboxed flavor is described above
+because it is the intended second target, not because it exists yet; §8 says so.
 
 Both flavors are built from the same source with the same CI guards. The release page states which
 binary is which and publishes both hashes. Choosing the AX flavor is a deliberate trade of a kernel
@@ -674,9 +779,27 @@ There is no "archive", no tombstone, no soft delete, and no copy kept anywhere.
 
 ### 5.1 Position
 
-**Zero network calls by default. Zero network calls in the sandboxed flavor, ever, enforced by the
-kernel.** No analytics, no crash reporting, no usage pings, no first-run beacon, no A/B
-configuration fetch, no remote feature flags, no font or asset CDN.
+**Zero telemetry. One request, and only when you ask for it.**
+
+No analytics, no crash reporting, no usage pings, no first-run beacon, no A/B configuration fetch,
+no remote feature flags, no font or asset CDN. None of that exists in the binary and `make verify`
+checks the bundle against a list of analytics SDKs by name.
+
+The single exception is the update check, and it is worth stating precisely rather than generously:
+
+| | |
+|---|---|
+| How many endpoints | One. A static `appcast.xml`, the same bytes for everyone |
+| When | When you press **Check for updates**, and daily only if you switched that on. Off by default |
+| At launch | Never |
+| What is sent | A plain `GET`. No query string, no body, no cookie, no account, no install id, no machine id, no system profile, and a user agent overridden to the constant `sigstop` — not even the app version |
+| What is stored about it | Nothing, on either side of this codebase |
+| What it necessarily reveals | Your IP address and the time of the request, to whoever serves the file. This cannot be avoided by any client |
+| What protects the download | EdDSA signature verification against a public key compiled into the app. See §2.8 |
+
+This position is weaker than the one this document held before the updater existed, and the earlier
+text is not being quietly edited to pretend otherwise. §5.3 is the argument for the change, kept
+next to the argument it replaced.
 
 ### 5.2 Is opt-in analytics worth it? Recommendation: no.
 
@@ -684,13 +807,17 @@ The case for it is real. Without any telemetry the maintainers do not know which
 in use, how often the AX path fails on a given app, or whether the default 50-minute interval is
 sensible. Those are genuine product costs.
 
-The recommendation is still no, for one architectural reason: **a binary that contains no networking
-code is a categorically different object from a binary that contains networking code behind a flag.**
-The first supports the sentence "this process cannot open a socket, here is `lsof` proving it." The
-second supports only "this process did not open a socket while you were watching." Every
-verification procedure in §6 collapses from a proof to a spot check the moment a URL session exists
-in the binary. The whole privacy argument of the app rests on that distinction, and analytics is not
-worth trading it for.
+The recommendation is still no, and the reason survives the arrival of the updater largely intact:
+**a binary whose networking is one named framework doing one thing is a categorically different
+object from a binary with a general-purpose reporting path behind a flag.** The first supports
+"here is the only thing it can fetch, and here is the assertion in `make verify` that fails if a
+second URL ever appears." The second supports only "this process did not report anything while you
+were watching."
+
+Analytics would also be a *different kind* of network use from the updater: the updater pulls a
+static file that is identical for every user, and analytics pushes a payload that by construction is
+about you. One of those is checkable from the outside and the other is not, which is why the
+existence of the first is not an argument for the second.
 
 Secondary reasons: an opt-in rate low enough to be privacy-respecting is too biased to be useful;
 an analytics SDK is a supply-chain dependency with its own update channel; and "opt-in" tends to
@@ -706,28 +833,48 @@ decay into "opt-in, but we ask every launch".
 - Defaults are argued for in `docs/DECISIONS.md` with the reasoning visible, rather than tuned by
   telemetry nobody can inspect.
 
-### 5.3 Update checking
+### 5.3 Update checking — the position, and why it changed
 
-An in-app update check is a network call. Calling it "just a version check" does not change that: it
-reveals your IP address, your app version, and a timestamp, on a schedule that correlates with when
-your machine is awake, to a server that can log it. It is exactly the thing this document claims the
-app does not do.
+**The old position, kept verbatim so the change is legible:**
 
-**Recommendation: the app never checks for updates.** Distribution is:
+> An in-app update check is a network call. Calling it "just a version check" does not change that:
+> it reveals your IP address, your app version, and a timestamp, on a schedule that correlates with
+> when your machine is awake, to a server that can log it.
+>
+> **Recommendation: the app never checks for updates.** A "Check for updates" menu item, if it
+> exists at all, is a single `NSWorkspace.open` of the constant releases URL in your browser.
+>
+> The honest cost: some users will run an old build with a fixed bug for months. That is accepted.
+> The app is a break timer; a stale break timer is not a security incident.
 
-1. **Homebrew cask** — `brew install --cask <name>`, `brew upgrade`. The network call is made by
-   Homebrew, at a moment you chose, by a tool you already audit. The app itself has no update code.
-2. **GitHub Releases** — signed, notarized, with SHA-256 published. Subscribe to the releases Atom
-   feed if you want to be told about new versions; your feed reader makes that request, not the app.
+**The sentence that argument got wrong.** "A stale break timer is not a security incident" is true
+of the timer and false of the *installation*. This app is unsandboxed and holds an Accessibility
+grant when the user turns Tier 1 on. A machine full of installs that can never be updated is a
+machine where a bug in an app with that grant is permanent. The old position optimised for the
+purity of a claim and accepted an unbounded tail of un-updatable installs to keep it; that was the
+wrong trade for this particular app.
 
-A "Check for updates" menu item, if it exists at all, is a single `NSWorkspace.open` of the constant
-releases URL in your browser — an action you took, in an app you control, visible in your browser
-history. It is the one allowlisted `NSWorkspace.open` call site mentioned in §2.8.
+**The current position.** The app has an in-app updater, built on Sparkle, shaped so that every
+concrete objection in the quoted text is either answered or admitted:
 
-The honest cost: some users will run an old build with a fixed bug for months. That is accepted. The
-app is a break timer; a stale break timer is not a security incident. If a genuinely severe bug ever
-ships, the mitigation is a loud advisory in the repository and the Homebrew cask, not a phone-home
-channel kept alive for a hypothetical.
+| Old objection | Now |
+|---|---|
+| "reveals your app version" | Answered. The user agent is overridden to the constant `sigstop`; `SUEnableSystemProfiling` is off. The version comparison happens on your machine against a file that is the same for everyone |
+| "on a schedule that correlates with when your machine is awake" | Answered by default. There is no schedule unless you tick the box; the default is off and there is no check at launch |
+| "reveals your IP address and a timestamp" | **Admitted. Not fixable.** Any HTTPS request does this. If it matters to you, leave the box unticked, never press the button, and use Homebrew |
+| "to a server that can log it" | Admitted, and defanged where it counts: the server cannot make you install anything, because of §2.8 |
+
+**What did NOT change.** There is still no telemetry, still no payload, still nothing about you in
+the request. "The app can now fetch an update" is not a licence for "the app can now report."
+§5.2 is still a no.
+
+**The other distribution routes still exist and are still the most private option.** Homebrew cask
+and GitHub Releases both work, and in both cases the network request is made by a tool you chose at
+a moment you chose. The in-app updater is for the people who would otherwise never update at all,
+which — the old text was right about this — is most people.
+
+The release process, including exactly how an archive gets signed and how the appcast is generated,
+is in `docs/RELEASING.md`.
 
 ---
 
@@ -753,17 +900,25 @@ That is the entire list. In particular these must be **absent**:
 `com.apple.security.cs.allow-unsigned-executable-memory`,
 `com.apple.security.cs.allow-dyld-environment-variables`.
 
-AX flavor — expected, in full:
-```xml
-<key>com.apple.security.cs.allow-jit</key><false/>
-```
-(that is, hardened runtime with nothing relaxed; no sandbox key, and therefore no network key to be
-meaningful).
+AX flavor — the entitlements file is almost empty by design, and the two that matter are the two
+that are *not* there: `com.apple.security.network.server` (nothing listens) and
+`com.apple.security.cs.disable-library-validation` (§2.9). Without the App Sandbox, the absence of
+`network.client` is not meaningful and this document does not pretend it is.
 
-Also confirm the signature and notarization:
+Also confirm the signature:
 ```bash
-codesign -dv --verbose=4 "$APP"      # check TeamIdentifier and that runtime flag is set
-spctl -a -vvv "$APP"                 # "accepted", "Notarized Developer ID"
+codesign -dv --verbose=4 "$APP"      # TeamIdentifier, and whether the runtime flag is set
+spctl -a -vvv "$APP"                 # see the note below before reading anything into this
+```
+
+**Do not expect `spctl` to say "Notarized Developer ID" for a build from this repository.** The app
+is ad-hoc signed — no Developer ID, no Team ID, no notarization, and (see §2.9) no Hardened Runtime
+in the default `make bundle`. That is a real gap and it is why update integrity rests on Sparkle's
+EdDSA signature rather than on Apple's chain. The EdDSA key is checkable and does not depend on
+anyone's certificate:
+
+```bash
+plutil -extract SUPublicEDKey raw "$APP/Contents/Info.plist"
 ```
 
 ### 6.2 Inspect the linked frameworks and symbols
@@ -773,9 +928,19 @@ BIN="$APP/Contents/MacOS/$(plutil -extract CFBundleExecutable raw "$APP/Contents
 otool -L "$BIN"
 ```
 
-Expected list, and nothing else: `AppKit`, `Foundation`, `CoreGraphics`, `CoreFoundation`,
-`UserNotifications`, `ServiceManagement`, `ApplicationServices` (AX flavor only), `SwiftUI`,
-`libobjc`, `libSystem`, and the Swift runtime libraries.
+Expected list, and nothing else: `@rpath/Sparkle.framework/Versions/B/Sparkle`, `AppKit`,
+`Foundation`, `CoreGraphics`, `CoreFoundation`, `CoreAudio`, `IOKit`, `UserNotifications`,
+`ServiceManagement`, `ApplicationServices` (AX flavor only), `SwiftUI`, `libobjc`, `libSystem`, and
+the Swift runtime libraries.
+
+The Sparkle line is the one addition, and it is the whole of the app's network capability. Check
+what is behind it:
+
+```bash
+ls "$APP/Contents/Frameworks"          # expect exactly: Sparkle.framework
+plutil -extract CFBundleShortVersionString raw \
+  "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/Info.plist"
+```
 
 Now the important part, stated honestly: **`otool -L` cannot prove the absence of networking.**
 `libSystem` contains `socket(2)` and every process links it. `Foundation` transitively reaches
@@ -791,30 +956,44 @@ strings -a "$BIN" | grep -E '^https?://' | sort -u
 ```
 
 All of the above should produce no output except the last, which should show only the project's
-repository and releases URLs. This is the same check CI runs; see `scripts/verify-no-network.sh`.
+repository, releases and privacy-document URLs — the links the app hands to your browser. Note what
+is *not* in that list: the update feed URL. It is not a string in the executable at all; it lives in
+`Info.plist` as `SUFeedURL`, where `plutil -p` will show it to you.
+
+**This is the check that carries the claim now.** "The app's own binary contains no networking" is
+still literally true and still mechanically checkable, even though the bundle as a whole can make
+one request. `make verify` runs all of the above and fails the build on any hit; read
+`app/Scripts/verify.sh`.
 
 ### 6.3 Watch it at runtime
 
 Running proof beats static proof. Any one of these is sufficient:
 
+The expectation is no longer "silence forever." It is **silence until you press the button, and
+then one HTTPS connection to the feed host and nothing else.** That is a sharper test than the old
+one, because you get to choose the moment and watch both halves of it.
+
 ```bash
 # 1. Sockets held by the process, sampled
 PID=$(pgrep -f '<BUNDLE_ID>')
-sudo lsof -i -a -p "$PID"              # expect: nothing, at any time
+sudo lsof -i -a -p "$PID"              # expect: nothing, until you press Check for updates
 
 # 2. Per-process network accounting, live
-nettop -p "$PID"                        # expect: no rows, no bytes
+nettop -p "$PID"                        # expect: no rows, no bytes, until you press the button
 
 # 3. Every network syscall the process makes
-sudo fs_usage -w -f network "$PID"      # expect: silence
+sudo fs_usage -w -f network "$PID"      # expect: silence, until you press the button
 
 # 4. Packet-level, for the paranoid
 sudo tcpdump -n -i any "host not 127.0.0.1" -w /tmp/cap.pcap   # then correlate by time
 ```
 
-Little Snitch or LuLu is the ergonomic version: install one, run the app for a week, and confirm it
-never appears in the connection list. This is the recommended check for the AX flavor, where the
-sandbox is not there to enforce the property for you.
+Little Snitch or LuLu is the ergonomic version, and it is now a *better* test than it used to be
+rather than a worse one. Install one, run the app for a week without pressing anything, and confirm
+it never appears in the connection list. Then press **Check for updates** and confirm that exactly
+one rule prompt appears, for the feed host, and that nothing else ever follows. A tool that shows
+you both the silence and the single exception proves more than a tool that only ever showed you
+silence.
 
 For the storage claims, run the app for a day and then just read the files:
 ```bash
@@ -930,14 +1109,16 @@ toolchain, and physical access to an unlocked machine.
 
 | # | Threat | Actor | Structural defense | Residual risk |
 |---|---|---|---|---|
-| 1 | A contributor adds an analytics or "crash reporting" call | Maintainer under commercial pressure, or a contributor | CI privacy guard (§6.4) fails the PR on any networking symbol; the guard is a required status check; sandboxed flavor would fail at runtime anyway | Someone with merge rights can also edit the workflow. Mitigation: guard scripts and workflow live in a `CODEOWNERS`-protected path requiring two approvals |
-| 2 | A dependency ships a malicious update | Upstream package | **Zero third-party runtime dependencies.** The app links only Apple frameworks. `Package.swift` has an empty `dependencies` array and CI asserts it stays empty. Dev-only tools (SwiftLint) are pinned by exact version and checksum and never enter the app binary | A future contributor could argue for a dependency. Policy: any new runtime dependency requires a documented review in `docs/DECISIONS.md` and vendoring with a pinned commit |
-| 3 | Code is loaded at runtime that was never reviewed | Attacker with write access to the bundle | Hardened Runtime with Library Validation enabled; `disable-library-validation` and `allow-unsigned-executable-memory` entitlements absent, so only libraries signed by the same Team ID load. No `dlopen`, no plugin directory, no bundle loading, no JavaScriptCore | An attacker who can rewrite `/Applications` can also re-sign with their own identity — but then `spctl` and the published hash no longer match |
-| 4 | A malicious **message pack** exfiltrates or executes | Contributor, or a user installing a third-party pack | Packs are data, not code: strict JSON, schema-validated on load, string fields only, length-capped. No URLs, no format specifiers, no templating engine, no HTML — text is rendered into `NSAttributedString` with attributes disabled. A pack cannot cause a network call because the binary has no networking code | A pack could still contain hostile or manipulative *text*. Defense is review: packs ship only in-tree, every pack change requires a human review, and third-party packs are not loadable from disk in the default build |
+| 1 | A contributor adds an analytics or "crash reporting" call | Maintainer under commercial pressure, or a contributor | `make verify` fails on any networking symbol in the app's own binary, on any URL literal outside the allowlist, and on ~25 analytics and crash-reporting SDKs by name, checked against the built bundle | Someone with merge rights can also edit the check. Mitigation: `app/Scripts/verify.sh` lives in a `CODEOWNERS`-protected path requiring two approvals |
+| 2 | A dependency ships a malicious update | Upstream package | **Exactly one third-party runtime dependency: Sparkle, pinned with `exact:` rather than a range, so a new upstream tag cannot enter a build without a commit that says so.** It is attached to `SigstopApp` only; `SigstopCore` and `SigstopSensors` remain dependency-free, and `make verify` asserts Sparkle is the only embedded framework | A malicious Sparkle release that someone then deliberately bumps to. Mitigation is the pin plus review of the bump. The argument for admitting the dependency at all is in CLAUDE.md §5 |
+| 3 | Code is loaded at runtime that was never reviewed | Attacker with write access to the bundle | `disable-library-validation` and `allow-unsigned-executable-memory` are absent and `make verify` fails if they appear. No `dlopen`, no plugin directory, no bundle loading, no JavaScriptCore | **Weakened.** Hardened Runtime is no longer enabled in the default ad-hoc build, because Library Validation cannot coexist with an embedded framework when neither has a Team ID (§2.9). `HARDENED=1 make bundle` restores it for anyone with a Developer ID. An attacker who can rewrite `/Applications` could inject a library — though they could equally replace the binary outright |
+| 3b | A malicious update is served to users | Attacker who compromises GitHub, the CDN, or the network path | **EdDSA signature verification (§2.8).** The private key is in the maintainer's login keychain only; the public key is compiled into the app; Sparkle refuses an archive whose signature does not verify | Theft of the private key. Rotation does not reach installs that already hold the old public key. `docs/RELEASING.md` §6 |
+| 4 | A malicious **message pack** exfiltrates or executes | Contributor, or a user installing a third-party pack | Packs are data, not code: strict JSON, schema-validated on load, string fields only, length-capped. No URLs, no format specifiers, no templating engine, no HTML — text is rendered into `NSAttributedString` with attributes disabled. A pack cannot cause a network call: the app's own binary has no networking code at all, and the only URL the bundle can fetch is the compile-time feed constant | A pack could still contain hostile or manipulative *text*. Defense is review: packs ship only in-tree, every pack change requires a human review, and third-party packs are not loadable from disk in the default build |
 | 5 | The Accessibility grant is abused to read message/document contents | Malicious future version of the app | `verify-ax-isolation.sh` in CI; the AX code is one file and ~30 lines; the debug ring lets a user see exactly what is being read; the permission is off by default | **Real and unavoidable.** If you grant Accessibility, a future build could read anything. Defenses are social (review, reproducible hashes) not technical. See §8.2 |
-| 6 | Exfiltration without a socket (open a URL, spawn `curl`, AppleScript another app) | Contributor | Forbidden-symbol guard covers `NSWorkspace.open` call sites, `Process`, `NSTask`, `posix_spawn`, `NSAppleScript`; the URL-literal allowlist in `verify-no-network.sh` catches a smuggled collector endpoint | A URL assembled at runtime from string fragments could evade the literal check. Partially mitigated: `NSWorkspace.open` may only be called with values from `Links.swift`, enforced by a grep in CI |
+| 6 | Exfiltration without a socket (open a URL, spawn `curl`, AppleScript another app) | Contributor | Forbidden-symbol guard covers `NSWorkspace.open` call sites, `Process`, `NSTask`, `posix_spawn`, `NSAppleScript`; the URL-literal allowlist in `make verify` catches a smuggled collector endpoint | A URL assembled at runtime from string fragments could evade the literal check. Partially mitigated: `NSWorkspace.open` may only be called with values from the `Links` enum, enforced by the URL allowlist |
+| 6b | Exfiltration *through* the update request | Contributor | The feed URL is a plist constant with no query string; `SUEnableSystemProfiling` is off and asserted by `make verify`; the user agent is overridden to a constant carrying no version; there is no second endpoint and the allowlist check fails if one appears | A contributor could add a delegate that appends feed parameters. That would be a visible code change to one file, and would have to survive review against this row |
 | 7 | Another local process reads the event log | Malware running as the user | Files are `0600` in a `0700` directory; the sandboxed flavor's container is additionally protected by the sandbox and by TCC's "app data" protections on recent macOS | Any process running as you can read your files. App-level encryption would not help, because the key would have to be available to the app as the same user. FileVault is the real defense. See §8.5 |
-| 8 | Supply-chain attack on the release artifact | Attacker with repo or CI access | Notarized Developer ID signing; hashes published in release notes; signature-stripped binary hash independently reproducible; Homebrew cask carries its own `sha256` which a second party (the tap) must also update | A compromised signing key plus a compromised release note defeats this. Multi-party review of release PRs is the mitigation |
+| 8 | Supply-chain attack on the release artifact | Attacker with repo or CI access | **EdDSA signing, done on the maintainer's machine from a key that is never in the repository or in CI.** An attacker with full repository and CI access can therefore publish a release and still cannot produce one the app will install. Hashes are published in release notes; the Homebrew cask carries its own `sha256` which the tap must also update | A compromised signing key defeats this. There is no Developer ID and no notarization to fall back on (§8.1), so the EdDSA key is the single point of failure and is treated as one in `docs/RELEASING.md` |
 | 9 | Data reconstruction from an old backup | Anyone with your Time Machine disk | Retention defaults are short (7 days); the storage path is an ordinary user path, so it honors any backup exclusions you set | The app does not and should not set backup exclusions on your behalf. Documented, not defended |
 | 10 | Someone infers sensitive facts from your event log (therapy appointments, job hunting) | A person with access to your machine | Only bundle IDs, not titles or URLs; short retention; one-click delete; the whole log is human-readable so you can see the inference risk yourself | Bundle IDs alone can be revealing (a job-board app, a health app). If that matters to you, disable app tracking and run the pure timer |
 
@@ -947,11 +1128,31 @@ toolchain, and physical access to an unlocked machine.
 
 These are the places where an honest answer is "we cannot prove that."
 
-**8.1 The missing network entitlement only binds under the sandbox.** In the AX flavor the app is
-unsandboxed, so `com.apple.security.network.client` being absent means nothing to the kernel —
-unsandboxed processes may open sockets freely. The "no network" property in that flavor rests on
-source review, CI symbol guards, and your own monitor. If you want the kernel-enforced version, use
-the sandboxed flavor and accept the loss of window-title fidelity.
+**8.1 The app makes one network request, and nothing in the OS stops it making others.** The AX
+flavor is unsandboxed, so `com.apple.security.network.client` being absent means nothing to the
+kernel — unsandboxed processes may open sockets freely, entitlements or not. That was already true
+before the updater existed; what changed is that there is now something in the bundle that uses the
+freedom. What holds the line instead is checkable but static: the app's own binary references no
+networking symbol, the only network code is one named and versioned framework, the only endpoint is
+a plist constant, and `make verify` fails on any of those changing. A runtime monitor is the only
+conclusive test, and it only proves what happened while it was watching.
+
+**8.1b The update channel reveals your IP address and the time you checked.** Not to this project —
+there is no server here — but to GitHub, which serves the file. No client-side choice avoids it. If
+that matters, leave the daily check off, never press the button, and install and upgrade through
+Homebrew instead. The app makes no request at all unless you ask it to.
+
+**8.1c The EdDSA private key is a single point of failure.** Update integrity rests entirely on it,
+because the build has no Developer ID and no notarization to fall back on. If it is stolen, an
+attacker can sign updates that every installed copy will accept, and rotating the key does not reach
+anyone already running an older build — they verify against the key compiled into the copy they
+have. `docs/RELEASING.md` §6 describes what a rotation would actually involve, which is mostly
+"tell people to reinstall by hand."
+
+**8.1d Hardened Runtime is off in the default build.** See §2.9 for the full mechanism; the short
+version is that Library Validation and an embedded framework cannot coexist without a Team ID, and
+the alternative — adding `disable-library-validation` — would have cost more than it bought. A
+Developer ID would fix this properly and this project does not have one.
 
 **8.2 Accessibility cannot be scoped, and the app's restraint is not enforced by macOS.** If you
 grant it, you grant the ability to read most UI text across your system and to synthesize input.
@@ -984,10 +1185,10 @@ an app behavior, and the app cannot suppress it.
 signature-stripped binary hash can be independently recreated, and only with the exact pinned
 toolchain.
 
-**8.8 Homebrew still makes a network request.** Saying "the app never phones home" is true, and it
-is also true that installing or upgrading via Homebrew causes *your machine* to contact GitHub. The
-difference is agency and auditability, not the absence of packets. It is stated this way rather than
-as "zero network, period".
+**8.8 Installing and upgrading makes network requests whichever route you take.** Through Homebrew
+it is Homebrew contacting GitHub; through the in-app updater it is this app contacting GitHub. The
+difference between those is agency and auditability, not the absence of packets, and this document
+says so rather than claiming "zero network, period."
 
 **8.9 Bundle identifiers are not innocuous.** A seven-day log of which apps you focused, with
 timestamps, is meaningful data about you. It is less than a screen recorder collects by orders of
@@ -1006,3 +1207,17 @@ This file is versioned with the code. Any change to the data inventory, permissi
 defaults, or the network position requires a PR that also updates §1 and that carries the
 `privacy-impacting` label; `CODEOWNERS` requires two approvals on that path. The release notes call
 out any such change in the first line, not in a footnote.
+
+### 9.1 Changelog of positions
+
+| What changed | From | To |
+|---|---|---|
+| Network | "No network transmission of any kind." Zero requests, ever | One HTTPS `GET` of a static appcast, on a button press, with no identifier. §2.7, §5 |
+| Update checking | "The app never checks for updates"; a menu item that opens a browser | An in-app updater with EdDSA signature verification. §5.3 keeps the old argument in full and says which sentence of it was wrong |
+| Dependencies | Zero third-party runtime dependencies | Exactly one: Sparkle, pinned with `exact:`, linked into the app target only. §7 row 2 |
+| Hardened Runtime | On, with Library Validation | Off in the default ad-hoc build, because it cannot coexist with an embedded framework without a Team ID. §2.9, §8.1d |
+| Update integrity | Notarized Developer ID signing | EdDSA signing with a key held only by the maintainer, verified before install. §2.8, §8.1c |
+
+Nothing in the earlier positions was deleted to make room for these. The arguments that were
+replaced are quoted where they were replaced, because a privacy document that silently rewrites its
+own history is not evidence of anything.

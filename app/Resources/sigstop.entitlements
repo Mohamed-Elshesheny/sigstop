@@ -2,20 +2,44 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- This file is deliberately almost empty, and that IS the privacy architecture.
+	<!-- This file is deliberately almost empty, and most of that IS the privacy
+	     architecture. Read the caveat before reading the list.
+
+	     THE CAVEAT: the App Sandbox is NOT enabled here, because Tier 1 (Accessibility
+	     reading window titles of other processes) is incompatible with it. Without the
+	     sandbox, an absent entitlement is a statement of intent, not a kernel
+	     restriction — an unsandboxed process may open a socket whatever this file says.
+	     docs/PRIVACY.md §8.1 states that plainly rather than hiding it, and it was as
+	     true before the app had an updater as it is now.
 
 	     Absent, and never to be added:
-	       com.apple.security.network.client     the app cannot open a connection
-	       com.apple.security.network.server     the app cannot listen
+	       com.apple.security.network.server            nothing here listens, ever, and
+	                                                    `make verify` fails if this key
+	                                                    ever appears
+	       com.apple.security.cs.disable-library-validation
+	                                                    the guard that keeps the process
+	                                                    from loading code nobody reviewed
+	                                                    (docs/PRIVACY.md §2.9). It was
+	                                                    tempting when Sparkle was embedded
+	                                                    and it was refused
 	       com.apple.security.device.camera
-	       com.apple.security.device.audio-input mic STATE is read from CoreAudio
-	                                             without ever opening a stream
+	       com.apple.security.device.audio-input        mic STATE is read from CoreAudio
+	                                                    without ever opening a stream
 
-	     Verify for yourself with the codesign entitlements flag, or run `make verify`.
+	     Absent, and NOT claimed as a guarantee:
+	       com.apple.security.network.client            the app does make one outbound
+	                                                    request — the update check. This
+	                                                    key is not here because without
+	                                                    the sandbox it would not be
+	                                                    enforcing anything either way. A
+	                                                    future sandboxed flavour would
+	                                                    need it, and would therefore ship
+	                                                    without the updater instead.
 
-	     The App Sandbox is not enabled because Tier 1 (Accessibility reading window
-	     titles of other processes) is incompatible with it. That is a real trade-off,
-	     and docs/PRIVACY.md states it plainly rather than hiding it. -->
+	     What actually constrains the network behaviour is checkable and is checked:
+	     the app's own binary references no networking symbol, the only network code is
+	     Sparkle.framework, the only endpoint is SUFeedURL in Info.plist, and every
+	     update is EdDSA-verified before it can install. Run `make verify`. -->
 	<key>com.apple.security.automation.apple-events</key>
 	<false/>
 </dict>

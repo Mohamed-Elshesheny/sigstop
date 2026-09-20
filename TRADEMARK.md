@@ -50,9 +50,10 @@ genuinely a problem for your use case, open an issue and make the argument.
   this project.
 
 The reason is not ownership for its own sake. If a fork with different
-behaviour ships under this name, then "sigstop does not make network calls"
-stops being a claim anyone can verify, because there would be more than one
-sigstop. The name is doing load-bearing work in the privacy promise, which is
+behaviour ships under this name, then "sigstop makes exactly one network
+request, only when you press the button, and verifies every update against a key
+compiled into the app" stops being a claim anyone can verify, because there would
+be more than one sigstop. The name is doing load-bearing work in the privacy promise, which is
 the whole product.
 
 ## Renaming a fork

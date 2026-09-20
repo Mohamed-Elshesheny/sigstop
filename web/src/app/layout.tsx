@@ -4,8 +4,9 @@ import { site } from "@/content/copy";
 import "./globals.css";
 
 /* next/font self-hosts these at build time, no runtime request to Google.
-   On a page whose whole argument is "this app makes no network calls", shipping
-   a third-party font request would be an embarrassing contradiction. */
+   On a page whose argument is "one connection, only when you press the button,
+   and nothing about you in it", shipping a third-party font request on every
+   page load would be an embarrassing contradiction. */
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 

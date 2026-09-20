@@ -1209,7 +1209,9 @@ Notes that matter under strict concurrency:
 
 ## 10. Data, storage, privacy
 
-- **Everything stays on the device.** No network code exists in this subsystem.
+- **Everything stays on the device.** No network code exists in this subsystem, and nothing it
+  produces is ever transmitted. The app's single network request is the update check in
+  `docs/PRIVACY.md` §5, which sends nothing and knows nothing about any of this.
 - **What is stored:** timestamp, activity class, confidence, evidence IDs and summaries, bundle ID,
   and the optional `ActivityContext` fields the user's tier choices populate.
 - **What is never stored, at any tier:** keystrokes, keystroke counts, text-field contents,
