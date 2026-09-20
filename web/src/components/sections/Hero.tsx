@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { hero, namePitch, site } from "@/content/copy";
 import { MenuBarPanel } from "../ui/MenuBarPanel";
-import { PixelDev } from "../ui/PixelDev";
 import { Button } from "../ui/Primitives";
 
 export function Hero() {
@@ -93,20 +92,8 @@ export function Hero() {
                 "Microphone is not active, you're not on a call",
               ]}
             />
-            {/* The character is driven by the same clock as the panel, so the
-                posture and the timer are never telling different stories. */}
-            <div className="mt-6 flex items-end justify-center gap-4">
-              <PixelDev
-                state={minutes >= 46 ? "stretching" : minutes >= 44 ? "slumped" : "typing"}
-                className="h-28 w-40"
-              />
-            </div>
-            <p className="mt-3 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
-              {minutes >= 46
-                ? "SIGCONT. Back in five, nothing lost."
-                : minutes >= 44
-                  ? "Posture degrading. The timer has noticed."
-                  : "Live. The bars fill as the session does."}
+            <p className="mt-4 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
+              Live. The bars fill as the session does.
             </p>
           </div>
         </div>
@@ -119,7 +106,7 @@ export function Hero() {
           <dl className="space-y-4">
             {namePitch.lines.map((l) => (
               <div key={l.sig} className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-4">
-                <dt className="w-24 shrink-0 font-mono text-sm font-bold text-suspend">{l.sig}</dt>
+                <dt className="w-24 shrink-0 font-mono text-sm font-bold text-suspend-ink">{l.sig}</dt>
                 <dd className="max-w-md text-sm leading-relaxed text-fg-muted">{l.desc}</dd>
               </div>
             ))}

@@ -5,118 +5,216 @@ import { useEffect, useState } from "react";
 /**
  * A pixel art developer who reacts to the session.
  *
- * Drawn as string art rather than a sprite sheet or a PNG, so the character is
- * readable and editable directly in source, and so it re-themes with the rest
- * of the site instead of being an image that only works on one background.
+ * Drawn as string art rather than a PNG so it re-themes with the site, stays
+ * editable in review, and costs nothing to ship. The grids are GENERATED: the
+ * layout script lives in the repo, renders each pose to a preview image, and
+ * emits these arrays. Hand-counting 40 columns across four poses is how you get
+ * a sheared sprite.
  *
- * Frames are composed as a base pose plus row overrides. Authoring four full
- * 44-column grids by hand invites off-by-one shearing; overriding the six rows
- * that actually change does not.
+ * Every transparent pixel touching art is promoted to outline by that script.
+ * That single pass is most of the difference between flat shapes and a sprite.
+ *
+ * Poses: typing (2 frames), slumped as the session runs long, and stretching,
+ * which is the only frame where the hands leave the keyboard.
  */
 
 const PALETTE: Record<string, string> = {
-  K: "var(--px-hair)",
-  k: "var(--px-hair-hi)",
-  S: "var(--px-skin)",
-  s: "var(--px-skin-sh)",
-  G: "var(--px-frame)",   // glasses frame
-  L: "var(--px-lens)",    // lens, catches the screen
-  m: "var(--px-mouth)",
-  A: "var(--px-pod)",     // AirPods
-  T: "var(--px-shirt)",
-  P: "var(--px-print)",   // the </> on the shirt
+  O: "var(--px-line)",
+  K: "#3c2b1f", k: "#57402d", h: "#78593f",
+  S: "#f2c39d", s: "#d49e76",
+  G: "#1b1c21", L: "var(--px-lens)", W: "var(--px-lens-hi)", E: "#201508",
+  m: "#9e5541",
+  A: "#f8f9fb", a: "#c9cdd3",
+  T: "#3c4759", d: "#2b3341",
+  P: "var(--px-print)",
+  M: "#b8bec6", n: "#8e96a1", c: "#6e7682",
+  U: "#e85d3a", u: "#bf4527",
+  V: "var(--px-steam)",
   D: "var(--px-desk)",
-  C: "var(--px-key)",
-  U: "var(--px-mug)",
-  u: "var(--px-mug-sh)",
 };
 
-const W = 44;
-
-// Hands resting on the keyboard.
-const BASE = [
-  "............................................",
-  "............................................",
-  "...............KKKKKKKKKKKKK................",
-  ".............KKKKKKKKKKKKKKKKK..............",
-  "............KKKKKKKKKKKKKKKKKKK.............",
-  "............KKkkkkkkkkkkkkkkKKK.............",
-  "............KKSSSSSSSSSSSSSSSKK.............",
-  "...........AKSSSSSSSSSSSSSSSSSKA............",
-  "...........ASSSSSSSSSSSSSSSSSSSA............",
-  "...........AGGGGGGGSGGGGGGGGGGGA............",
-  "...........AGLLLLLGSGGLLLLLGGGGA............",
-  "...........AGLLLLLGSGGLLLLLGGGGA............",
-  "...........AAGGGGGGSSGGGGGGGGGAA............",
-  "............SSSSSSSSSSSSSSSSSS..............",
-  ".............SSSSSSmmmmSSSSSSS..............",
-  "..............SSSSSSSSSSSSSSS...............",
-  "................SSSSSSSSSSS.................",
-  "..................sSSSSSs...................",
-  "...........TTTTTTTTTTTTTTTTTTTT.............",
-  "..........TTTTTTTTTTTTTTTTTTTTTT............",
-  ".........TTTTTTTTTTTTTTTTTTTTTTTT...........",
-  ".........TTTTTTTTTTTTTTTTTTTTTTTT...........",
-  ".........TTTTTTPTTTTTTPTTPTTTTTTT...........",
-  ".........TTTTPTTTTTTTPTTTTTPTTTTT...........",
-  ".........TTPTTTTTTTTPTTTTTTTTPTTT...........",
-  ".........TTTTPTTTTTPTTTTTTTPTTTTT...........",
-  ".........TTTTTTPTTPTTTTTTPTTTTTTT...........",
-  "........STTTTTTTTTTTTTTTTTTTTTTTTS..........",
-  ".......SSTTTTTTTTTTTTTTTTTTTTTTTTSS.........",
-  ".......SSSTTTTTTTTTTTTTTTTTTTTTTSSS.........",
-  "....DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD.UUUU...",
-  "....DCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCD.UuuU...",
-  "....DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD.UUUU...",
-  "............................................",
+const TYPINGA = [
+  "........................................",
+  "..............OOOOOOOOOOO...............",
+  "............OOKhhhhhhKKKKOO.............",
+  "...........OKkkkkkkkkkkKKKKO............",
+  "..........OKKKKKKKKKKKKKKKKKO...........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKSSSKKKKKKKKKKKKKO..........",
+  "........OOKKKSSSSSSSSSSSSSKKKOOO........",
+  ".......OAAKKKSSSSSSSSSSSSSKKKOAAO.......",
+  ".......OAAKGGGGGGSSSSSGGGGGGKOAAO.......",
+  ".......OAAKGWEELGGGGGGGWEELGKOaaO.......",
+  ".......OAASGLEELGSSSSSGLEELGsOaaO.......",
+  ".......OAASGGGGGGSSSSSGGGGGGsOaaO.......",
+  "........OOOSSSSSSSSSSSSSSSSsO.OO........",
+  "...........OSSSSsmmmmmsSSSsO............",
+  "............OSSSSSSSSSSSSsO.............",
+  ".............OOSSSSSSSSsOO..............",
+  "...............OsssssssO................",
+  "............OOOOSSSSSSSOOOO.............",
+  ".........OOOTTTTTTTTTTTTTTTOOO......V...",
+  ".......OOTTTTTTTTTTTTTTTTTTTTTOO........",
+  ".....OOdddTTTTTTTTTTTTTTTTTTTdddOO.V....",
+  "....OTTTddTTTPTTTTTTTTPTTPTTTddTTTO.....",
+  "....OTTTddTTPPTTTTTTTPTTTPPTTddTTTO..V..",
+  "....OTTTddTPPTTTTTTTPTTTTTPPTddTTTO.....",
+  "....OTTTddPPTTTTTTTPTTTTTTTPPddTTTO.VV..",
+  "....OTTTddPPTTTTTTPTTTTTTTTPPddTTTO.....",
+  "....OTTTddTPPTTTTPTTTTTTTTPPTddTTTOVV...",
+  "....OTTTddTTPPTTPTTTTTTTTPPTTddTTTO.....",
+  "....OTTTddTTTTTTTTTTTTTTTTTTTddTTTO..VV.",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOOOOOO.",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  "....OOnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOOO.",
+  "OOOOnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOO",
+  "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
 ];
 
-/** Only the two hand rows move while typing. */
-const TYPING_B: Record<number, string> = {
-  27: ".........TTTTTTTTTTTTTTTTTTTTTTTTT..........",
-  28: ".......SSTTTTTTTTTTTTTTTTTTTTTTTTSS.........",
-};
+const TYPINGB = [
+  "........................................",
+  "........................................",
+  "..............OOOOOOOOOOO...............",
+  "............OOKhhhhhhKKKKOO.............",
+  "...........OKkkkkkkkkkkKKKKO............",
+  "..........OKKKKKKKKKKKKKKKKKO...........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKSSSKKKKKKKKKKKKKO..........",
+  "........OOKKKSSSSSSSSSSSSSKKKOOO........",
+  ".......OAAKKKSSSSSSSSSSSSSKKKOAAO.......",
+  ".......OAAKGGGGGGSSSSSGGGGGGKOAAO.......",
+  ".......OAAKGWEELGGGGGGGWEELGKOaaO.......",
+  ".......OAASGLEELGSSSSSGLEELGsOaaO.......",
+  ".......OAASGGGGGGSSSSSGGGGGGsOaaO.......",
+  "........OOOSSSSSSSSSSSSSSSSsO.OO........",
+  "...........OSSSSsmmmmmsSSSsO............",
+  "............OSSSSSSSSSSSSsO.............",
+  ".............OOSSSSSSSSsOO..............",
+  "............OOOOsssssssOOOO..........V..",
+  ".........OOOTTTTTTTTTTTTTTTOOO..........",
+  ".......OOTTTTTTTTTTTTTTTTTTTTTOO....V...",
+  ".....OOdddTTTTTTTTTTTTTTTTTTTdddOO......",
+  "....OTTTddTTTPTTTTTTTTPTTPTTTddTTTOV....",
+  "....OTTTddTTPPTTTTTTTPTTTPPTTddTTTO.....",
+  "....OTTTddTPPTTTTTTTPTTTTTPPTddTTTO..VV.",
+  "....OTTTddPPTTTTTTTPTTTTTTTPPddTTTO.....",
+  "....OTTTddPPTTTTTTPTTTTTTTTPPddTTTO.VV..",
+  "....OTTTddTPPTTTTPTTTTTTTTPPTddTTTO.....",
+  "....OTTTddTTPPTTPTTTTTTTTPPTTddTTTOVV...",
+  "....OTTTddTTTTTTTTTTTTTTTTTTTddTTTO.....",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOOOOOO.",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  "....OOnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOOO.",
+  "OOOOnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOO",
+  "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+];
 
-/** Head and shoulders sink; the jaw pushes forward. Same person, worse hour. */
-const SLUMPED: Record<number, string> = {
-  2: "............................................",
-  3: "...............KKKKKKKKKKKKK................",
-  4: ".............KKKKKKKKKKKKKKKKK..............",
-  5: "............KKKKKKKKKKKKKKKKKKK.............",
-  6: "............KKkkkkkkkkkkkkkkKKK.............",
-  7: "...........AKSSSSSSSSSSSSSSSSSKA............",
-  8: "...........ASSSSSSSSSSSSSSSSSSSA............",
-  9: "...........AGGGGGGGSGGGGGGGGGGGA............",
-  10: "...........AGLLLLLGSGGLLLLLGGGGA............",
-  11: "...........AGLLLLLGSGGLLLLLGGGGA............",
-  12: "...........AAGGGGGGSSGGGGGGGGGAA............",
-  13: "............SSSSSSSSSSSSSSSSSS..............",
-  14: ".............SSSSSmmmmmmSSSSSS..............",
-  15: "..............SSSSSSSSSSSSSSS...............",
-  16: "................SSSSSSSSSSS.................",
-};
+const SLUMPED = [
+  "........................................",
+  "........................................",
+  "..............OOOOOOOOOOO...............",
+  "............OOKhhhhhhKKKKOO.............",
+  "...........OKkkkkkkkkkkKKKKO............",
+  "..........OKKKKKKKKKKKKKKKKKO...........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKKKKKKKKKKKKKKKKKO..........",
+  ".........OKKKSSSKKKKKKKKKKKKKO..........",
+  "........OOKKKSSSSSSSSSSSSSKKKOOO........",
+  ".......OAAKKKSSSSSSSSSSSSSKKKOAAO.......",
+  ".......OAAKGGGGGGSSSSSGGGGGGKOAAO.......",
+  ".......OAAKGWLLLGGGGGGGWLLLGKOaaO.......",
+  ".......OAASGLEELGSSSSSGLEELGsOaaO.......",
+  ".......OAASGGGGGGSSSSSGGGGGGsOaaO.......",
+  "........OOOSSSSSSSSSSSSSSSSsO.OO........",
+  "...........OSSSSsmmmmmsSSSsO............",
+  "............OSSSSSSSSSSSSsO.............",
+  ".............OOSSSSSSSSsOO..............",
+  "............OOOOsssssssOOOO.............",
+  ".........OOOTTTTTTTTTTTTTTTOOO.....V....",
+  ".......OOTTTTTTTTTTTTTTTTTTTTTOO........",
+  ".....OOdddTTTTTTTTTTTTTTTTTTTdddOO...V..",
+  "....OTTTddTTTPTTTTTTTTPTTPTTTddTTTO.....",
+  "....OTTTddTTPPTTTTTTTPTTTPPTTddTTTO.V...",
+  "....OTTTddTPPTTTTTTTPTTTTTPPTddTTTO.....",
+  "....OTTTddPPTTTTTTTPTTTTTTTPPddTTTOVV...",
+  "....OTTTddPPTTTTTTPTTTTTTTTPPddTTTO.....",
+  "....OTTTddTPPTTTTPTTTTTTTTPPTddTTTO..VV.",
+  "....OTTTddTTPPTTPTTTTTTTTPPTTddTTTO.....",
+  "....OTTTddTTTTTTTTTTTTTTTTTTTddTTTO.VV..",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOOOOOO.",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  "....OOnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOOO.",
+  "OOOOnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOO",
+  "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+];
 
-/** Arms up. The only frame where the hands leave the keyboard. */
-const STRETCHING: Record<number, string> = {
-  18: "....SSS....TTTTTTTTTTTTTTTTTTTT....SSS......",
-  19: "....SSS...TTTTTTTTTTTTTTTTTTTTTT...SSS......",
-  20: "....SSS..TTTTTTTTTTTTTTTTTTTTTTTT..SSS......",
-  21: "....SSS..TTTTTTTTTTTTTTTTTTTTTTTT..SSS......",
-  27: ".....SSSSTTTTTTTTTTTTTTTTTTTTTTTTSSSS.......",
-  28: "......SSSTTTTTTTTTTTTTTTTTTTTTTTTSSS........",
-  29: ".........TTTTTTTTTTTTTTTTTTTTTTTT...........",
-};
+const STRETCHING = [
+  "........................................",
+  "..............OOOOOOOOOOO...............",
+  "............OOKhhhhhhKKKKOO.............",
+  "...........OKkkkkkkkkkkKKKKO............",
+  "..OOOO....OKKKKKKKKKKKKKKKKKO....OOOO...",
+  ".OsSSSO..OKKKKKKKKKKKKKKKKKKKO..OSSSsO..",
+  ".OSSSSO..OKKKKKKKKKKKKKKKKKKKO..OSSSSO..",
+  ".OSSSSO..OKKKKKKKKKKKKKKKKKKKO..OSSSSO..",
+  ".OSSSSO..OKKKSSSKKKKKKKKKKKKKO..OSSSSO..",
+  "..OTTTO.OOKKKSSSSSSSSSSSSSKKKOOOOTTTO...",
+  "..OTTTOOAAKKKSSSSSSSSSSSSSKKKOAAOTTTO...",
+  "..OTTTOOAAKGGGGGGSSSSSGGGGGGKOAAOTTTO...",
+  "..OTTTOOAAKGWEELGGGGGGGWEELGKOaaOTTTO...",
+  "...OTTTOAASGLEELGSSSSSGLEELGsOaaTTTO....",
+  "...OTTTOAASGGGGGGSSSSSGGGGGGsOaaTTTO....",
+  "...OTTTOOOOSSSSSSSSSSSSSSSSsO.OOTTTO....",
+  "...OTTTO...OSSSSsmmmmmsSSSsO...OTTTO....",
+  "...OTTTO....OSSSSSSSSSSSSsO....OTTTO....",
+  "....OTTTO....OOSSSSSSSSsOO....OTTTO.....",
+  "....OTTTO......OsssssssO......OTTTO.....",
+  "....OTTTO...OOOOSSSSSSSOOOO...OTTTO.....",
+  "....OTTTOOOOTTTTTTTTTTTTTTTOOOOTTTO.V...",
+  "....OTTTOTTTTTTTTTTTTTTTTTTTTTOTTTO.....",
+  ".....OOdddTTTTTTTTTTTTTTTTTTTdddOO.V....",
+  "......OdddTTTPTTTTTTTTPTTPTTTdddO.......",
+  "......OdddTTPPTTTTTTTPTTTPPTTdddO....V..",
+  "......OdddTPPTTTTTTTPTTTTTPPTdddO.......",
+  "......OdddPPTTTTTTTPTTTTTTTPPdddO...VV..",
+  "......OdddPPTTTTTTPTTTTTTTTPPdddO.......",
+  "......OdddTPPTTTTPTTTTTTTTPPTdddO..VV...",
+  "......OdddTTPPTTPTTTTTTTTPPTTdddO.......",
+  "......OdddTTTTTTTTTTTTTTTTTTTdddO....VV.",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOOOOOO.",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMcccccMMMMMMMMMMMOUuuuUU",
+  ".....OMMMMMMMMMMMMcccMMMMMMMMMMMMOUuuuUO",
+  ".....OMMMMMMMMMMMMMMMMMMMMMMMMMMMOUUUUUO",
+  "....OOnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOOO.",
+  "OOOOnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnOOOOO",
+  "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+];
 
-function compose(overrides: Record<number, string> = {}): string[] {
-  return BASE.map((row, i) => (overrides[i] ?? row).padEnd(W, ".").slice(0, W));
-}
-
-const FRAMES = {
-  typingA: compose(),
-  typingB: compose(TYPING_B),
-  slumped: compose(SLUMPED),
-  stretching: compose(STRETCHING),
-};
+const FRAMES = { typingA: TYPINGA, typingB: TYPINGB, slumped: SLUMPED, stretching: STRETCHING };
+const W = TYPINGA[0].length;
 
 export type PixelDevState = "typing" | "slumped" | "stretching";
 
@@ -127,7 +225,7 @@ function Sprite({ rows }: { rows: string[] }) {
       shapeRendering="crispEdges"
       className="h-full w-full"
       role="img"
-      aria-label="A pixel art developer at a desk, wearing glasses and AirPods"
+      aria-label="A pixel art developer at a laptop, wearing glasses and earbuds"
     >
       {rows.flatMap((row, y) =>
         [...row].map((ch, x) =>
@@ -173,21 +271,14 @@ export function PixelDev({
       className={className}
       style={
         {
-          "--px-hair": "#2f2620",
-          "--px-hair-hi": "#43362c",
-          "--px-skin": "#e8b489",
-          "--px-skin-sh": "#c9946c",
-          "--px-frame": "#14171a",
-          // The lenses pick up the screen, which is the only light in the room.
-          "--px-lens": "color-mix(in srgb, var(--color-suspend) 75%, #000)",
-          "--px-mouth": "#9c5a45",
-          "--px-pod": "#f2f3f5",
-          "--px-shirt": "#2b3440",
+          // Themed bits only. Skin, hair and hardware keep fixed values so the
+          // character does not change identity between light and dark.
+          "--px-line": "var(--color-fg)",
+          "--px-lens": "var(--color-suspend)",
+          "--px-lens-hi": "color-mix(in srgb, var(--color-suspend) 45%, white)",
           "--px-print": "var(--color-running)",
           "--px-desk": "var(--color-line-hi)",
-          "--px-key": "var(--color-surface-hi)",
-          "--px-mug": "var(--color-suspend)",
-          "--px-mug-sh": "color-mix(in srgb, var(--color-suspend) 60%, #000)",
+          "--px-steam": "color-mix(in srgb, var(--color-fg) 35%, transparent)",
         } as React.CSSProperties
       }
     >
