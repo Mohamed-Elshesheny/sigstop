@@ -3,7 +3,7 @@ import Foundation
 import SigstopCore
 
 /// What happened in the workspace. Deliberately carries only extracted `Sendable`
-/// values — `NSRunningApplication` never crosses an isolation boundary.
+/// values, `NSRunningApplication` never crosses an isolation boundary.
 public enum WorkspaceEvent: Sendable, Hashable {
     case activated(AppIdentity, at: Date)
     case deactivated(AppIdentity, at: Date)
@@ -53,7 +53,7 @@ public struct FrontmostSnapshot: Sendable, Hashable {
 ///
 /// **Event-driven, never polled.** Everything here comes from
 /// `NSWorkspace.shared.notificationCenter`. Subscribing to `NotificationCenter.default`
-/// instead is the classic bug — it compiles, it runs, and it silently delivers nothing.
+/// instead is the classic bug, it compiles, it runs, and it silently delivers nothing.
 ///
 /// `NSWorkspace` notifications are delivered on the main thread, so this type is
 /// `@MainActor`-isolated rather than being an actor with its own executor: bridging to a
@@ -74,7 +74,7 @@ public final class FrontmostAppCollector {
     private var switches: Int = 0
     private var continuations: [UUID: AsyncStream<WorkspaceEvent>.Continuation] = [:]
 
-    /// The identity used when `frontmostApplication` is nil — during a switch, at login,
+    /// The identity used when `frontmostApplication` is nil, during a switch, at login,
     /// or while a modal system UI owns the front. Modelled explicitly rather than
     /// force-unwrapped.
     public static let unknownApp = AppIdentity(bundleID: nil, localizedName: "Unknown", pid: 0)
@@ -121,7 +121,7 @@ public final class FrontmostAppCollector {
         observers.removeAll()
     }
 
-    /// Re-reads the world from `NSWorkspace`. Called at start, and on wake — a
+    /// Re-reads the world from `NSWorkspace`. Called at start, and on wake, a
     /// notification posted while the machine was asleep is a notification we did not get.
     public func reconcile() {
         running = Self.readRunningBundleIDs()

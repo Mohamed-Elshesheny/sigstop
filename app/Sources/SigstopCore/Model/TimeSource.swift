@@ -36,7 +36,7 @@ public final class MutableTimeSource: TimeSource, @unchecked Sendable {
     public var now: Date { lock.withLock { _now } }
     public var monotonicSeconds: Double { lock.withLock { _monotonic } }
 
-    /// Advance both clocks together — the normal case.
+    /// Advance both clocks together, the normal case.
     public func advance(by seconds: TimeInterval) {
         lock.withLock {
             _now = _now.addingTimeInterval(seconds)
@@ -45,7 +45,7 @@ public final class MutableTimeSource: TimeSource, @unchecked Sendable {
     }
 
     /// Advance wall-clock only, leaving the monotonic clock still. Models an NTP step
-    /// or the user changing the system date — the engine must not treat this as work.
+    /// or the user changing the system date, the engine must not treat this as work.
     public func skewWallClock(by seconds: TimeInterval) {
         lock.withLock { _now = _now.addingTimeInterval(seconds) }
     }

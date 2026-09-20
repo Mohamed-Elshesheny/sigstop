@@ -89,6 +89,14 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     /// `autosaveName`, so the name has to stay stable across releases: change it and
     /// everyone's icon jumps back to wherever the system feels like.
     private static let autosaveName = "sigstop"
+
+    /// A fixed width, not `variableLength`.
+    ///
+    /// The button carries no image and no title, because the icon is a hosted subview, so
+    /// AppKit sizes a variable-length item from empty content. Highlighting it on open
+    /// then re-ran that layout and the icon visibly jumped. A fixed width is stable
+    /// whatever the button thinks its content is.
+    private static let itemLength: CGFloat = 26
     private static var positionKey: String { "NSStatusItem Preferred Position \(autosaveName)" }
 
     /// Where to sit the very first time, in points from the right edge of the menu bar.
@@ -115,7 +123,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
     override init() {
         Self.claimVisiblePositionOnFirstRun()
-        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item = NSStatusBar.system.statusItem(withLength: Self.itemLength)
         super.init()
 
         item.autosaveName = Self.autosaveName
@@ -125,16 +133,9 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             button.action = #selector(toggle)
             button.target = self
             button.sendAction(on: [.leftMouseDown, .rightMouseDown])
-
-            let icon = PassthroughHostingView(rootView: StatusIcon(model: model))
-            icon.translatesAutoresizingMaskIntoConstraints = false
-            button.addSubview(icon)
-            NSLayoutConstraint.activate([
-                icon.centerXAnchor.constraint(equalTo: button.centerXAnchor),
-                icon.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-                icon.widthAnchor.constraint(equalToConstant: 16),
-                icon.heightAnchor.constraint(equalToConstant: 16),
-            ])
+            button.imagePosition = .imageOnly
+            renderIcon()
+            trackIcon()
         }
 
         content.sizingOptions = [.preferredContentSize]
@@ -171,6 +172,52 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     /// panel and then as the button's action; without the check the action would reopen
     /// what the focus change just closed, and the icon could never close the panel.
     private var dismissedAt = Date.distantPast
+
+    /// Renders the SwiftUI mark into the button's `image` rather than hosting it as a
+    /// subview.
+    ///
+    /// A subview inside an `NSStatusItem` button is laid out against the button's bounds,
+    /// and the button re-lays out when it is highlighted on open, so the icon visibly
+    /// jumped every time the panel was opened. A button image is positioned by AppKit
+    /// itself and does not move. It also removes the need for a hit-test-defeating hosting
+    /// view, because an image never swallows the click.
+    private func renderIcon() {
+        let appearance = item.button?.effectiveAppearance ?? NSApp.effectiveAppearance
+        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let renderer = ImageRenderer(
+            content: MenuBarIcon(fraction: model.workFraction, indicator: model.indicator, dark: isDark)
+                .frame(width: 18, height: 18)
+                .transaction { $0.animation = nil }
+        )
+        renderer.scale = item.button?.window?.backingScaleFactor ?? 2
+
+        /// Resolve dynamic colours against the menu bar's own appearance.
+        ///
+        /// `ImageRenderer` draws outside any window, so an unresolved dynamic colour falls
+        /// back to the light variant. The mark's amber has a dark ink value for light
+        /// backgrounds, which is why the icon came out a muddy brown in a dark menu bar.
+        guard let image = renderer.nsImage else { return }
+        image.isTemplate = false
+        item.button?.image = image
+    }
+
+    /// Re-renders the icon whenever the values it draws change, and re-arms itself.
+    ///
+    /// `withObservationTracking` fires once per change, so the loop is what keeps it
+    /// watching. Nothing polls: with the clock paused or the app idle no redraw happens
+    /// at all.
+    private func trackIcon() {
+        withObservationTracking {
+            _ = model.workFraction
+            _ = model.indicator
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.renderIcon()
+                self.trackIcon()
+            }
+        }
+    }
 
     @objc private func toggle() {
         if panel.isVisible {
@@ -369,22 +416,5 @@ private struct PopoverMaterial: NSViewRepresentable {
     func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
-/// A hosted view that refuses every hit test.
-///
-/// Adding any subview to an `NSStatusItem`'s button silently breaks it: the subview wins
-/// hit testing, the button never sees the mouse, and the action never fires. The symptom
-/// is an icon that draws perfectly and does nothing when clicked. Returning nil here hands
-/// every event back to the button, which is the thing that actually has the target/action.
-private final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-}
 
-/// Bridges the observable model into the status item's hosted icon.
-private struct StatusIcon: View {
-    let model: AppModel
-
-    var body: some View {
-        MenuBarIcon(fraction: model.workFraction, indicator: model.indicator)
-    }
-}
 

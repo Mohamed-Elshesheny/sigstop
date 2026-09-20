@@ -6,7 +6,7 @@ import SigstopCore
 /// Where the idle number came from. Surfaced so the UI can be honest about it:
 /// `.ioRegistry` is a fallback and `.unavailable` means we genuinely do not know.
 public enum IdleSource: String, Sendable, Codable, Hashable {
-    /// `CGEventSource.secondsSinceLastEventType(.hidSystemState, …)` — real human HID input.
+    /// `CGEventSource.secondsSinceLastEventType(.hidSystemState, …)`, real human HID input.
     case hidSystemState
     /// `IOHIDSystem` → `HIDIdleTime`. Used when the CoreGraphics path is unavailable.
     case ioRegistry
@@ -40,7 +40,7 @@ public struct InputActivity: Sendable, Hashable, Codable {
 public struct SessionState: Sendable, Hashable, Codable {
     public let screenLocked: Bool
     public let displaysAsleep: Bool
-    /// False during fast user switching — someone else is on the console.
+    /// False during fast user switching, someone else is on the console.
     public let sessionActive: Bool
 
     public init(screenLocked: Bool = false, displaysAsleep: Bool = false, sessionActive: Bool = true) {
@@ -89,7 +89,7 @@ public struct PowerState: Sendable, Hashable, Codable {
 
 // MARK: - Audio
 
-/// Four states, not a `Bool` — see docs/ACTIVITY-DETECTION.md §2.3.
+/// Four states, not a `Bool`, see docs/ACTIVITY-DETECTION.md §2.3.
 ///
 /// `.unreliable` is the important one: on a Mac with Krisp / Loopback / BlackHole /
 /// certain headset daemons, an input device is "running somewhere" permanently. On such
@@ -107,7 +107,7 @@ public enum AudioInputState: String, Sendable, Codable, Hashable {
 
 // MARK: - Window geometry (garnish only)
 
-/// Geometry from `CGWindowListCopyWindowInfo` — **no titles**, no Screen Recording.
+/// Geometry from `CGWindowListCopyWindowInfo`, **no titles**, no Screen Recording.
 /// Feature-detected, optional everywhere, and never load-bearing (§2.4).
 public struct WindowGeometrySnapshot: Sendable, Hashable, Codable {
     public let onScreenWindowCount: Int
@@ -146,7 +146,7 @@ public struct AppSwitch: Sendable, Hashable, Codable {
 // MARK: - Tier 2 signal shapes
 
 /// Allowlisted tool names. The ONLY thing ever extracted from `KERN_PROCARGS2`.
-/// Raw argv is matched against this list and immediately discarded — argv routinely
+/// Raw argv is matched against this list and immediately discarded, argv routinely
 /// contains secrets (`psql "postgres://user:password@…"`). See §4.3.
 public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
     case lldb, debugserver, gdb, delve, debugpy, nodeInspect
@@ -185,7 +185,7 @@ public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
 public struct ProcessSnapshot: Sendable, Hashable, Codable {
     /// Allowlist-matched tool tokens only. Raw argv is never stored here.
     public let matchedTools: Set<ToolToken>
-    /// Tools whose parent process is the frontmost app — a much stronger signal, because
+    /// Tools whose parent process is the frontmost app, a much stronger signal, because
     /// it distinguishes "I am debugging" from "a debugger is running in another project".
     public let childrenOfFrontmost: Set<ToolToken>
     public let capturedAt: Date
@@ -225,7 +225,7 @@ public struct GitSignal: Sendable, Hashable, Codable {
 ///
 /// This is the *entire* input to classification. Providers are pure functions of this
 /// value: no state, no I/O, no clock reads. That is what makes every rule in
-/// docs/ACTIVITY-DETECTION.md §7 testable by writing a literal — which matters more than
+/// docs/ACTIVITY-DETECTION.md §7 testable by writing a literal, which matters more than
 /// usual here, because there is no Xcode and therefore no UI test harness.
 public struct SignalContext: Sendable {
     public let now: Date
@@ -247,7 +247,7 @@ public struct SignalContext: Sendable {
 
     public let windowTitle: String?
     public let documentURL: URL?
-    /// Tier 1b, separately opted in. HOST ONLY — never a path, never a query string.
+    /// Tier 1b, separately opted in. HOST ONLY, never a path, never a query string.
     public let browserHost: String?
 
     public let processes: ProcessSnapshot?

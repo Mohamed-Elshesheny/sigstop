@@ -10,7 +10,7 @@ import SwiftUI
 /// `.nonactivatingPanel` is the whole trick: the panel can be shown, and its controls can
 /// be clicked, without `NSApp` activating. The build in your terminal keeps its focus,
 /// keeps receiving keystrokes, and does not get yanked out from under a running command.
-/// That is a hard requirement, not a nicety — an overlay that steals focus mid-build is an
+/// That is a hard requirement, not a nicety, an overlay that steals focus mid-build is an
 /// overlay people uninstall the app over.
 ///
 /// `canBecomeKey` is `true` so that *if* the user clicks the overlay, Escape works from
@@ -34,7 +34,7 @@ final class NonActivatingPanel: NSPanel {
 /// Owns every overlay window: one full-screen break overlay per screen, plus the small
 /// fallback prompt panel used when notifications are unavailable.
 ///
-/// Screens come and go — a cable is pulled, a display sleeps, the user joins a meeting
+/// Screens come and go, a cable is pulled, a display sleeps, the user joins a meeting
 /// and mirrors. So the set is rebuilt from `NSScreen.screens` on every
 /// `didChangeScreenParameters`, and torn down completely on dismissal. A leftover panel
 /// on a screen that no longer exists is a window the user cannot reach and cannot close.
@@ -54,7 +54,7 @@ final class BreakOverlayController {
     /// Shows the overlay on every screen and installs a *local* Escape monitor.
     ///
     /// Escape works while sigstop happens to be the active application. A global monitor
-    /// would catch it everywhere, but that needs Accessibility or Input Monitoring —
+    /// would catch it everywhere, but that needs Accessibility or Input Monitoring ,
     /// permissions this app refuses to require for a convenience. So: Escape works when
     /// the overlay or the app has focus, and the SIGCONT button always works.
     func presentBreak(model: AppModel) {
@@ -137,12 +137,12 @@ final class BreakOverlayController {
 
     /// The app drawing a prompt itself, rather than asking macOS to. Two callers:
     ///
-    ///   * escalation 4, `SIGSTOP` — the ladder's last rung is a panel by design
+    ///   * escalation 4, `SIGSTOP`, the ladder's last rung is a panel by design
     ///     (docs/BREAK-DECISION.md §7.5), not a louder notification;
     ///   * the notification fallback of docs/PRIVACY.md §3.2, when there is no bundle or
     ///     the user declined notifications.
     ///
-    /// It needs no permission, and it does **not** respect Do Not Disturb — which is
+    /// It needs no permission, and it does **not** respect Do Not Disturb, which is
     /// exactly why it is reserved for those two cases, and why it is deliberately small,
     /// corner-anchored, dismissible and never fullscreen.
     ///
@@ -250,8 +250,8 @@ final class BreakOverlayController {
 /// Dimmed, not opaque: the work is still there, and the point of the name is that
 /// nothing was lost. The palette is the fixed dark one because the backdrop is black
 /// whatever the system appearance is. The countdown is the hero; under it a bar fills
-/// with the break as it elapses, which is the mark's own idea — outline for the whole,
-/// fill for how much has passed — turned on its side for a five-minute span.
+/// with the break as it elapses, which is the mark's own idea, outline for the whole,
+/// fill for how much has passed, turned on its side for a five-minute span.
 struct BreakOverlayView: View {
     let model: AppModel
 
@@ -302,7 +302,7 @@ struct BreakOverlayView: View {
     }
 
     /// Driven by a timeline, not by a stored counter that something has to remember to
-    /// advance. It reads `breakEndsAt` — a real timestamp — so a screen that was asleep
+    /// advance. It reads `breakEndsAt`, a real timestamp, so a screen that was asleep
     /// for a minute shows the truth when it comes back.
     private var countdown: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -358,7 +358,7 @@ struct BreakOverlayView: View {
 
 /// The corner prompt: the signal this rung is named after, the joke, and three
 /// monospaced buttons. The signal is amber at levels 1–3 and red at level 4, which is
-/// the only red in the product — `SIGSTOP` is the one rung that cannot be ignored, and
+/// the only red in the product, `SIGSTOP` is the one rung that cannot be ignored, and
 /// the colour says so once.
 /// The prompt, full screen on every display.
 ///

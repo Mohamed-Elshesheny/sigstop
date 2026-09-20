@@ -6,7 +6,7 @@ import SwiftUI
 /// idea in fourteen points: a process paused, intact, ready to continue.
 ///
 /// Drawn with shapes rather than an SF Symbol for two reasons. The first is that the
-/// symbol set has nothing that fills continuously, and the fill *is* the information —
+/// symbol set has nothing that fills continuously, and the fill *is* the information ,
 /// the bars rise with real continuous work, so the icon answers "how long have I been at
 /// this" without opening anything. The second is that a symbol would have to be swapped
 /// for a different symbol at each state, and swapping glyphs in the menu bar reads as a
@@ -27,12 +27,19 @@ struct MenuBarIcon: View {
     /// site's amber and reads well on a dark menu bar, but it is roughly 1.9:1 against a
     /// light one, which is illegible for a 1pt stroke. The light appearance therefore gets
     /// the darker amber the site already uses for amber-on-white text.
-    private static let brand = Color(nsColor: NSColor(name: nil) { appearance in
-        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        return isDark
-            ? NSColor(srgbRed: 0.961, green: 0.647, blue: 0.141, alpha: 1)  // #f5a524
-            : NSColor(srgbRed: 0.541, green: 0.306, blue: 0.000, alpha: 1)  // #8a4e00
-    })
+    /// Passed in rather than resolved from the environment.
+    ///
+    /// `ImageRenderer` draws outside any window, so a dynamic `NSColor` has no appearance
+    /// to resolve against and silently falls back to its light variant. That is why the
+    /// icon rendered as a muddy brown in a dark menu bar. The controller knows the menu
+    /// bar's appearance and passes it.
+    var dark: Bool = true
+
+    private var brand: Color {
+        dark
+            ? Color(.sRGB, red: 0.961, green: 0.647, blue: 0.141, opacity: 1)
+            : Color(.sRGB, red: 0.541, green: 0.306, blue: 0.000, opacity: 1)
+    }
 
     /// Always the brand colour. State is carried by the FILL LEVEL, not by hue: a full
     /// pair of bars means a break is due, a half pair means half a session. Swapping the
@@ -40,8 +47,8 @@ struct MenuBarIcon: View {
     /// identity at the one moment people actually look at it.
     private var tint: Color {
         switch indicator {
-        case .idle, .quiet: return Self.brand.opacity(0.4)
-        default:            return Self.brand
+        case .idle, .quiet: return brand.opacity(0.4)
+        default:            return brand
         }
     }
 
@@ -67,12 +74,12 @@ struct MenuBarIcon: View {
 
     static func label(for indicator: IndicatorState) -> String {
         switch indicator {
-        case .working:    return "sigstop — working"
-        case .breakDue:   return "sigstop — a break is due"
-        case .escalating: return "sigstop — a break is overdue"
-        case .onBreak:    return "sigstop — on a break"
-        case .idle:       return "sigstop — idle"
-        case .quiet:      return "sigstop — quiet"
+        case .working:    return "sigstop, working"
+        case .breakDue:   return "sigstop, a break is due"
+        case .escalating: return "sigstop, a break is overdue"
+        case .onBreak:    return "sigstop, on a break"
+        case .idle:       return "sigstop, idle"
+        case .quiet:      return "sigstop, quiet"
         }
     }
 }

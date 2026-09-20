@@ -5,12 +5,12 @@ import Foundation
 /// The escalation ladder, in the vocabulary the product is named after.
 ///
 /// `SIGKILL` appears nowhere: it is unrecoverable and destroys exactly the thing the name
-/// promises to preserve. `SIGHUP` is never a rung either — its default disposition is
+/// promises to preserve. `SIGHUP` is never a rung either, its default disposition is
 /// *terminate*, so an L1 labelled SIGHUP would quietly mean "die". It reloads settings.
 public extension EscalationLevel {
     var signalName: String {
         switch self {
-        case .first:    return "SIGTSTP"   // catchable — you are allowed to ignore it
+        case .first:    return "SIGTSTP"   // catchable, you are allowed to ignore it
         case .second:   return "SIGINT"    // catchable, but ignoring it is rude
         case .third:    return "SIGTERM"   // catchable. this is your warning
         case .incident: return "SIGSTOP"   // cannot be caught, blocked or ignored
@@ -37,7 +37,7 @@ public enum SigstopSignal {
 /// Nothing in the app is ever modal, ever blocks input, ever takes keyboard focus, or ever
 /// covers the whole screen.
 public enum PromptChannel: String, Sendable, Codable, Hashable {
-    /// Always allowed — including quiet hours, DND, daily cap and hard blocks.
+    /// Always allowed, including quiet hours, DND, daily cap and hard blocks.
     case passiveIndicator
     case notification
     /// Escalation level 3 only, and never twice in a cycle.
@@ -61,11 +61,11 @@ public enum IndicatorState: String, Sendable, Codable, Hashable {
 public struct PromptRequest: Sendable, Codable, Hashable {
     public let cycle: CycleID
     public let level: EscalationLevel
-    /// The signal this rung is named after — L1 SIGTSTP … L4 SIGSTOP.
+    /// The signal this rung is named after, L1 SIGTSTP … L4 SIGSTOP.
     public let signal: String
     public let channel: PromptChannel
     public let at: Date
-    /// Continuous active work at the moment of delivery — the only number the copy may use.
+    /// Continuous active work at the moment of delivery, the only number the copy may use.
     public let continuousWork: TimeInterval
     /// Empty means the prompt must not offer snooze any more.
     public let snoozeOffered: [TimeInterval]
@@ -98,7 +98,7 @@ public enum WithdrawReason: String, Sendable, Codable, Hashable {
 }
 
 /// How a cycle ended. Only `honored` counts in the numerator; `expired`, `quietSuppressed`
-/// and `dailyCapReached` are *excluded* from compliance entirely — you cannot hold a user
+/// and `dailyCapReached` are *excluded* from compliance entirely, you cannot hold a user
 /// to a prompt that was never delivered.
 public enum CycleOutcome: String, Sendable, Codable, Hashable {
     case honored
@@ -150,7 +150,7 @@ public struct BreakDue: Sendable, Codable, Hashable {
     public var seamWaitElapsed: TimeInterval = 0
     /// Seam-waiting across the whole cycle. A snooze reopens the window, not the budget.
     public var seamWaitTotal: TimeInterval = 0
-    /// Wall clock since `dueSince`, including hard-blocked time — this is what the stale
+    /// Wall clock since `dueSince`, including hard-blocked time, this is what the stale
     /// ceiling measures, which is why §7.4 can say the ceiling is reached under sustained
     /// hard blocks at all.
     public var totalElapsed: TimeInterval = 0
@@ -349,7 +349,7 @@ public enum Effect: Sendable, Codable, Hashable {
     case recordSkip
     case recordIgnoredPrompt
     case recordSnooze(TimeInterval)
-    /// SIGCONT — the work clock resumes exactly where it left off.
+    /// SIGCONT, the work clock resumes exactly where it left off.
     case resumeWorkClock
 }
 
@@ -387,7 +387,7 @@ public struct DailyCounters: Sendable, Codable, Hashable {
         self.nextCycle = nextCycle
     }
 
-    /// nil — never 0 or 1 — when there is nothing to measure.
+    /// nil, never 0 or 1, when there is nothing to measure.
     public var breakCompliance: Double? {
         let denominator = breakOpportunities - excludedOpportunities
         guard denominator > 0 else { return nil }

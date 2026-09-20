@@ -4,7 +4,7 @@ import Foundation
 ///
 /// This type is a **value**: it performs no I/O, reads no clock, and never decides anything.
 /// Every mutation takes the timestamp it should use from the caller. `SessionTracker` is the
-/// only legitimate driver — it owns the `TimeSource` and does the gap classification.
+/// only legitimate driver, it owns the `TimeSource` and does the gap classification.
 ///
 /// The three clock effects of docs/BREAK-DECISION.md §1 are kept deliberately orthogonal:
 /// **credit** (`continuousActiveWork += Δ`), **pause** (stop crediting, keep the value) and
@@ -30,7 +30,7 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
     /// be real absence rather than reading. See docs/BREAK-DECISION.md §3.3.
     public private(set) var provisionalGraceCredit: TimeInterval = 0
 
-    /// Monotonic seconds observed by the tracker since the session began — the honest
+    /// Monotonic seconds observed by the tracker since the session began, the honest
     /// denominator. Invariant: `totalActiveWork <= observedElapsed` (property test §15.1).
     public private(set) var observedElapsed: TimeInterval = 0
 
@@ -39,7 +39,7 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
     public private(set) var lastBreakAt: Date?
     public private(set) var lastBreakEndedAt: Date?
     public private(set) var breakCount: Int = 0
-    /// Breaks ended under the qualifying threshold. Not counted as breaks — see §4.1 row 19.
+    /// Breaks ended under the qualifying threshold. Not counted as breaks, see §4.1 row 19.
     public private(set) var abandonedBreakCount: Int = 0
     public private(set) var skippedBreakCount: Int = 0
     public private(set) var snoozeCount: Int = 0
@@ -95,7 +95,7 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
     // MARK: - Focus estimate (docs/BREAK-DECISION.md §2.3)
 
     /// 0...1. Low switch rate plus one dominant app reads as deep focus. Two observable
-    /// quantities — not a mood reading.
+    /// quantities, not a mood reading.
     public func focusScore(now: Date, window: TimeInterval = 600) -> Double {
         let switches = recentSwitches.filter { now.timeIntervalSince($0) <= window }.count
         let switchTerm = max(0, min(1, 1 - Double(switches) / 6.0))
@@ -165,7 +165,7 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         clock = .paused(cause: cause, since: since)
     }
 
-    /// SIGCONT. The clock continues from exactly where it was — that is the whole product.
+    /// SIGCONT. The clock continues from exactly where it was, that is the whole product.
     mutating func resumeClock() {
         guard !isStopped else { return }
         clock = .running

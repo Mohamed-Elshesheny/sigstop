@@ -8,11 +8,11 @@ import SigstopCore
 ///
 /// The distinction is the whole invariant from CLAUDE.md §4.1, expressed as a type:
 ///
-/// * `.hardBlocked` is reachable **only** from a real system signal — the screen is
+/// * `.hardBlocked` is reachable **only** from a real system signal, the screen is
 ///   actually locked, the displays are actually asleep, another user is actually on the
 ///   console, an audio input device is actually running. These are facts the kernel or the
 ///   window server handed us.
-/// * `.softDeferred` is reachable from an *inference* — "a conferencing app is running and
+/// * `.softDeferred` is reachable from an *inference*, "a conferencing app is running and
 ///   frontmost, so you are probably in a meeting", "something is fullscreen, so you might
 ///   be presenting". A guess may delay a prompt. It may never suppress one, because a
 ///   confident-sounding wrong guess that silently eats the whole feature is worse than an
@@ -62,7 +62,7 @@ public struct WorkClockReading: Sendable, Hashable {
 public struct ContextSample: Sendable {
     public let context: DeveloperContext
     public let gate: PromptGate
-    /// Set when the honest label differs from the activity's own name — a desktop AI app
+    /// Set when the honest label differs from the activity's own name, a desktop AI app
     /// with no corroboration is "AI assistant", not "AI coding". The *label* degrades, not
     /// just the number.
     public let honestLabel: String?
@@ -96,13 +96,13 @@ public struct ContextSample: Sendable {
 /// are already main-actor-isolated. Making the engine its own actor would add a hop in
 /// each direction on the hot path and would reorder events relative to the notifications
 /// that produced them, in exchange for nothing: the engine does no blocking work. The one
-/// call that *can* block — Accessibility IPC — is already confined to its own queue inside
+/// call that *can* block, Accessibility IPC, is already confined to its own queue inside
 /// `AccessibilityCollector` and is reached with `await`.
 ///
 /// **Why almost nothing is polled.** Every input is an event stream: workspace activation,
 /// lock/unlock, sleep/wake, CoreAudio device state, AX title changes. The single
-/// `DispatchSourceTimer` exists for exactly two jobs that have no notification — crossing
-/// an idle threshold, and reconciling a possibly-missed AX title change — and it is
+/// `DispatchSourceTimer` exists for exactly two jobs that have no notification, crossing
+/// an idle threshold, and reconciling a possibly-missed AX title change, and it is
 /// cancelled outright (not merely skipped) whenever the user demonstrably is not there.
 @MainActor
 public final class ContextEngine {
@@ -179,7 +179,7 @@ public final class ContextEngine {
     private var observedPID: pid_t?
     private var geometry: WindowGeometrySnapshot?
 
-    /// Set by any event after which accumulated durations are void — wake, unlock, session
+    /// Set by any event after which accumulated durations are void, wake, unlock, session
     /// switch. The session clock must diff real timestamps across this, never trust ticks
     /// (CLAUDE.md §3.4). Exposed rather than acted on here: the clock is Core's.
     public private(set) var lastElapsedInvalidation: Date?
@@ -299,7 +299,7 @@ public final class ContextEngine {
         lines.append(contentsOf: context.reasoning.map { "  because \($0)" })
         lines.append(contentsOf: sample.caveats.map { "  caveat: \($0)" })
         if let reason = sample.gate.reason {
-            lines.append("  prompts: \(sample.gate.allowsPrompt ? "allowed" : "held") — \(reason)")
+            lines.append("  prompts: \(sample.gate.allowsPrompt ? "allowed" : "held"), \(reason)")
         }
         return lines
     }
@@ -449,7 +449,7 @@ public final class ContextEngine {
             evidence.append(
                 Ev.make(
                     "input.quiet", .tier0, log(0.6),
-                    "you have not touched the keyboard or trackpad for \(Int(idle))s — you could "
+                    "you have not touched the keyboard or trackpad for \(Int(idle))s, you could "
                         + "be reading, or you could have walked away"
                 )
             )
@@ -571,7 +571,7 @@ public final class ContextEngine {
         let hasTitleEvidence = meetingEvidence.contains { $0.tier == .tier1 }
         if signals.audioInput == .unreliable && !hasTitleEvidence {
             meetingEvidence = []
-            caveat = "Meeting detection is off on this Mac — see the microphone note above."
+            caveat = "Meeting detection is off on this Mac, see the microphone note above."
         }
 
         let confidence = ConfidenceEngine.meetingConfidence(meetingEvidence, tiers: tiers)
@@ -610,18 +610,18 @@ public final class ContextEngine {
             return .hardBlocked(reason: "someone else is signed in at the console")
         }
         if meetingIsOSFact {
-            return .hardBlocked(reason: "an audio input device is running — you may be on a call")
+            return .hardBlocked(reason: "an audio input device is running, you may be on a call")
         }
 
         if concurrent.inMeeting {
             return .softDeferred(
-                reason: "a conferencing app is running, so you might be in a meeting — "
+                reason: "a conferencing app is running, so you might be in a meeting, "
                     + "this only postpones the prompt"
             )
         }
         if concurrent.fullscreen {
             return .softDeferred(
-                reason: "something is fullscreen, so you might be presenting — this only "
+                reason: "something is fullscreen, so you might be presenting, this only "
                     + "postpones the prompt"
             )
         }
@@ -768,8 +768,8 @@ public final class ContextEngine {
     /// independent wakeup trains; one with generous leeway coalesces with whatever else the
     /// machine is already waking for.
     ///
-    /// It is scheduled for the moment the user would next cross an idle threshold — not on
-    /// a fixed period — so a heads-down editing session costs roughly two wakeups per idle
+    /// It is scheduled for the moment the user would next cross an idle threshold, not on
+    /// a fixed period, so a heads-down editing session costs roughly two wakeups per idle
     /// episode instead of 3,600 an hour. The interval is also floored at the AX
     /// reconciliation interval while Tier 1 is live, because a missed `AXObserver`
     /// notification leaves a stale title behind.

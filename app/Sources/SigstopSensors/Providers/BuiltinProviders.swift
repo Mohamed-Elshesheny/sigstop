@@ -6,7 +6,7 @@ public enum BundleIDs {
     public static let vscode = "com.microsoft.VSCode"                       // VERIFIED
     public static let vscodeInsiders = "com.microsoft.VSCodeInsiders"       // UNVERIFIED
     public static let vscodium = "com.vscodium"                             // UNVERIFIED
-    public static let cursor = "com.todesktop.230313mzl4w4u92"              // VERIFIED — opaque
+    public static let cursor = "com.todesktop.230313mzl4w4u92"              // VERIFIED, opaque
     public static let zedPrefix = "dev.zed."                                // UNVERIFIED
     public static let jetbrainsPrefix = "com.jetbrains."                    // UNVERIFIED
     public static let androidStudio = "com.google.android.studio"           // UNVERIFIED
@@ -58,7 +58,7 @@ public enum BundleIDs {
     public static let terminals: Set<String> = [terminal, iterm2, warp, ghostty, alacritty, kitty]
     public static let browsers: Set<String> = [chrome, arc, safari, brave, firefox, edge]
 
-    /// "Was an editor or terminal frontmost recently?" — the corroboration test for the
+    /// "Was an editor or terminal frontmost recently?", the corroboration test for the
     /// desktop-AI-app case, and the reason `AI_CODING` is not claimed for someone asking
     /// an assistant about a recipe.
     public static func isEditorOrTerminal(_ app: AppIdentity) -> Bool {
@@ -87,7 +87,7 @@ public struct ParsedTitle: Sendable, Hashable {
 public enum TitleParsing {
     /// Editors use every dash on the keyboard, and users reconfigure the format freely.
     /// Parsers must be defensive and must be allowed to return nothing.
-    static let separators = [" — ", " – ", " - ", " | "]
+    static let separators = [", ", " – ", " - ", " | "]
 
     /// VS Code prefixes an unsaved buffer with `●`; JetBrains uses `*`.
     static let dirtyMarkers: Set<Character> = ["●", "*", "•"]
@@ -163,14 +163,14 @@ public enum TitleParsing {
         return (value, ext.lowercased())
     }
 
-    /// Drops the trailing app name ("… — Visual Studio Code") so it is never mistaken for
+    /// Drops the trailing app name ("…, Visual Studio Code") so it is never mistaken for
     /// a project.
     public static func droppingAppName(_ parts: [String]) -> [String] {
         guard let last = parts.last, appNameSuffixes.contains(last.lowercased()) else { return parts }
         return Array(parts.dropLast())
     }
 
-    /// `<file> — <project> [— <app>]`. The default for VS Code, Cursor and Zed. Users can
+    /// `<file>, <project> [, <app>]`. The default for VS Code, Cursor and Zed. Users can
     /// and do change `window.title`, so this is allowed to come back empty.
     public static func fileFirst(_ title: String) -> ParsedTitle? {
         let parts = droppingAppName(components(title))
@@ -302,7 +302,7 @@ enum Ev {
     static func rapidAlternation(_ count: Int) -> Evidence {
         make(
             "switching.rapid", .tier0, 0.5,
-            "you bounced between apps \(count) times in the last minute — weak, and it is "
+            "you bounced between apps \(count) times in the last minute, weak, and it is "
                 + "treated as weak"
         )
     }
@@ -342,7 +342,7 @@ enum Ev {
         make("browser.diffTitle", .tier1, 1.4, "the page title looks like a commit or a diff")
     }
     static func forgeHost(_ host: String) -> Evidence {
-        make("browser.forgeHost", .tier1, 0.6, "you are on \(host) — which is also an issue tracker and a docs site")
+        make("browser.forgeHost", .tier1, 0.6, "you are on \(host), which is also an issue tracker and a docs site")
     }
     static func communicationTitle() -> Evidence {
         make("communication.title", .tier1, 1.0, "the window title names a channel or a conversation")
@@ -377,7 +377,7 @@ enum Ev {
     }
 
     static func micRunning() -> Evidence {
-        make("meeting.mic", .tier0, 1.8, "an audio input device is running — though we cannot tell which app has it")
+        make("meeting.mic", .tier0, 1.8, "an audio input device is running, though we cannot tell which app has it")
     }
     static func conferencingRunning(_ name: String) -> Evidence {
         make("meeting.appRunning", .tier0, 1.0, "\(name) is running")
@@ -396,7 +396,7 @@ enum EditorClassifier {
     /// The shared body of every editor/IDE provider.
     ///
     /// - Parameter parse: the app-specific title parser. There is no universal title
-    ///   format — that is exactly why providers exist — so each caller supplies its own.
+    ///   format, that is exactly why providers exist, so each caller supplies its own.
     static func verdict(
         _ signals: SignalContext,
         editorName: String,
@@ -512,7 +512,7 @@ public struct VSCodeProvider: ActivityProvider {
 public struct CursorProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.cursor")
     /// The bundle ID is a ToDesktop-generated opaque string. It is correct today and it is
-    /// not stable across a repackage, so the localized name is claimed as a fallback —
+    /// not stable across a repackage, so the localized name is claimed as a fallback ,
     /// lower specificity, so the exact ID still wins when it is right.
     public let claims = [
         AppClaim(.bundleID(BundleIDs.cursor)),
@@ -718,7 +718,7 @@ public struct CommunicationProvider: ActivityProvider {
     public init() {}
 
     /// We deliberately do not try to distinguish "reading Slack" from "writing in Slack".
-    /// No permission-free signal separates them, and idle time is far too coarse — reading
+    /// No permission-free signal separates them, and idle time is far too coarse, reading
     /// is idle.
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
@@ -801,7 +801,7 @@ public struct AIAssistantProvider: ActivityProvider {
     /// A desktop AI assistant being frontmost tells us nothing about whether it is about
     /// code. The user could be asking for a recipe. So `AI_CODING` requires corroboration:
     /// an editor, IDE or terminal frontmost within the last five minutes. Without it the
-    /// class is UNKNOWN — and even with it, at Tier 0 the *label* degrades to "AI
+    /// class is UNKNOWN, and even with it, at Tier 0 the *label* degrades to "AI
     /// assistant" rather than "AI coding", not just the number.
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
@@ -857,7 +857,7 @@ public struct NotesProvider: ActivityProvider {
 /// terminates with a verdict.
 ///
 /// `UNKNOWN` is a first-class, frequently-correct answer here. It must be displayed plainly
-/// — "not sure" — and be easy for the user to correct, because a correction is how the
+///, "not sure", and be easy for the user to correct, because a correction is how the
 /// catalog improves without a release.
 public struct GenericProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.generic")

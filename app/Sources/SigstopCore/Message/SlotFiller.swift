@@ -3,14 +3,14 @@ import Foundation
 // MARK: - Slots
 
 public enum SlotKey: String, Codable, Sendable, CaseIterable, Hashable {
-    case app        // "Cursor"          — display name of the foreground app
-    case minutes    // "94"              — continuous work minutes
-    case project    // "payments-api"    — workspace / repo name
-    case branch     // "fix/retry-loop"  — current git branch
-    case activity   // "debugging"       — human-readable activity noun
-    case streak     // "3"               — skipped-breaks count
-    case count      // "41"              — generic counter the collector supplies
-    case hour       // "2:14 AM"         — localized time of day
+    case app        // "Cursor"         , display name of the foreground app
+    case minutes    // "94"             , continuous work minutes
+    case project    // "payments-api"   , workspace / repo name
+    case branch     // "fix/retry-loop" , current git branch
+    case activity   // "debugging"      , human-readable activity noun
+    case streak     // "3"              , skipped-breaks count
+    case count      // "41"             , generic counter the collector supplies
+    case hour       // "2:14 AM"        , localized time of day
 
     /// Slots that must never degrade, because a wrong value is worse than no line at all.
     /// There is no "your branch" that is funny, and a wrong skip count destroys the
@@ -41,7 +41,7 @@ public struct SlotValue: Sendable, Hashable, Codable {
         self.provenance = provenance
     }
 
-    /// Treated as exact for gating purposes — a derived value is arithmetic on a fact.
+    /// Treated as exact for gating purposes, a derived value is arithmetic on a fact.
     public var isHardEnoughForRequiredSlot: Bool {
         provenance == .exact || provenance == .derived
     }
@@ -121,7 +121,7 @@ public struct SlotResolver: Sendable {
 
     /// Returns the filled text, or nil when the line cannot be rendered honestly.
     ///
-    /// Never returns a string containing an unfilled `{slot}` — if a placeholder would
+    /// Never returns a string containing an unfilled `{slot}`, if a placeholder would
     /// survive, the template is dropped instead.
     public func fill(_ t: MessageTemplate, in ctx: MessageContext) -> String? {
         fill(t, table: table(for: ctx), family: ctx.appFamily)

@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The rails in `docs/MESSAGE-ENGINE.md` §4.2 apply at EVERY tier, including nuclear:
 /// never about body weight, appearance, medical conditions, mental health, competence,
-/// or job security. Nuclear is absurd and theatrical — never cruel.
+/// or job security. Nuclear is absurd and theatrical, never cruel.
 public enum Tone: String, Sendable, Codable, CaseIterable, Hashable, Comparable {
     case friendly
     case sarcastic
@@ -101,9 +101,9 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     public var snoozeMinutes: Int
     public var maxSnoozesPerBreak: Int
 
-    /// Tier 1 — window titles. Off until the user grants Accessibility.
+    /// Tier 1, window titles. Off until the user grants Accessibility.
     public var accessibilityEnabled: Bool
-    /// Tier 2 — read branch from `.git/HEAD`. Explicit opt-in, off by default.
+    /// Tier 2, read branch from `.git/HEAD`. Explicit opt-in, off by default.
     public var gitContextEnabled: Bool
     /// Record the browser HOST only. Explicit opt-in, off by default.
     public var browserHostEnabled: Bool

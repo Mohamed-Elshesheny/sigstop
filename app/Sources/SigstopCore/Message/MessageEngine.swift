@@ -280,7 +280,7 @@ public final class MessageEngine: @unchecked Sendable {
 
     /// Everything within `bandTolerance` of the best score, sorted deterministically.
     /// Inside the band templates are genuinely interchangeable in specificity, so
-    /// randomness is safe there — and only there.
+    /// randomness is safe there, and only there.
     static func band(_ candidates: [MessageTemplate], ctx: MessageContext) -> [MessageTemplate] {
         guard let best = candidates.map(Scorer.score).max() else { return [] }
         let cut = best - Scorer.bandTolerance

@@ -6,7 +6,7 @@ import SigstopCore
 
 /// What Tier 1 can see. Deliberately two fields, both optional, both `Sendable`.
 ///
-/// `documentURL` is a *real path* (`kAXDocument`) and is worth far more than the title —
+/// `documentURL` is a *real path* (`kAXDocument`) and is worth far more than the title ,
 /// but Electron apps (VS Code, Cursor, Slack, Discord, Figma) never provide it, so it is
 /// a bonus, never a requirement.
 public struct AXWindowInfo: Sendable, Hashable {
@@ -29,7 +29,7 @@ public enum AXFailure: Sendable, Hashable {
     case notTrusted
     /// `kAXErrorAPIDisabled` (-25211). What the API returns once we ask anyway.
     case apiDisabled
-    /// The target app did not answer inside the 0.25 s messaging timeout — beachballed,
+    /// The target app did not answer inside the 0.25 s messaging timeout, beachballed,
     /// or simply slow. Not an error worth surfacing loudly.
     case timedOut
     /// The app has no focused window (a menu-bar-only app, or mid-switch).
@@ -41,7 +41,7 @@ public enum AXFailure: Sendable, Hashable {
     public var userFacingSummary: String {
         switch self {
         case .notTrusted, .apiDisabled:
-            return "Window titles are off — Accessibility is not granted. Everything still works without it."
+            return "Window titles are off, Accessibility is not granted. Everything still works without it."
         case .timedOut:
             return "That app did not answer in time; skipping its window title."
         case .noFocusedWindow:
@@ -66,7 +66,7 @@ public enum AXEvent: Sendable, Hashable {
 /// Tier 1. The focused window's **title**, and `kAXDocument` where the app provides it.
 ///
 /// This type is an *upgrade*, never a gate. With no Accessibility grant every method here
-/// returns `nil` cleanly and the app keeps working at Tier 0 — which is the entire privacy
+/// returns `nil` cleanly and the app keeps working at Tier 0, which is the entire privacy
 /// promise, so the failure path below is load-bearing, not an afterthought.
 ///
 /// Three rules encoded structurally rather than by convention:
@@ -78,7 +78,7 @@ public enum AXEvent: Sendable, Hashable {
 ///    element we create, so a beachballed target costs us 250 ms, not a hang.
 /// 3. **No API can return the value of a text element.** Reading `kAXValue` of a text area
 ///    would hand us the user's source code and message drafts. There is no method here
-///    that does it — the capability is absent, not merely unused. This is the source-level
+///    that does it, the capability is absent, not merely unused. This is the source-level
 ///    form of "this watches your workflow, not your code" (CLAUDE.md §4.4).
 ///
 /// Electron note: VS Code and Cursor expose a shallow, sometimes-empty AX tree unless the
@@ -304,7 +304,7 @@ public final class AccessibilityCollector: @unchecked Sendable {
     }
 
     /// `kAXDocument` is documented as a URL string but real apps hand back both
-    /// `file:///…` and bare POSIX paths. Anything that is not a local file is discarded —
+    /// `file:///…` and bare POSIX paths. Anything that is not a local file is discarded ,
     /// we are not in the business of collecting remote URLs.
     static func fileURL(from raw: String) -> URL? {
         if let url = URL(string: raw), url.isFileURL { return url }

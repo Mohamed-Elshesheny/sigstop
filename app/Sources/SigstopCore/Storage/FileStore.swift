@@ -12,7 +12,7 @@ import Foundation
 /// ```
 ///
 /// No database, no binary blob, no encoding. The format is chosen so that `cat` is a
-/// complete audit tool — a skeptical developer should understand a line in ten seconds
+/// complete audit tool, a skeptical developer should understand a line in ten seconds
 /// and the whole file in a minute. That is a feature, not a shortcut.
 public final class FileEventStore: EventStore, @unchecked Sendable {
     public let root: URL
@@ -31,7 +31,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         try createTree()
     }
 
-    /// `~/Library/Application Support/<bundleID>` — or the sandboxed container's
+    /// `~/Library/Application Support/<bundleID>`, or the sandboxed container's
     /// equivalent, which `applicationSupport` already accounts for when the caller got
     /// it from `FileManager`. Resolving the URL is the app layer's job; this type only
     /// assembles the path so `SigstopCore` never has to ask the OS anything.
@@ -80,7 +80,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     ///
     /// 1. The reader skips and counts that line instead of dying on it, so the rest of
     ///    the day survives intact.
-    /// 2. The next append **heals the tail** — if the file does not end in a newline, a
+    /// 2. The next append **heals the tail**, if the file does not end in a newline, a
     ///    newline is written first. Without that step the torn bytes would fuse with the
     ///    next event and quietly corrupt two lines instead of one.
     private func appendRaw(_ text: String, to url: URL) throws {

@@ -15,7 +15,7 @@ public enum Policy {
     /// Scarcity is what makes NUCLEAR land.
     public static let nuclearPerDay = 1
     public static let nuclearCooldownHours = 6
-    /// Avoid three identical tones in a row — deprioritized, not blocked.
+    /// Avoid three identical tones in a row, deprioritized, not blocked.
     public static let toneRepeatWindow = 3
     public static let toneRepeatWeightMultiplier = 0.4
     /// At the `allowSameDay` stage a same-day repeat needs at least this much distance.
@@ -67,7 +67,7 @@ public struct LedgerEntry: Sendable, Codable, Hashable {
 ///
 /// A reference type on purpose: the engine and the persistence layer hold the same ledger,
 /// and "what did we already say" is genuine shared identity rather than a value. Core does
-/// no I/O, so persistence is somebody else's job — `snapshot` / `init(entries:)` is the
+/// no I/O, so persistence is somebody else's job, `snapshot` / `init(entries:)` is the
 /// whole interface they need.
 public final class RecencyLedger: @unchecked Sendable {
     private let lock = NSLock()

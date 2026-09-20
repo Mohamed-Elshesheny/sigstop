@@ -15,8 +15,8 @@ import SigstopSensors
 /// ```
 ///
 /// `BreakDecisionEngine.step` is a pure function that *returns* what should happen. If
-/// any part of this file leaked back into `SigstopCore` — a notification posted from the
-/// engine, a window opened from the tracker — the state machine would stop being a table
+/// any part of this file leaked back into `SigstopCore`, a notification posted from the
+/// engine, a window opened from the tracker, the state machine would stop being a table
 /// of unit tests and start needing a window server. So every side effect lands in
 /// `execute(_:)` below and nowhere else.
 ///
@@ -57,7 +57,7 @@ final class AppModel {
     private(set) var continuousWorkMeasuredAt: Double = 0
     private(set) var timeSinceLastBreak: TimeInterval?
     private(set) var activityLabel: String = "starting up"
-    private(set) var applicationName: String = "—"
+    private(set) var applicationName: String = ","
     private(set) var confidence: Double = 0
     private(set) var evidenceLines: [EvidenceLine] = []
     private(set) var caveats: [String] = []
@@ -86,7 +86,7 @@ final class AppModel {
     var onSettingsChanged: (() -> Void)?
     private(set) var isRunning = false
 
-    /// 0…1 — how full the menu bar bars are drawn. The fraction of the target interval
+    /// 0…1, how full the menu bar bars are drawn. The fraction of the target interval
     /// that has actually been *worked*, clamped, never extrapolated.
     var workFraction: Double {
         let target = settings.workInterval
@@ -141,7 +141,7 @@ final class AppModel {
     @ObservationIgnored private let overlay = BreakOverlayController()
 
     /// The updater. Observed, unlike its neighbours above, because Settings > About draws
-    /// its state directly — the progress bar is the object's own `state`, not a copy.
+    /// its state directly, the progress bar is the object's own `state`, not a copy.
     ///
     /// Constructed at launch rather than when Settings opens, and that is load-bearing in
     /// one direction only: Sparkle's scheduler has to exist for the whole session or the
@@ -214,6 +214,7 @@ final class AppModel {
     // MARK: - Lifecycle
 
     func start() {
+        observeAccessibilityGrant()
         guard !isRunning else { return }
         isRunning = true
 
@@ -264,7 +265,7 @@ final class AppModel {
         Task { [weak self] in await self?.tick() }
     }
 
-    /// `SIGHUP` — re-read the config. A changed work interval or tone takes effect on the
+    /// `SIGHUP`, re-read the config. A changed work interval or tone takes effect on the
     /// next sample, not at the next launch.
     func update(settings newValue: SigstopSettings) {
         guard newValue != settings else { return }
@@ -543,7 +544,7 @@ final class AppModel {
             lastStoreError = nil
         } catch {
             store = nil
-            lastStoreError = "Could not open \(AppPaths.storageRoot.path) — \(error)"
+            lastStoreError = "Could not open \(AppPaths.storageRoot.path), \(error)"
         }
     }
 
@@ -552,7 +553,7 @@ final class AppModel {
         do {
             try store.append(event)
         } catch {
-            lastStoreError = "Could not write the event log — \(error)"
+            lastStoreError = "Could not write the event log, \(error)"
         }
     }
 
@@ -676,7 +677,7 @@ final class AppModel {
         do {
             return try store.export(to: destination).userFacingSummary
         } catch {
-            return "Export failed — \(error)"
+            return "Export failed, \(error)"
         }
     }
 
@@ -691,7 +692,7 @@ final class AppModel {
             refreshRollup(force: true)
             return report.userFacingSummary
         } catch {
-            return "Delete failed — \(error)"
+            return "Delete failed, \(error)"
         }
     }
 
@@ -709,6 +710,24 @@ final class AppModel {
     func refreshPermissions() {
         sensors.permissions.refresh()
         permissionStatus = sensors.permissions.status()
+    }
+
+    /// macOS posts this the moment the Accessibility switch is flipped, for any app.
+    ///
+    /// Without it the pane kept showing whatever was true the last time something asked,
+    /// so granting the permission while the window was open looked like it had not
+    /// worked, and the Re-check button was the only way to find out otherwise.
+    private func observeAccessibilityGrant() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.accessibility.api"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                self?.refreshPermissions()
+            }
+        }
     }
 
     // MARK: - Event subscriptions
@@ -811,7 +830,7 @@ final class AppModel {
             return nil
         case .hardBlocked(let block):
             switch block {
-            case .audioInputInUse:        return "an audio input device is running — you may be on a call"
+            case .audioInputInUse:        return "an audio input device is running, you may be on a call"
             case .cameraInUse:            return "the camera is in use"
             case .screenBeingShared:      return "your screen is being shared"
             case .presentationFullscreen: return "something fullscreen looks like a presentation"
@@ -819,24 +838,24 @@ final class AppModel {
             case .screenLocked:           return "the screen is locked"
             case .systemSleeping:         return "the machine is asleep"
             case .fastUserSwitched:       return "someone else is signed in at the console"
-            case .settleInAfterBreak:     return "you just got back — settling in"
+            case .settleInAfterBreak:     return "you just got back, settling in"
             case .videoEventInProgress:   return "a video meeting is in progress"
             case .imminentMeeting:        return "a meeting starts in a moment"
             }
         case .softDeferred(let reason):
             switch reason {
-            case .deepFocus:               return "you look deep in it — waiting for a seam"
-            case .typingBurst:             return "you are mid-burst — waiting for a pause"
+            case .deepFocus:               return "you look deep in it, waiting for a seam"
+            case .typingBurst:             return "you are mid-burst, waiting for a pause"
             case .terminalCommandRunning:  return "a command is still running"
-            case .preMeetingWindow:        return "a meeting is close — waiting"
-            case .recentAppLaunch:         return "you just switched app — waiting a moment"
+            case .preMeetingWindow:        return "a meeting is close, waiting"
+            case .recentAppLaunch:         return "you just switched app, waiting a moment"
             case .inferredMeeting:         return "a conferencing app is up, so you might be in a meeting"
             case .calendarEventInProgress: return "a calendar event is in progress"
             }
         case .rateLimited(let limit):
             switch limit {
             case .quietHours:           return "quiet hours"
-            case .dailyCapReached:      return "today's notification budget is spent — passive only from here"
+            case .dailyCapReached:      return "today's notification budget is spent, passive only from here"
             case .cycleNotificationCap: return "this cycle has had its notifications"
             case .minimumSpacing:       return "too soon after the last one"
             case .ignoreBackoff:        return "these have been going unanswered, so the ladder is shortened"

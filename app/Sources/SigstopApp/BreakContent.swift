@@ -4,13 +4,13 @@ import SigstopCore
 /// What the break overlay says.
 ///
 /// Deliberately tiny and local to the app layer. The message engine owns the *voice* of
-/// an interruption — it has a corpus, a recency ledger and a tone ladder. This is the
+/// an interruption, it has a corpus, a recency ledger and a tone ladder. This is the
 /// opposite job: one steady line during the break itself, which should not be a joke and
 /// should not vary with how annoyed the app is.
 ///
 /// Copy rails, from CLAUDE.md §4.5 and docs/BREAK-DECISION.md §16:
 ///
-///   * no medical claims, ever — this is a workflow tool, not a health product;
+///   * no medical claims, ever, this is a workflow tool, not a health product;
 ///   * "your posture", never "your health";
 ///   * never about the body beyond the mechanics of standing up and looking away;
 ///   * the resume control is `SIGCONT`. It is never labelled "Dismiss".

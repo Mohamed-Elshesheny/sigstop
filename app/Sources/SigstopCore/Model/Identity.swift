@@ -28,19 +28,19 @@ public enum RepoState: String, Sendable, Codable, Hashable {
 }
 
 /// Everything is optional. A field is nil when the tier that would populate it is
-/// unavailable. There is deliberately no "unknown" sentinel string — absence is
+/// unavailable. There is deliberately no "unknown" sentinel string, absence is
 /// modelled as absence, so a template that needs `{branch}` simply cannot be selected
 /// when the branch is not known.
 public struct ActivityContext: Sendable, Codable, Hashable {
-    /// tier1 — parsed from a window title. A heuristic, and labelled as one.
+    /// tier1, parsed from a window title. A heuristic, and labelled as one.
     public var projectName: String?
     /// tier1
     public var fileName: String?
     /// tier1
     public var fileExtension: String?
-    /// tier1 — `kAXDocument`. A real path, unlike `projectName`.
+    /// tier1, `kAXDocument`. A real path, unlike `projectName`.
     public var documentURL: URL?
-    /// tier2 — read from `.git/HEAD`.
+    /// tier2, read from `.git/HEAD`.
     public var branch: String?
     /// tier2
     public var repoState: RepoState?
@@ -79,7 +79,7 @@ public struct ConcurrentStates: Sendable, Codable, Hashable {
     public var screenLocked: Bool
     public var onBattery: Bool
     public var lowPowerMode: Bool
-    /// Any display is running a fullscreen app — a weak presentation signal.
+    /// Any display is running a fullscreen app, a weak presentation signal.
     public var fullscreen: Bool
 
     public init(

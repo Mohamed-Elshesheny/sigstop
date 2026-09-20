@@ -5,7 +5,7 @@ import IOKit.ps
 import SigstopCore
 
 /// OS facts and state transitions. Every event here is something the kernel or the
-/// window server told us — not an inference — which is why these are the only signals
+/// window server told us, not an inference, which is why these are the only signals
 /// permitted to reach `Confidence.certain` or to hard-block a prompt.
 public enum SystemEvent: Sendable, Hashable {
     case screenLocked(at: Date)
@@ -60,7 +60,7 @@ public final class SystemStateCollector {
 
     /// `CGWindowListCopyWindowInfo` is feature-detected once: if it returns no windows
     /// while windows are demonstrably on screen, the whole geometry signal is marked
-    /// unavailable and every consumer treats it as optional. It is garnish — it is on the
+    /// unavailable and every consumer treats it as optional. It is garnish, it is on the
     /// same deprecation trajectory as `CGWindowListCreateImage` (removed in favour of
     /// ScreenCaptureKit in 14.4), and ScreenCaptureKit needs the Screen Recording grant
     /// we refuse. Nothing may become load-bearing on it.
@@ -172,7 +172,7 @@ public final class SystemStateCollector {
 
     // MARK: - Window geometry (garnish)
 
-    /// On-demand only — called on app-activation events, never on a timer. Titles are
+    /// On-demand only, called on app-activation events, never on a timer. Titles are
     /// **not** read: `kCGWindowName` is omitted without Screen Recording, and we do not
     /// want it. This returns counts and a fullscreen hint, nothing more.
     public func windowGeometry(frontmostPID: pid_t) -> WindowGeometrySnapshot? {
@@ -254,7 +254,7 @@ public final class SystemStateCollector {
     }
 
     /// Cross-check for the undocumented lock notifications. `nil` when the session
-    /// dictionary is unavailable — which is "no information", not "unlocked".
+    /// dictionary is unavailable, which is "no information", not "unlocked".
     static func readScreenLockedFromSession() -> Bool? {
         guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return nil }
         return dict["CGSSessionScreenIsLocked"] as? Bool

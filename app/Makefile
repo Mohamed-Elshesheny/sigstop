@@ -1,4 +1,4 @@
-# sigstop — build with Command Line Tools only. No Xcode required.
+# sigstop, build with Command Line Tools only. No Xcode required.
 .DEFAULT_GOAL := help
 .PHONY: help build bundle run test doctor fmt lint clean dev-cert verify
 
@@ -19,7 +19,7 @@ run: bundle ## Build, bundle, and launch
 	@pkill -x $(APP) 2>/dev/null || true
 	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x $(APP) >/dev/null || break; sleep 0.2; done
 	@open $(BUNDLE)
-	@echo "launched — look in the menu bar"
+	@echo "launched, look in the menu bar"
 
 # swift-testing ships INSIDE Command Line Tools but is not on any default search
 # path, and its Foundation cross-import overlay has a broken module symlink there.
@@ -62,7 +62,7 @@ dev-cert: ## One-time: create a stable self-signed identity so TCC grants surviv
 		echo "     Certificate Type: Code Signing"; \
 		echo "  4. Then build with:  SIGN_IDENTITY=sigstop-dev make bundle"; \
 		echo ""; \
-		echo "(This needs Keychain UI, so it is not scripted — a half-working"; \
+		echo "(This needs Keychain UI, so it is not scripted, a half-working"; \
 		echo " automation here would be worse than a clear instruction.)"; \
 	fi
 

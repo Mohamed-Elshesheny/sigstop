@@ -6,7 +6,7 @@ import SigstopCore
 /// Tier 0. Seconds since the last **human** HID event.
 ///
 /// No permission and no prompt: this reports *when* input last happened, never *what*
-/// was typed. Input Monitoring — the grant that would let us count keystrokes — is
+/// was typed. Input Monitoring, the grant that would let us count keystrokes, is
 /// declined on principle (docs/ACTIVITY-DETECTION.md §12.1).
 ///
 /// Two traps this type exists to avoid:
@@ -25,9 +25,9 @@ public struct IdleCollector: Sendable {
     /// Idle thresholds the engine cares about, ascending. Used to schedule exactly one
     /// timer per idle episode instead of polling.
     ///
-    /// * 90 s  — `SigstopSettings.microIdleThresholdSeconds` default: the work clock pauses.
-    /// * 120 s — below this a gap is reading/thinking; above it, confidence decays (§7.11).
-    /// * 300 s — `IDLE` at 0.90, and the sampling subsystem suspends itself (§8.4).
+    /// * 90 s , `SigstopSettings.microIdleThresholdSeconds` default: the work clock pauses.
+    /// * 120 s, below this a gap is reading/thinking; above it, confidence decays (§7.11).
+    /// * 300 s, `IDLE` at 0.90, and the sampling subsystem suspends itself (§8.4).
     public static let thresholds: [TimeInterval] = [90, 120, 300]
 
     public func read() -> InputActivity {

@@ -6,7 +6,7 @@ import Foundation
 
 /// The applications the corpus is allowed to name out loud.
 ///
-/// Resolved from the bundle identifier, which is a Tier 0 OS fact — no permission, no
+/// Resolved from the bundle identifier, which is a Tier 0 OS fact, no permission, no
 /// prompt, no inference. That is why `appConfidence` may legitimately be high while
 /// `activityConfidence` is not.
 public enum AppKey: String, Codable, Sendable, CaseIterable, Hashable {
@@ -89,7 +89,7 @@ public enum AppFamily: String, Codable, Sendable, CaseIterable, Hashable {
     case other
 
     /// The family-level substitute for `{app}` when the exact name is not available.
-    /// Never wrong, which is the whole point — see docs/MESSAGE-ENGINE.md §2.3.
+    /// Never wrong, which is the whole point, see docs/MESSAGE-ENGINE.md §2.3.
     public var degradedAppName: String {
         switch self {
         case .aiEditor, .editor, .ide: return "your editor"
@@ -276,7 +276,7 @@ public struct MessageContext: Sendable, Hashable {
         return name.isEmpty ? nil : name
     }
 
-    /// How sure we are *which app is frontmost* — not what is happening inside it.
+    /// How sure we are *which app is frontmost*, not what is happening inside it.
     public var appConfidence: Double {
         if let override = appConfidenceOverride { return min(max(override, 0), 1) }
         guard let bundleID = developer.application.bundleID, !bundleID.isEmpty else {

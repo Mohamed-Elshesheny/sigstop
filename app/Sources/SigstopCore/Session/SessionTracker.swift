@@ -6,7 +6,7 @@ import Foundation
 /// except `activity`/`confidence`, which are an inference and are never allowed to move the
 /// clock on their own.
 public struct TickSample: Sendable, Hashable {
-    /// `CGEventSource.secondsSinceLastEventType` — keyboard, mouse, trackpad, tablet, all
+    /// `CGEventSource.secondsSinceLastEventType`, keyboard, mouse, trackpad, tablet, all
     /// apps, no permission required.
     public var idleSeconds: TimeInterval
     public var screenLocked: Bool
@@ -143,7 +143,7 @@ public struct SessionTracker: Sendable {
     /// instead of "the timer was starved"; the duration bands are identical either way.
     public mutating func noteSystemWake() { pendingWakeCause = .systemSleep }
 
-    /// The user accepted (or started) a break. The clock pauses — it does not reset. A break
+    /// The user accepted (or started) a break. The clock pauses, it does not reset. A break
     /// that turns out to be too short must cost nothing.
     @discardableResult
     public mutating func beginBreak(origin: BreakOrigin) -> [SessionEvent] {
@@ -157,7 +157,7 @@ public struct SessionTracker: Sendable {
     }
 
     /// End a break. Long enough and it is a real break: reset and record. Too short and it
-    /// is nothing at all — counting it would make the compliance number a lie the user can farm.
+    /// is nothing at all, counting it would make the compliance number a lie the user can farm.
     @discardableResult
     public mutating func endBreak(origin: BreakOrigin) -> [SessionEvent] {
         let now = time.now

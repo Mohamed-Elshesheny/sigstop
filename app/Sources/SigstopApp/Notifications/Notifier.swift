@@ -23,8 +23,8 @@ enum PromptResponse: Sendable, Hashable {
 /// 3. **It does not decide anything.** It renders a `PromptRequest` the engine produced
 ///    and reports what the user pressed.
 ///
-/// When notifications are unavailable — no bundle (a `swift run` build), or the user said
-/// no — `onFallbackNeeded` fires and the app draws its own panel instead. That fallback is
+/// When notifications are unavailable, no bundle (a `swift run` build), or the user said
+/// no, `onFallbackNeeded` fires and the app draws its own panel instead. That fallback is
 /// documented in §3.2 and needs no permission at all.
 @MainActor
 final class Notifier: NSObject {
@@ -61,7 +61,7 @@ final class Notifier: NSObject {
         guard let center = resolveCenter() else {
             onStateChange?(
                 .unavailable(
-                    "Notifications need a real .app bundle — this build is running as a "
+                    "Notifications need a real .app bundle, this build is running as a "
                         + "bare executable. Run `make run` for the bundled app. Falling back "
                         + "to the app's own panel."
                 )
@@ -103,7 +103,7 @@ final class Notifier: NSObject {
                 }
                 self.onStateChange?(.available)
             } catch {
-                self.onStateChange?(.unavailable("macOS refused the notification — \(error)"))
+                self.onStateChange?(.unavailable("macOS refused the notification, \(error)"))
                 self.onFallbackNeeded?(request, message)
             }
         }
@@ -114,7 +114,7 @@ final class Notifier: NSObject {
     /// `.timeSensitive` additionally requires the time-sensitive entitlement; without it
     /// macOS silently treats the notification as `.active`, which is the correct
     /// degradation and not an error. The app never asks for `.critical`, which would
-    /// bypass Do Not Disturb — a menu bar app that overrides Focus has misunderstood what
+    /// bypass Do Not Disturb, a menu bar app that overrides Focus has misunderstood what
     /// it is for.
     static func interruptionLevel(for level: EscalationLevel) -> UNNotificationInterruptionLevel {
         switch level {
@@ -180,7 +180,7 @@ final class Notifier: NSObject {
     }
 
     /// Asks once, at the first break. A refusal is remembered by macOS, so re-asking is
-    /// both impossible and pointless — the fallback panel takes over instead.
+    /// both impossible and pointless, the fallback panel takes over instead.
     private func ensureAuthorized(_ center: UNUserNotificationCenter) async -> Bool {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
@@ -191,7 +191,7 @@ final class Notifier: NSObject {
                 .unavailable(
                     "Notifications are turned off for sigstop in System Settings. Falling "
                         + "back to the app's own panel, which does not respect Do Not "
-                        + "Disturb — the app's quiet hours are the only mute."
+                        + "Disturb, the app's quiet hours are the only mute."
                 )
             )
             return false
@@ -232,7 +232,7 @@ extension Notifier: UNUserNotificationCenterDelegate {
     }
 
     /// Show the banner even while sigstop is frontmost. The app is a menu bar item, so
-    /// "frontmost" usually means its own popover is open — precisely when the prompt is
+    /// "frontmost" usually means its own popover is open, precisely when the prompt is
     /// still worth seeing.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,

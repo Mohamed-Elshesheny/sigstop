@@ -35,14 +35,14 @@ public enum DurationText {
 ///
 /// This is the voice of `jobs`: everything you had suspended today, reported once, in
 /// the tone the user chose. It reports; it does not grade (docs/BREAK-DECISION.md §16)
-/// — there are no streaks, no badges, and no red numbers anywhere in this file.
+///, there are no streaks, no badges, and no red numbers anywhere in this file.
 public struct SummaryNarrator: Sendable {
     public let tone: Tone
     private let appName: @Sendable (String) -> String
 
     /// - Parameter appName: how a bundle identifier is spoken. The default takes the
     ///   last dotted component, which turns `com.apple.dt.Xcode` into `Xcode` without
-    ///   asking the operating system anything — `SigstopCore` has no way to look up a
+    ///   asking the operating system anything, `SigstopCore` has no way to look up a
     ///   localized name and must not acquire one.
     public init(
         tone: Tone = .sarcastic,
@@ -108,7 +108,7 @@ public struct SummaryNarrator: Sendable {
     }
 
     /// The auditable long form that sits under the line: numbers, no voice.
-    /// Always rendered with the parenthetical, per docs/BREAK-DECISION.md §14.2 — a bare
+    /// Always rendered with the parenthetical, per docs/BREAK-DECISION.md §14.2, a bare
     /// percentage invites optimising a number.
     public func detail(for summary: DailySummary) -> String {
         var parts: [String] = []
@@ -191,7 +191,7 @@ public struct SummaryNarrator: Sendable {
 extension SummaryNarrator {
 
     /// Openers carry the facts. The tone changes *what the sentence is about*, not how
-    /// hard it hits — see docs/MESSAGE-ENGINE.md §4.1.
+    /// hard it hits, see docs/MESSAGE-ENGINE.md §4.1.
     static let openers: [Tone: [Template]] = [
         .friendly: [
             Template("{workLong} of active work today."),
@@ -293,7 +293,7 @@ extension SummaryNarrator {
         ],
     ]
 
-    /// A day with nothing on the clock. Reported plainly — an empty log is a result,
+    /// A day with nothing on the clock. Reported plainly, an empty log is a result,
     /// not a failure, and nothing here implies the reader did something wrong.
     static let emptyDayLines: [Tone: [Template]] = [
         .friendly: [

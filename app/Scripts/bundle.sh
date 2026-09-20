@@ -44,7 +44,7 @@ done
 # SwiftPM links Sparkle as @rpath/Sparkle.framework/... and drops the framework
 # next to the build product, which is why `swift run` works. A .app has to carry
 # its own copy in Contents/Frameworks, and the executable needs an rpath that
-# points there — without it the app launches fine from .build and dies with a
+# points there, without it the app launches fine from .build and dies with a
 # dyld "Library not loaded" the moment you double-click the bundle.
 #
 # The framework is copied WHOLE, symlinks and all (`cp -a`, not `cp -RL`).
@@ -61,7 +61,7 @@ if [ -d "${FRAMEWORK}" ]; then
   install_name_tool -add_rpath "@executable_path/../Frameworks" \
                     "${BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
 else
-  echo "==> WARNING: ${FRAMEWORK} missing — the bundle will not launch" >&2
+  echo "==> WARNING: ${FRAMEWORK} missing, the bundle will not launch" >&2
 fi
 
 # ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ HARDENED="${HARDENED:-0}"
 RUNTIME_FLAGS=()
 if [ "${HARDENED}" = "1" ]; then
   RUNTIME_FLAGS=(--options runtime)
-  echo "    (hardened runtime requested — needs a Developer ID or the app will not launch)"
+  echo "    (hardened runtime requested, needs a Developer ID or the app will not launch)"
 fi
 
 codesign --force --sign "${SIGN_IDENTITY}" \

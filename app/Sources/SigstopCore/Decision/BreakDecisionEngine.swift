@@ -5,7 +5,7 @@ import Foundation
 /// Everything the engine is allowed to know, at one instant.
 ///
 /// The engine reads nothing else: no clock, no defaults, no singletons. `now` and
-/// `monotonic` both come from the caller's `TimeSource` — `now` for anything a human will
+/// `monotonic` both come from the caller's `TimeSource`, `now` for anything a human will
 /// see or that a calendar must interpret, `monotonic` for every duration, because the wall
 /// clock steps and the monotonic clock does not.
 public struct EngineInput: Sendable {

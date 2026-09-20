@@ -127,12 +127,12 @@ public protocol EventStore: Sendable {
     func load(day: CalendarDay) throws -> DayLoad
 
     /// A single, self-describing text blob the user can read end to end. Nothing is
-    /// transformed or filtered — the export is a copy, so what you audit is what the
+    /// transformed or filtered, the export is a copy, so what you audit is what the
     /// app has (docs/PRIVACY.md §4.6).
     func exportText() throws -> String
 
     /// Drop everything older than `retentionDays` counted back from `now`.
-    /// `retentionDays == 0` means keep nothing — a real mode, not a degenerate one.
+    /// `retentionDays == 0` means keep nothing, a real mode, not a degenerate one.
     @discardableResult
     func prune(retentionDays: Int, asOf now: Date) throws -> PruneReport
 
@@ -307,7 +307,7 @@ public enum PruneMath {
 
 /// One file, plain text, readable top to bottom.
 ///
-/// Header lines start with `#`, which `EventLogCodec` skips — so the export is not only
+/// Header lines start with `#`, which `EventLogCodec` skips, so the export is not only
 /// human-readable, it feeds straight back into this same reader.
 enum ExportWriter {
     static func render(
@@ -325,7 +325,7 @@ enum ExportWriter {
             body += try EventLogCodec.encodeLines(dayEvents)
         }
         out += "# sigstop event log export\n"
-        out += "# schema v\(EventSchema.version) — one JSON object per line, see docs/PRIVACY.md §4.3\n"
+        out += "# schema v\(EventSchema.version), one JSON object per line, see docs/PRIVACY.md §4.3\n"
         out += "# source: \(location)\n"
         if let first = days.first, let last = days.last {
             out += "# days: \(first) .. \(last)  (\(days.count))\n"

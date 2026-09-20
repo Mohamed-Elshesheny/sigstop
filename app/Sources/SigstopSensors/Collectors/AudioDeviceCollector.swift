@@ -96,7 +96,7 @@ public final class AudioDeviceCollector: @unchecked Sendable {
     }
 
     /// The accounting window only advances while the machine is awake and the user is at
-    /// the console — 8 hours lid-closed must not count as 8 hours of "mic quiet".
+    /// the console, 8 hours lid-closed must not count as 8 hours of "mic quiet".
     public func setSystemAwake(_ awake: Bool) {
         lock.lock()
         accountLocked(at: time.now)
@@ -131,12 +131,12 @@ public final class AudioDeviceCollector: @unchecked Sendable {
         guard isUnreliableLocked(at: now) else { return nil }
         if let since = runningSince, now.timeIntervalSince(since) > Self.continuousRunningUnreliableThreshold {
             let hours = Int(now.timeIntervalSince(since) / 3600)
-            return "Microphone signal disabled on this Mac — an input device has been "
+            return "Microphone signal disabled on this Mac, an input device has been "
                 + "running continuously for \(hours)h. Something (Krisp, Loopback, a headset "
                 + "daemon) is holding it open, so it cannot indicate a meeting."
         }
         let pct = Int((runningAwakeSeconds / max(observedAwakeSeconds, 1)) * 100)
-        return "Microphone signal disabled on this Mac — an input device was running for "
+        return "Microphone signal disabled on this Mac, an input device was running for "
             + "\(pct)% of the last day. It never turns off, so it cannot indicate a meeting."
     }
 
@@ -346,7 +346,7 @@ public final class AudioDeviceCollector: @unchecked Sendable {
         return false
     }
 
-    /// `nil` when the property cannot be read — treated as "no information", never `false`.
+    /// `nil` when the property cannot be read, treated as "no information", never `false`.
     static func deviceIsRunningSomewhere(_ device: AudioObjectID) -> Bool? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,

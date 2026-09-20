@@ -8,7 +8,7 @@ import SwiftUI
 /// The previous version was five grouped forms behind a toolbar tab strip, and it looked
 /// like a System Settings pane someone had wandered into: rounded grey cards, system-blue
 /// switches, no hierarchy, 640 points of it. This is the same settings in the app's own
-/// vocabulary — a monospaced nav on the left, one headline per page, sections marked by
+/// vocabulary, a monospaced nav on the left, one headline per page, sections marked by
 /// a kicker and ruled rows, controls drawn in the palette. The window is wider so the
 /// help text can sit beside its control instead of under it.
 struct SettingsView: View {
@@ -210,7 +210,7 @@ struct SettingsView: View {
             set: { wanted in
                 guard AppPaths.isBundled else {
                     launchAtLoginFailure =
-                        "Launching at login needs the bundled app — build it with `make bundle`."
+                        "Launching at login needs the bundled app, build it with `make bundle`."
                     return
                 }
                 do {
@@ -224,7 +224,7 @@ struct SettingsView: View {
                     updated.launchAtLogin = wanted
                     model.update(settings: updated)
                 } catch {
-                    launchAtLoginFailure = "macOS refused — \(error.localizedDescription)"
+                    launchAtLoginFailure = "macOS refused, \(error.localizedDescription)"
                 }
             }
         )
@@ -260,8 +260,8 @@ struct SettingsView: View {
 
             SettingsSection("escalation") {
                 Note(
-                    "If a prompt is ignored the ladder climbs one signal per rung — SIGTSTP, SIGINT, "
-                        + "SIGTERM, then SIGSTOP — ordered by how easy each is to ignore. It stops "
+                    "If a prompt is ignored the ladder climbs one signal per rung, SIGTSTP, SIGINT, "
+                        + "SIGTERM, then SIGSTOP, ordered by how easy each is to ignore. It stops "
                         + "there. There is no SIGKILL, because SIGKILL destroys the exact thing this "
                         + "app promises to keep."
                 )
@@ -283,7 +283,7 @@ struct SettingsView: View {
                 SettingRow(
                     "Use window titles to tell a meeting from a terminal",
                     detail: "Titles are parsed inside one function and the raw string is discarded. "
-                        + "Nothing about a title is ever written to disk — only whether one was "
+                        + "Nothing about a title is ever written to disk, only whether one was "
                         + "legible at all."
                 ) {
                     TerminalSwitch(isOn: settings.accessibilityEnabled)
@@ -291,7 +291,7 @@ struct SettingsView: View {
                 SettingRow(
                     "Accessibility",
                     detail: "The button takes you to the switch. The app never raises the macOS "
-                        + "permission alert on its own — not at launch, not from a timer, not when "
+                        + "permission alert on its own, not at launch, not from a timer, not when "
                         + "it decides you would get more out of it."
                 ) {
                     VStack(alignment: .trailing, spacing: 8) {
@@ -314,7 +314,7 @@ struct SettingsView: View {
             SettingsSection("tier 2 · git context") {
                 SettingRow(
                     "Read the branch name from .git/HEAD",
-                    detail: "Off by default. The branch name only, read from the file — never a "
+                    detail: "Off by default. The branch name only, read from the file, never a "
                         + "command, never a diff, never a commit message."
                 ) {
                     TerminalSwitch(isOn: settings.gitContextEnabled)
@@ -420,17 +420,6 @@ struct SettingsView: View {
     private var about: some View {
         VStack(alignment: .leading, spacing: 0) {
             updates
-            SettingsSection("links") {
-                HStack(spacing: 8) {
-                    TerminalButton("Source") { NSWorkspace.shared.open(Links.repo) }
-                        .fixedSize()
-                    TerminalButton("Releases") { NSWorkspace.shared.open(Links.releases) }
-                        .fixedSize()
-                    TerminalButton("Privacy") { NSWorkspace.shared.open(Links.privacy) }
-                        .fixedSize()
-                }
-                .padding(.top, 12)
-            }
         }
     }
 
@@ -763,7 +752,7 @@ private struct ToneCard: View {
 }
 
 /// One line of `PermissionStatus.explanation`, which the sensors layer writes as
-/// `Tier N — what: ON/OFF, and why`. The tier is set in mono, the rest in the sans, and
+/// `Tier N, what: ON/OFF, and why`. The tier is set in mono, the rest in the sans, and
 /// the dot is green only when the line says the tier is on. The split is presentational:
 /// a line without the dash is shown whole.
 private struct TierRow: View {
@@ -789,7 +778,7 @@ private struct TierRow: View {
     }
 
     private var split: (String, String) {
-        guard let range = line.range(of: " — ") else { return ("", line) }
+        guard let range = line.range(of: ", ") else { return ("", line) }
         return (String(line[..<range.lowerBound]), String(line[range.upperBound...]))
     }
 

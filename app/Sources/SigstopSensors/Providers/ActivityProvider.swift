@@ -10,14 +10,14 @@ import SigstopCore
 /// a prefix, which always beats an executable name, which always beats a catch-all regex.
 public struct AppClaim: Sendable, Hashable {
     public enum Match: Sendable, Hashable {
-        /// Exact bundle identifier — specificity 300.
+        /// Exact bundle identifier, specificity 300.
         case bundleID(String)
-        /// e.g. `"com.jetbrains."` — specificity 200 + prefix length, so a longer (more
+        /// e.g. `"com.jetbrains."`, specificity 200 + prefix length, so a longer (more
         /// specific) prefix outranks a shorter one.
         case bundleIDPrefix(String)
-        /// For bundle-less processes — specificity 150.
+        /// For bundle-less processes, specificity 150.
         case executableName(String)
-        /// Last resort — specificity 100.
+        /// Last resort, specificity 100.
         case bundleIDRegex(String)
     }
 
@@ -85,7 +85,7 @@ final class RegexCache: @unchecked Sendable {
 /// What a provider proposes.
 ///
 /// A provider does **not** compute the final confidence. `ConfidenceEngine` does, so that
-/// tier ceilings and calibration live in exactly one place and cannot be bypassed — by a
+/// tier ceilings and calibration live in exactly one place and cannot be bypassed, by a
 /// third-party provider, by a declarative manifest, or by a future built-in that gets
 /// enthusiastic.
 public struct ProviderVerdict: Sendable {
@@ -98,11 +98,11 @@ public struct ProviderVerdict: Sendable {
     public let degradedFromAmbiguity: Bool
     /// Meeting corroboration and other non-exclusive state the provider can contribute.
     public let concurrentHints: ConcurrentHints
-    /// When the honest label differs from the activity's own name — e.g. a desktop AI app
+    /// When the honest label differs from the activity's own name, e.g. a desktop AI app
     /// with no corroboration is "AI assistant", not "AI coding". The *label* degrades, not
     /// just the number.
     public let labelOverride: String?
-    /// A provider may state an honest upper bound on its own claim — e.g. "a test-file
+    /// A provider may state an honest upper bound on its own claim, e.g. "a test-file
     /// name in a title means you are *editing* a test, which is not *running* one, so this
     /// tops out at 0.72". The engine takes the minimum of this and the tier ceiling, so a
     /// provider can only ever LOWER confidence, never raise it.
@@ -147,7 +147,7 @@ public struct ConcurrentHints: Sendable, Hashable {
 ///
 /// Owns no state, performs no I/O, is `Sendable`. All I/O happened upstream in the
 /// collectors; a provider only *interprets*. That is what makes every classification rule
-/// in docs/ACTIVITY-DETECTION.md §7 testable by writing a `SignalContext` literal — which
+/// in docs/ACTIVITY-DETECTION.md §7 testable by writing a `SignalContext` literal, which
 /// matters a great deal here, because there is no Xcode and therefore no UI test harness.
 public protocol ActivityProvider: Sendable {
     static var identifier: ProviderID { get }
@@ -156,7 +156,7 @@ public protocol ActivityProvider: Sendable {
     /// use 0; a third-party override uses 100 so it wins by default.
     var priority: Int { get }
 
-    /// Return `nil` to decline — e.g. a provider that only recognises a specific window
+    /// Return `nil` to decline, e.g. a provider that only recognises a specific window
     /// title shape and sees none. Declining passes the app to the next ranked provider,
     /// and ultimately to `GenericProvider`, which never declines.
     func observe(_ context: SignalContext) -> ProviderVerdict?
@@ -200,7 +200,7 @@ public struct ProviderRegistry: Sendable {
         providers.append(contentsOf: newProviders)
     }
 
-    /// Ordered best-first. Never empty — the fallback is always appended last.
+    /// Ordered best-first. Never empty, the fallback is always appended last.
     ///
     /// Ranking: highest matching claim specificity, then priority, then identifier. The
     /// last key exists for determinism: tests must be reproducible, and two equally-good
@@ -247,8 +247,8 @@ public struct ProviderRegistry: Sendable {
 public enum ConfidenceEngine {
     /// We start sceptical: 0.15 prior for any inferred activity, before any evidence.
     public static let prior: Double = log(0.15 / 0.85)   // ≈ -1.735
-    /// Each individual piece of evidence is clamped, so no single signal — or hostile
-    /// manifest — can manufacture certainty by itself.
+    /// Each individual piece of evidence is clamped, so no single signal, or hostile
+    /// manifest, can manufacture certainty by itself.
     public static let logOddsClamp: Double = 2.0
 
     public static let tier0Ceiling = 0.55
@@ -284,7 +284,7 @@ public enum ConfidenceEngine {
     /// Composes evidence and applies the ceilings.
     ///
     /// `isOSFact` is the *only* route to `Confidence.certain`, and it is reserved for
-    /// things the kernel told us — screen locked, displays asleep, session inactive.
+    /// things the kernel told us, screen locked, displays asleep, session inactive.
     /// Nothing inferred may pass `true` here.
     public static func confidence(
         evidence: [Evidence],
@@ -315,7 +315,7 @@ public enum ConfidenceEngine {
     /// Enforces the invariants that CLAUDE.md §4.1 calls product promises:
     ///
     /// * Evidence citing a tier that is not currently available is **dropped**. An
-    ///   observation must never be justified by a signal we did not have — that is exactly
+    ///   observation must never be justified by a signal we did not have, that is exactly
     ///   how a revoked Accessibility grant turns into a stale confident lie.
     /// * `tiersUsed` is *derived* from the surviving evidence, never asserted.
     /// * No evidence ⇒ `unknown` at ≤ 0.2, whatever the provider proposed.
@@ -384,7 +384,7 @@ public enum ConfidenceEngine {
 
     /// Meeting lives on its own axis and gets its own composition, capped at 0.90.
     ///
-    /// `.unreliable` audio contributes nothing — see `AudioInputState`. On a Mac whose mic
+    /// `.unreliable` audio contributes nothing, see `AudioInputState`. On a Mac whose mic
     /// never turns off, meeting detection is switched off entirely rather than left on and
     /// permanently wrong.
     public static func meetingConfidence(_ evidence: [Evidence], tiers: SignalTierSet) -> Confidence {

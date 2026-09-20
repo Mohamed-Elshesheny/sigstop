@@ -96,7 +96,7 @@ public struct SignalTierSet: OptionSet, Sendable, Codable, Hashable {
 
 // MARK: - Confidence
 
-/// A probability in `0...1` that cannot be constructed out of range — including when
+/// A probability in `0...1` that cannot be constructed out of range, including when
 /// decoded from a hand-edited state file.
 public struct Confidence: Sendable, Codable, Hashable, Comparable {
     public let value: Double
@@ -119,7 +119,7 @@ public struct Confidence: Sendable, Codable, Hashable, Comparable {
 
     public static let none = Confidence(0.0)
 
-    /// Reserved for OS facts only — screen locked, session inactive. Nothing *inferred*
+    /// Reserved for OS facts only, screen locked, session inactive. Nothing *inferred*
     /// may reach this. See CLAUDE.md §4.1.
     public static let certain = Confidence(0.99)
 
@@ -143,7 +143,7 @@ public struct EvidenceID: Sendable, Codable, Hashable, RawRepresentable {
 ///
 /// Expressed in **log-odds** so that independent reasons compose by addition rather than
 /// by an ad-hoc weighted average. `summary` is user-facing and mandatory: the app must
-/// always be able to answer "why do you think that?" — `sigstop --doctor` prints these.
+/// always be able to answer "why do you think that?", `sigstop --doctor` prints these.
 public struct Evidence: Sendable, Codable, Hashable {
     public let id: EvidenceID
     public let tier: SignalTier

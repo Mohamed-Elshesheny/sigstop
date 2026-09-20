@@ -92,7 +92,7 @@ struct ComplianceTests {
         #expect(s.ignoredPromptCount == 1)
     }
 
-    /// Edge case: zero breaks. Prompts were delivered and nothing happened — that is
+    /// Edge case: zero breaks. Prompts were delivered and nothing happened, that is
     /// 0%, not "unmeasurable". The metric must be willing to say zero.
     @Test func zero_breaks_with_delivered_prompts_is_zero_not_nil() {
         let events: [LoggedEvent] = [
@@ -277,7 +277,7 @@ struct WorkClockTests {
         #expect(s.totalActiveWork == 105 * 60)
     }
 
-    /// A lock, a sleep, or a fast user switch is never credited, at any duration — not
+    /// A lock, a sleep, or a fast user switch is never credited, at any duration, not
     /// even under the micro-idle grace. "Nobody is at the machine" is a system fact,
     /// not a guess about reading.
     @Test func a_brief_lock_is_still_not_work() {
@@ -285,7 +285,7 @@ struct WorkClockTests {
             .start(at: Fix.t(0)),
             .focus(at: Fix.t(0), app: xcode, activity: .coding),
             .system(at: Fix.t(10), .lock),
-            .system(at: Fix.t(10.5), .unlock),   // 30 seconds — under the grace
+            .system(at: Fix.t(10.5), .unlock),   // 30 seconds, under the grace
             .focus(at: Fix.t(10.5), app: xcode, activity: .coding),
             .stop(at: Fix.t(20)),
         ]
@@ -367,7 +367,7 @@ struct DistributionTests {
         #expect(s.workByActivity[.codeReview] == TimeInterval(20 * 60))
     }
 
-    /// Time with no bundle identifier — app tracking off, or a bundle-less process —
+    /// Time with no bundle identifier, app tracking off, or a bundle-less process ,
     /// goes to an explicit bucket. Dropping it would quietly break the partition.
     @Test func unattributed_time_keeps_the_partition_exact() {
         let events: [LoggedEvent] = [
@@ -728,7 +728,7 @@ struct SummaryNarratorTests {
     }
 
     /// A template that needs a slot the day cannot fill is simply not selected.
-    /// Absence is modelled as absence — no `{top}` ever leaks into a rendered line.
+    /// Absence is modelled as absence, no `{top}` ever leaks into a rendered line.
     @Test func a_day_with_no_attributed_app_never_renders_an_app_slot() {
         let bare = DailySummary(day: Fix.day, totalActiveWork: 1800)
         for tone in Tone.allCases {

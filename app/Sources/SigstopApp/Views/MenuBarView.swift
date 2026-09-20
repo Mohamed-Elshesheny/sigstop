@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// Its job is to answer three questions without the user having to trust anything:
 /// how long have I been at this, what does the app think I am doing, and **why does it
-/// think that**. The third one is the disclosure, and it is not a debug affordance —
+/// think that**. The third one is the disclosure, and it is not a debug affordance ,
 /// CLAUDE.md §4.1 makes "the app must always be able to answer *why do you think that?*"
 /// an invariant, and this is where a user meets it.
 ///
@@ -14,8 +14,8 @@ import SwiftUI
 /// panel was opened: the state and the clock on a `surface` strip; the inference as a
 /// raised card on the `bg`; the actions as one primary control and a quiet row; and
 /// today's `jobs` on a second `surface` strip, dense and small. Amber is spent on the
-/// state alone — the kicker, the clock and the primary control turn amber together when
-/// a break is due and at no other time — so the eye finds the one thing that changed.
+/// state alone, the kicker, the clock and the primary control turn amber together when
+/// a break is due and at no other time, so the eye finds the one thing that changed.
 struct MenuBarView: View {
     let model: AppModel
     /// Supplied by the status item controller. The panel lives outside the scene graph,
@@ -64,7 +64,7 @@ struct MenuBarView: View {
         .onAppear { model.refreshRollup(force: true) }
     }
 
-    // MARK: Header — the state and the session clock
+    // MARK: Header, the state and the session clock
 
     /// The clock is continuous *active* work, not elapsed wall time. The value only ever
     /// comes from the tracker; nothing here interpolates between samples, because a
@@ -111,11 +111,20 @@ struct MenuBarView: View {
 
     /// Mirrors the menu bar icon's fill rule so the two marks never disagree: empty on a
     /// break, full once a break is due, and the fraction of the interval otherwise.
+    /// Driven by the MEASURED clock, not the per-second display value.
+    ///
+    /// `workFraction` now carries the display clock forward every second, and the mark
+    /// animates its fill, so feeding it that value made the bars creep continuously and
+    /// visibly re-animate whenever the panel re-laid out, which is what opening the
+    /// evidence disclosure does. The mark moves on real samples only.
     private var markFill: Double {
         switch model.indicator {
         case .onBreak: return 0
         case .breakDue, .escalating: return 1
-        default: return min(1, max(0, model.workFraction))
+        default:
+            let target = model.settings.workInterval
+            guard target > 0 else { return 0 }
+            return min(1, max(0, model.continuousWork / target))
         }
     }
 
@@ -167,7 +176,7 @@ struct MenuBarView: View {
         return "continuous · no break recorded yet"
     }
 
-    // MARK: Inference — one card: what, how sure, and why
+    // MARK: Inference, one card: what, how sure, and why
 
     private var inference: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -215,7 +224,7 @@ struct MenuBarView: View {
     /// The number is shown, always, and in the unit the model actually works in. A
     /// confidence the user cannot see is a confidence the app can quietly overstate.
     /// Green at or above the site's 0.6 threshold; below it the number is simply muted.
-    /// Amber is not used here — a low confidence is information, not a state.
+    /// Amber is not used here, a low confidence is information, not a state.
     private var confidence: some View {
         let confident = model.confidence >= 0.6
         return HStack(alignment: .firstTextBaseline, spacing: 5) {
@@ -265,7 +274,7 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: Actions — one primary control, one quiet row
+    // MARK: Actions, one primary control, one quiet row
 
     /// The primary control is filled amber only while a break is due or in progress,
     /// which is when it is the point of opening the panel; the rest of the day it is
@@ -294,7 +303,7 @@ struct MenuBarView: View {
             if let reason = model.gateReason {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("→")
-                    Text("holding off — \(reason).")
+                    Text("holding off, \(reason).")
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(Brand.mono(10.5))
@@ -325,7 +334,7 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: jobs — today, dense and quiet
+    // MARK: jobs, today, dense and quiet
 
     /// The numbers are rendered here from the rollup, not from the narrator's detail
     /// string, so the top application can be shown by its display name rather than the
@@ -402,7 +411,7 @@ struct MenuBarView: View {
 
     /// `com.anthropic.claudefordesktop` → `Claude`. The running application's localized
     /// name when it is running, the bundle's name on disk when it is installed, and the
-    /// last component of the identifier when it is neither — which is what the narrator
+    /// last component of the identifier when it is neither, which is what the narrator
     /// prints, so the two never disagree by more than a capital letter.
     private static func displayName(for bundleID: String) -> String {
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,

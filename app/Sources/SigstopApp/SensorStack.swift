@@ -7,7 +7,7 @@ import SigstopSensors
 /// The engine will happily construct its own collectors, but then nobody else can read
 /// them. Two callers need the raw signals rather than the inference on top of them:
 ///
-///   * `AppModel`, which must build `SystemSignals` for the decision engine — a hard
+///   * `AppModel`, which must build `SystemSignals` for the decision engine, a hard
 ///     block is a *fact* (`InterruptionPolicy.hardBlock`), and facts come from the
 ///     collectors, not from a classification;
 ///   * `Doctor`, whose whole job is to print each signal separately, including the ones
@@ -82,20 +82,20 @@ struct RawSignals: Sendable {
     let systemAsleep: Bool
     let tiers: SignalTierSet
 
-    /// The facts — and only the facts — the interruption policy is allowed to block on.
+    /// The facts, and only the facts, the interruption policy is allowed to block on.
     ///
     /// The fields left at their defaults are not "false", they are *unobservable without
     /// a permission this app refuses to request* (docs/PRIVACY.md §3.3). Each one is
     /// named in `--doctor` with the reason, rather than being quietly reported as absent:
     ///
-    ///   * `cameraRunning` — no permission-free API; the camera-in-use bit requires
+    ///   * `cameraRunning`, no permission-free API; the camera-in-use bit requires
     ///     either a capture session or a private symbol.
-    ///   * `displayCaptured` — would need ScreenCaptureKit and the Screen Recording grant.
-    ///   * `focusModeActive` — `nil`, which the policy already distinguishes from `false`:
+    ///   * `displayCaptured`, would need ScreenCaptureKit and the Screen Recording grant.
+    ///   * `focusModeActive`, `nil`, which the policy already distinguishes from `false`:
     ///     the only public route is the Focus status Shortcuts action, not an API.
-    ///   * `frontmostIsPresentationApp` — depends on a window title (Tier 1) we may not
+    ///   * `frontmostIsPresentationApp`, depends on a window title (Tier 1) we may not
     ///     have, so it is never asserted from app identity alone.
-    ///   * `batteryFraction` — `nil` rather than invented; `isCharging` comes from the
+    ///   * `batteryFraction`, `nil` rather than invented; `isCharging` comes from the
     ///     real power source flag, which is permission-free.
     ///
     /// `frontmostIsFullscreen` is left false here and filled in by the caller from the

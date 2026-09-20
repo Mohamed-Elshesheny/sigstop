@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prove the app's privacy claims against the BUILT BUNDLE, not against the source.
 #
-# This script used to assert one thing — "no networking framework is linked" — and
+# This script used to assert one thing, "no networking framework is linked", and
 # fail the build if any appeared. That assertion is gone, because it is no longer
 # true: the app embeds Sparkle so it can check for, verify and install updates.
 #
@@ -42,7 +42,7 @@ pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
 head2() { printf '\n== %s ==\n' "$1"; }
 
-[ -x "${BIN}" ] || { echo "error: ${BIN} not found — run 'make bundle' first" >&2; exit 1; }
+[ -x "${BIN}" ] || { echo "error: ${BIN} not found, run 'make bundle' first" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
 head2 "1. the app's own binary does no networking"
@@ -127,7 +127,7 @@ ENTS=$(codesign -d --entitlements - --xml "${BUNDLE}" 2>/dev/null | plutil -conv
 # The server entitlement is the one that has no defensible reason to exist here.
 # A break timer does not listen for connections.
 if printf '%s' "${ENTS}" | grep -q 'com.apple.security.network.server'; then
-  fail "a network SERVER entitlement is present — this app must never listen"
+  fail "a network SERVER entitlement is present, this app must never listen"
 else
   pass "no network server entitlement"
 fi
@@ -146,7 +146,7 @@ head2 "5. updates are signature-gated"
 
 ED_KEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "${PLIST}" 2>/dev/null || true)
 if [ -z "${ED_KEY}" ]; then
-  fail "SUPublicEDKey is missing — Sparkle would have nothing to verify against"
+  fail "SUPublicEDKey is missing, Sparkle would have nothing to verify against"
 else
   # A base64 Ed25519 public key is 32 bytes, which is 44 base64 characters.
   DECODED_LEN=$(printf '%s' "${ED_KEY}" | base64 --decode 2>/dev/null | wc -c | tr -d ' ')
@@ -159,7 +159,7 @@ fi
 
 # The private half must never be anywhere near the tree. This is cheap and the
 # failure it catches is unrecoverable.
-# Searched over the whole repository, not just app/, and excluding this file —
+# Searched over the whole repository, not just app/, and excluding this file ,
 # which names the patterns and would otherwise always match itself.
 KEY_HITS=$(grep -rIlE 'BEGIN [A-Z ]*PRIVATE KEY|SUPrivateEDKey' .. \
   --exclude-dir=.build --exclude-dir=dist --exclude-dir=.git \
@@ -206,7 +206,7 @@ check_plist_false() {  # check_plist_false <key> <human description>
   if [ "${value}" = "false" ]; then
     pass "$2"
   else
-    fail "$1 is '${value}', expected false — $2"
+    fail "$1 is '${value}', expected false, $2"
   fi
 }
 

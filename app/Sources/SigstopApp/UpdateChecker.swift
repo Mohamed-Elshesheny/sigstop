@@ -18,7 +18,7 @@ import Sparkle
 /// page, verification is the entire security surface.
 ///
 /// The build is ad-hoc signed. There is no Developer ID and no Team ID, so Apple's code
-/// signature proves nothing about who produced an update — Gatekeeper would be checking a
+/// signature proves nothing about who produced an update, Gatekeeper would be checking a
 /// signature against nothing. Sparkle closes that with EdDSA: every archive is signed with
 /// a private key that lives only in the maintainer's login keychain, the public half is
 /// compiled into the app as `SUPublicEDKey`, and Sparkle refuses to install anything whose
@@ -69,7 +69,7 @@ final class UpdateChecker {
         case readyToInstall(version: String)
         case installing
         case failed(String)
-        /// Sparkle cannot run here at all — `swift run` with no `.app` around it, or the
+        /// Sparkle cannot run here at all, `swift run` with no `.app` around it, or the
         /// updater refused to start. Distinct from `.failed` because no button the user
         /// presses will fix it.
         case unavailable(String)
@@ -145,7 +145,7 @@ final class UpdateChecker {
         do {
             try updater.start()
         } catch {
-            state = .unavailable("Sparkle would not start — \(error.localizedDescription)")
+            state = .unavailable("Sparkle would not start, \(error.localizedDescription)")
             return
         }
 
@@ -174,7 +174,7 @@ final class UpdateChecker {
     }
 
     /// The only entry point that starts a network request. Called from a button and from
-    /// nowhere else — no `onAppear`, no timer, no launch path.
+    /// nowhere else, no `onAppear`, no timer, no launch path.
     func checkForUpdates() {
         guard let updater, updater.canCheckForUpdates else { return }
         resetTransfer()
@@ -315,7 +315,7 @@ final class UpdateChecker {
 /// and cannot be the `@Observable` model itself. It holds no state and makes no decisions:
 /// every method forwards to `UpdateChecker`, which is where the state machine lives.
 ///
-/// `owner` is `weak` and `unowned(unsafe)`-free on purpose — Sparkle retains its driver for
+/// `owner` is `weak` and `unowned(unsafe)`-free on purpose, Sparkle retains its driver for
 /// the process lifetime, and a strong reference back would retain the model with it.
 @MainActor
 private final class UserDriver: NSObject, SPUUserDriver {

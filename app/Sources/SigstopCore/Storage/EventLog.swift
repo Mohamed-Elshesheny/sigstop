@@ -13,10 +13,10 @@ public enum EventSchema {
 /// A bare year/month/day. No time zone is attached, because the same value serves two
 /// different purposes and conflating them is a bug:
 ///
-/// * **File key** — `CalendarDay.utc(of:)`. Event-log files are named by the UTC date
+/// * **File key**, `CalendarDay.utc(of:)`. Event-log files are named by the UTC date
 ///   of the event, which is what makes `t`'s first ten characters and the file name the
 ///   same string (docs/PRIVACY.md §4.3).
-/// * **Logical day** — `CalendarDay.local(of:...)`. The daily rollup's day, in the
+/// * **Logical day**, `CalendarDay.local(of:...)`. The daily rollup's day, in the
 ///   user's calendar, with the boundary at 04:00 (docs/BREAK-DECISION.md §14).
 ///
 /// A rollup for one logical day therefore reads up to three UTC files.
@@ -160,7 +160,7 @@ enum Digits {
 /// (docs/PRIVACY.md §4.3): a millisecond-accurate trace of a person's day is a finer
 /// record than this app has any reason to keep.
 ///
-/// Hand-rolled rather than `ISO8601DateFormatter` for two reasons — the formatter is a
+/// Hand-rolled rather than `ISO8601DateFormatter` for two reasons, the formatter is a
 /// non-`Sendable` class, and a fixed 20-character grammar is easier for a skeptical
 /// reader to confirm than a formatter's option set.
 public enum ISO8601Second {
@@ -225,7 +225,7 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     case sessionOut = "session_out"
     case sessionIn = "session_in"
     /// A break **opportunity** opened: continuous active work reached the target, i.e.
-    /// the engine entered `breakDue` — including entries immediately suppressed by
+    /// the engine entered `breakDue`, including entries immediately suppressed by
     /// quiet hours or a hard block (docs/BREAK-DECISION.md §14.1).
     ///
     /// Added beyond the vocabulary listed in docs/PRIVACY.md §4.3, because compliance
@@ -273,7 +273,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     public var activity: Activity?
     /// The five-value window-title classification. **Never the title itself.**
     public var titleSignal: String?
-    /// Length of the idle period that just ended. Kept for auditability only — the
+    /// Length of the idle period that just ended. Kept for auditability only, the
     /// rollup diffs real timestamps instead of trusting this (CLAUDE.md §3.4).
     public var idleSeconds: Int?
     public var reason: String?

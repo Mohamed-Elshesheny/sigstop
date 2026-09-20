@@ -7,17 +7,17 @@ import SwiftUI
 /// in, so the panel, the settings window and the site are one system and not three
 /// approximations of one. The palette is derived from the metaphor: a process is either
 /// RUNNING (green) or in state T, suspended (amber). Amber is the single accent. Red is
-/// reserved for escalation level 4 and nothing else — if everything is amber, nothing is.
+/// reserved for escalation level 4 and nothing else, if everything is amber, nothing is.
 enum Brand {
 
     // MARK: Surfaces and text
 
-    static let bg = dynamic(light: 0xFBFBF9, dark: 0x08090B)
-    static let bgRaised = dynamic(light: 0xFFFFFF, dark: 0x0E1013)
-    static let surface = dynamic(light: 0xF4F4F1, dark: 0x131619)
-    static let surfaceHi = dynamic(light: 0xE9E9E4, dark: 0x1A1E23)
-    static let line = dynamic(light: 0xE7E7E1, dark: 0x21262D)
-    static let lineHi = dynamic(light: 0xCFCFC7, dark: 0x2D343D)
+    static let bg = dynamic(light: 0xFBFBF9, dark: 0x101317)
+    static let bgRaised = dynamic(light: 0xFFFFFF, dark: 0x171A1F)
+    static let surface = dynamic(light: 0xF4F4F1, dark: 0x1D2127)
+    static let surfaceHi = dynamic(light: 0xE9E9E4, dark: 0x262B32)
+    static let line = dynamic(light: 0xE7E7E1, dark: 0x2B313A)
+    static let lineHi = dynamic(light: 0xCFCFC7, dark: 0x3A424D)
 
     static let fg = dynamic(light: 0x17191C, dark: 0xE8EAED)
     static let fgMuted = dynamic(light: 0x53585E, dark: 0x9AA2AD)
@@ -117,7 +117,7 @@ enum Brand {
 /// The `SIGSTOP` glyph: two bars, a process paused and intact.
 ///
 /// `fill` is 0…1 and is drawn, not decorative. The outline is the whole session and the
-/// fill is how much of it has elapsed, so the mark *is* the timer wherever it appears —
+/// fill is how much of it has elapsed, so the mark *is* the timer wherever it appears ,
 /// at 14pt in the menu bar, at 44pt beside the clock, at 40pt on the About pane. The
 /// About pane shows it half filled because a half-filled pair is what the mark means; a
 /// solid pair would read as "a break is due" to anyone who has watched the menu bar for
@@ -162,7 +162,7 @@ struct BrandMark: View {
 
 /// A section marker in the site's grammar: 10pt monospaced, uppercase, letterspaced,
 /// muted. It is not a heading in the System Settings sense and is not meant to be read
-/// as one — it is a label on a block of terminal output.
+/// as one, it is a label on a block of terminal output.
 struct Kicker: View {
     let text: String
     init(_ text: String) { self.text = text }
@@ -216,7 +216,7 @@ struct Rule: View {
 /// A flat, dense, monospaced button in three weights.
 ///
 /// `.filled` is amber with near-black text and is for the one action a surface exists
-/// for — `SIGCONT` on the overlay, "Take it" on the prompt. `.outlined` is the ordinary
+/// for, `SIGCONT` on the overlay, "Take it" on the prompt. `.outlined` is the ordinary
 /// button. `.quiet` has no border at rest and is for a third action that should not
 /// compete with the first two. `Button(.bordered)` is the thing that made the old panes
 /// look like a system preference pane, so nothing here uses it.
@@ -401,7 +401,7 @@ struct TerminalStepper: View {
 ///
 /// `ProgressView` draws the system's blue capsule, which would be the one non-amber
 /// accent in the pane and would read as borrowed. Indeterminate is a slow amber sweep
-/// rather than a spinner, and it is static under Reduced Motion — an animation nobody
+/// rather than a spinner, and it is static under Reduced Motion, an animation nobody
 /// asked for, in a window somebody opened to read two lines, is exactly the kind of thing
 /// this app is supposed to not do.
 struct TransferBar: View {

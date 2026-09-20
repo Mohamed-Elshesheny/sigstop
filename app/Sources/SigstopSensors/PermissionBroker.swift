@@ -15,7 +15,7 @@ private nonisolated(unsafe) let axPromptOptionKey = "AXTrustedCheckOptionPrompt"
 ///
 /// `AXIsProcessTrustedWithOptions([axPromptOptionKey: true])` shows a system
 /// alert. Calling it from a timer, from launch, or from "we noticed you'd get more out of
-/// this" is exactly the behaviour that trains people to deny permissions forever — and it
+/// this" is exactly the behaviour that trains people to deny permissions forever, and it
 /// would break CLAUDE.md §4.2, which says the app is fully functional at zero permissions
 /// and that Tier 1 is an *upgrade*, never a gate.
 ///
@@ -43,13 +43,13 @@ public struct UserGesture: Sendable, Hashable {
 /// What the app can observe right now, and why. Rendered verbatim by `--doctor` and by
 /// the Settings pane, so every string here is user-facing.
 public struct PermissionStatus: Sendable, Hashable {
-    /// `AXIsProcessTrusted()` — the non-prompting check.
+    /// `AXIsProcessTrusted()`, the non-prompting check.
     public let accessibilityTrusted: Bool
     /// The user's Tier 1 switch in Settings. Tier 1 needs BOTH this and the grant.
     public let accessibilityEnabledInSettings: Bool
-    /// Tier 1b — record the browser host only. A separate opt-in from Tier 1 itself.
+    /// Tier 1b, record the browser host only. A separate opt-in from Tier 1 itself.
     public let browserHostEnabled: Bool
-    /// Tier 2 — `.git/HEAD` and allowlisted process names. Explicit opt-in.
+    /// Tier 2, `.git/HEAD` and allowlisted process names. Explicit opt-in.
     public let gitContextEnabled: Bool
     public let tiers: SignalTierSet
 
@@ -59,27 +59,27 @@ public struct PermissionStatus: Sendable, Hashable {
     /// One line per tier, in the order a skeptic would ask about them.
     public var explanation: [String] {
         var lines = [
-            "Tier 0 — frontmost app, idle time, microphone-in-use, screen lock, thermal: "
+            "Tier 0, frontmost app, idle time, microphone-in-use, screen lock, thermal: "
                 + "ON, and it needs no permission. This is most of the product.",
         ]
         switch (accessibilityEnabledInSettings, accessibilityTrusted) {
         case (false, _):
-            lines.append("Tier 1 — window titles: OFF, you have not turned it on.")
+            lines.append("Tier 1, window titles: OFF, you have not turned it on.")
         case (true, false):
             lines.append(
-                "Tier 1 — window titles: OFF. You turned it on here, but macOS has not granted "
+                "Tier 1, window titles: OFF. You turned it on here, but macOS has not granted "
                     + "Accessibility to this app yet."
             )
         case (true, true):
-            lines.append("Tier 1 — window titles: ON. Titles are parsed and the raw title is discarded.")
+            lines.append("Tier 1, window titles: ON. Titles are parsed and the raw title is discarded.")
         }
         if tier1Active && browserHostEnabled {
-            lines.append("Tier 1b — browser host: ON. The host only, never a path or a query string.")
+            lines.append("Tier 1b, browser host: ON. The host only, never a path or a query string.")
         }
         lines.append(
             gitContextEnabled
-                ? "Tier 2 — branch name and allowlisted tool names: ON."
-                : "Tier 2 — branch name and allowlisted tool names: OFF."
+                ? "Tier 2, branch name and allowlisted tool names: ON."
+                : "Tier 2, branch name and allowlisted tool names: OFF."
         )
         return lines
     }
@@ -92,7 +92,7 @@ public struct PermissionStatus: Sendable, Hashable {
 /// Tier availability is a runtime value, never a constant (docs/ACTIVITY-DETECTION.md
 /// §4.4): the user can revoke Accessibility in System Settings at any moment and macOS
 /// sends no notification when they do. So the trust check is re-run on every app-activation
-/// event — it is a cheap, non-prompting call — and the engine degrades on the very next
+/// event, it is a cheap, non-prompting call, and the engine degrades on the very next
 /// sample instead of continuing to publish stale, over-confident observations justified by
 /// a title it is no longer allowed to read.
 ///
@@ -198,7 +198,7 @@ public final class PermissionBroker: @unchecked Sendable {
         }
     }
 
-    // MARK: Prompting — the only path that can raise a system alert
+    // MARK: Prompting, the only path that can raise a system alert
 
     /// Shows the macOS Accessibility prompt. Requires a `UserGesture`, which can only be
     /// built at a click site, so this cannot be reached from a timer or from launch.
@@ -240,7 +240,7 @@ public final class PermissionBroker: @unchecked Sendable {
     // MARK: Composition
 
     /// Tier 1 requires BOTH the user's switch and the OS grant. Either one missing means no
-    /// window titles — and, because `SignalContext` gates its Tier 1 accessors on this set,
+    /// window titles, and, because `SignalContext` gates its Tier 1 accessors on this set,
     /// no provider can cite a title it was not allowed to read.
     ///
     /// Tier 1b (browser host) is deliberately not a tier of its own: it rides on Tier 1 and

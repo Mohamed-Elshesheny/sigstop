@@ -194,11 +194,11 @@ public struct DailySummary: Sendable, Codable, Hashable {
 /// Reduces an event log into one `DailySummary`.
 ///
 /// Deliberately a pure function over `[LoggedEvent]`: no I/O, no clock, no store. The
-/// `EventStore` protocol exists so that this stays true — `FileEventStore` does the
+/// `EventStore` protocol exists so that this stays true, `FileEventStore` does the
 /// reading, this does the arithmetic, and a test states a day as a literal array.
 public enum DailyRollup {
 
-    /// Bucket for credited time that has no bundle identifier — app tracking off, or a
+    /// Bucket for credited time that has no bundle identifier, app tracking off, or a
     /// bundle-less process. It gets a named bucket rather than being dropped, because
     /// dropping it would quietly break the partition invariant and make the
     /// distribution add up to less than the day.
@@ -385,7 +385,7 @@ public enum DailyRollup {
     ///
     /// * a `working` segment is credited and extends the current run;
     /// * a maximal run of consecutive `idle` segments totalling `<= microIdleGrace` is
-    ///   credited too — 30 seconds of reading is not a break (§3.3);
+    ///   credited too, 30 seconds of reading is not a break (§3.3);
     /// * any other uncredited stretch is *not* credited, and resets the run only once it
     ///   reaches `qualifyingBreak`. A three-minute pause therefore neither resets the
     ///   clock nor secretly credits itself (§15 property 4).

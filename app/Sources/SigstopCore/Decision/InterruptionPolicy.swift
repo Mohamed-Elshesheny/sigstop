@@ -20,7 +20,7 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     /// Reading a diff is work. A gap shorter than this is credited (provisionally).
     public var microIdleGrace: TimeInterval = 90
     public var qualifyingBreak: TimeInterval = 5 * 60
-    /// Any pause reaching this resets the clock — the context is gone — but records no break.
+    /// Any pause reaching this resets the clock, the context is gone, but records no break.
     public var longPauseReset: TimeInterval = 20 * 60
     public var sessionGap: TimeInterval = 30 * 60
     public var dayBoundaryHour: Int = 4
@@ -39,7 +39,7 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
 
     public var softDeferralWindow: TimeInterval = 8 * 60
     public var deepFocusExtension: TimeInterval = 7 * 60
-    /// Hard ceiling on seam-waiting per cycle — "maximum 15 minutes of seam-waiting per
+    /// Hard ceiling on seam-waiting per cycle, "maximum 15 minutes of seam-waiting per
     /// cycle" (§7.2). It holds across a snooze, which resets the *current* seam window, so
     /// snoozing cannot be used to buy a second deep-focus extension.
     public var maxSeamWaitPerCycle: TimeInterval = 15 * 60
@@ -58,15 +58,15 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     public var maxNotificationsPerCycle: Int = 4
     public var dailyNotificationCap: Int = 12
 
-    /// L1 SIGTSTP — passive, silent, costs no notification budget.
+    /// L1 SIGTSTP, passive, silent, costs no notification budget.
     public var ladderLevel1: TimeInterval = 0
-    /// L2 SIGINT — quiet repeat.
+    /// L2 SIGINT, quiet repeat.
     public var ladderLevel2: TimeInterval = 5 * 60
-    /// L3 SIGTERM — armed here, fires at the first seam.
+    /// L3 SIGTERM, armed here, fires at the first seam.
     public var ladderLevel3Armed: TimeInterval = 12 * 60
     /// L3 forced, seam or no seam.
     public var ladderLevel3Forced: TimeInterval = 20 * 60
-    /// L4 SIGSTOP — one assertive, still non-blocking presentation. Then the ladder ends.
+    /// L4 SIGSTOP, one assertive, still non-blocking presentation. Then the ladder ends.
     public var ladderLevel4: TimeInterval = 35 * 60
     /// After 2 consecutive fully-ignored cycles the ladder truncates to L1–L2.
     public var ignoreBackoffThreshold: Int = 2
@@ -171,7 +171,7 @@ public struct SystemSignals: Sendable, Codable, Hashable {
     }
 }
 
-/// Optional, read-only calendar adjacency. Absent when EventKit was never granted — the
+/// Optional, read-only calendar adjacency. Absent when EventKit was never granted, the
 /// engine degrades to knowing nothing rather than to guessing.
 public struct CalendarSignals: Sendable, Codable, Hashable {
     public var eventInProgress: Bool
@@ -229,7 +229,7 @@ public enum HardBlock: String, Sendable, Codable, Hashable {
     case imminentMeeting
 }
 
-/// Wait for a seam — but on a budget, and the budget always runs out.
+/// Wait for a seam, but on a budget, and the budget always runs out.
 public enum SoftDeferReason: String, Sendable, Codable, Hashable {
     case deepFocus
     case typingBurst
@@ -273,7 +273,7 @@ public struct CycleBudget: Sendable, Codable, Hashable {
 
 /// Is the app allowed to say something *right now*?
 ///
-/// Generous with waiting, strict about never firing into a hard block — but bounded, so
+/// Generous with waiting, strict about never firing into a hard block, but bounded, so
 /// politeness cannot become silence. Pure: no clock reads, no I/O.
 public struct InterruptionPolicy: Sendable {
     public let policy: BreakPolicy
@@ -343,7 +343,7 @@ public struct InterruptionPolicy: Sendable {
     ///
     /// `deepFocusExtensionUsed` records that this cycle has already *taken* its one
     /// extension; it must therefore keep granting it, not retract it the moment focus dips
-    /// or the flag is set. Read the other way round — as the doc's `!used` — the budget
+    /// or the flag is set. Read the other way round, as the doc's `!used`, the budget
     /// collapses back to 8 minutes the instant it is recorded and the extension is never
     /// actually spent. What makes it "exactly one" is `maxSeamWaitPerCycle`, checked in
     /// `verdict`, which no snooze can reopen.
@@ -382,7 +382,7 @@ public struct InterruptionPolicy: Sendable {
     }
 
     /// Snooze durations still on offer, shrunk to fit the remaining cap. Empty means the
-    /// prompt must stop offering snooze — offering a fourth that behaves like the third
+    /// prompt must stop offering snooze, offering a fourth that behaves like the third
     /// is not honest.
     public func offeredSnoozes(used: Int, total: TimeInterval) -> [TimeInterval] {
         guard used < policy.maxSnoozesPerCycle else { return [] }

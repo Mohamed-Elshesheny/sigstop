@@ -11,7 +11,7 @@ enum AppPaths {
     static var bundleID: String { Bundle.main.bundleIdentifier ?? "dev.sigstop.app" }
 
     /// True only inside a real `.app`. `swift run sigstop` is false, and several macOS
-    /// APIs (UNUserNotificationCenter, SMAppService) are unusable without a bundle — so
+    /// APIs (UNUserNotificationCenter, SMAppService) are unusable without a bundle, so
     /// the app degrades and says so instead of trapping.
     static var isBundled: Bool { Bundle.main.bundleIdentifier != nil }
 
@@ -72,7 +72,7 @@ enum SettingsStore {
 /// main-actor-isolated `SessionTracker`. This lock-guarded box is the whole bridge: the
 /// model publishes a reading after each tick, the closure reads the last published one.
 ///
-/// The one-tick lag is deliberate and harmless — the number is used for display and for
+/// The one-tick lag is deliberate and harmless, the number is used for display and for
 /// message slots, while every decision reads the tracker directly.
 final class WorkClockBox: @unchecked Sendable {
     private let lock = NSLock()

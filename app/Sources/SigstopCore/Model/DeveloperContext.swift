@@ -16,7 +16,7 @@ public struct DeveloperContext: Sendable, Codable, Hashable {
     public let concurrent: ConcurrentStates
     public let tiersUsed: SignalTierSet
 
-    /// Continuous ACTIVE work — not elapsed wall time. See docs/BREAK-DECISION.md §1.
+    /// Continuous ACTIVE work, not elapsed wall time. See docs/BREAK-DECISION.md §1.
     public let continuousWork: TimeInterval
     public let timeSinceLastBreak: TimeInterval?
     public let idleSeconds: TimeInterval
