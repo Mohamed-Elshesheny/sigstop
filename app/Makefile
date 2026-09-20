@@ -17,6 +17,7 @@ bundle: ## Assemble and sign $(BUNDLE)
 
 run: bundle ## Build, bundle, and launch
 	@pkill -x $(APP) 2>/dev/null || true
+	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x $(APP) >/dev/null || break; sleep 0.2; done
 	@open $(BUNDLE)
 	@echo "launched — look in the menu bar"
 

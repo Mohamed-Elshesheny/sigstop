@@ -784,9 +784,21 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
 
 A prompt is **ignored** when all of the following hold:
 
-1. it was delivered (`promptedAt != nil`),
+1. it was delivered (`promptedAt != nil`) **and it reached the screen** (see below),
 2. `promptTimeout` (90 s) has elapsed with no interaction,
 3. **and the user was present** — at least one input event occurred during that window.
+
+"Reached the screen" is decided in the app layer, not the engine, because only the app can
+see its own window. When the app draws the prompt itself (the default), it asks the window
+server whether the panel is composited — `kCGWindowIsOnscreen` for the panel's window number,
+the same bit a screenshot sees — re-orders the panel on every tick until it is, and writes the
+`break_prompt` line only at that moment. A prompt the window server never confirmed therefore
+has no `break_prompt` line, is never recorded as ignored (`recordIgnoredPrompt` is dropped in
+`AppModel.execute`), and its cycle is excluded by the rollup (§14) rather than counted as a
+miss. A system notification, when the user opts into one, cannot be seen by the app and is
+taken on trust. The engine still starts its 90 s clock from emission, so a delivery that takes
+several ticks to confirm shortens the window the user gets; that is the accepted cost of
+keeping the confirmation out of `Core`.
 
 Condition 3 is what keeps the ladder honest. If they walked away, that is not an ignore; it is
 `idle`, and if it lasts 5 minutes it is a break and the cycle closes as honored. Escalating at someone

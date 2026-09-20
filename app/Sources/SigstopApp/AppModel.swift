@@ -69,6 +69,10 @@ final class AppModel {
     private(set) var pausedUntil: Date?
     private(set) var permissionStatus: PermissionStatus
     private(set) var lastStoreError: String?
+    /// Why the current prompt could not be put on screen, in the user's words. `nil`
+    /// while every prompt this session either reached the screen or is still being
+    /// retried within its first attempts.
+    private(set) var promptDeliveryFailure: String?
     private(set) var notificationState: NotificationAvailability = .notYetNeeded
     private(set) var settings: SigstopSettings
 
@@ -144,6 +148,22 @@ final class AppModel {
     @ObservationIgnored private var idleBeganAt: Date?
     @ObservationIgnored private var seamsForNextStep: Set<Seam> = []
     @ObservationIgnored private var rollupComputedAt: Date?
+
+    /// The prompt the app is currently responsible for having on screen, and whether the
+    /// window server has confirmed it. See `verifyPromptPresentation()`.
+    @ObservationIgnored private var presentation: PromptPresentation?
+
+    /// Attempts before the failure is surfaced in the panel. Retries continue on every
+    /// tick regardless; the number only decides when to stop being quiet about it.
+    private static let promptAttemptsBeforeComplaining = 3
+
+    private struct PromptPresentation {
+        let request: PromptRequest
+        var attempts: Int
+        /// Set when the window server reported the panel on screen, or immediately for a
+        /// macOS notification, which the app cannot see and therefore takes on trust.
+        var verifiedAt: Date?
+    }
 
     // MARK: - Init
 
@@ -316,6 +336,7 @@ final class AppModel {
         for effect in outcome.effects {
             execute(effect, context: context, now: now)
         }
+        verifyPromptPresentation()
 
         record(sessionEvents: sessionEvents, at: now)
         logFocusIfNeeded(context: context, sample: sample, at: now)
@@ -340,6 +361,7 @@ final class AppModel {
             // There is no "cycle closed" line in the vocabulary, and inventing one would
             // put a second, disagreeing source of truth in the log.
             if currentCycle == cycle { currentCycle = nil }
+            if presentation?.request.cycle == cycle { presentation = nil }
 
         case .deliverPrompt(let request):
             deliver(request, context: context, now: now)
@@ -349,6 +371,7 @@ final class AppModel {
             // at delivery already records what reached the screen.
             notifier.withdraw(cycle: cycle)
             overlay.dismissPromptPanel()
+            if presentation?.request.cycle == cycle { presentation = nil }
 
         case .setIndicator(let state):
             indicator = state
@@ -364,6 +387,7 @@ final class AppModel {
             )
             notifier.withdrawAll()
             overlay.dismissPromptPanel()
+            presentation = nil
             if settings.showBreakOverlay { overlay.presentBreak(model: self) }
             append(.breakBegin(at: now, origin: origin, cycle: cycle))
             if let cycle { append(.breakResponse(at: now, cycle: cycle, action: .taken)) }
@@ -402,6 +426,11 @@ final class AppModel {
             }
 
         case .recordIgnoredPrompt:
+            // The engine judges silence from the moment it emitted the prompt; only the
+            // app knows whether the prompt reached the screen. Silence at a prompt that
+            // was never shown is not an ignore, and recording it as one would feed the
+            // ignore backoff with evidence that does not exist.
+            guard promptWasPresented(cycle: currentCycle) else { break }
             tracker.recordIgnoredPrompt()
             if let cycle = currentCycle {
                 append(.breakResponse(at: now, cycle: cycle, action: .ignored))
@@ -438,15 +467,61 @@ final class AppModel {
         )
         let message = messages.select(for: messageContext).message
         if request.channel == .panel || !settings.useSystemNotifications {
-            // Escalation 4 — SIGSTOP. The ladder's last rung is a panel the app draws
-            // itself, not a louder notification (docs/BREAK-DECISION.md §7.5). It is
-            // dismissible, non-modal, never key-window-stealing and never fullscreen, and
-            // the engine has already downgraded it to a notification on low battery.
-            overlay.presentPromptPanel(request, message: message, model: self)
+            presentPanel(request, message: message)
         } else {
             notifier.deliver(request, message: message)
+            presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: now)
+            append(.breakPrompt(at: now, cycle: request.cycle, reason: request.signal))
         }
-        append(.breakPrompt(at: now, cycle: request.cycle, reason: request.signal))
+    }
+
+    /// The app drawing the prompt itself, for every rung when system notifications are
+    /// off and always for escalation 4 (docs/BREAK-DECISION.md §7.5). The `break_prompt`
+    /// line is **not** written here: it is written by `verifyPromptPresentation()` once
+    /// the window server has confirmed the panel is on screen, because the line means
+    /// "this reached the screen" and the rollup holds the user to exactly that.
+    private func presentPanel(_ request: PromptRequest, message: RenderedMessage) {
+        overlay.presentPromptPanel(request, message: message, model: self)
+        presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: nil)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            self?.verifyPromptPresentation()
+        }
+    }
+
+    /// Confirms the outstanding prompt against the window server, and retries when the
+    /// panel is not there.
+    ///
+    /// Runs shortly after presentation and then on every tick until confirmed. A prompt
+    /// that is never confirmed never gets a `break_prompt` line and never counts as
+    /// ignored (`execute(.recordIgnoredPrompt)`), so a delivery failure shows up as a
+    /// cycle the rollup excludes rather than as a miss held against the user. After a few
+    /// attempts the failure is also said out loud in the dropdown.
+    private func verifyPromptPresentation() {
+        guard var current = presentation, current.verifiedAt == nil else { return }
+        let now = time.now
+        if overlay.promptPanelIsOnScreen {
+            current.verifiedAt = now
+            presentation = current
+            promptDeliveryFailure = nil
+            append(.breakPrompt(at: now, cycle: current.request.cycle, reason: current.request.signal))
+            return
+        }
+        current.attempts += 1
+        presentation = current
+        overlay.reassertPromptPanel()
+        if current.attempts > Self.promptAttemptsBeforeComplaining {
+            promptDeliveryFailure =
+                "The \(current.request.signal) prompt has not reached the screen after "
+                + "\(current.attempts) attempts. It is not being counted against you."
+        }
+    }
+
+    /// Whether the prompt the engine is judging was actually seen. A prompt the window
+    /// server never confirmed is not something the user can have ignored.
+    private func promptWasPresented(cycle: CycleID?) -> Bool {
+        guard let cycle, let presentation, presentation.request.cycle == cycle else { return false }
+        return presentation.verifiedAt != nil
     }
 
     private func wireNotifier() {
@@ -465,8 +540,7 @@ final class AppModel {
         // its own borderless panel. It needs no permission, and it is strictly more
         // intrusive — so it exists as a fallback and never as the default.
         notifier.onFallbackNeeded = { [weak self] request, message in
-            guard let self else { return }
-            self.overlay.presentPromptPanel(request, message: message, model: self)
+            self?.presentPanel(request, message: message)
         }
     }
 

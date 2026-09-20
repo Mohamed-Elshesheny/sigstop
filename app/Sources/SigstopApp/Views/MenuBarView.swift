@@ -357,6 +357,9 @@ struct MenuBarView: View {
         if case .unavailable(let reason) = model.notificationState {
             footnote(reason)
         }
+        if let failure = model.promptDeliveryFailure {
+            footnote(failure)
+        }
         if let error = model.lastStoreError {
             footnote(error)
         }

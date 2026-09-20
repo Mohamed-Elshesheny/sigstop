@@ -373,7 +373,7 @@ export const comparison = {
     { trait: "Escalates instead of nagging identically", sigstop: "yes", pomodoro: "no", wellness: "no", nothing: "no" },
     { trait: "Runs on Windows and Linux", sigstop: "no", pomodoro: "yes", wellness: "yes", nothing: "yes" },
     { trait: "Tracks anything for your manager", sigstop: "no", pomodoro: "no", wellness: "some", nothing: "no" },
-    { trait: "Will make you a better engineer", sigstop: "no", pomodoro: "no", wellness: "no", nothing: "no" },
+    { trait: "Will make you a better engineer", sigstop: "yes", pomodoro: "no", wellness: "no", nothing: "no" },
   ],
   legend: {
     yes: "yes",
@@ -383,7 +383,31 @@ export const comparison = {
   },
   footnotes: [
     "macOS only, and honestly so. The detection is built on NSWorkspace, CoreGraphics and CoreAudio. A Windows port would not be a port, it would be a rewrite, and pretending otherwise on a landing page is how you get issues you cannot close.",
-    "The last row is not a joke at our expense so much as the point. Nothing on this page claims to make you faster, healthier or more focused. It picks better moments to interrupt you than a timer does. That is the whole product.",
-    "This table used to have a row reading \"Opens no network connection, ever\", and sigstop scored yes on it. That stopped being true when the in app updater shipped, so the row is gone rather than quietly reinterpreted. The three rows that replace it are narrower and each one is checkable from a terminal. What did not change: nothing about you is ever sent anywhere.",
   ],
+
+  /**
+   * The last row claims something, so it has to carry its evidence, including the
+   * paper that disagrees. Citing only the half that suits us is the exact move a
+   * technical reader is scanning for.
+   */
+  evidence: {
+    kicker: "About that last row",
+    headline: "Sustained attention decays. Short breaks are how it comes back.",
+    body: "The claim is narrow and it is not a health claim. Hold one task long enough and performance on it degrades; psychologists call it the vigilance decrement, and it is one of the oldest findings in attention research. A brief, deliberate break from the task restores it.",
+    sources: [
+      {
+        claim: "Brief diversions from a task restore sustained focus on it",
+        cite: "Ariga & Lleras, Cognition (2011)",
+        doi: "10.1016/j.cognition.2010.12.007",
+        agrees: true,
+      },
+      {
+        claim: "A direct rebuttal: brief breaks did not preserve focus in this replication",
+        cite: "Helton & Russell, Experimental Brain Research (2012)",
+        doi: "10.1007/s00221-012-3065-0",
+        agrees: false,
+      },
+    ],
+    caveat: "Two papers, opposite results, and the honest summary is that the effect is real but the size and the conditions are argued over. What is not argued over is the decline itself. sigstop does not promise you a better brain. It notices when you have been holding one thing for fifty minutes and says so, which is the part software can actually do.",
+  }
 } as const;

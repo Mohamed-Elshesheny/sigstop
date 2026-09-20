@@ -145,17 +145,18 @@ final class BreakOverlayController {
     /// It needs no permission, and it does **not** respect Do Not Disturb — which is
     /// exactly why it is reserved for those two cases, and why it is deliberately small,
     /// corner-anchored, dismissible and never fullscreen.
-    func presentPromptPanel(_ request: PromptRequest, message: RenderedMessage, model: AppModel) {
+    ///
+    /// Returns `false` only when there is no screen to draw on at all. Ordering the panel
+    /// front is a request to the window server, not a fact about pixels: the caller
+    /// confirms delivery afterwards with `promptPanelIsOnScreen` and re-asserts with
+    /// `reassertPromptPanel()` if the request was not honoured.
+    @discardableResult
+    func presentPromptPanel(_ request: PromptRequest, message: RenderedMessage, model: AppModel) -> Bool {
         dismissPromptPanel()
-        guard let screen = NSScreen.main else { return }
+        guard let screen = Self.promptScreen() else { return false }
 
-        let size = FallbackPromptView.size
-        let origin = NSPoint(
-            x: screen.visibleFrame.maxX - size.width - 18,
-            y: screen.visibleFrame.maxY - size.height - 18
-        )
         let panel = NonActivatingPanel(
-            contentRect: NSRect(origin: origin, size: size),
+            contentRect: Self.promptFrame(on: screen),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -180,6 +181,55 @@ final class BreakOverlayController {
         panel.contentView = hosting
         panel.orderFrontRegardless()
         fallbackPanel = panel
+        return true
+    }
+
+    /// Whether the prompt panel is composited on screen right now, according to the
+    /// window server rather than to AppKit.
+    ///
+    /// `NSWindow.isVisible` reports what the app *asked for*. The status item's placeholder
+    /// window on macOS 27 taught this project that the two can differ: a popover can be
+    /// shown, sized, placed, opaque, and never drawn. The only report the app trusts is
+    /// `kCGWindowIsOnscreen` for the panel's own window number, which is the same bit a
+    /// screenshot sees. It needs no permission for the process's own windows.
+    var promptPanelIsOnScreen: Bool {
+        guard let panel = fallbackPanel else { return false }
+        return Self.isOnScreen(windowNumber: panel.windowNumber)
+    }
+
+    /// Puts the prompt panel back where it belongs and orders it front again. Idempotent
+    /// and cheap, so the model can call it on every tick until the window server agrees.
+    func reassertPromptPanel() {
+        guard let panel = fallbackPanel, let screen = Self.promptScreen() else { return }
+        panel.setFrame(Self.promptFrame(on: screen), display: true)
+        panel.orderFrontRegardless()
+    }
+
+    /// The screen with the menu bar. `NSScreen.main` is the screen of this app's key
+    /// window, which a menu bar app rarely has; it falls back to the first screen, and
+    /// only a machine with no display at all yields `nil`.
+    private static func promptScreen() -> NSScreen? {
+        NSScreen.main ?? NSScreen.screens.first
+    }
+
+    /// Top-right corner of the visible area, inset, and clamped so the whole panel is on
+    /// the screen whatever the visible area turns out to be.
+    private static func promptFrame(on screen: NSScreen) -> NSRect {
+        let size = FallbackPromptView.size
+        let area = screen.visibleFrame
+        let origin = NSPoint(
+            x: max(area.minX, area.maxX - size.width - 18),
+            y: max(area.minY, area.maxY - size.height - 18)
+        )
+        return NSRect(origin: origin, size: size)
+    }
+
+    private static func isOnScreen(windowNumber: Int) -> Bool {
+        guard windowNumber > 0,
+              let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(windowNumber)) as? [[String: Any]],
+              let info = list.first
+        else { return false }
+        return (info[kCGWindowIsOnscreen as String] as? Bool) ?? false
     }
 
     func dismissPromptPanel() {

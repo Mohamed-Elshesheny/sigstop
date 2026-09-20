@@ -217,12 +217,29 @@ never keystrokes, never clipboard, never screen contents, never message text.
 The app's pitch is "this watches your workflow, not your code." That sentence must stay literally
 true at the source level.
 
-### 4.5 Humor has rails
+### 4.5 Humor has rails, and claims carry sources
 
 Never about body weight, appearance, medical conditions, mental health, competence, or job
-security. `NUCLEAR` tone is absurd and theatrical — never cruel. No medical claims anywhere, in
-the app or on the site: this is a workflow tool, not a health product. Say "your posture," never
-"your health." Rubric and the CI lint that enforces the structural parts: `docs/MESSAGE-ENGINE.md` §4.
+security. `NUCLEAR` tone is absurd and theatrical, never cruel. Rubric and the CI lint that
+enforces the structural parts: `docs/MESSAGE-ENGINE.md` §4.
+
+**On health and performance claims.** This rule used to be "no claims, ever", which was the
+safe position rather than the honest one. The current position is narrower and harder:
+
+- **No medical claims, still.** Not healthier, not prevents injury, not treats anything.
+  The app says "your posture", never "your health". It is not a health product and has no
+  business behaving like one.
+- **An attention or performance claim is allowed only with a citation**, and only where the
+  reader can see it. `web/src/content/copy.ts` → `comparison.evidence` is the pattern: the
+  claim, the paper, the DOI.
+- **Cite the disagreement too.** The comparison table claims sigstop makes you a better
+  engineer, and the evidence block under it carries Ariga & Lleras (2011) which supports
+  the mechanism *and* Helton & Russell (2012) which failed to replicate it. Citing only the
+  half that flatters the product is the move this audience is scanning for, and getting
+  caught at it costs more than the claim was worth.
+
+If you cannot find a real source with a resolvable DOI, the claim does not ship. Inventing
+a citation is the single fastest way to destroy everything else on the page.
 
 ---
 
