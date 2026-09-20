@@ -311,6 +311,14 @@ and System Settings fills up with stale entries.
 Fix: sign with a *stable* self-signed identity. `make dev-cert` creates one once.
 Never debug this by re-granting permission repeatedly; you are fighting TCC, and TCC wins.
 
+**Measured on macOS 27.0, 2026-09-21, because the above is the received wisdom and it did not
+reproduce here.** The bundle's designated requirement really is `cdhash H"..."` alone and really
+does change every build, but the Accessibility grant survived repeated rebuilds and
+`AXIsProcessTrusted()` kept returning true. So treat the trap as real but not certain, and check it
+rather than assuming it: `--doctor` reports the window title as `readable` only when the process is
+genuinely trusted. A pane that says "not granted" while `--doctor` says `readable` is a stale view,
+not a lost grant, and that bug was real and is fixed.
+
 ---
 
 ## 7. Working style in this repo

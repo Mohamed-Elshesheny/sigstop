@@ -143,16 +143,19 @@ echo "  size:   $(du -sh "${BUNDLE}" | cut -f1)"
 echo "  linked: $(otool -L "${BUNDLE}/Contents/MacOS/${APP_NAME}" | grep -c dylib) dylibs"
 echo "  cdhash: $(codesign -dvvv "${BUNDLE}" 2>&1 | awk -F= '/^CDHash=/{print $2}')"
 
-# Say it at the moment it costs something, not only in a document nobody reads
-# twice. An ad-hoc bundle gets a fresh cdhash here, which means any Accessibility
-# grant given to the previous build just died, and the app will honestly report
-# "not granted" while the user is looking at the permission they granted an hour
-# ago. Three separate debugging sessions have started from that.
+# An ad-hoc bundle's designated requirement is its cdhash alone, and the cdhash
+# is new on every build, so in principle every rebuild invalidates the
+# Accessibility grant. In practice that was NOT observed on macOS 27.0 here: the
+# grant survived repeated rebuilds and AXIsProcessTrusted kept returning true.
+# So this prints the hash and the remedy without claiming the grant is dead,
+# because a warning that cries wolf is how the real one gets ignored. Check with
+# `--doctor`, which reports the window title as readable only when the process
+# is genuinely trusted.
 if [ "${SIGN_IDENTITY}" = "-" ]; then
   echo
-  echo "  note: ad-hoc signed, so this bundle has a NEW cdhash."
-  echo "        macOS keys the Accessibility grant to the cdhash, so any grant"
-  echo "        given to the previous build no longer applies to this one."
-  echo "        Fix it once:  make dev-cert"
+  echo "  note: ad-hoc signed, so the cdhash above is new."
+  echo "        An Accessibility grant is recorded against it, so a rebuild can"
+  echo "        cost you the grant. If --doctor stops saying the window title is"
+  echo "        readable, that is what happened. Fix it once:  make dev-cert"
   echo "        then build:   SIGN_IDENTITY=sigstop-dev make run"
 fi
