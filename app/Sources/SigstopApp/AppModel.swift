@@ -47,6 +47,14 @@ final class AppModel {
     // MARK: - Observable view state
 
     private(set) var continuousWork: TimeInterval = 0
+    /// When `continuousWork` was last measured, on the monotonic clock.
+    ///
+    /// Sampling runs every five seconds because sampling more often would cost battery for
+    /// no extra knowledge. A clock that only moves when a sample lands therefore jumps in
+    /// five second steps, which reads as a broken counter rather than a cheap one. The
+    /// panel uses this to carry the number forward between samples; the value the engine
+    /// acts on is still only ever the measured one.
+    private(set) var continuousWorkMeasuredAt: Double = 0
     private(set) var timeSinceLastBreak: TimeInterval?
     private(set) var activityLabel: String = "starting up"
     private(set) var applicationName: String = "—"
@@ -83,7 +91,22 @@ final class AppModel {
     var workFraction: Double {
         let target = settings.workInterval
         guard target > 0 else { return 0 }
-        return min(1, max(0, continuousWork / target))
+        return min(1, max(0, displayedContinuousWork / target))
+    }
+
+    /// `continuousWork` carried forward to now, for display only.
+    ///
+    /// Only advances while the clock is actually running: on a break, idle, paused or in
+    /// quiet hours the last measured value is shown unchanged, because inventing seconds
+    /// the engine has not credited is exactly the lie this project does not tell.
+    var displayedContinuousWork: TimeInterval {
+        guard indicator == .working || indicator == .breakDue || indicator == .escalating else {
+            return continuousWork
+        }
+        guard continuousWorkMeasuredAt > 0 else { return continuousWork }
+        let elapsed = time.monotonicSeconds - continuousWorkMeasuredAt
+        guard elapsed > 0, elapsed < 60 else { return continuousWork }
+        return continuousWork + elapsed
     }
 
     var isOnBreak: Bool { breakEndsAt != nil }
@@ -603,6 +626,7 @@ final class AppModel {
         sample: ContextSample, context: DeveloperContext, outcome: EngineOutcome
     ) {
         continuousWork = context.continuousWork
+        continuousWorkMeasuredAt = time.monotonicSeconds
         timeSinceLastBreak = context.timeSinceLastBreak
         applicationName = context.application.localizedName
         activityLabel = sample.honestLabel ?? context.claimableActivity.displayName

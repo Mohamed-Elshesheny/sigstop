@@ -82,7 +82,7 @@ struct SettingsView: View {
 
             Text(version)
                 .font(Brand.mono(10))
-                .foregroundStyle(Brand.fgFaint)
+                .foregroundStyle(Brand.fgMuted)
                 .padding(18)
         }
         .frame(width: 176)
@@ -452,7 +452,7 @@ struct SettingsView: View {
                     if case .downloading(let received, let expected) = updater.state, expected > 0 {
                         Text(Self.bytes(received, of: expected))
                             .font(Brand.mono(10))
-                            .foregroundStyle(Brand.fgFaint)
+                            .foregroundStyle(Brand.fgMuted)
                             .monospacedDigit()
                     }
                 }
@@ -732,7 +732,7 @@ private struct ToneCard: View {
                     .foregroundStyle(selected ? Brand.amber : Brand.fg)
                 Text(gloss)
                     .font(Brand.mono(10))
-                    .foregroundStyle(Brand.fgFaint)
+                    .foregroundStyle(Brand.fgMuted)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)

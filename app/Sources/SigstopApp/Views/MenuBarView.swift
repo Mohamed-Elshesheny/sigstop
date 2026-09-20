@@ -81,23 +81,24 @@ struct MenuBarView: View {
                 Spacer()
                 Text(status.signal)
                     .font(Brand.mono(10.5))
-                    .foregroundStyle(Brand.fgFaint)
+                    .foregroundStyle(Brand.fgMuted)
             }
 
             HStack(alignment: .center, spacing: 12) {
                 BrandMark(size: 40, fill: markFill)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(Format.clock(model.continuousWork))
-                            .font(Brand.mono(40, weight: .bold))
-                            .tracking(-1.4)
-                            .monospacedDigit()
-                            .foregroundStyle(status.accent ? Brand.amber : Brand.fg)
-                            .contentTransition(reduceMotion ? .identity : .numericText())
-                            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: model.continuousWork)
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                            Text(Format.clock(model.displayedContinuousWork))
+                                .font(Brand.mono(40, weight: .bold))
+                                .tracking(-1.4)
+                                .monospacedDigit()
+                                .foregroundStyle(status.accent ? Brand.amber : Brand.fg)
+                                .contentTransition(reduceMotion ? .identity : .numericText())
+                        }
                         Text("/ \(Format.clock(TimeInterval(model.settings.workIntervalMinutes * 60)))")
                             .font(Brand.mono(11))
-                            .foregroundStyle(Brand.fgFaint)
+                            .foregroundStyle(Brand.fgMuted)
                     }
                     Text(subtitle)
                         .font(Brand.mono(10.5))
@@ -128,7 +129,7 @@ struct MenuBarView: View {
 
         var tint: Color {
             if accent { return Brand.amber }
-            return dot == .off ? Brand.fgFaint : Brand.fgMuted
+            return Brand.fgMuted
         }
     }
 
@@ -185,7 +186,7 @@ struct MenuBarView: View {
                     .truncationMode(.middle)
                 Text("·")
                     .font(Brand.mono(13))
-                    .foregroundStyle(Brand.fgFaint)
+                    .foregroundStyle(Brand.fgMuted)
                 Text(model.activityLabel)
                     .font(Brand.mono(13))
                     .foregroundStyle(Brand.fgMuted)
@@ -219,12 +220,12 @@ struct MenuBarView: View {
         let confident = model.confidence >= 0.6
         return HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text("conf")
-                .foregroundStyle(Brand.fgFaint)
+                .foregroundStyle(Brand.fgMuted)
             Text(String(format: "%.2f", min(max(model.confidence, 0), 1)))
                 .font(Brand.mono(10.5, weight: .semibold))
                 .foregroundStyle(confident ? Brand.running : Brand.fgMuted)
             Text("(\(Format.percent(model.confidence)))")
-                .foregroundStyle(Brand.fgFaint)
+                .foregroundStyle(Brand.fgMuted)
         }
         .font(Brand.mono(10.5))
         .monospacedDigit()
@@ -241,7 +242,7 @@ struct MenuBarView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(Format.logOdds(line.logOdds))
                         .font(Brand.mono(10))
-                        .foregroundStyle(line.logOdds >= 0 ? Brand.fgMuted : Brand.fgFaint)
+                        .foregroundStyle(Brand.fgMuted)
                         .frame(width: 40, alignment: .trailing)
                     Text(line.summary)
                         .font(Brand.sans(11))
@@ -253,11 +254,11 @@ struct MenuBarView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("!")
                         .font(Brand.mono(10))
-                        .foregroundStyle(Brand.fgFaint)
+                        .foregroundStyle(Brand.fgMuted)
                         .frame(width: 40, alignment: .trailing)
                     Text(caveat)
                         .font(Brand.sans(11))
-                        .foregroundStyle(Brand.fgFaint)
+                        .foregroundStyle(Brand.fgMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -297,7 +298,7 @@ struct MenuBarView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(Brand.mono(10.5))
-                .foregroundStyle(Brand.fgFaint)
+                .foregroundStyle(Brand.fgMuted)
             }
 
             HStack(spacing: 4) {
@@ -314,7 +315,6 @@ struct MenuBarView: View {
                 TerminalButton("Quit", style: .quiet) { NSApp.terminate(nil) }
                     .fixedSize()
             }
-            .padding(.horizontal, -12)
         }
     }
 
@@ -344,15 +344,26 @@ struct MenuBarView: View {
             }
 
             if let summary = model.todaySummary, !summary.isEmptyDay {
-                Text(Self.statistics(for: summary))
-                    .font(Brand.mono(10.5))
-                    .foregroundStyle(Brand.fgMuted)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Self.stats(for: summary), id: \.label) { stat in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(stat.value)
+                                .font(Brand.mono(13, weight: .medium))
+                                .monospacedDigit()
+                                .foregroundStyle(Brand.fg)
+                            Text(stat.label)
+                                .font(Brand.mono(9))
+                                .tracking(0.4)
+                                .foregroundStyle(Brand.fgFaint)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.top, 2)
             } else {
                 Text("Nothing recorded yet today.")
                     .font(Brand.mono(10.5))
-                    .foregroundStyle(Brand.fgFaint)
+                    .foregroundStyle(Brand.fgMuted)
             }
 
             if showNarration, !model.todayLine.isEmpty {
@@ -368,21 +379,25 @@ struct MenuBarView: View {
         }
     }
 
-    /// One wrapping line of facts, `·`-separated, in the order a skeptic would ask.
-    private static func statistics(for summary: DailySummary) -> String {
-        var parts = ["\(DurationText.short(summary.totalActiveWork)) active"]
-        if summary.longestContinuousSession > 0 {
-            parts.append("longest \(DurationText.short(summary.longestContinuousSession))")
-        }
-        parts.append("\(summary.breakCount) break\(summary.breakCount == 1 ? "" : "s")")
+    /// Four figures, each with its label underneath.
+    ///
+    /// The previous version ran them together into one `·`-separated line, which put the
+    /// numbers and their labels at the same weight and made the row a paragraph to read
+    /// rather than a panel to scan. "honored 0 of 9" is now "0 of 9" under "kept", because
+    /// the jargon was doing no work that the label does not do.
+    private static func stats(for summary: DailySummary) -> [(value: String, label: String)] {
+        var out: [(value: String, label: String)] = [
+            (DurationText.short(summary.totalActiveWork), "active"),
+            (DurationText.short(summary.longestContinuousSession), "longest"),
+        ]
         let asked = summary.breakOpportunities - summary.excludedOpportunities
-        if asked > 0 {
-            parts.append("honoured \(summary.honoredOpportunities) of \(asked)")
-        }
+        out.append(asked > 0
+            ? ("\(summary.honoredOpportunities) of \(asked)", "kept")
+            : ("\(summary.breakCount)", "breaks"))
         if let top = summary.topApplication, top.seconds > 0 {
-            parts.append("\(displayName(for: top.bundleID)) \(DurationText.short(top.seconds))")
+            out.append((DurationText.short(top.seconds), displayName(for: top.bundleID).lowercased()))
         }
-        return parts.joined(separator: "  ·  ")
+        return out
     }
 
     /// `com.anthropic.claudefordesktop` → `Claude`. The running application's localized
@@ -416,7 +431,7 @@ struct MenuBarView: View {
     private func footnote(_ text: String) -> some View {
         Text(text)
             .font(Brand.mono(10))
-            .foregroundStyle(Brand.fgFaint)
+            .foregroundStyle(Brand.fgMuted)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 4)
     }
@@ -441,7 +456,7 @@ private struct DisclosureLine: View {
                 Text(title)
             }
             .font(Brand.mono(10.5))
-            .foregroundStyle(hovering ? Brand.fgMuted : Brand.fgFaint)
+            .foregroundStyle(hovering ? Brand.fg : Brand.fgMuted)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

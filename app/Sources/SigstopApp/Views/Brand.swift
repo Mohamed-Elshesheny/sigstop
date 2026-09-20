@@ -161,7 +161,7 @@ struct BrandMark: View {
 // MARK: - Labels
 
 /// A section marker in the site's grammar: 10pt monospaced, uppercase, letterspaced,
-/// faint. It is not a heading in the System Settings sense and is not meant to be read
+/// muted. It is not a heading in the System Settings sense and is not meant to be read
 /// as one — it is a label on a block of terminal output.
 struct Kicker: View {
     let text: String
@@ -172,7 +172,7 @@ struct Kicker: View {
             .font(Brand.mono(10, weight: .medium))
             .tracking(1.6)
             .textCase(.uppercase)
-            .foregroundStyle(Brand.fgFaint)
+            .foregroundStyle(Brand.fgMuted)
     }
 }
 
@@ -248,7 +248,7 @@ struct TerminalButton: View {
     var body: some View {
         let button = Button(action: action) {
             Text(title)
-                .font(Brand.mono(11, weight: style == .filled ? .semibold : .medium))
+                .font(Brand.mono(11, weight: weight))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
@@ -272,6 +272,17 @@ struct TerminalButton: View {
         }
     }
 
+    /// Quiet buttons are the site's ghost links: regular weight, muted on a surface at rest, and only
+    /// as bright as ordinary text under the pointer. They must never weigh as much as the
+    /// primary control they sit under.
+    private var weight: NSFont.Weight {
+        switch style {
+        case .filled: return .semibold
+        case .outlined: return .medium
+        case .quiet: return .regular
+        }
+    }
+
     private var foreground: Color {
         switch style {
         case .filled: return Brand.onAmber
@@ -284,7 +295,7 @@ struct TerminalButton: View {
         switch style {
         case .filled: return hovering && enabled ? Brand.amberFill.opacity(0.88) : Brand.amberFill
         case .outlined: return hovering && enabled ? Brand.surfaceHi : Brand.surface
-        case .quiet: return hovering && enabled ? Brand.surface : .clear
+        case .quiet: return hovering && enabled ? Brand.surfaceHi : Brand.surface
         }
     }
 
@@ -353,7 +364,7 @@ struct TerminalStepper: View {
                 if !unit.isEmpty {
                     Text(unit)
                         .font(Brand.mono(10))
-                        .foregroundStyle(Brand.fgFaint)
+                        .foregroundStyle(Brand.fgMuted)
                 }
             }
             .frame(minWidth: 62)

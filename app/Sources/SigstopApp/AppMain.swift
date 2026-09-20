@@ -182,6 +182,9 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
     private func show() {
         model.refreshRollup(force: true)
+        if panel.contentView !== content.view {
+            panel.contentView = content.view
+        }
         layoutPanel()
         panel.orderFrontRegardless()
         panel.makeKey()
@@ -196,6 +199,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         removeMonitors()
         item.button?.highlight(false)
         panel.orderOut(nil)
+        panel.contentView = nil
         dismissedAt = Date()
     }
 
