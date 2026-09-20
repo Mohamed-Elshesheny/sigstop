@@ -426,6 +426,9 @@ struct MenuBarView: View {
         if let error = model.lastStoreError {
             footnote(error)
         }
+        if let note = model.badgeNote {
+            footnote(note)
+        }
     }
 
     private func footnote(_ text: String) -> some View {

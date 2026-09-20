@@ -10,7 +10,7 @@ then interrupts at a defensible moment with a joke you will recognise.
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?style=flat-square)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square)](#building)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
-[![83 tests](https://img.shields.io/badge/tests-83%20passing-3fb950?style=flat-square)](#tests)
+[![125 tests](https://img.shields.io/badge/tests-125%20passing-3fb950?style=flat-square)](#tests)
 
 </div>
 
@@ -105,7 +105,7 @@ keeps CI simple and stops a generated XML file from conflicting on every PR.
 git clone https://github.com/Mohamed-Elshesheny/sigstop
 cd sigstop/app
 make run        # build, bundle, launch
-make test       # 83 tests, no GUI session needed
+make test       # 125 tests, no GUI session needed
 make doctor     # print exactly what the app can see about you
 make verify     # prove the privacy claims against the binary
 ```

@@ -30,7 +30,7 @@ struct SettingsView: View {
     }
 
     enum Pane: String, CaseIterable, Identifiable {
-        case rhythm, voice, signals, data, about
+        case rhythm, voice, badges, signals, data, about
 
         var id: String { rawValue }
         var title: String { rawValue.capitalized }
@@ -39,6 +39,7 @@ struct SettingsView: View {
             switch self {
             case .rhythm: return "When a break is due, how long it lasts, and when the app should keep quiet."
             case .voice: return "How hard the app is allowed to hit. A ceiling you set, never a floor it raises."
+            case .badges: return "Ten marks. Every one of them is for taking the break or for not needing it, and none of them is a streak."
             case .signals: return "What the app can see right now, tier by tier, and the two switches that widen it."
             case .data: return "Everything the app keeps lives in one folder you can read with cat."
             case .about: return ""
@@ -114,6 +115,7 @@ struct SettingsView: View {
                     switch pane {
                     case .rhythm: rhythm
                     case .voice: voice
+                    case .badges: badges
                     case .signals: signals
                     case .data: data
                     case .about: about
@@ -267,6 +269,41 @@ struct SettingsView: View {
                 )
             }
         }
+    }
+
+    // MARK: Badges
+
+    /// The ten, in catalogue order, unlocked and locked in the same list.
+    ///
+    /// One list rather than an "earned" section and a "locked" section: splitting them
+    /// turns the locked half into a to-do list, and these are not tasks. The order never
+    /// changes, so the pane looks the same on the first day as on the hundredth and the
+    /// shapes read as the progression they are.
+    private var badges: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsSection(earnedKicker) {
+                ForEach(Badge.all) { badge in
+                    BadgeRow(badge: badge, earned: model.badges.date(for: badge.id))
+                }
+            }
+
+            Note(
+                "Nothing here rewards working longer, because the app exists to interrupt "
+                    + "long stretches and paying you for one would have it arguing with "
+                    + "itself. sched_yield is the clearest case: it is for a full day where "
+                    + "nothing ran past the hour."
+            )
+            Note(
+                "There is no streak. Nothing expires, missing a day costs nothing, and none "
+                    + "of these can go down once it has happened. Every one is counted from "
+                    + "the log already on disk — no new tracking was added for them."
+            )
+        }
+        .onAppear { model.acknowledgeBadges() }
+    }
+
+    private var earnedKicker: String {
+        "\(model.badges.count) of \(Badge.all.count) earned"
     }
 
     // MARK: Signals
@@ -709,6 +746,58 @@ private struct CodeBlock: View {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .strokeBorder(Brand.line, lineWidth: 1)
             )
+    }
+}
+
+/// One badge: the mark, its name, and one line that is either what it means or what it
+/// takes. The date sits on the right in the same column the rest of the window puts its
+/// values in.
+///
+/// A locked row is the same row — same height, same type, same position — with the
+/// outline mark and its hint. Nothing is struck through, greyed to illegibility, or
+/// marked with a symbol that could be read as a failure: a badge that has not happened
+/// yet is not a problem, and the row must not imply it is one.
+struct BadgeRow: View {
+    let badge: Badge
+    let earned: CalendarDay?
+
+    private var unlocked: Bool { earned != nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 14) {
+                BadgeMark(
+                    shape: badge.shape,
+                    glyph: badge.glyph,
+                    unlocked: unlocked,
+                    size: 28
+                )
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(badge.title)
+                        .font(Brand.mono(12, weight: .medium))
+                        .foregroundStyle(unlocked ? Brand.fg : Brand.fgMuted)
+                    Text(unlocked ? badge.blurb : badge.lockedHint)
+                        .font(Brand.sans(11))
+                        .foregroundStyle(Brand.fgMuted)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 16)
+                Text(earned.map(\.description) ?? "not yet")
+                    .font(Brand.mono(10))
+                    .foregroundStyle(unlocked ? Brand.fgMuted : Brand.fgFaint)
+                    .monospacedDigit()
+                    .padding(.top, 2)
+            }
+            .padding(.vertical, 13)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                unlocked
+                    ? "\(badge.title), earned \(earned?.description ?? ""). \(badge.blurb)"
+                    : "\(badge.title), not earned yet. \(badge.lockedHint)"
+            )
+            Rule()
+        }
     }
 }
 

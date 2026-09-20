@@ -35,7 +35,15 @@ public enum DurationText {
 ///
 /// This is the voice of `jobs`: everything you had suspended today, reported once, in
 /// the tone the user chose. It reports; it does not grade (docs/BREAK-DECISION.md §16)
-/// — there are no streaks, no badges, and no red numbers anywhere in this file.
+/// — there are no streaks and no red numbers anywhere in this file.
+///
+/// This used to say "no badges" too. There are badges now — ten of them, in
+/// `Badges/Badge.swift`, shown in Settings and nowhere near this file — so the sentence
+/// was rewritten rather than quietly deleted. The line it drew is still the real one and
+/// it moved by one word: **the daily summary does not grade a day.** A badge is a record
+/// of something that already happened, it cannot go down, nothing expires, and none of
+/// the ten rewards working longer. A streak would be the opposite of all four, which is
+/// why there still is not one.
 public struct SummaryNarrator: Sendable {
     public let tone: Tone
     private let appName: @Sendable (String) -> String
@@ -273,7 +281,7 @@ extension SummaryNarrator {
             Template("SIGCONT is available tomorrow, same place, same stack."),
             Template("Filed under: days that happened."),
             Template("{top} would like to be listed as an emergency contact.", requires: [.top]),
-            Template("No badges were awarded. There are no badges."),
+            Template("There are badges. There is no streak, so there is nothing here to protect."),
         ],
         .roast: [
             Template("The ladder starts at SIGTSTP again tomorrow. It always does."),
