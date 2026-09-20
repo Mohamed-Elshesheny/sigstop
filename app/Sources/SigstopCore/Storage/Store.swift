@@ -333,9 +333,12 @@ enum ExportWriter {
             out += "# days: none\n"
         }
         out += "# events: \(total)\n"
-        out += "# fields: v=schema, t=UTC second, e=event, app=bundle id, cat=category,\n"
-        out += "#         act=inferred activity, sig=window-title CLASS (never the title),\n"
-        out += "#         idle_s, reason, action, snooze_s, deferred, origin, dur_s, cycle\n"
+        // Generated from `LoggedEvent.CodingKeys`, never retyped: a header that lists a
+        // field set two changes out of date under-describes the artifact a sceptic is
+        // being handed, which is the one thing an export cannot do.
+        for (i, line) in LoggedEvent.fieldGuide().enumerated() {
+            out += i == 0 ? "# fields: \(line)\n" : "#         \(line)\n"
+        }
         out += "# nothing here is transformed or filtered; this is a copy of what is on disk.\n"
         out += body
         return out

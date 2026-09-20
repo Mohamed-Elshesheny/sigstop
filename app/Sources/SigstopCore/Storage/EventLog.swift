@@ -309,7 +309,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// nothing else.
     public var outcome: CycleOutcome?
     /// Why a prompt was or was not allowed. Typed for the same reason: a closed
-    /// vocabulary of twenty-four, never a sentence, and never anything derived from a
+    /// vocabulary of twenty-five, never a sentence, and never anything derived from a
     /// window title (CLAUDE.md §4.4).
     public var gate: GateReason?
     public var action: BreakResponseAction?
@@ -367,7 +367,13 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// True for a `break_prompt` that actually reached the developer.
     public var wasDelivered: Bool { kind == .breakPrompt && deferred == nil }
 
-    private enum CodingKeys: String, CodingKey {
+    /// The on-disk field names, in the order the field reference lists them.
+    ///
+    /// Not private, and `CaseIterable`, so the export header can be **generated** from
+    /// this rather than retyped beside it. It was retyped beside it, and it drifted:
+    /// `outcome` and `gate` reached the body of an export while the header still named
+    /// the field set from two changes earlier.
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case v
         case at = "t"
         case kind = "e"
@@ -434,6 +440,59 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         try c.encodeIfPresent(origin, forKey: .origin)
         try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
         try c.encodeIfPresent(cycle, forKey: .cycle)
+    }
+}
+
+extension LoggedEvent.CodingKeys {
+    /// What this field holds, in a few words, for the export header.
+    ///
+    /// Exhaustive with no `default`, so a new field on `LoggedEvent` stops this file
+    /// compiling until somebody says what it is. That is the point: the header used to be
+    /// a hand-typed list beside the type, and it fell two fields behind it.
+    var gloss: String {
+        switch self {
+        case .v:               return "schema"
+        case .at:              return "UTC second"
+        case .kind:            return "event"
+        case .app:             return "bundle id"
+        case .category:        return "category"
+        case .activity:        return "inferred activity"
+        case .titleSignal:     return "window-title CLASS (never the title)"
+        case .idleSeconds:     return "length of the idle period that just ended"
+        case .reason:          return "the signal a prompt is named after"
+        case .outcome:         return "how a break opportunity ended"
+        case .gate:            return "why a prompt was or was not allowed"
+        case .action:          return "what was done with a prompt"
+        case .snoozeSeconds:   return "snooze length in seconds"
+        case .deferred:        return "why a prompt was withheld"
+        case .origin:          return "how a break started"
+        case .durationSeconds: return "break length in seconds"
+        case .cycle:           return "which break opportunity this line belongs to"
+        }
+    }
+}
+
+extension LoggedEvent {
+    /// Every on-disk field, `name=what it holds`, wrapped to `width` columns.
+    ///
+    /// Generated from `CodingKeys` rather than written out beside it, so an export cannot
+    /// carry a field its own header does not account for (docs/PRIVACY.md §4.3).
+    static func fieldGuide(width: Int = 66) -> [String] {
+        var lines: [String] = []
+        var current = ""
+        for key in CodingKeys.allCases {
+            let entry = "\(key.rawValue)=\(key.gloss)"
+            if current.isEmpty {
+                current = entry
+            } else if current.count + 2 + entry.count <= width {
+                current += ", " + entry
+            } else {
+                lines.append(current + ",")
+                current = entry
+            }
+        }
+        if !current.isEmpty { lines.append(current) }
+        return lines
     }
 }
 

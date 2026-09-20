@@ -522,6 +522,24 @@ struct StoreTests {
         #expect(reread.malformedLines == 0)
     }
 
+    /// The export's own header has to describe the export.
+    ///
+    /// It listed a field set that stopped being true two fields ago: `outcome` and `gate`
+    /// were in the body and not in the header, so the artifact a user hands to a sceptic
+    /// under-described its own contents. For a product whose pitch is that `cat` is a
+    /// complete audit tool, an undocumented field in an export is the worst place for the
+    /// vocabulary to drift, and it is the same drift docs/PRIVACY.md §4.3 was corrected
+    /// for. Driving the header off `LoggedEvent.CodingKeys` is what stops it recurring;
+    /// this is the assertion that says so.
+    @Test func the_export_header_names_every_field_the_body_can_carry() throws {
+        let store = InMemoryEventStore(events: [.start(at: Fix.t(0))])
+        let text = try store.exportText()
+        let header = text.split(separator: "\n").filter { $0.hasPrefix("#") }.joined(separator: "\n")
+        for key in LoggedEvent.CodingKeys.allCases {
+            #expect(header.contains(key.rawValue), "the export header never mentions \(key.rawValue as String)")
+        }
+    }
+
     @Test func retention_prunes_beyond_the_window_and_keeps_the_rest() throws {
         let store = InMemoryEventStore()
         for back in 0..<12 {
