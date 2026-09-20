@@ -958,12 +958,23 @@ public struct Corpus: Sendable {
 }
 ```
 
-Packs load from `~/Library/Application Support/<app>/packs/*.json`, validated against the
-schema at load time. A pack that fails validation is rejected wholesale with a diagnostic —
-never partially loaded, because a half-loaded pack produces exactly the coverage holes the
-lint exists to prevent. Third-party packs are data only: no code, no URLs, no network access. The app's one network
-request is a compile-time constant (`docs/PRIVACY.md` §2.9), so a pack has no endpoint to reach even
-if it smuggled one in.
+**Packs ship in-tree only. There is no runtime pack loading, and this is a decision
+rather than a gap.**
+
+An earlier draft of this document described loading packs from
+`~/Library/Application Support/<app>/packs/*.json`. That was never built, and the document
+was wrong to describe it as though it were. The contribution path is a pull request against
+`app/Sources/SigstopCore/Message/corpus.json`: every line that ships has been read by a
+human, which is the only defence that actually works against the real risk here. A pack is
+data, not code, so it cannot execute anything or reach the network. What it *can* contain is
+hostile or manipulative text, and no schema catches that. Review does.
+
+Loading packs from disk would trade that review for convenience, and the people who would
+use it are contributors, who are already editing Swift in this repository.
+
+If runtime loading is ever added, the validation rules still stand: validate against the
+schema at load time and reject a failing pack wholesale with a diagnostic, never partially,
+because a half-loaded pack produces exactly the coverage holes the lint exists to prevent.
 
 ### 7.4 Localization readiness
 
