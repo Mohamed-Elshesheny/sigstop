@@ -166,9 +166,21 @@ public struct BreakDecisionEngine: Sendable {
             return EngineOutcome(state: .quiet(QuietState(cause: .scheduledQuietHours)), effects: effects, day: day, verdict: nil)
         }
 
+        /// True when this tick is the one that ends a break.
+        ///
+        /// `input` was built before the break ended, so `input.context.continuousWork`
+        /// still holds the pre-break figure: the app resets the session clock when it
+        /// executes the `.endBreak` effect, which happens after this function returns.
+        /// Evaluating `handleWorking` with that stale figure opened a new cycle in the same
+        /// second the break finished, which is what a user saw as a second break arriving
+        /// the instant the first one ended.
+        var breakEndedThisTick = false
+
         switch state {
         case .breakActive(let b):
+            let before = state
             state = handleBreakActive(b, input: input, day: &day, effects: &effects)
+            if case .breakActive = before, case .working = state { breakEndedThisTick = true }
         case .idle(let i):
             state = handleIdle(i, input: input, day: &day, effects: &effects)
         case .quiet(let q):
@@ -179,7 +191,7 @@ public struct BreakDecisionEngine: Sendable {
             break
         }
 
-        if case .working(let w) = state {
+        if case .working(let w) = state, !breakEndedThisTick {
             state = handleWorking(w, input: input, day: &day, effects: &effects)
         }
         if case .breakDue(let d) = state {
