@@ -434,6 +434,7 @@ final class AppModel {
             ]
         )
         let message = messages.select(for: messageContext).message
+        PromptSound.play(for: request.level, enabled: settings.promptSound)
         if request.channel == .panel || !settings.useSystemNotifications {
             presentPanel(request, message: message)
         } else {

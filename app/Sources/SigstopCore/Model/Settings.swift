@@ -119,6 +119,12 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     /// .authorized` and a successful `add()` and is still never drawn on screen. The app
     /// then records a prompt nobody saw as ignored, backs off, and goes quiet. A break
     /// reminder that fails silently is worse than no break reminder.
+    /// Play a sound with the prompt, from escalation two onward.
+    ///
+    /// The first prompt is silent on purpose. A sound on every reminder is how a break
+    /// reminder becomes something people mute, and a sound that only arrives when you
+    /// have already ignored one still carries information.
+    public var promptSound: Bool
     public var useSystemNotifications: Bool
     public var showInDock: Bool
     public var launchAtLogin: Bool
@@ -138,6 +144,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         accessibilityEnabled: Bool = false,
         gitContextEnabled: Bool = false,
         browserHostEnabled: Bool = false,
+        promptSound: Bool = true,
         useSystemNotifications: Bool = false,
         showInDock: Bool = true,
         launchAtLogin: Bool = false,
@@ -156,6 +163,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.accessibilityEnabled = accessibilityEnabled
         self.gitContextEnabled = gitContextEnabled
         self.browserHostEnabled = browserHostEnabled
+        self.promptSound = promptSound
         self.useSystemNotifications = useSystemNotifications
         self.showInDock = showInDock
         self.launchAtLogin = launchAtLogin
@@ -187,6 +195,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         accessibilityEnabled = try c.decodeIfPresent(Bool.self, forKey: .accessibilityEnabled) ?? d.accessibilityEnabled
         gitContextEnabled = try c.decodeIfPresent(Bool.self, forKey: .gitContextEnabled) ?? d.gitContextEnabled
         browserHostEnabled = try c.decodeIfPresent(Bool.self, forKey: .browserHostEnabled) ?? d.browserHostEnabled
+        promptSound = try c.decodeIfPresent(Bool.self, forKey: .promptSound) ?? d.promptSound
         useSystemNotifications = try c.decodeIfPresent(Bool.self, forKey: .useSystemNotifications) ?? d.useSystemNotifications
         showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? d.showInDock
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin

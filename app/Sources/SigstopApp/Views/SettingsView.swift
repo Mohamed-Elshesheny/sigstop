@@ -166,6 +166,21 @@ struct SettingsView: View {
                 }
             }
 
+            SettingsSection("prompt") {
+                SettingRow(
+                    "Play a sound",
+                    detail: "Silent at SIGTSTP. Tink at SIGINT, Submarine at SIGTERM, Sosumi at SIGSTOP. A sound on every reminder is how an app gets muted before the level that matters."
+                ) {
+                    TerminalSwitch(isOn: settings.promptSound)
+                }
+                SettingRow(
+                    "Use macOS notifications instead",
+                    detail: "Off by default. An unsigned build reports the notification as delivered and macOS never draws it, so the app draws its own."
+                ) {
+                    TerminalSwitch(isOn: settings.useSystemNotifications)
+                }
+            }
+
             SettingsSection("break") {
                 SettingRow("Show the full-screen overlay", detail: "Dimmed, not opaque. The work is still there.") {
                     TerminalSwitch(isOn: settings.showBreakOverlay)
