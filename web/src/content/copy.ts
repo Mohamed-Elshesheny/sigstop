@@ -477,93 +477,25 @@ export const badges = {
 export const meetings = {
   kicker: "Meetings",
   headline: "It does not fire in your standup.",
-  sub: "This is the objection that decides whether you install a break app at all: a full screen prompt landing while twelve people are watching your screen. So here is the whole mechanism, including the case it misses.",
+  sub: "A prompt landing while twelve people watch your screen is the objection that decides whether you install a break app at all. So it does not happen.",
 
-  ladder: {
-    title: "Four states. Only two of them are allowed to be certain.",
-    note: "Only a device bit may block. Everything softer than a device bit may delay a prompt and nothing else, which is the difference between this and a mute button.",
-    verdicts: { block: "cannot fire", hold: "held", defer: "delayed only" },
-    items: [
-      {
-        state: "A microphone is running",
-        verdict: "block",
-        source: "kAudioDevicePropertyDeviceIsRunningSomewhere",
-        body: "A yes or no bit on the audio device. No Microphone permission, no prompt, no stream ever opened, and nothing that could be heard if one were. While that bit is set nothing is delivered on any channel, at any rung of the ladder.",
-      },
-      {
-        state: "A camera is running",
-        verdict: "block",
-        source: "kCMIODevicePropertyDeviceIsRunningSomewhere",
-        body: "The same shape of bit from CoreMediaIO, at the same price of zero. This is the camera on, microphone muted case, and it used to be the obvious hole.",
-      },
-      {
-        state: "One of those two stopped, recently",
-        verdict: "hold",
-        source: "the same two bits, and arithmetic on them",
-        body: "Muting looks exactly like leaving, so the app does not guess between them. A device that ran continuously for 45 seconds and then stopped holds the prompt for eight minutes on that fact alone, and for up to twenty while the app it was attributed to is still open.",
-      },
-      {
-        state: "Something resembles a call, but nothing has proved it",
-        verdict: "defer",
-        source: "a guess, and it is handled as one",
-        body: "Capture that has not lasted long enough yet, or the app launching next to a Zoom that was already running. Neither is a fact, so neither blocks. They buy time and the time runs out.",
-      },
-    ],
-  },
+  facts: [
+    {
+      title: "A live microphone or camera stops it",
+      body: "Both are a yes or no bit on the device. No Microphone permission, no Camera permission, no prompt, and no stream is ever opened. The app cannot hear or see anything, and the capability is absent rather than unused.",
+    },
+    {
+      title: "Muting does not end it",
+      body: "Muting looks exactly like leaving, so the app does not guess between them. It keeps holding after the device goes quiet, longer while the app that was using it is still open, and never longer than twenty minutes.",
+    },
+    {
+      title: "A long call costs you nothing",
+      body: "The work clock pauses while it holds. Nothing queues up, nothing arrives the second you say goodbye, and a prompt already on screen when a call starts is withdrawn rather than counted against you.",
+    },
+  ],
 
-  mute: {
-    title: "The hard case is mute",
-    sub: "Nothing on the machine is live during a call you are muted on. The bit drops the instant you press it, which is when a timer would go off. One real call, and what the app does with it:",
-    phases: [
-      { t: "14:02", tone: "live", label: "Zoom takes the microphone", body: "The device bit goes true. Forty five seconds of it in a row rules out Siri, a dictated sentence and a microphone test." },
-      { t: "14:31", tone: "mute", label: "You mute", body: "Every live signal on this Mac goes quiet at once. The call did not end. Nothing at this tier can tell the difference." },
-      { t: "14:39", tone: "hold", label: "Eight minutes on the fact", body: "Unconditional, and it needs to know nothing about Zoom. Delete every line of app matching and this part remains." },
-      { t: "14:51", tone: "hold", label: "Twelve more, because Zoom is still open", body: "The app it named is running, so the hold is extended. Twenty minutes is the ceiling and it is never longer." },
-    ],
-    close: "At 14:51 the hold ends and the prompt is allowed through. Quit Zoom before then and it ends ninety seconds later instead, because the call is over.",
+  limit: {
+    title: "The case it misses, said out loud",
+    body: "A screen share with the microphone muted and the camera off. Knowing a display is being captured needs the Screen Recording permission, which is the one permission that would let this app read your screen, and it is not going to ask for it. The menu has a line for that: I'm in a meeting.",
   },
-
-  bounds: {
-    title: "Every hold is bounded, and it is never silent about one",
-    items: [
-      { k: "20 min", v: "The longest any single hold can run. The last twelve of those need the named app to still be running." },
-      { k: "90 min", v: "Held time in one episode. Past that the app is wrong about something, so it stops holding and says which ceiling it hit." },
-      { k: "3 h", v: "Held time in one day, after which it stops until tomorrow." },
-      { k: "1 click", v: "The menu bar carries its own state while it holds, names the fact and the closing time, and offers \"Not in a meeting\" the whole time." },
-    ],
-    note: "No hold survives a relaunch. A hold restored from disk is a suppression that can outlive the bug that created it, and quitting the app has to stay the crude escape hatch it is. The day's running total does survive, because that number can only ever make the app less willing to hold, never more.",
-  },
-
-  gap: {
-    title: "What it cannot see",
-    headline: "A screen share.",
-    body: "There is no permission-free way to know a display is being captured. CGDisplayIsCaptured has been deprecated since macOS 10.9 and no longer compiles, CoreMediaIO enumerates no display capture device, and ScreenCaptureKit requires the Screen Recording grant, which is the exact permission that would let this app read your screen. It is not going to ask for it. So a silent screen share, muted and camera off, is a case this misses, and the block that was supposed to cover it never fires on anybody's machine.",
-    alsoTitle: "Two more, stated rather than buried",
-    also: [
-      "A call you joined muted with the camera off and never unmuted. No capture fact ever happens, so there is nothing to hold on to.",
-      "Google Meet in Safari. Safari routes page audio through one process that serves every WebKit client, so it names no app. A live microphone still blocks. What is lost is the name, and with it the longer hold after you mute.",
-    ],
-    answerLabel: "The answer to all three",
-    answer: "One line in the menu: I'm in a meeting. It holds everything for two hours and then expires. A hold that never expires is a mute button, and a mute button is how an app like this quietly stops working.",
-  },
-
-  apps: {
-    title: "The four people actually ask about",
-    note: "Matched by bundle id prefix, because macOS attributes audio to helper processes and not to apps. The list is in the source, each entry marked verified or not, and it is the only thing the app learns: which app holds the microphone, never what is being said, typed or shown in it.",
-    items: [
-      { name: "Slack", how: "Named directly by CoreAudio's process table. Blocks while live, and anchors the hold after you mute." },
-      { name: "Microsoft Teams", how: "Its media path is a separate process that does not sit under the Teams bundle prefix at all, which is why matching is by prefix against a list you can read and correct." },
-      { name: "Zoom", how: "Named the same way. It also holds the device briefly in a waiting room and just after a call, which the hold absorbs rather than tries to out-guess." },
-      { name: "Google Meet", how: "A browser tab, not an app. In Chrome, Arc, Brave, Edge and Firefox the microphone attributes to the browser, so the tab can be anchored to it. In Safari it names nothing, and the plain device bit carries the block on its own." },
-    ],
-  },
-
-  cost: {
-    title: "A two hour call costs the cycle nothing",
-    items: [
-      { k: "Nothing queues up", v: "While it is blocked the deferral clock is paused and nothing is emitted on any channel. The cycle is preserved, not spent." },
-      { k: "Nothing lands late", v: "A cycle that spends an hour blocked is abandoned rather than fired. It re-arms after ten minutes of real work, so you are not prompted the second you say goodbye." },
-      { k: "Nothing you were shown counts against you", v: "A prompt already on screen when a call starts is withdrawn, and its timer is cleared with it. You are not charged with ignoring something you were never allowed to answer." },
-    ],
-  },
-} as const;
+};
