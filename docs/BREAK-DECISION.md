@@ -1065,7 +1065,13 @@ cooldown, with the work clock still climbing against a threshold nothing was wai
 4. A hard block at a level's scheduled time **postpones** that level (the ladder clock pauses); it never
    stacks two levels together on release.
 5. **Backoff:** after 2 consecutive fully-ignored cycles, for the rest of the local day the ladder is
-   truncated to levels 1–2 — one notification per cycle, maximum. Reset by any accepted break.
+   truncated to levels 1–2 — one notification per cycle, maximum. Reset by any **qualifying break**
+   (`qualifyingBreak`, 5 min), and deliberately not by the cycle it was attached to. A truncated cycle
+   is closed `promptTimeout` after its single prompt — that is what truncating it means — so a user who
+   answers even a minute late starts their break with no open cycle. While the reset was conditional on
+   one, the backoff was unescapable for the rest of the day for everyone who did not answer inside 90
+   seconds, which is the window the backoff exists to shorten. `honoredOpportunities` stays conditional
+   on an open cycle, because the compliance denominator only grows when an opportunity was opened.
 6. **Daily cap** (12) overrides everything above. On reaching it, the app goes passive-only until the
    next day boundary and records `quiet(.dailyCapReached)`. That state is terminal until the boundary
    and computes no verdict, so it writes no `gate` line either: the menu is the only place a user can

@@ -144,8 +144,8 @@ public struct BreakDecisionEngine: Sendable {
                 effects.append(.withdrawPrompt(cycle: cycle, reason: .userLeft))
                 effects.append(.closeCycle(cycle, .honored))
                 day.honoredOpportunities += 1
-                day.consecutiveIgnoredCycles = 0
             }
+            day.consecutiveIgnoredCycles = 0
             effects.append(.setIndicator(.working))
             let working = WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork)
             return EngineOutcome(state: .working(working), effects: effects, day: day, verdict: nil)
@@ -589,11 +589,25 @@ public struct BreakDecisionEngine: Sendable {
         )
         if let cycle = active.cycle {
             effects.append(.closeCycle(cycle, honored ? .honored : .skipped))
-            if honored {
-                day.honoredOpportunities += 1
-                day.consecutiveIgnoredCycles = 0
-            }
+            if honored { day.honoredOpportunities += 1 }
         }
+        /// The backoff is cleared by the break, not by the cycle the break happened to be
+        /// attached to. Under the backoff a cycle gets one prompt and closes
+        /// `promptTimeout` later, so a user who answers even a minute late starts their
+        /// break with `cycle == nil` — and while this reset lived inside `if let cycle`
+        /// that break bought them nothing. `consecutiveIgnoredCycles` never fell back
+        /// under the threshold, every later opportunity was still a single prompt, and
+        /// `PromptOutlook`'s "taking a break clears that and the full ladder comes back"
+        /// was a sentence the engine did not honour. The only exit was answering inside
+        /// the 90 second window, which is the window the backoff exists to shorten.
+        ///
+        /// A spontaneous break with no opportunity behind it clears it too, deliberately:
+        /// the counter means "opportunities in a row that went unanswered by a break", and
+        /// it is the nagging that stands down, not the accounting. `honoredOpportunities`
+        /// stays inside the `if let` for exactly the opposite reason — crediting a break
+        /// nobody asked for would inflate compliance against a denominator that never
+        /// grew, and the ledger the panel actually reads would disagree with it.
+        if honored { day.consecutiveIgnoredCycles = 0 }
         effects.append(.setIndicator(.working))
         return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: 0))
     }

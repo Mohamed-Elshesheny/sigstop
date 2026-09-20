@@ -105,6 +105,72 @@ struct BackoffTests {
         #expect(w.cooldownUntilMono != nil)
     }
 
+    /// The way out of the backoff, which for a while there was not one.
+    ///
+    /// A capped cycle closes `promptTimeout` after its single prompt, which is the point
+    /// of capping it. That also takes the cycle away, so a break the user starts even a
+    /// minute later begins with `cycle == nil` - and the reset used to live inside
+    /// `if let cycle`. Two ignored opportunities therefore put the app into single-prompt
+    /// mode for the rest of the day unless the user answered inside ninety seconds, while
+    /// `PromptOutlook` told them a break would clear it.
+    @Test("a break after a capped cycle has closed still clears the backoff")
+    func aLateBreakStillClearsTheBackoff() {
+        var session = EngineHarness.Session()
+        session.driver.day.consecutiveIgnoredCycles = 2
+        session.stepToPrompt()
+        session.step(untilLimit: 900, Self.closedAsIgnored)
+        #expect(session.driver.day.consecutiveIgnoredCycles == 3)
+        #expect(session.driver.state.openCycle == nil, "the capped cycle is gone, which is the point")
+
+        // Three minutes late, which is what "I saw it, let me finish this line" looks like.
+        session.step(times: 36)
+        session.step(action: .startBreakNow)
+        guard case .breakActive(let active) = session.driver.state else {
+            Issue.record("the user must be able to start a break during the cooldown")
+            return
+        }
+        #expect(active.cycle == nil, "there is no cycle left to attach it to")
+
+        session.step(untilLimit: 200) { effects in
+            effects.contains { if case .endBreak = $0 { return true } else { return false } }
+        }
+        #expect(
+            session.driver.day.consecutiveIgnoredCycles == 0,
+            "a qualifying break is what clears the backoff, not the cycle it was attached to"
+        )
+    }
+
+    /// The other half of it: the break has to be a real one. A break shorter than
+    /// `qualifyingBreak` buys the same nothing a snooze does.
+    @Test("a break too short to qualify clears nothing")
+    func aShortBreakClearsNothing() {
+        var session = EngineHarness.Session()
+        session.driver.day.consecutiveIgnoredCycles = 2
+        session.stepToPrompt()
+        session.step(untilLimit: 900, Self.closedAsIgnored)
+
+        session.step(action: .startBreakNow)
+        session.step(times: 12)
+        session.step(action: .endBreak)
+        #expect(session.driver.day.consecutiveIgnoredCycles == 3)
+    }
+
+    /// Compliance is not cleared by it, and deliberately. The counter the backoff reads
+    /// means "opportunities in a row that went unanswered by a break"; the denominator
+    /// the panel divides by only grows when an opportunity was actually opened, so
+    /// crediting a break nobody asked for would be a percentage of nothing.
+    @Test("a break with no opportunity behind it earns no compliance credit")
+    func aSpontaneousBreakIsNotAnHonoredOpportunity() {
+        var session = EngineHarness.Session()
+        session.driver.day.consecutiveIgnoredCycles = 2
+        session.step(action: .startBreakNow)
+        session.step(untilLimit: 200) { effects in
+            effects.contains { if case .endBreak = $0 { return true } else { return false } }
+        }
+        #expect(session.driver.day.consecutiveIgnoredCycles == 0)
+        #expect(session.driver.day.honoredOpportunities == 0)
+    }
+
     /// One rule, learnable without a legend: a dim mark means the app is not going to
     /// ask. The predicate lives in `Core` because the view layer has no test target.
     @Test("the dim set is exactly the states where nothing is coming")
