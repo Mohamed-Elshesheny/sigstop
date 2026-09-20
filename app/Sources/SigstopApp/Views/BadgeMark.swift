@@ -213,28 +213,41 @@ extension BadgeMotif {
     ///
     /// The rhyme is the whole idea and one function draws both, because two would let the
     /// brackets drift a unit apart and lose it. What the hundredth adds is not a bigger
-    /// number, it is *mass*: two ghosted scrollback rules above and all four slots filled
-    /// instead of one, so the pair is told apart by outline and not only by count. That
-    /// matters most in the locked column, where there is no amber to count at all and the
-    /// two would otherwise be one hollow socket against four.
+    /// number, it is *mass*: two ghosted scrollback rules above and the frame filled with
+    /// jobs instead of holding one, so the pair is told apart by outline and not only by
+    /// count. That matters most in the locked column, where there is no amber to count at
+    /// all and the two would otherwise be one hollow socket against a row of them.
+    ///
+    /// **The slot pitch is a legibility budget, not a taste question.** This drew four
+    /// slots inside brackets that spanned 14 to 86, which left each slot 9.5 units wide
+    /// with 5 unit gaps and 2.5 units of air before the bracket verticals. At the size
+    /// that actually ships that is a 2.7pt bar, a 1.4pt gap and 0.7pt of clearance, and it
+    /// did exactly what those numbers predict: the four fused into one hatched block, the
+    /// locked version became the loudest mark on the page — louder than the earned ones
+    /// above it, which inverts the whole hierarchy — and the hundred-break prize ended up
+    /// the muddiest thing in the set. The brackets now span the full frame and carry
+    /// three slots instead of four, which buys every slot 4.2pt of width, 2.1pt of gap and
+    /// 2pt of clearance inside the brackets. Three countable jobs beat four uncountable
+    /// ones; the count was never the point, the mass is, and the scrollback rules above
+    /// say "and many before these" better than a fourth 1pt stripe ever did.
     private func jobLineParts(_ c: MarkCanvas, echoed: Bool) -> [MarkPart] {
         let top: CGFloat = echoed ? 28 : 15
         let height: CGFloat = 70
         var parts: [MarkPart] = []
 
         if echoed {
-            var echo = c.bar(16, 3, 68, 6, radius: 2)
-            echo.addPath(c.bar(16, 14, 68, 6, radius: 2))
+            var echo = c.bar(12, 3, 76, 6, radius: 2)
+            echo.addPath(c.bar(12, 14, 76, 6, radius: 2))
             parts.append(.ghost(echo))
         }
 
-        var left = c.bar(14, top, 7, height, radius: 1.5)
-        left.addPath(c.bar(14, top, 21, 7, radius: 1.5))
-        left.addPath(c.bar(14, top + height - 7, 21, 7, radius: 1.5))
+        var left = c.bar(6, top, 7, height, radius: 1.5)
+        left.addPath(c.bar(6, top, 20, 7, radius: 1.5))
+        left.addPath(c.bar(6, top + height - 7, 20, 7, radius: 1.5))
 
-        var right = c.bar(79, top, 7, height, radius: 1.5)
-        right.addPath(c.bar(65, top, 21, 7, radius: 1.5))
-        right.addPath(c.bar(65, top + height - 7, 21, 7, radius: 1.5))
+        var right = c.bar(87, top, 7, height, radius: 1.5)
+        right.addPath(c.bar(74, top, 20, 7, radius: 1.5))
+        right.addPath(c.bar(74, top + height - 7, 20, 7, radius: 1.5))
 
         parts.append(.solid(left))
         parts.append(.solid(right))
@@ -243,8 +256,8 @@ extension BadgeMotif {
             var ticks = Path()
             for index in 0..<3 {
                 let y = top + 18 + CGFloat(index) * 17
-                ticks.addPath(c.bar(21.5, y, 4, 2, radius: 0.8))
-                ticks.addPath(c.bar(74.5, y, 4, 2, radius: 0.8))
+                ticks.addPath(c.bar(14.5, y, 4, 2, radius: 0.8))
+                ticks.addPath(c.bar(81.5, y, 4, 2, radius: 0.8))
             }
             parts.append(.solid(ticks))
         }
@@ -253,14 +266,14 @@ extension BadgeMotif {
         let slotHeight = height - 26
         if echoed {
             var slots = Path()
-            for index in 0..<4 {
+            for index in 0..<3 {
                 slots.addPath(
-                    c.bar(23.5 + CGFloat(index) * 14.5, slotTop, 9.5, slotHeight, radius: 2)
+                    c.bar(20 + CGFloat(index) * 22.5, slotTop, 15, slotHeight, radius: 2.5)
                 )
             }
             parts.append(.accent(slots))
         } else {
-            parts.append(.accent(c.bar(43, slotTop, 14, slotHeight, radius: 3)))
+            parts.append(.accent(c.bar(41, slotTop, 18, slotHeight, radius: 3)))
         }
         return parts
     }
@@ -297,23 +310,27 @@ extension BadgeMotif {
     /// stack of horizontal bars, and in the locked column, where neither has any amber,
     /// the two were the likeliest pair in the ten to be mistaken for each other. Centring
     /// the lines turns the same idea into a wedge, which is a silhouette nothing else in
-    /// the set has, and the tombstone hanging below the point of it is what a proof ends
-    /// with. Below 40 points the middle line goes, because three bars and a block is more
-    /// than 28 points will hold.
+    /// the set has. The wedge stays; what changed is where the block sits.
+    ///
+    /// **A tombstone is a thing that goes at the end of a line, not under a stack.** It
+    /// was drawn centred, large, and hanging below the wedge, which made it the subject of
+    /// the mark rather than the full stop of an argument, and the whole thing read as a
+    /// funnel or a text-align glyph. Nobody derives QED from a big centred box. It is now
+    /// a small square set at the right-hand end of the shortest, lowest rule, on that
+    /// rule's own baseline and about twice its height — which is literally how the mark is
+    /// set in print, and reads instantly to anyone who has seen a proof end. The set is
+    /// also no longer forked by size: the old fork dropped the middle rule below 40 points
+    /// and cost the mark its wedge at exactly the size that ships, leaving two rules over a
+    /// block. Nine-unit rules on an eighteen-unit pitch are 2.5pt and 2.5pt at 28 points,
+    /// so all three fit, and one drawing is now tuned at both sizes instead of two being
+    /// tuned at one each.
     private func tombstoneParts(_ c: MarkCanvas) -> [MarkPart] {
         var proof = Path()
-        if c.size >= 40 {
-            let widths: [CGFloat] = [94, 72, 50]
-            for (index, w) in widths.enumerated() {
-                proof.addPath(c.bar((100 - w) / 2, 5 + CGFloat(index) * 17, w, 10, radius: 2.5))
-            }
-            return [.solid(proof), .accent(c.bar(31, 56, 38, 38, radius: 4))]
+        let rules: [(CGFloat, CGFloat)] = [(3, 94), (16, 68), (30, 26)]
+        for (index, rule) in rules.enumerated() {
+            proof.addPath(c.bar(rule.0, 12 + CGFloat(index) * 18, rule.1, 9, radius: 2.5))
         }
-        let widths: [CGFloat] = [94, 60]
-        for (index, w) in widths.enumerated() {
-            proof.addPath(c.bar((100 - w) / 2, 5 + CGFloat(index) * 20, w, 12, radius: 2.5))
-        }
-        return [.solid(proof), .accent(c.bar(28, 52, 44, 44, radius: 4))]
+        return [.solid(proof), .accent(c.bar(60, 42, 21, 21, radius: 2))]
     }
 
     /// `SIG_DFL`: the default disposition runs, so the arrow goes straight through the gap
@@ -349,24 +366,31 @@ extension BadgeMotif {
     /// stepped out, and the arc carries them round to the back. Voluntary is the point, so
     /// nothing is pushing.
     ///
-    /// It is the busiest of the ten, so it is the one that is drawn twice. Below 40 points
-    /// the arc keeps its curve but loses its head, which at that size was four dark points
-    /// landing on top of the amber cell and reading as a blot. The cells are also spaced
-    /// six units apart rather than four, so four slots stay four slots instead of merging
-    /// into one striped block.
+    /// **The arc is asymmetric because a symmetric one is a headband.** This drew an even
+    /// dome spanning all four cells and terminating level with the top of the last one,
+    /// and it dropped the arrowhead below 40 points because four dark points on the amber
+    /// cell read as a blot. Both decisions were locally right and together they produced
+    /// headphones: at the size that ships, in both themes, the silhouette was a band over
+    /// two earcups, and `sched_yield` captioning a picture of headphones is the joke
+    /// landing on the product. Symmetry was the culprit, so the apex now sits left of
+    /// centre, rising off the empty slot the yielder just vacated and diving steeply into
+    /// the back of the queue — which is also a truer picture of the operation than an even
+    /// hop was. The head comes back at every size, made narrower than one cell and aimed
+    /// so it breaks the last cell's top edge rather than capping it: entering the queue,
+    /// not sitting on it. Nothing was pushing before and nothing is pushing now.
+    ///
+    /// The cells are spaced six units apart rather than four, so four slots stay four
+    /// slots instead of merging into one striped block.
     private func handoffParts(_ c: MarkCanvas) -> [MarkPart] {
         var queued = c.bar(28.5, 61, 17.5, 28, radius: 3.5)
         queued.addPath(c.bar(52, 61, 17.5, 28, radius: 3.5))
-        var parts: [MarkPart] = [
+        return [
             .stroke(c.bar(5, 61, 17.5, 28, radius: 3.5), 5),
             .solid(queued),
-            .stroke(c.arc(from: (13.7, 55), to: (84.2, 55), over: (49, 7)), 5),
+            .stroke(c.arc(from: (13.7, 55), to: (78, 57), over: (26, -10)), 5),
+            .solid(c.arrowHead(tip: (84.2, 68), from: (70, 46), length: 14)),
+            .accent(c.bar(75.5, 61, 17.5, 28, radius: 3.5)),
         ]
-        if c.size >= 40 {
-            parts.append(.solid(c.arrowHead(tip: (84.2, 59), from: (84.2, 41), length: 15)))
-        }
-        parts.append(.accent(c.bar(75.5, 61, 17.5, 28, radius: 3.5)))
-        return parts
     }
 
     /// `early return`: two statements ran, the arrow left, and the rest of the function is
@@ -403,19 +427,44 @@ extension BadgeMotif {
     /// attempt ran the job off the right edge of the frame to say "still going". It read
     /// as a rendering fault at 28 points and its locked outline, clipped, was the letter
     /// C, so the job was brought back inside and the gap was made to carry the meaning on
-    /// its own. Punched out of the job is the app's own pause pair: suspended, intact and
-    /// completely indifferent to the window that used to own it.
+    /// its own.
+    ///
+    /// **What is punched out of the job is a log, not a pause.** It was the app's own
+    /// pause pair — two vertical bars in a rounded capsule — argued for as "suspended,
+    /// intact". That was wrong twice over. It is the universal media pause glyph and read
+    /// as one at every size, and this is the single badge in the set that is *not* about
+    /// suspending: the blurb says the job has stopped caring whether the terminal is still
+    /// there, which means it is still running. It also collided head-on with
+    /// `[1]+ Stopped`, where an amber bar in a frame is the set's own token for a
+    /// suspended job, so one bar meant "job" and two meant "paused" in the same row. Three
+    /// short rules instead: a log still being written, which is what a surviving job
+    /// leaves behind, and which no longer borrows a token that means the opposite.
+    ///
+    /// **The cut hangs, and it hangs off the wall rather than the corner.** The link used
+    /// to leave the terminal as a square-ended horizontal stub aimed straight at the
+    /// capsule's vertical centre, which at silhouette scale is a plug seating into a
+    /// socket — connected, the exact opposite of the word the mark exists to carry. The
+    /// first redraw made it a straight diagonal falling from the box's bottom-right
+    /// corner, which fixed the plug and immediately bought a worse read: a stick at the
+    /// corner of a rounded square is a magnifying glass, and `nohup` captioned with a
+    /// search icon is no better than `nohup` captioned with a pause button. It is now a
+    /// curve, not a stick, and it leaves from the middle of the right wall: it exits
+    /// horizontally the way a cable does, goes slack, and droops away into open space
+    /// below the job's centreline with nothing to mate with. Slack is the tell. A taut
+    /// line is attached to something at both ends; a hanging one is not, and that reads at
+    /// any size because it is a shape rather than a detail.
     private func detachedParts(_ c: MarkCanvas) -> [MarkPart] {
         var screen = c.bar(9, 32, 18, 5, radius: 2)
         screen.addPath(c.bar(9, 43, 11, 5, radius: 2))
-        var pause = c.bar(70, 32, 9, 34, radius: 2.5)
-        pause.addPath(c.bar(83, 32, 9, 34, radius: 2.5))
+        var log = c.bar(70, 28, 22, 7, radius: 3)
+        log.addPath(c.bar(70, 45, 15, 7, radius: 3))
+        log.addPath(c.bar(70, 62, 20, 7, radius: 3))
         return [
             .stroke(c.bar(3, 25, 36, 40, radius: 6), 6),
             .solid(screen),
-            .solid(c.bar(39, 41, 13, 8, radius: 0)),
+            .stroke(c.arc(from: (37, 42), to: (53, 65), over: (51, 44)), 7),
             .accent(c.bar(64, 15, 34, 68, radius: 9)),
-            .punch(pause),
+            .punch(log),
         ]
     }
 }
