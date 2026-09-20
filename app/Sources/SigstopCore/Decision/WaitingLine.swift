@@ -107,14 +107,16 @@ public extension WaitingLine {
     }
 
     /// Total over the engine's state space. Every branch returns a line.
+    ///
+    /// Nothing is checked ahead of the state. The "ignore this input device" confirmation
+    /// used to be, and it therefore outranked every state for the full half hour of the
+    /// inhibit: on the stuck-device Mac the button exists for, `audioInputRunning` is
+    /// always true, so the panel said "the mic will not hold your break" while the header
+    /// said STOPPED and the user was on a break, or PAUSED, or snoozed, or past the daily
+    /// cap. The one line that exists to end the ambiguity was the thing creating it. It
+    /// now lives in `working`, where a live-but-ignored device is the only thing the
+    /// reader could otherwise be wondering about.
     static func read(_ r: Reading) -> WaitingLine {
-        if let until = r.micIgnoredUntil, until > r.now, r.audioInputRunning {
-            return WaitingLine(
-                .notAskingYet,
-                "taking your word for it, the mic will not hold your break until \(clock(until, r))"
-            )
-        }
-
         switch r.state {
         case .breakActive(let b):
             return WaitingLine(.waitingOnYou, "the break runs to \(clock(b.plannedEnd, r))")
@@ -161,6 +163,17 @@ public extension WaitingLine {
             let extra = DurationText.short(w.armThreshold - r.policy.targetContinuousWork)
             let why = (w.standDown ?? .skipped).summary
             return WaitingLine(.notAskingYet, "\(why), so the next is \(extra) later than usual")
+        }
+        /// Below the stand-downs on purpose. A cooldown or a pushed-out threshold is the
+        /// reason the app is quiet; the ignored input device is not the reason for
+        /// anything, it is the confirmation that a button worked. Pressing something and
+        /// seeing nothing change is how a user concludes an app is broken, so it still
+        /// gets said - just never over a sentence that explains the silence.
+        if let until = r.micIgnoredUntil, until > r.now, r.audioInputRunning {
+            return WaitingLine(
+                .notAskingYet,
+                "taking your word for it, the mic will not hold your break until \(clock(until, r))"
+            )
         }
         /// Deliberately no block reason here. Nothing is being held while the engine is
         /// working, because no break is due yet, and the panel used to borrow the sensor
@@ -210,12 +223,22 @@ public extension WaitingLine {
 
     // MARK: Formatting
 
-    /// `HH:mm`, 24-hour. A wall-clock time rather than a countdown, deliberately: a
-    /// duration is something the reader has to re-check, and a string that changes every
-    /// second would turn the menu bar's observation loop into a per-second redraw.
+    /// A wall-clock time rather than a countdown, deliberately: a duration is something
+    /// the reader has to re-check, and a string that changes every second would turn the
+    /// menu bar's observation loop into a per-second redraw.
+    ///
+    /// Short and locale-aware, which is the same style the panel's own subtitle uses one
+    /// row above this line. It was `HH:mm`, borrowed from `minuteOfDay` below, and on a
+    /// twelve-hour Mac the two rows disagreed in the same glance: "asking again at
+    /// 2:22 pm" directly over "you snoozed it, asking again at 14:22". `minuteOfDay` has
+    /// a reason to stay 24-hour - it mirrors the quiet-hours settings field, where the
+    /// reader is comparing two ends of a window - and a one-off deadline in prose has
+    /// none.
     private static func clock(_ date: Date, _ r: Reading) -> String {
-        let c = r.calendar.dateComponents([.hour, .minute], from: date)
-        return "\(Pad.two(c.hour ?? 0)):\(Pad.two(c.minute ?? 0))"
+        var style = Date.FormatStyle(date: .omitted, time: .shortened)
+        style.timeZone = r.calendar.timeZone
+        if let locale = r.calendar.locale { style.locale = locale }
+        return date.formatted(style)
     }
 
     private static func minuteOfDay(_ minutes: Int) -> String {

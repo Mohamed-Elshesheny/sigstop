@@ -1116,7 +1116,17 @@ are three different claims:
 
 Deadlines in it are wall-clock times and never countdowns, and every one of them comes from a value
 the engine already holds (`cooldownUntilMono`, `snoozeUntil`, `plannedEnd`, `pausedUntil`, the quiet
-window, the audio ceiling). Nothing is scheduled to make them true and nothing polls.
+window, the audio ceiling). Nothing is scheduled to make them true and nothing polls. They are
+rendered in the reader's locale, short style, which is the style the panel's own subtitle one row
+above uses; the 24-hour `HH:mm` form is reserved for the quiet-hours window, where the reader is
+comparing two ends of a range against the settings field that produced it.
+
+**Nothing is checked ahead of the state.** The confirmation that "ignore this input device" worked
+used to be, and it therefore answered for every state for the full 30 minutes of the inhibit: on the
+stuck-device Mac the button exists for, the device never stops running, so the line talked about the
+microphone while the header said STOPPED, PAUSED or snoozed. It now sits inside `working`, below the
+stand-downs — a cooldown is the reason the app is quiet, an ignored input device is not the reason for
+anything, it is a button answering back.
 
 It lives in `SigstopCore` for the reason `QuietCause.title` already gives: `SigstopApp` has no test
 target, so a vocabulary kept there is unchecked. It is deliberately **not** fed by `PromptOutlook`,

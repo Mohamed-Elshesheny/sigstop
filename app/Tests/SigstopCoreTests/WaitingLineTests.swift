@@ -12,9 +12,21 @@ import Testing
 struct WaitingLineTests {
 
     private let noon = Date(timeIntervalSince1970: 1_700_000_000)
+    /// A 24-hour locale, so the times below stay readable as times. The line follows the
+    /// reader's locale now rather than forcing `HH:mm`; `theClockFollowsTheLocale` pins
+    /// that, and pinning it here too would only make every other assertion depend on
+    /// where ICU puts the space before PM.
     private var calendar: Calendar {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        c.locale = Locale(identifier: "en_GB")
+        return c
+    }
+
+    private func calendar(_ identifier: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        c.locale = Locale(identifier: identifier)
         return c
     }
 
@@ -26,7 +38,8 @@ struct WaitingLineTests {
         micIgnoredUntil: Date? = nil,
         monotonic: Double = 0,
         policy: BreakPolicy = .default,
-        settings: SigstopSettings = .default
+        settings: SigstopSettings = .default,
+        calendar: Calendar? = nil
     ) -> WaitingLine {
         WaitingLine.read(
             WaitingLine.Reading(
@@ -39,7 +52,7 @@ struct WaitingLineTests {
                 monotonic: monotonic,
                 policy: policy,
                 settings: settings,
-                calendar: calendar
+                calendar: calendar ?? self.calendar
             )
         )
     }
@@ -175,6 +188,65 @@ struct WaitingLineTests {
             #expect(!cause.summary.isEmpty)
             #expect(!cause.summary.contains("—"))
         }
+    }
+
+    /// The confirmation used to be checked before the state, so for the whole half hour
+    /// of the inhibit it answered for every state at once. On the machine the button is
+    /// for, the input device never stops running, so the panel spent thirty minutes
+    /// talking about the microphone while the header said STOPPED, PAUSED or snoozed.
+    @Test("a break, a pause, a snooze and a quiet cause all outrank the mic confirmation")
+    func theMicConfirmationNeverSpeaksForAnotherState() {
+        let ignored = noon.addingTimeInterval(1800)
+        let states: [EngineState] = [
+            .breakActive(BreakActive(
+                cycle: .initial, startedAt: noon, plannedEnd: noon.addingTimeInterval(300),
+                startedMono: 0, plannedDuration: 300, origin: .accepted
+            )),
+            .snoozed(SnoozedState(
+                cycle: .initial, until: noon.addingTimeInterval(600), untilMono: 600, index: 0,
+                due: BreakDue(cycle: .initial, dueSince: noon, lastStepMono: 0)
+            )),
+            .idle(IdleState(since: noon, cause: .microIdleExceeded)),
+        ] + QuietCause.allCases.map { .quiet(QuietState(until: noon, cause: $0)) }
+
+        for state in states {
+            let line = read(state, audioInputRunning: true, micIgnoredUntil: ignored)
+            #expect(
+                !line.body.contains("taking your word for it"),
+                "\(state.name) had its own reason and the mic answered for it: \(line.text)"
+            )
+        }
+    }
+
+    /// And it does not speak over the sentence that explains the silence either. A
+    /// cooldown is the reason nothing is coming; an ignored input device is not a reason
+    /// for anything.
+    @Test("a stand-down outranks the mic confirmation")
+    func theMicConfirmationNeverSpeaksOverAStandDown() {
+        let line = read(
+            .working(WorkingState(armThreshold: 45 * 60, cooldownUntilMono: 1500, standDown: .backedOff)),
+            audioInputRunning: true,
+            micIgnoredUntil: noon.addingTimeInterval(1800)
+        )
+        #expect(line.body.contains("the last few went unanswered"), "\(line.text)")
+    }
+
+    /// The panel's own subtitle one row up is `formatted(date: .omitted, time: .shortened)`,
+    /// so a 24-hour string here put "asking again at 2:22 pm" directly over "you snoozed
+    /// it, asking again at 14:22".
+    @Test("the clock follows the reader's locale, like the row above it")
+    func theClockFollowsTheLocale() {
+        let due = SnoozedState(
+            cycle: .initial, until: noon.addingTimeInterval(1800), untilMono: 1800, index: 0,
+            due: BreakDue(cycle: .initial, dueSince: noon, lastStepMono: 0)
+        )
+        let british = read(.snoozed(due), calendar: calendar("en_GB"))
+        #expect(british.text.contains("22:43"), "\(british.text)")
+
+        let american = read(.snoozed(due), calendar: calendar("en_US"))
+        #expect(american.text.contains("10:43"), "\(american.text)")
+        #expect(american.text.contains("PM"), "\(american.text)")
+        #expect(!american.text.contains("22:43"), "\(american.text)")
     }
 
     /// The three claims are different claims and the panel depends on them staying so.
