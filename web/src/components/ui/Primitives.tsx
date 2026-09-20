@@ -4,7 +4,7 @@ export function Section({
   id, className, children,
 }: { id?: string; className?: string; children: React.ReactNode }) {
   return (
-    <section id={id} className={cn("relative px-5 py-24 sm:px-8 md:py-36", className)}>
+    <section id={id} className={cn("relative px-5 py-16 sm:px-8 md:py-20", className)}>
       <div className="mx-auto w-full max-w-6xl">{children}</div>
     </section>
   );

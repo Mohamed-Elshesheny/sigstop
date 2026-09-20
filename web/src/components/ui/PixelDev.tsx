@@ -273,7 +273,10 @@ export function PixelDev({
         {
           // Themed bits only. Skin, hair and hardware keep fixed values so the
           // character does not change identity between light and dark.
-          "--px-line": "var(--color-fg)",
+          // A pixel art outline must be DARKER than every fill, in both themes.
+          // Binding this to --color-fg made it near-white in dark mode, which drew a
+          // glowing halo around the whole figure.
+          "--px-line": "#100f0d",
           "--px-lens": "var(--color-suspend)",
           "--px-lens-hi": "color-mix(in srgb, var(--color-suspend) 45%, white)",
           "--px-print": "var(--color-running)",

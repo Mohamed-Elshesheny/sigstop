@@ -31,7 +31,7 @@ export function ContextDemo() {
         <Headline>{copy.headline}</Headline>
         <Lede>{copy.sub}</Lede>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:gap-10">
+        <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:gap-10">
           {/* ── App picker. Real buttons in a real tablist. ───────────────── */}
           <div>
             <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.18em] text-fg-faint">
@@ -168,7 +168,7 @@ export function ContextDemo() {
         </div>
 
         {/* ── Escalation ladder, written by POSIX ───────────────────────────── */}
-        <div className="mt-20 border-t border-line pt-12">
+        <div className="mt-14 border-t border-line pt-12">
           <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-fg-faint">
             If you ignore it
           </p>

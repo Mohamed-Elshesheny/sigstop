@@ -179,7 +179,7 @@ export function NotPomodoro() {
         <Lede>{copy.sub}</Lede>
 
         {/* Asymmetric on purpose. The short pipeline gets the short column. */}
-        <div className="mt-16 grid gap-14 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] md:gap-14 lg:gap-20">
+        <div className="mt-12 grid gap-14 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] md:gap-14 lg:gap-20">
           <Pipeline
             title={copy.timer.title}
             meta={copy.timer.meta}

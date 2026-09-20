@@ -29,8 +29,8 @@ def px(g,x,y,ch):
 def draw(pose):
     g = blank()
     # crouch offset: the whole upper body sits lower while rising from the chair
-    dy  = {"sit":5, "rising":2, "standing":0, "reachUp":0, "backArch":1}[pose]
-    lean = {"sit":0, "rising":1, "standing":0, "reachUp":0, "backArch":-1}[pose]
+    dy  = {"sit":5, "rising":2, "standing":0, "reachHalf":0, "reachUp":0, "backArch":0}[pose]
+    lean = {"sit":0, "rising":1, "standing":0, "reachHalf":0, "reachUp":0, "backArch":0}[pose]
 
     # ---- head ----
     rect(g, 8+lean, 17+lean, 3+dy, 4+dy, "K")
@@ -65,19 +65,30 @@ def draw(pose):
         px(g, gt[i]+lean, y, "P")
 
     # ---- arms ----
-    if pose == "reachUp":
+    if pose == "reachHalf":
+        # elbows bent, hands at shoulder height: the frame that turns a jump cut
+        # into a raise
+        rect(g, 3+lean, 5+lean, 12+dy, 16+dy, "T")
+        rect(g,20+lean,22+lean, 12+dy, 16+dy, "T")
+        rect(g, 6+lean, 7+lean, 15+dy, 16+dy, "T")
+        rect(g,18+lean,19+lean, 15+dy, 16+dy, "T")
+        rect(g, 3+lean, 5+lean, 10+dy, 11+dy, "S")
+        rect(g,20+lean,22+lean, 10+dy, 11+dy, "S")
+        rect(g, 8+lean, 8+lean, 15+dy, 23+dy, "O")
+        rect(g,17+lean,17+lean, 15+dy, 23+dy, "O")
+    elif pose == "reachUp":
         rect(g, 5+lean, 7+lean, 1+dy, 15+dy, "T")
         rect(g,18+lean,20+lean, 1+dy, 15+dy, "T")
         rect(g, 5+lean, 7+lean, -1+dy, 0+dy, "S")
         rect(g,18+lean,20+lean, -1+dy, 0+dy, "S")
     elif pose == "backArch":
         # hands to the small of the back, elbows out. The actual stretch.
-        # arms up and splayed outward, torso tipped back: the shape people
-        # actually make when they unfold at a desk
-        rect(g, 4+lean, 6+lean,  4+dy, 15+dy, "T")
-        rect(g,19+lean,21+lean,  4+dy, 15+dy, "T")
-        rect(g, 3+lean, 5+lean,  2+dy,  3+dy, "S")
-        rect(g,20+lean,22+lean,  2+dy,  3+dy, "S")
+        # arms up and swept BACK, wider than reachUp, so the two frames do not
+        # share a silhouette
+        rect(g, 2+lean, 4+lean,  6+dy, 16+dy, "T")
+        rect(g,21+lean,23+lean,  6+dy, 16+dy, "T")
+        rect(g, 1+lean, 3+lean,  4+dy,  5+dy, "S")
+        rect(g,22+lean,24+lean,  4+dy,  5+dy, "S")
     else:
         rect(g, 5+lean, 7+lean, 15+dy, 23+dy, "T")
         rect(g,18+lean,20+lean, 15+dy, 23+dy, "T")

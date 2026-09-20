@@ -311,7 +311,7 @@ export function BeforeAfter() {
         <Lede>{copy.sub}</Lede>
         <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-faint">{copy.scaleNote}</p>
 
-        <div className="mt-14 grid gap-16 md:grid-cols-2 md:gap-10 lg:gap-16">
+        <div className="mt-10 grid gap-16 md:grid-cols-2 md:gap-10 lg:gap-16">
           <Column
             title={copy.before.title}
             meta={copy.before.meta}
@@ -339,7 +339,7 @@ export function BeforeAfter() {
           />
         </div>
 
-        <dl className="mt-16 grid gap-x-10 gap-y-6 border-t border-line pt-8 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="mt-12 grid gap-x-10 gap-y-6 border-t border-line pt-8 sm:grid-cols-2 lg:grid-cols-4">
           {copy.legend.map((l) => (
             <div key={l.tone} className="flex gap-3.5">
               <Swatch tone={l.tone} />

@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 
 /**
- * The small standing figure at the top of the page.
+ * The small figure that gets up and stretches, in the hero.
  *
- * It runs one loop: get up, straighten, reach, arch back, settle. That is the
- * product in four frames, above the fold, before anyone has read a word.
+ * Two things this went through several bad versions to learn:
  *
- * Same generated-string-art approach as PixelDev: the layout script is committed
- * next to this file and emits these grids, so nobody hand counts columns.
+ *  1. The outline must be a FIXED dark value, not a theme token. Bound to
+ *     --color-fg it turned near-white in dark mode and drew a halo.
+ *  2. Going straight from arms-down to arms-up is a jump cut, not a motion.
+ *     `reachHalf` is the in-between frame that makes it read as a raise, and
+ *     `backArch` sweeps the arms wider so it does not share a silhouette with
+ *     `reachUp`.
+ *
+ * Generated string art; the layout script is committed next to this file.
  */
 
 const PALETTE: Record<string, string> = {
@@ -24,6 +29,49 @@ const PALETTE: Record<string, string> = {
   J: "#232a36",
   B: "#222429",
 };
+
+const SIT = [
+  "..........................",
+  "..........................",
+  "..........................",
+  "..........................",
+  "..........................",
+  "..........................",
+  ".........OOOOOOO..........",
+  "........OkkkkkkkOO........",
+  ".......OKKKKKKKKKKO.......",
+  ".......OKKKKKKKKKKO.......",
+  "......OKKKKKKKKKKKKO......",
+  "......OKSSSSSSSSSSKO......",
+  "......OKSSSSSSSSSSKO......",
+  ".....OAKGGGGSSGGGGKAO.....",
+  ".....OAOGLEGGGGELGOAO.....",
+  "......OOSSSSSSSSSSOO......",
+  ".......OSSSmmmmSSSO.......",
+  ".......OSSSSSSSSSsO.......",
+  "........OOOSSSSOOO........",
+  ".....OOOddTTTTTTTTOOO.....",
+  "....OTTTOdTTTTTTTOTTTO....",
+  "....OTTTOdTTTTTTTOTTTO....",
+  "....OTTTOdTTTTTTTOTTTO....",
+  "....OTTTOdTTPTPTTOTTTO....",
+  "....OTTTOdTPTTTPTOTTTO....",
+  "....OTTTOdPTTTTTPOTTTO....",
+  "....OTTTOdTPTTTPTOTTTO....",
+  "....OTTTOdTTPTPTTOTTTO....",
+  "....OTTTOdTTTTTTTOTTTO....",
+  "....OSSSddTTTTTTTTSSSO....",
+  "....OSSSJJJJOOJJJJSSSO....",
+  ".....OOOJJJJOOJJJJOOO.....",
+  ".......OJJJJOOJJJJO.......",
+  ".......OJJJJOOJJJJO.......",
+  ".......OJJJJOOJJJJO.......",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  ".......OBBBBBBBBBBO.......",
+  ".......OBBBBBBBBBBO.......",
+  "........OOOOOOOOOO........",
+];
 
 const RISING = [
   "..........................",
@@ -111,6 +159,49 @@ const STANDING = [
   "........OOOOOOOOOO........",
 ];
 
+const REACHHALF = [
+  "..........................",
+  ".........OOOOOOO..........",
+  "........OkkkkkkkOO........",
+  ".......OKKKKKKKKKKO.......",
+  ".......OKKKKKKKKKKO.......",
+  "......OKKKKKKKKKKKKO......",
+  "......OKSSSSSSSSSSKO......",
+  "......OKSSSSSSSSSSKO......",
+  ".....OAKGGGGSSGGGGKAO.....",
+  "...OOOAOGLEGGGGELGOAOOO...",
+  "..OSSSOOSSSSSSSSSSOOSSSO..",
+  "..OSSSOOSSSmmmmSSSOOSSSO..",
+  "..OTTTOOSSSSSSSSSsOOTTTO..",
+  "..OTTTO.OOOSSSSOOO.OTTTO..",
+  "..OTTTOOddTTTTTTTTOOTTTO..",
+  "..OTTTTTOdTTTTTTTOTTTTTO..",
+  "..OTTTTTOdTTTTTTTOTTTTTO..",
+  "...OOOOOOdTTTTTTTOOOOOO...",
+  "........OdTTPTPTTO........",
+  "........OdTPTTTPTO........",
+  "........OdPTTTTTPO........",
+  "........OdTPTTTPTO........",
+  "........OdTTPTPTTO........",
+  "........OdTTTTTTTO........",
+  ".......OddTTTTTTTTO.......",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
+  ".......OBBBBBBBBBBO.......",
+  ".......OBBBBBBBBBBO.......",
+  "........OOOOOOOOOO........",
+];
+
 const REACHUP = [
   "....OSSSO........OSSSO....",
   "....OTTTOOOOOOOO.OTTTO....",
@@ -156,32 +247,32 @@ const REACHUP = [
 
 const BACKARCH = [
   "..........................",
-  "..........................",
-  "..OOO...OOOOOOO....OOO....",
-  ".OSSSO.OkkkkkkkOO.OSSSO...",
-  ".OSSSOOKKKKKKKKKKOOSSSO...",
-  "..OTTTOKKKKKKKKKKOTTTO....",
-  "..OTTTKKKKKKKKKKKKTTTO....",
-  "..OTTTKSSSSSSSSSSKTTTO....",
-  "..OTTTKSSSSSSSSSSKTTTO....",
-  "..OTTTKGGGGSSGGGGKTTTO....",
-  "..OTTTOGLEGGGGELGOTTTO....",
-  "..OTTTOSSSSSSSSSSOTTTO....",
-  "..OTTTOSSSmmmmSSSOTTTO....",
-  "..OTTTOSSSSSSSSSsOTTTO....",
-  "..OTTTOOOOSSSSOOOOTTTO....",
-  "..OTTTOddTTTTTTTTOTTTO....",
-  "..OTTTOddTTTTTTTTOTTTO....",
-  "...OOOOddTTTTTTTTOOOO.....",
-  "......OddTTTTTTTTO........",
-  "......OddTTPTPTTTO........",
-  "......OddTPTTTPTTO........",
-  "......OddPTTTTTPTO........",
-  "......OddTPTTTPTTO........",
-  "......OddTTPTPTTTO........",
-  "......OddTTTTTTTTO........",
-  "......OddTTTTTTTTO........",
-  ".......OOJJJOOJJJO........",
+  ".........OOOOOOO..........",
+  "........OkkkkkkkOO........",
+  ".OOO...OKKKKKKKKKKO...OOO.",
+  "OSSSO..OKKKKKKKKKKO..OSSSO",
+  "OSSSO.OKKKKKKKKKKKKO.OSSSO",
+  ".OTTTOOKSSSSSSSSSSKOOTTTO.",
+  ".OTTTOOKSSSSSSSSSSKOOTTTO.",
+  ".OTTTOAKGGGGSSGGGGKAOTTTO.",
+  ".OTTTOAOGLEGGGGELGOAOTTTO.",
+  ".OTTTOOOSSSSSSSSSSOOOTTTO.",
+  ".OTTTO.OSSSmmmmSSSO.OTTTO.",
+  ".OTTTO.OSSSSSSSSSsO.OTTTO.",
+  ".OTTTO..OOOSSSSOOO..OTTTO.",
+  ".OTTTO.OddTTTTTTTTO.OTTTO.",
+  ".OTTTO.OddTTTTTTTTO.OTTTO.",
+  ".OTTTO.OddTTTTTTTTO.OTTTO.",
+  "..OOO..OddTTTTTTTTO..OOO..",
+  ".......OddTTPTPTTTO.......",
+  ".......OddTPTTTPTTO.......",
+  ".......OddPTTTTTPTO.......",
+  ".......OddTPTTTPTTO.......",
+  ".......OddTTPTPTTTO.......",
+  ".......OddTTTTTTTTO.......",
+  ".......OddTTTTTTTTO.......",
+  "........OJJJOOJJJO........",
+  "........OJJJOOJJJO........",
   "........OJJJOOJJJO........",
   "........OJJJOOJJJO........",
   "........OJJJOOJJJO........",
@@ -197,16 +288,21 @@ const BACKARCH = [
   "........OOOOOOOOOO........",
 ];
 
-/** One cycle of the stretch, held for the given number of ticks each. */
+/** Holds in ticks. Transitions are quick, the stretch itself is held. */
 const SEQUENCE: { rows: string[]; hold: number; label: string }[] = [
-  { rows: RISING,   hold: 3, label: "standing up" },
-  { rows: STANDING, hold: 3, label: "standing" },
-  { rows: REACHUP,  hold: 4, label: "reaching up" },
-  { rows: BACKARCH, hold: 5, label: "stretching" },
-  { rows: STANDING, hold: 6, label: "standing" },
+  { rows: SIT,       hold: 12, label: "hunched at the desk" },
+  { rows: RISING,    hold: 2,  label: "getting up" },
+  { rows: STANDING,  hold: 4,  label: "standing" },
+  { rows: REACHHALF, hold: 2,  label: "raising his arms" },
+  { rows: REACHUP,   hold: 6,  label: "reaching up" },
+  { rows: BACKARCH,  hold: 9,  label: "stretching his back" },
+  { rows: REACHUP,   hold: 3,  label: "reaching up" },
+  { rows: REACHHALF, hold: 2,  label: "lowering his arms" },
+  { rows: STANDING,  hold: 7,  label: "standing" },
 ];
 
 const W = STANDING[0].length;
+const H = STANDING.length;
 
 export function PixelDevStanding({ className }: { className?: string }) {
   const [step, setStep] = useState(0);
@@ -216,7 +312,6 @@ export function PixelDevStanding({ className }: { className?: string }) {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReduced(mq.matches);
     if (mq.matches) return;
-
     let hold = 0;
     const id = setInterval(() => {
       hold += 1;
@@ -225,27 +320,25 @@ export function PixelDevStanding({ className }: { className?: string }) {
         hold = 0;
         return (s + 1) % SEQUENCE.length;
       });
-    }, 240);
+    }, 170);
     return () => clearInterval(id);
   }, []);
 
-  // Under reduced motion the figure simply stands. It still communicates who
-  // this is for; it just does not move while someone is trying to read.
-  const frame = reduced ? SEQUENCE[1] : SEQUENCE[step];
+  const frame = reduced ? SEQUENCE[2] : SEQUENCE[step];
 
   return (
     <div
       className={className}
       style={
         {
-          "--px-line": "var(--color-fg)",
+          "--px-line": "#100f0d",
           "--px-lens": "var(--color-suspend)",
           "--px-print": "var(--color-running)",
         } as React.CSSProperties
       }
     >
       <svg
-        viewBox={`0 0 ${W} ${frame.rows.length}`}
+        viewBox={`0 0 ${W} ${H}`}
         shapeRendering="crispEdges"
         className="h-full w-full"
         role="img"

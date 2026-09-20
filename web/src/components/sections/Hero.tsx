@@ -19,7 +19,7 @@ export function Hero() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden px-5 pb-24 pt-32 sm:px-8 sm:pt-40">
+    <section className="relative overflow-hidden px-5 pb-16 pt-28 sm:px-8 sm:pt-32">
       {/* Grid + radial falloff. Static, cheap, and it does not move while you read. */}
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-[0.55]" aria-hidden />
       <div
@@ -29,15 +29,10 @@ export function Hero() {
       />
 
       <div className="relative mx-auto w-full max-w-6xl">
-        <div className="mb-7 flex items-end justify-between gap-4">
-          <p className="inline-flex items-center gap-2 rounded-full border border-line-hi bg-surface/60 px-3.5 py-1.5 font-mono text-[11px] tracking-wide text-fg-muted backdrop-blur">
-            <span className="h-1.5 w-1.5 rounded-full bg-running" aria-hidden />
-            {hero.eyebrow}
-          </p>
-          {/* He gets up and stretches on a loop, above the fold, before anyone
-              has read a word of the copy. */}
-          <PixelDevStanding className="h-24 w-16 shrink-0 sm:h-28 sm:w-[4.6rem]" />
-        </div>
+        <p className="mb-7 inline-flex items-center gap-2 rounded-full border border-line-hi bg-surface/60 px-3.5 py-1.5 font-mono text-[11px] tracking-wide text-fg-muted backdrop-blur">
+          <span className="h-1.5 w-1.5 rounded-full bg-running" aria-hidden />
+          {hero.eyebrow}
+        </p>
 
         {/* Full-bleed headline. Both statements need to land on their own line ,
             orphaning "Not a" above "server." breaks the rhythm of the joke. */}
@@ -66,7 +61,7 @@ export function Hero() {
           </span>
         </h1>
 
-        <div className="mt-14 grid items-start gap-12 lg:grid-cols-[1fr_340px] lg:gap-20">
+        <div className="mt-10 grid items-start gap-12 lg:grid-cols-[1fr_340px] lg:gap-20">
           <div>
             <p className="max-w-xl text-pretty text-lg leading-relaxed text-fg-muted">{hero.sub}</p>
 
@@ -98,15 +93,25 @@ export function Hero() {
                 "Microphone is not active, you're not on a call",
               ]}
             />
-            <p className="mt-4 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
+            <p className="mt-3 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
               Live. The bars fill as the session does.
             </p>
+
+            {/* He gets up and stretches on a loop, standing on the floor rule. */}
+            <div className="mt-6 flex items-end justify-between gap-3 border-b border-line pb-0">
+              <p className="pb-3 font-mono text-[10px] leading-relaxed text-fg-faint">
+                45:00
+                <br />
+                <span className="text-suspend-ink">SIGTSTP</span>
+              </p>
+              <PixelDevStanding className="h-28 w-[4.55rem] shrink-0 sm:h-32 sm:w-[5.2rem]" />
+            </div>
           </div>
         </div>
       </div>
 
       {/* The objection this product exists to beat. */}
-      <div className="relative mx-auto mt-28 w-full max-w-6xl border-t border-line pt-12">
+      <div className="relative mx-auto w-full max-w-6xl border-t border-line pt-10">
         <p className="mb-6 font-mono text-[11px] uppercase tracking-[0.2em] text-fg-faint">{namePitch.kicker}</p>
         <div className="grid gap-8 md:grid-cols-[auto_1fr] md:gap-14">
           <dl className="space-y-4">
