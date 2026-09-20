@@ -25,7 +25,7 @@ export function Nav() {
     >
       <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-8">
         <a href="#" className="flex items-center gap-2.5" aria-label="sigstop home">
-          <MenuBarIcon fill={0.6} size={16} />
+          <MenuBarIcon fill={0.6} size={16} brand />
           <span className="font-mono text-[15px] font-bold tracking-tight">sigstop</span>
         </a>
 

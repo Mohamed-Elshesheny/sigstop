@@ -29,11 +29,6 @@ export function Hero() {
       />
 
       <div className="relative mx-auto w-full max-w-6xl">
-        <p className="mb-7 inline-flex items-center gap-2 rounded-full border border-line-hi bg-surface/60 px-3.5 py-1.5 font-mono text-[11px] tracking-wide text-fg-muted backdrop-blur">
-          <span className="h-1.5 w-1.5 rounded-full bg-running" aria-hidden />
-          {hero.eyebrow}
-        </p>
-
         {/* Full-bleed headline. Both statements need to land on their own line ,
             orphaning "Not a" above "server." breaks the rhythm of the joke. */}
         <h1 className="font-mono text-[length:var(--text-hero)] font-bold leading-[0.92] tracking-[-0.045em]">

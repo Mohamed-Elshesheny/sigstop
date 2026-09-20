@@ -30,7 +30,6 @@ export const nav = [
 ] as const;
 
 export const hero = {
-  eyebrow: "open source · macOS · local-first",
   headline: ["You're a developer.", "Not a server."],
   sub: "You spend your day debugging, reviewing PRs, arguing with an AI, and staring at the same forty lines. sigstop watches your workflow, never your code, and works out when it's actually a good moment to stop.",
   primaryCta: "Download for macOS",

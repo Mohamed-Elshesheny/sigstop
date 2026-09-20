@@ -14,7 +14,7 @@ export function Footer() {
             <p className="flex items-center gap-2.5 font-mono text-sm font-bold tracking-tight text-fg">
               {/* The mark carries no information here, so it does not announce itself. */}
               <span aria-hidden>
-                <MenuBarIcon fill={1} size={15} />
+                <MenuBarIcon fill={1} size={15} brand />
               </span>
               {site.name}
             </p>

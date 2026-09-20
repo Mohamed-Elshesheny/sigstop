@@ -48,64 +48,57 @@ export function Privacy() {
         <Headline>{copy.headline}</Headline>
         <Lede>{copy.sub}</Lede>
 
-        {/* ── (a) The contrast. Two columns, deliberately unequal in weight. ──
-            The left one is an inventory. The right one is the reason anybody
-            installs this, so it gets the heavier surface and the larger type. */}
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-line bg-surface/30 p-5">
-            <h3 className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight text-fg">
+        {/* One compact block. The inventory is short enough to read at a
+            glance, which is the actual argument; spreading five signals over
+            two tall cards made it look longer than it is. */}
+        <div className="mt-8 grid gap-px overflow-hidden rounded-xl border border-line bg-line md:grid-cols-2">
+          <div className="bg-bg p-5">
+            <h3 className="flex items-center gap-2 font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-fg-faint">
               <StateDot state="running" />
               {copy.sees.title}
             </h3>
-
-            <dl className="mt-4 space-y-2">
+            <dl className="mt-3 space-y-1.5">
               {copy.sees.items.map((item) => (
-                <div key={item.k} className="sm:flex sm:items-baseline sm:gap-3">
-                  <dt className="shrink-0 font-mono text-[12px] leading-snug text-fg sm:w-[46%]">{item.k}</dt>
-                  <dd className="text-[13px] leading-snug text-fg-muted">{item.v}</dd>
+                <div key={item.k} className="flex items-baseline gap-2 text-[13px] leading-snug">
+                  <dt className="font-mono text-fg">{item.k}</dt>
+                  <dd className="text-fg-faint">{item.v}</dd>
                 </div>
               ))}
             </dl>
-
-            <p className="mt-4 border-t border-line pt-3 font-mono text-[10px] leading-relaxed text-fg-faint">
-              {copy.sees.note}
-            </p>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-line-hi bg-surface p-5">
-            <span className="absolute inset-x-0 top-0 h-px bg-suspend/60" aria-hidden />
-
-            <h3 className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight text-fg">
-              <span className="text-suspend" aria-hidden>∅</span>
+          <div className="bg-bg p-5">
+            <h3 className="flex items-center gap-2 font-mono text-[12px] font-semibold uppercase tracking-[0.14em] text-fg-faint">
+              <span className="text-suspend-ink" aria-hidden>{"\u2205"}</span>
               {copy.never.title}
             </h3>
-
-            <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5">
+            <ul className="mt-3 flex flex-wrap gap-x-2 gap-y-1.5">
               {copy.never.items.map((item) => (
-                <li key={item} className="flex items-baseline gap-2">
-                  <span className="font-mono text-[10px] text-fg-faint" aria-hidden>--</span>
-                  <span className="font-mono text-[13px] leading-snug tracking-tight text-fg">{item}</span>
+                <li
+                  key={item}
+                  className="rounded border border-line-hi px-2 py-0.5 font-mono text-[12px] text-fg"
+                >
+                  {item}
                 </li>
               ))}
             </ul>
-
-            <p className="mt-4 text-pretty border-t border-line-hi pt-3 text-[13px] leading-snug text-fg-muted">
-              {copy.never.note}
-            </p>
+            <p className="mt-3 text-[12px] leading-snug text-fg-muted">{copy.never.note}</p>
           </div>
         </div>
 
         {/* ── (b) The commands. Real, current, and actually copy-pasteable. ── */}
-        <div className="mt-20">
-          <h3 className="font-mono text-2xl font-bold tracking-tight sm:text-3xl">{copy.proof.title}</h3>
-          <p className="mt-3 max-w-2xl text-pretty leading-relaxed text-fg-muted">{copy.proof.sub}</p>
+        <div className="mt-8">
+          <h3 className="font-mono text-base font-bold tracking-tight">
+            {copy.proof.title}{" "}
+            <span className="font-normal text-fg-faint">{copy.proof.sub}</span>
+          </h3>
 
-          <TerminalFrame title={copy.proof.terminalTitle} className="mt-5">
+          <TerminalFrame title={copy.proof.terminalTitle} className="mt-4">
             <ul>
               {copy.proof.checks.map((check) => {
                 const isCopied = copied === check.cmd;
                 return (
-                  <li key={check.cmd} className="border-t border-line py-4 first:border-t-0 first:pt-0 last:pb-0">
+                  <li key={check.cmd} className="border-t border-line py-2.5 first:border-t-0 first:pt-0 last:pb-0">
                     <div className="flex items-start gap-3">
                       <span className="select-none pt-px text-running" aria-hidden>$</span>
                       <code className="min-w-0 flex-1 break-all text-[13px] leading-relaxed text-fg">
@@ -126,7 +119,7 @@ export function Privacy() {
                       </button>
                     </div>
 
-                    <p className="mt-2.5 pl-6 text-[13px] leading-relaxed text-fg-muted">
+                    <p className="mt-1.5 pl-6 text-[12px] leading-snug text-fg-muted">
                       <span className="font-mono text-fg-faint" aria-hidden>{copy.proof.provesLabel}, </span>
                       {check.desc}
                     </p>
