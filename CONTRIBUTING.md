@@ -120,9 +120,11 @@ Every commit is a [Conventional Commit](https://www.conventionalcommits.org):
 
 ```
 type(scope): subject
-
-body explaining WHY, not what. The diff already says what.
 ```
+
+Short. Most commits are a subject line and nothing else. Add a body only for the one thing the
+diff cannot tell you, and keep it to two or three lines. Longer reasoning goes in `docs/` or in
+a doc comment, where it will be found.
 
 Types: `feat` `fix` `refactor` `perf` `docs` `test` `build` `ci` `chore`.
 Scopes: `core` `sensors` `app` `web` `docs`.

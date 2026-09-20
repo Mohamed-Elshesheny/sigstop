@@ -296,7 +296,7 @@ struct SettingsView: View {
             Note(
                 "Nothing here rewards working longer, because the app exists to interrupt "
                     + "long stretches and paying you for one would have it arguing with "
-                    + "itself. sched_yield is the clearest case: it is for a full day where "
+                    + "itself. yielded is the clearest case: it is for a full day where "
                     + "nothing ran past the hour."
             )
             Note(

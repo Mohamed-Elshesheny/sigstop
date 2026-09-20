@@ -1151,7 +1151,7 @@ long form keeps it a description of a day.
   costs nothing; **nothing is new** — every condition is arithmetic over the `DailySummary`
   fields in §14 and the event vocabulary that already existed, so the privacy inventory grew
   by one derived file and not one observation; and **none of them rewards working longer** —
-  every one is for taking the break or for not needing it, and `sched_yield` is explicitly
+  every one is for taking the break or for not needing it, and `yielded` is explicitly
   for a full working day in which no single stretch passed an hour. A badge for a long
   session would have the product arguing with itself, and is the one shape of badge this
   file forbids.

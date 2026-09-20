@@ -7,7 +7,7 @@ import Foundation
 /// **No badge may reward working longer.** A mark for "ten hours of active work" would
 /// have the app fighting itself: the product exists to interrupt long stretches, so
 /// paying someone for a long stretch inverts it. Every badge here rewards either taking
-/// the break or not needing one, and `sched_yield` explicitly rewards *not* overrunning.
+/// the break or not needing one, and `yielded` explicitly rewards *not* overrunning.
 ///
 /// **Second rule: nothing new is observed.** Every condition below is arithmetic over
 /// the `DailySummary` values and the event vocabulary that already existed. No field was
@@ -72,29 +72,29 @@ public enum BadgeMotif: String, Sendable, Hashable, Codable {
 public enum BadgeThreshold {
     /// `[1]+ Stopped`.
     public static let firstBreak = 1
-    /// `nice -n 10`. The count is in the name; if this constant changes the name is wrong.
+    /// `ten down`. The count is in the name; if this constant changes the name is wrong.
     public static let tenBreaks = 10
     /// `[100]+ Stopped`.
     public static let hundredBreaks = 100
-    /// `provably halts`, days where every break offered was taken.
+    /// `always halts`, days where every break offered was taken.
     public static let haltingDays = 10
-    /// `SIG_DFL`, how many prompts must be accepted inside `reflexWindow`.
+    /// `no handler`, how many prompts must be accepted inside `reflexWindow`.
     public static let reflexAccepts = 5
     /// The default disposition runs immediately. Fifteen seconds is "you did not think
     /// about it", which is the whole joke.
     public static let reflexWindow: TimeInterval = 15
-    /// `sched_yield`, a real working day, so the badge cannot be won by doing nothing.
+    /// `yielded`, a real working day, so the badge cannot be won by doing nothing.
     public static let yieldMinimumWork: TimeInterval = 4 * 3600
     /// …in which no single continuous stretch passed this. Yielding before you are
     /// preempted is the entire point of the mark.
     public static let yieldStretchCeiling: TimeInterval = 3600
-    /// `early return` / `nohup`, how many separate days each needs.
+    /// `early return` / `still running`, how many separate days each needs.
     public static let clockDays = 5
     /// Local hour before which a break counts as an `early return`.
     public static let earlyHour = 10
-    /// Local hour after which a break counts as `nohup`. The window closes at the
-    /// logical day boundary, which is 04:00, so this is 01:00 to 04:00, the hours the
-    /// command is named for.
+    /// Local hour after which a break counts as a late one. The window closes at the
+    /// logical day boundary, which is 04:00, so this is 01:00 to 04:00, the hours a job
+    /// outlives the terminal that started it.
     public static let lateHour = 1
 }
 
@@ -208,56 +208,56 @@ extension Badge {
 
         Badge(
             id: .niceN10,
-            title: "nice -n 10",
+            title: "ten down",
             motif: .descent,
-            blurb: "Ten breaks. You have lowered your own priority ten times without anyone "
-                + "having to do it for you.",
+            blurb: "Ten breaks. Ten times you took your own priority down a step, and nobody "
+                + "else had to do it for you.",
             lockedHint: "Ten breaks in total. The count is in the name."
         ) { $0.breaksTaken >= BadgeThreshold.tenBreaks },
 
         Badge(
             id: .unmasked,
-            title: "unmasked",
+            title: "nothing blocked",
             motif: .liftedGate,
             blurb: "A day where every break the app actually asked for happened. Nothing "
-                + "blocked, nothing pending, no handler in the way.",
+                + "deferred, nothing pending, nothing in the way.",
             lockedHint: "One day where every break offered was taken."
         ) { $0.cleanDays >= 1 },
 
         Badge(
             id: .provablyHalts,
-            title: "provably halts",
+            title: "always halts",
             motif: .tombstone,
             blurb: "Ten of those days. Whether an arbitrary program halts is undecidable. "
-                + "You are not an arbitrary program, and here is the evidence.",
+                + "You are not an arbitrary program, and this is ten days of evidence.",
             lockedHint: "Ten days where every break offered was taken."
         ) { $0.cleanDays >= BadgeThreshold.haltingDays },
 
         Badge(
             id: .sigDFL,
-            title: "SIG_DFL",
+            title: "no handler",
             motif: .straightThrough,
-            blurb: "Five prompts accepted inside fifteen seconds. No handler installed, "
-                + "no deliberation, the signal just runs.",
+            blurb: "Five prompts accepted inside fifteen seconds. Nothing caught them, "
+                + "nothing thought about them, the default just ran.",
             lockedHint: "Accept five prompts within fifteen seconds of being asked."
         ) { $0.reflexAccepts >= BadgeThreshold.reflexAccepts },
 
         Badge(
             id: .einval,
-            title: "EINVAL",
+            title: "uncatchable",
             motif: .escalation,
-            blurb: "You let one prompt climb all four rungs to SIGSTOP. sigaction() answers "
-                + "EINVAL if you try to install a handler for that one. The refusal is "
-                + "documented; the attempt was always the funny part.",
+            blurb: "You let one prompt climb all four rungs. The top one cannot be caught, "
+                + "blocked or ignored by anybody, ever, and the kernel will not even let "
+                + "you try to install a handler for it.",
             lockedHint: "Let one prompt reach the fourth rung, SIGSTOP."
         ) { $0.reachedSigstop },
 
         Badge(
             id: .schedYield,
-            title: "sched_yield",
+            title: "yielded",
             motif: .handoff,
-            blurb: "Four hours of work and not one stretch past the hour. You gave up the "
-                + "CPU before anything had to take it from you.",
+            blurb: "Four hours of work and not one stretch past the hour. You handed the "
+                + "slot back before anything had to take it from you.",
             lockedHint: "A day of at least four hours where no single stretch passed an hour."
         ) {
             $0.yieldDays >= 1
@@ -274,10 +274,11 @@ extension Badge {
 
         Badge(
             id: .nohup,
-            title: "nohup",
+            title: "still running",
             motif: .detached,
-            blurb: "Five nights with a break after one in the morning. Whatever you are "
-                + "running, it has stopped caring whether the terminal is still there.",
+            blurb: "Five nights with a break after one in the morning. The terminal is "
+                + "closed and the link to it is cut: the job is the thing still running, "
+                + "and you are the part that stopped.",
             lockedHint: "Take a break after 01:00 on five separate days."
         ) { $0.lateDays >= BadgeThreshold.clockDays },
 

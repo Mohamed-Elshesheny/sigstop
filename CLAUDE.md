@@ -340,8 +340,11 @@ Rules:
 - Subject in the imperative, lowercase after the colon, no trailing full stop, under 72 chars.
 - A breaking change gets `!` before the colon (`feat(core)!: ...`) and a `BREAKING CHANGE:`
   footer explaining the migration.
-- The body is for the reasoning a future reader cannot reconstruct from the diff: the
-  constraint you hit, the option you rejected, the bug the change actually fixes.
+- **Keep it short.** Most commits are a subject line and nothing else. A body is for the one
+  thing a future reader cannot reconstruct from the diff, and it is two or three lines, not an
+  essay. If the reasoning genuinely needs paragraphs it belongs in `docs/` or in a doc comment
+  next to the code, where someone will actually find it. A commit log nobody reads is a commit
+  log nobody reads, however well argued.
 
 ```
 feat(core): degrade to the parent activity below the confidence floor

@@ -278,7 +278,7 @@ extension BadgeMotif {
         return parts
     }
 
-    /// `nice -n 10`: a staircase going down, and the tread you end up on is the amber one.
+    /// `ten down`: a staircase going down, and the tread you end up on is the amber one.
     /// Lowering your own priority is a thing with a direction, so the object has one too.
     private func descentParts(_ c: MarkCanvas) -> [MarkPart] {
         var stair = Path()
@@ -291,7 +291,7 @@ extension BadgeMotif {
         return [.solid(stair), .accent(c.bar(66, 74, 29, 10, radius: 2.5))]
     }
 
-    /// `unmasked`: the barrier is up. Nothing blocking a signal is hard to draw as an
+    /// `nothing blocked`: the barrier is up. Nothing blocking a signal is hard to draw as an
     /// absence, so it is drawn as the blocker, parked somewhere it plainly is not in the
     /// way any more.
     private func liftedGateParts(_ c: MarkCanvas) -> [MarkPart] {
@@ -303,7 +303,7 @@ extension BadgeMotif {
         ]
     }
 
-    /// `provably halts`: an argument narrowing to the block that closes it.
+    /// `always halts`: an argument narrowing to the block that closes it.
     ///
     /// This was a left-aligned stack of shortening lines, which was typographically the
     /// honest way to draw a proof and visually the wrong one: `early return` is also a
@@ -333,7 +333,7 @@ extension BadgeMotif {
         return [.solid(proof), .accent(c.bar(60, 42, 21, 21, radius: 2))]
     }
 
-    /// `SIG_DFL`: the default disposition runs, so the arrow goes straight through the gap
+    /// `no handler`: the default disposition runs, so the arrow goes straight through the gap
     /// where a handler would have sat. One unbroken shaft, no bend, nothing to catch it.
     private func straightThroughParts(_ c: MarkCanvas) -> [MarkPart] {
         var posts = c.bar(45, 3, 10, 29, radius: 2)
@@ -343,7 +343,7 @@ extension BadgeMotif {
         return [.solid(posts), .accent(arrow)]
     }
 
-    /// `EINVAL`: the escalation ladder from `CLAUDE.md` §0, with the top rung lit.
+    /// `uncatchable`: the escalation ladder from `CLAUDE.md` §0, with the top rung lit.
     ///
     /// The mark here used to be a rubber stamp and its impression, which was legible and
     /// meant nothing: a stamp says "refused", and this badge is not about being refused,
@@ -362,7 +362,7 @@ extension BadgeMotif {
         return [.solid(rails), .solid(rungs), .accent(c.bar(16, 11, 68, 13, radius: 3))]
     }
 
-    /// `sched_yield`: the front slot of the run queue is empty because whoever held it
+    /// `yielded`: the front slot of the run queue is empty because whoever held it
     /// stepped out, and the arc carries them round to the back. Voluntary is the point, so
     /// nothing is pushing.
     ///
@@ -371,7 +371,7 @@ extension BadgeMotif {
     /// and it dropped the arrowhead below 40 points because four dark points on the amber
     /// cell read as a blot. Both decisions were locally right and together they produced
     /// headphones: at the size that ships, in both themes, the silhouette was a band over
-    /// two earcups, and `sched_yield` captioning a picture of headphones is the joke
+    /// two earcups, and a badge for yielding captioning a picture of headphones is the joke
     /// landing on the product. Symmetry was the culprit, so the apex now sits left of
     /// centre, rising off the empty slot the yielder just vacated and diving steeply into
     /// the back of the queue — which is also a truer picture of the operation than an even
@@ -414,7 +414,7 @@ extension BadgeMotif {
         return [.solid(ran), .ghost(unreached), .accent(exit)]
     }
 
-    /// `nohup`: the terminal is gone and the job did not notice.
+    /// `still running`: the terminal is gone and the job did not notice.
     ///
     /// Four earlier attempts put the two objects near each other and asked a stub about a
     /// point long to carry "these are no longer joined", which at 28 points is nothing at
@@ -446,8 +446,8 @@ extension BadgeMotif {
     /// socket — connected, the exact opposite of the word the mark exists to carry. The
     /// first redraw made it a straight diagonal falling from the box's bottom-right
     /// corner, which fixed the plug and immediately bought a worse read: a stick at the
-    /// corner of a rounded square is a magnifying glass, and `nohup` captioned with a
-    /// search icon is no better than `nohup` captioned with a pause button. It is now a
+    /// corner of a rounded square is a magnifying glass, and `still running` captioned with a
+    /// search icon is no better than the same mark captioned with a pause button. It is now a
     /// curve, not a stick, and it leaves from the middle of the right wall: it exits
     /// horizontally the way a cable does, goes slack, and droops away into open space
     /// below the job's centreline with nothing to mate with. Slack is the tell. A taut

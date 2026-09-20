@@ -99,7 +99,7 @@ struct BreakCountBadgeTests {
         #expect(ledger.isEmpty)
     }
 
-    @Test("nice -n 10 does not unlock on nine breaks, and does on the tenth")
+    @Test("ten down does not unlock on nine breaks, and does on the tenth")
     func ten_breaks_not_nine() {
         let nine = (1...9).map { Fix.summary($0, breaks: 1) }
         #expect(!Fix.evaluate(nine).contains(.niceN10))
@@ -120,7 +120,7 @@ struct BreakCountBadgeTests {
     }
 }
 
-// MARK: - unmasked / provably halts
+// MARK: - nothing blocked / always halts
 
 @Suite("badges · every break offered was taken")
 struct CleanDayBadgeTests {
@@ -129,7 +129,7 @@ struct CleanDayBadgeTests {
         Fix.summary(n, breaks: 3, opportunities: 3, honored: 3)
     }
 
-    @Test("unmasked wants one day where nothing was blocked and nothing left pending")
+    @Test("nothing blocked wants one day where nothing was deferred and nothing left pending")
     func one_clean_day() {
         let ledger = Fix.evaluate([cleanDay(1)])
         #expect(ledger.contains(.unmasked))
@@ -157,7 +157,7 @@ struct CleanDayBadgeTests {
         #expect(ledger.contains(.stoppedOnce))
     }
 
-    @Test("provably halts wants ten of them, and nine is nine")
+    @Test("always halts wants ten of them, and nine is nine")
     func ten_clean_days_not_nine() {
         let nine = (1...9).map(cleanDay)
         #expect(!Fix.evaluate(nine).contains(.provablyHalts))
@@ -168,9 +168,9 @@ struct CleanDayBadgeTests {
     }
 }
 
-// MARK: - SIG_DFL
+// MARK: - no handler
 
-@Suite("badges · SIG_DFL")
+@Suite("badges · no handler")
 struct ReflexBadgeTests {
 
     private func fastDays(_ count: Int, seconds: TimeInterval) -> [BadgeDay] {
@@ -224,9 +224,9 @@ struct ReflexBadgeTests {
     }
 }
 
-// MARK: - EINVAL
+// MARK: - uncatchable
 
-@Suite("badges · EINVAL")
+@Suite("badges · uncatchable")
 struct SigstopBadgeTests {
 
     @Test("One prompt that reached the fourth rung is enough")
@@ -270,9 +270,9 @@ struct SigstopBadgeTests {
     }
 }
 
-// MARK: - sched_yield
+// MARK: - yielded
 
-@Suite("badges · sched_yield")
+@Suite("badges · yielded")
 struct YieldBadgeTests {
 
     @Test("Four hours of work with nothing past the hour")
@@ -308,7 +308,7 @@ struct YieldBadgeTests {
     }
 }
 
-// MARK: - early return / nohup
+// MARK: - early return / still running
 
 @Suite("badges · the two clock badges")
 struct ClockBadgeTests {
@@ -347,7 +347,7 @@ struct ClockBadgeTests {
         #expect(!Fix.evaluate(days).contains(.earlyReturn))
     }
 
-    @Test("nohup wants five breaks after 01:00, which belong to the previous logical day")
+    @Test("still running wants five breaks after 01:00, which belong to the previous logical day")
     func five_late_nights() {
         let days = (1...5).map { n in
             BadgeDay(
@@ -360,7 +360,7 @@ struct ClockBadgeTests {
         #expect(!ledger.contains(.earlyReturn))
     }
 
-    @Test("Midnight is not yet nohup; 01:00 is")
+    @Test("Midnight is not yet a late break; 01:00 is")
     func the_window_opens_at_one() {
         let midnight = (1...5).map { n in
             BadgeDay(summary: DailySummary(day: Fix.day(n)), events: breakAt(n + 1, hour: 0))
