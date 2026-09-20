@@ -531,7 +531,7 @@ export const meetings = {
       { k: "3 h", v: "Held time in one day, after which it stops until tomorrow." },
       { k: "1 click", v: "The menu bar carries its own state while it holds, names the fact and the closing time, and offers \"Not in a meeting\" the whole time." },
     ],
-    note: "None of it survives a relaunch. A hold restored from disk is a suppression that can outlive the bug that created it, and quitting the app has to stay the crude escape hatch it is.",
+    note: "No hold survives a relaunch. A hold restored from disk is a suppression that can outlive the bug that created it, and quitting the app has to stay the crude escape hatch it is. The day's running total does survive, because that number can only ever make the app less willing to hold, never more.",
   },
 
   gap: {
