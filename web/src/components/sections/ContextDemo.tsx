@@ -16,7 +16,12 @@ const TONES: { key: ToneKey; label: string; sig: string }[] = [
 ];
 
 export function ContextDemo() {
-  const [active, setActive] = useState<AppDemo>(appDemos[0]);
+  // Not appDemos[0]: the hero panel is already Cursor / AI_CODING / 0.91, and a
+  // demo whose job is to change per context should not open on the card the
+  // reader just looked at. Xcode argues harder, at a lower confidence.
+  const [active, setActive] = useState<AppDemo>(
+    appDemos.find((a) => a.key === "xcode") ?? appDemos[0],
+  );
   const [tone, setTone] = useState<ToneKey>("sarcastic");
   const { ref, visible } = useReveal<HTMLDivElement>();
   const panelId = useId();
@@ -137,14 +142,14 @@ export function ContextDemo() {
                   );
                 })}
                 <span className="ml-1 font-mono text-[10px] text-fg-faint">
-                  tone is a setting, not a guess
+                  {copy.toneNote}
                 </span>
               </div>
 
               {/* the evidence trail, the product's core promise made visible */}
               <div className="mt-7 border-t border-line pt-5">
                 <p className="mb-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-fg-faint">
-                  why it thinks that
+                  {copy.evidenceLabel}
                 </p>
                 <ul className="space-y-1.5">
                   {active.evidence.map((e) => (
@@ -159,9 +164,7 @@ export function ContextDemo() {
               {/* the honesty case, this is the section's real argument */}
               {!confident && (
                 <p className="mt-5 rounded-lg border border-suspend/25 bg-suspend/[0.06] px-4 py-3 font-mono text-[11px] leading-relaxed text-suspend">
-                  Below the confidence threshold, so it refuses to name an activity. Claiming
-                  you were &ldquo;debugging&rdquo; when you were not is the fastest way to stop
-                  being believed.
+                  {copy.unsure}
                 </p>
               )}
             </div>
@@ -171,12 +174,10 @@ export function ContextDemo() {
         {/* ── Escalation ladder, written by POSIX ───────────────────────────── */}
         <div className="mt-14 border-t border-line pt-12">
           <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-fg-faint">
-            If you ignore it
+            {copy.escalation.kicker}
           </p>
           <p className="mb-8 max-w-2xl text-pretty leading-relaxed text-fg-muted">
-            The escalation ladder is not a tone of voice someone invented. It is the signal
-            table, ordered by exactly the property that matters here: how easy each one is
-            to ignore.
+            {copy.escalation.lede}
           </p>
 
           <ol className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -211,8 +212,7 @@ export function ContextDemo() {
           </ol>
 
           <p className="mt-6 font-mono text-[11px] leading-relaxed text-fg-faint">
-            The ladder stops at SIGSTOP. There is no SIGKILL, because SIGKILL destroys the exact
-            thing this app promises to keep.
+            {copy.escalation.note}
           </p>
         </div>
       </div>

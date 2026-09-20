@@ -35,6 +35,7 @@ export const hero = {
   primaryCta: "Download for macOS",
   secondaryCta: "View on GitHub",
   note: "Free forever. No account. No telemetry. Works with zero permissions granted.",
+  panelNote: "Live. The bars fill as the session does.",
 } as const;
 
 /**
@@ -57,8 +58,17 @@ export const namePitch = {
 export const context = {
   kicker: "The difference",
   headline: "It knows what you're doing.",
-  sub: "A timer knows one thing: that time passed. sigstop reads which app is in front, how long you've genuinely been active, and whether this is a sane moment to interrupt. Click through and watch the message change.",
+  sub: "sigstop reads which app is in front, how long you've genuinely been active, and whether this is a sane moment to interrupt.",
   hint: "Pick an app",
+  toneNote: "tone is a setting, not a guess",
+  evidenceLabel: "why do you think that?",
+  unsure:
+    "Below the confidence threshold, so it refuses to name an activity. Claiming you were \"debugging\" when you were not is the fastest way to stop being believed.",
+  escalation: {
+    kicker: "If you ignore it",
+    lede: "The ladder is not a tone of voice someone invented. It is the signal table, ordered by how easy each one is to ignore.",
+    note: "The ladder stops at SIGSTOP. There is no SIGKILL, because SIGKILL destroys the exact thing this app promises to keep.",
+  },
 } as const;
 
 export const notPomodoro = {
@@ -86,7 +96,6 @@ export const notPomodoro = {
       "SIGCONT, back to work",
     ],
     kinds: ["clock", "signal", "inference", "honesty", "veto", "timing", "message", "resume"],
-    note: "If a microphone or a camera is running, it does not fire. Not \"fires quietly\", does not fire. Both are a yes/no device flag, read without a permission prompt and without opening a stream.",
   },
   /** Stage labels for the flow diagram. Keys match the `kinds` arrays above. */
   stageLabels: {
@@ -109,10 +118,9 @@ export const beforeAfter = {
   kicker: "Same work, redistributed",
   headline: "It's the same eight hours.",
   sub: "This isn't a productivity claim and it isn't a health claim. It's a shape. The work gets done either way, one version just has seams in it.",
-  scaleNote: "One day, one clock. Both columns are drawn to the same scale.",
   before: {
     title: "Without",
-    meta: "One block. Nothing in the system is watching it get longer.",
+    meta: "One block.",
     end: "18:00",
     items: [
       { t: "09:00", label: "Start", tone: "work" },
@@ -153,18 +161,15 @@ export const beforeAfter = {
     { tone: "work", label: "Running", desc: "A process doing what it is supposed to be doing." },
     { tone: "strain", label: "Still running", desc: "The same work, hours later. Nothing in the loop notices the difference." },
     { tone: "break", label: "Seam", desc: "SIGTSTP, then SIGCONT. The stack is still there when you get back." },
-    { tone: "held", label: "Held", desc: "A break came due and was deliberately not fired: a microphone or a camera was running, or one had just stopped and the call had not. This is the feature, not a miss." },
+    { tone: "held", label: "Held", desc: "A break came due and was deliberately not fired. This is the feature, not a miss." },
   ],
   stats: { span: "span", seams: "seams", away: "away from the desk", held: "held back", unbroken: "unbroken" },
-  disclaimerLabel: "What this diagram is not claiming",
-  disclaimer:
-    "No promises about your health, your focus, or your output. We can't measure those and neither can anyone selling you something. All sigstop does is pick better moments than a timer would.",
 } as const;
 
 export const privacy = {
   kicker: "Privacy",
   headline: "Your code stays yours.",
-  sub: "You're going to read the source before you run this. Good, that's the point. Here is exactly what it touches, and why you don't have to take our word for any of it.",
+  sub: "You're going to read the source before you run this. Good, that's the point. Here is exactly what it touches.",
   sees: {
     title: "What it reads",
     items: [
@@ -175,7 +180,6 @@ export const privacy = {
       { k: "Session duration", v: "How long you've been going." },
       { k: "Window titles", v: "Only if you grant Accessibility. Off by default." },
     ],
-    note: "Six signals. That is the entire inventory, there is no seventh one further down the page.",
   },
   never: {
     title: "What it cannot read",
@@ -187,7 +191,7 @@ export const privacy = {
       "Your messages",
       "Your screen",
     ],
-    note: "Not \"we promise not to look.\" There is no code path that could. Reading any of these needs a permission the app never requests and an entitlement it was never signed with. It costs something, and here is the bill: because it never reads your screen, it cannot tell that you are sharing it. A live mic or camera is what it holds a break back on, and a silent screen share is the case it misses.",
+    note: "Not \"we promise not to look.\" There is no code path that could. Reading any of these needs a permission the app never requests and an entitlement it was never signed with.",
   },
   proof: {
     title: "Don't trust it. Check it.",
@@ -196,7 +200,7 @@ export const privacy = {
     provesLabel: "proves",
     copyLabel: "Copy",
     copiedLabel: "Copied",
-    copyFailLabel: "Copy failed. Select the line and copy it yourself, which you were probably going to do anyway.",
+    copyFailLabel: "Copy failed. Select the line yourself.",
     checks: [
       { cmd: "nm -u /Applications/sigstop.app/Contents/MacOS/sigstop | grep -E 'NSURLSession|_socket|getaddrinfo'", desc: "Silence. The app's own binary references no networking at all. Every byte of network code is in Sparkle." },
       { cmd: "ls /Applications/sigstop.app/Contents/Frameworks", desc: "Sparkle.framework, and nothing else. One dependency, named, versioned, diffable." },
@@ -205,25 +209,22 @@ export const privacy = {
       { cmd: "cat ~/Library/Application\\ Support/sigstop/events.jsonl", desc: "Your entire stored history. Plain JSON, one event per line. Read it yourself." },
     ],
   },
-    zeroPermLabel: "Zero permissions",
-  zeroPerm:
-    "The app is fully functional with zero permissions granted. Accessibility and git context are upgrades you opt into, never gates. If it demanded permissions to work at all, the promise above would be worth nothing.",
 } as const;
 
 export const openSource = {
   kicker: "Open source",
   headline: "Built in the open.",
-  sub: "Apache-2.0 licensed. No paid tier, no \"pro\" version withholding the useful half, no account to create. If it's useful, star it. If it's wrong, open an issue. If you have a better joke, open a PR, the message corpus is a JSON file.",
+  sub: "Apache-2.0 licensed. No paid tier, no \"pro\" version withholding the useful half. If it's wrong, open an issue. If you have a better joke, open a PR, the message corpus is a JSON file.",
   cards: [
     { title: "Read the architecture", body: "Four design documents written before a line of Swift. The activity detection doc is honest about what macOS will and won't let an app know.", cta: "docs/", href: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs" },
-    { title: "Add your editor", body: "Support for a new app is one provider file and a bundle id. It requires zero changes to core code, if it did, the extension point would be wrong.", cta: "Providers", href: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/app/Sources/SigstopSensors/Providers" },
+    { title: "Add your editor", body: "Support for a new app is one provider file and a bundle id. It requires zero changes to core code.", cta: "Providers", href: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/app/Sources/SigstopSensors/Providers" },
     { title: "Write a better line", body: "The corpus is plain JSON with structured preconditions. Contribute a joke that only fires when someone's been in Xcode for 90 minutes on a Friday.", cta: "corpus.json", href: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/app/Sources/SigstopCore/Message/corpus.json" },
   ],
   facts: [
     { k: "Language", v: "Swift 6" },
     { k: "License", v: "Apache-2.0" },
     { k: "Minimum", v: "macOS 14" },
-    { k: "Bundle", v: "7.5 MB, 2.8 of it Sparkle" },
+    { k: "Bundle", v: "8.8 MB" },
     { k: "Dependencies", v: "1, and you can name it" },
   ],
   factsNote:
@@ -232,25 +233,13 @@ export const openSource = {
   ctaSecondary: "Read CONTRIBUTING",
 } as const;
 
-/** Microcopy used as section dividers and small print throughout the page. */
-export const asides = [
-  "Your chair has opened an issue.",
-  "Your spine requested a maintenance window.",
-  "CI is green. You should be too.",
-  "Ship code. Not yourself.",
-  "Commit your code. Not your posture.",
-  "human.exe is not responding.",
-  "You have been running for 4h12m without yielding.",
-  "No process should hold the CPU this long.",
-] as const;
-
 export const finalCta = {
   prompt: "$",
   headline: "kill -STOP $(pgrep you)",
   sub: "Five minutes. Nothing is lost. That's the entire pitch.",
   primary: "Download for macOS",
   secondary: "View source",
-  meta: "macOS 14+ · Apple Silicon & Intel · 2.1 MB · Apache-2.0",
+  meta: "macOS 14+ · Apple Silicon & Intel · Apache-2.0",
 } as const;
 
 export const footer = {
@@ -270,7 +259,7 @@ export const footer = {
 export const productDemo = {
   kicker: "The whole loop",
   headline: "Forty five minutes, then five.",
-  sub: "This is the entire product. There is no dashboard to configure, no streak to maintain, and nothing to log in to. There are ten badges, kept out of the way in Settings: none of them expires, none of them can go down, and none of them rewards working longer.",
+  sub: "This is the entire product. There is no dashboard to configure, no streak to maintain, and nothing to log in to.",
   steps: [
     {
       id: "work",
@@ -279,7 +268,7 @@ export const productDemo = {
       minutes: 12,
       pose: "typing",
       title: "It watches the app, not the file",
-      body: "Frontmost application and how long since you last touched the keyboard. That is the whole input at this stage.",
+      body: "Frontmost application, and how long since you last touched a key.",
     },
     {
       id: "long",
@@ -297,7 +286,7 @@ export const productDemo = {
       minutes: 45,
       pose: "slumped",
       title: "It waits for a seam",
-      body: "Mic live, camera live, fullscreen? Then it does not fire at all. Otherwise it waits for an app switch or a quiet moment, within a bounded window.",
+      body: "An app switch, or a quiet moment.",
     },
     {
       id: "break",
@@ -315,7 +304,7 @@ export const productDemo = {
       minutes: 1,
       pose: "typing",
       title: "Nothing was lost",
-      body: "Same branch, same file, same half finished thought. That was always the actual objection, and it is the one the name answers.",
+      body: "Same branch, same file, same half finished thought.",
     },
   ],
   autoplayNote: "Playing. Click any step to hold it.",
@@ -331,7 +320,7 @@ export const productDemo = {
 export const comparison = {
   kicker: "Where this sits",
   headline: "We are not the first thing that tells you to take a break.",
-  sub: "We are the only one that looks at what you are doing first. Here is the honest version, including the parts we lose.",
+  sub: "Here is the honest version, including the parts we lose.",
   columns: [
     { key: "sigstop", label: "sigstop", note: "this", highlight: true },
     { key: "pomodoro", label: "Pomodoro timers", note: "the 25 minute crowd", highlight: false },
@@ -344,7 +333,6 @@ export const comparison = {
     { trait: "Tells you why it believes that", sigstop: "yes", pomodoro: "n/a", wellness: "no", nothing: "n/a" },
     { trait: "Admits when it does not know", sigstop: "yes", pomodoro: "n/a", wellness: "no", nothing: "n/a" },
     { trait: "Works with zero permissions granted", sigstop: "yes", pomodoro: "yes", wellness: "no", nothing: "yes" },
-    { trait: "Sends nothing about you, anywhere", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "yes" },
     { trait: "Its only connection is an update check you triggered", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "n/a" },
     { trait: "Verifies every update against a key inside the app", sigstop: "yes", pomodoro: "some", wellness: "some", nothing: "n/a" },
     { trait: "Source you can read and fork", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "n/a" },
@@ -362,7 +350,31 @@ export const comparison = {
     "n/a": "not applicable",
   },
 
-  } as const;
+  /**
+   * The last row claims something, so it has to carry its evidence, including
+   * the paper that disagrees. Citing only the half that suits us is the exact
+   * move a technical reader is scanning for.
+   */
+  evidence: {
+    kicker: "About that last row",
+    headline: "Sustained attention decays. Short breaks are how it comes back.",
+    sources: [
+      {
+        claim: "Brief diversions from a task restore sustained focus on it",
+        cite: "Ariga & Lleras, Cognition (2011)",
+        doi: "10.1016/j.cognition.2010.12.007",
+        agrees: true,
+      },
+      {
+        claim: "A direct rebuttal: brief breaks did not preserve focus in this replication",
+        cite: "Helton & Russell, Experimental Brain Research (2012)",
+        doi: "10.1007/s00221-012-3065-0",
+        agrees: false,
+      },
+    ],
+    caveat: "Two papers, opposite results. The decline is not what is argued over, the size of the fix is. sigstop does not promise you a better brain. It notices when you have been holding one thing for fifty minutes and says so.",
+  },
+} as const;
 
 /**
  * The ten badges, named exactly as `SigstopCore/Badges/Badge.swift` names them,
@@ -377,13 +389,13 @@ export const comparison = {
 export const badges = {
   kicker: "The ten",
   headline: "There is a shelf, and it cannot be taken off you.",
-  sub: "Ten badges, kept in Settings and never in a prompt. Every one is arithmetic over the log already on disk, so none of them made the app watch you any more closely than it already did.",
+  sub: "Ten badges, kept in Settings. Every one is arithmetic over the log already on disk.",
   items: [
     {
       name: "[1]+ Stopped",
       motif: "job-line",
       earns: "Take one break.",
-      earned: "It is what the shell prints when a job is suspended, and the job is fine: registers, memory, all of it still there.",
+      earned: "It is what the shell prints when a job is suspended: registers, memory, all of it still there.",
     },
     {
       name: "ten down",
@@ -413,7 +425,7 @@ export const badges = {
       name: "uncatchable",
       motif: "escalation",
       earns: "Let one prompt climb all four rungs to SIGSTOP.",
-      earned: "The top rung cannot be caught, blocked or ignored by anybody, ever, and the kernel will not even let you try to install a handler for it.",
+      earned: "The top rung cannot be caught, blocked or ignored by anybody, ever.",
     },
     {
       name: "yielded",
@@ -431,7 +443,7 @@ export const badges = {
       name: "still running",
       motif: "detached",
       earns: "Take a break after 01:00 on five separate days.",
-      earned: "The terminal is closed and the link to it is cut: the job is the thing still running, and you are the part that stopped.",
+      earned: "The terminal is closed: the job is the thing still running, and you are the part that stopped.",
     },
     {
       name: "[100]+ Stopped",
@@ -441,26 +453,22 @@ export const badges = {
     },
   ],
   /* The two states, offered as a control so a reader can flip the whole wall
-     and watch what does and does not survive. */
+     and watch what does and does not survive. It swaps the copy as well as the
+     ink, exactly as Settings does: a badge you do not have says what it takes,
+     one you do says what it meant. */
   view: {
     label: "Show the shelf as",
     earned: "earned",
     locked: "not yet",
-    note: {
-      earned:
-        "One amber per mark, and only on the part that carries the meaning: the suspended job between the brackets, the arm swung out of the road, the rung nothing can catch.",
-      locked:
-        "The same objects, every line in the same place at the same weight. Only the amber is gone, and the empty socket is now the brightest thing in the mark, so your eye lands on what is missing. Nothing is crossed out, nothing is greyed to a stub, and nothing anywhere is a padlock.",
-    },
+    note: "Not yet is the same mark with the amber taken out. Nothing is crossed out, and nothing anywhere is a padlock.",
   },
   chip: { earned: "yours", locked: "not yet" },
   rules: [
     { k: "Nothing expires", v: "Miss a day, miss a month. A badge records something that happened and there is no number to protect." },
     { k: "Nothing can go down", v: "There is no counter to lose, so there is nothing here to hold hostage." },
-    { k: "Nothing rewards working longer", v: "The app exists to interrupt long stretches. Paying you for one would have it arguing with itself, and yielded is explicitly for a day where nothing ran past the hour." },
+    { k: "Nothing rewards working longer", v: "The app exists to interrupt long stretches. Paying you for one would have it arguing with itself." },
   ],
   note: "No levels, no tiers, no points, no shareable card. If that sounds like a thin version of what other apps do here, it is, deliberately.",
-  marksNote: "The marks are the app's, drawn from the same coordinates. Ten of them and ten objects: the set is meant to be told apart by silhouette alone, in a settings list, without reading a single title.",
 } as const;
 
 /**
@@ -482,7 +490,7 @@ export const meetings = {
   facts: [
     {
       title: "A live microphone or camera stops it",
-      body: "Both are a yes or no bit on the device. No Microphone permission, no Camera permission, no prompt, and no stream is ever opened. The app cannot hear or see anything, and the capability is absent rather than unused.",
+      body: "Both are a yes or no bit on the device. No Microphone permission, no Camera permission, no prompt, and no stream is ever opened.",
     },
     {
       title: "Muting does not end it",

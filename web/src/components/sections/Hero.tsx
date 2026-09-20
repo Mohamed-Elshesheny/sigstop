@@ -91,7 +91,7 @@ export function Hero() {
               ]}
             />
             <p className="mt-3 text-center font-mono text-[11px] leading-relaxed text-fg-faint">
-              Live. The bars fill as the session does.
+              {hero.panelNote}
             </p>
           </div>
         </div>

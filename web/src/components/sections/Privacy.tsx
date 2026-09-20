@@ -127,16 +127,6 @@ export function Privacy() {
 
           <p role="status" aria-live="polite" className="sr-only">{status}</p>
         </div>
-
-        {/* ── (c) The one connection. ───────────────────────────────────────
-            Placed AFTER the commands on purpose. A reader who has just been
-            handed five things to run is in the right frame of mind for the
-            paragraph that admits the app does open a socket; the same paragraph
-            above the commands reads like a disclaimer being got out of the way.
-            It is a single full-width block rather than a card in the grid
-            because it is the one thing on this page that concedes something,
-            and burying a concession in a two-up layout is how you make it look
-            like you were hoping nobody would read it. */}
       </div>
     </Section>
   );

@@ -168,7 +168,6 @@ export const appDemos: AppDemo[] = [
     evidence: [
       "Frontmost app is Figma (exact bundle id match)",
       "No reliable signal for what you're doing inside it",
-      "Below the confidence threshold, so the app will NOT name an activity",
     ],
     messages: [
       { tone: "friendly", text: "29 minutes at the screen. No idea what you're doing in there, but it can wait." },

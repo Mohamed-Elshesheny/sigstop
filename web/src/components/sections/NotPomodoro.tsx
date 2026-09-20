@@ -124,7 +124,7 @@ function Pipeline({
   meta: string;
   steps: readonly string[];
   kinds: readonly string[];
-  note: string;
+  note?: string;
   emphasis: boolean;
   visible: boolean;
   className?: string;
@@ -156,14 +156,16 @@ function Pipeline({
         ))}
       </ol>
 
-      <p
-        className={cn(
-          "mt-7 text-pretty text-sm leading-relaxed",
-          emphasis ? "text-fg-muted" : "border-l-2 border-line-hi pl-4 text-fg-faint",
-        )}
-      >
-        {note}
-      </p>
+      {note && (
+        <p
+          className={cn(
+            "mt-7 text-pretty text-sm leading-relaxed",
+            emphasis ? "text-fg-muted" : "border-l-2 border-line-hi pl-4 text-fg-faint",
+          )}
+        >
+          {note}
+        </p>
+      )}
     </div>
   );
 }
@@ -195,7 +197,6 @@ export function NotPomodoro() {
             meta={copy.sigstop.meta}
             steps={copy.sigstop.steps}
             kinds={copy.sigstop.kinds}
-            note={copy.sigstop.note}
             emphasis
             visible={visible}
           />

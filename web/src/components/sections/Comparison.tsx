@@ -118,7 +118,48 @@ export function Comparison() {
           ))}
         </div>
 
+        {/* The last row is a performance claim, so it carries its sources,
+            including the paper that failed to replicate the effect. Without
+            this block the row does not ship (CLAUDE.md §4.5). */}
+        <div className="mt-10 rounded-xl border border-line bg-surface/30 p-6 sm:p-8">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-suspend-ink">
+            {copy.evidence.kicker}
+          </p>
+          <h3 className="mt-3 text-balance font-mono text-xl font-bold leading-tight tracking-tight sm:text-2xl">
+            {copy.evidence.headline}
+          </h3>
 
+          <ul className="mt-6 space-y-3">
+            {copy.evidence.sources.map((src) => (
+              <li
+                key={src.doi}
+                className="flex flex-col gap-1 border-l-2 pl-4 sm:flex-row sm:items-baseline sm:gap-4"
+                style={{ borderColor: src.agrees ? "var(--color-running)" : "var(--color-alert)" }}
+              >
+                <span
+                  className="shrink-0 font-mono text-[11px] uppercase tracking-wider"
+                  style={{ color: src.agrees ? "var(--color-running)" : "var(--color-alert)" }}
+                >
+                  {src.agrees ? "supports" : "disputes"}
+                </span>
+                <span className="text-[13px] leading-snug text-fg-muted">
+                  {src.claim}
+                  <br />
+                  <a
+                    href={`https://doi.org/${src.doi}`}
+                    className="font-mono text-[11px] text-fg-faint underline decoration-line-hi underline-offset-2 hover:text-fg"
+                  >
+                    {src.cite} · doi:{src.doi}
+                  </a>
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-6 max-w-3xl text-pretty text-[13px] leading-relaxed text-fg-faint">
+            {copy.evidence.caveat}
+          </p>
+        </div>
       </div>
     </Section>
   );

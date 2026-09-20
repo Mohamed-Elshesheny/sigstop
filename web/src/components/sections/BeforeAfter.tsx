@@ -303,7 +303,6 @@ export function BeforeAfter() {
         <Kicker>{copy.kicker}</Kicker>
         <Headline>{copy.headline}</Headline>
         <Lede>{copy.sub}</Lede>
-        <p className="mt-4 font-mono text-[11px] leading-relaxed text-fg-faint">{copy.scaleNote}</p>
 
         <div className="mt-10 grid gap-16 md:grid-cols-2 md:gap-10 lg:gap-16">
           <Column

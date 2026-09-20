@@ -16,11 +16,12 @@ import { cn } from "@/lib/cn";
  * The one interactive thing on the page flips every mark between earned and not
  * yet, and it exists because that is the claim this section is making. A locked
  * badge elsewhere is a padlock, a grey blob, a percentage bar: a small ongoing
- * reproach. Here it is the same object with the amber out of it, and the only
- * way to show that it costs nothing to be missing is to let someone put it back
- * and see that nothing else moved. The control changes the copy as well as the
- * ink, exactly as Settings does, because a locked badge in the app says what it
- * takes and an earned one says what it meant.
+ * reproach. Here it is the same object with the amber out of it.
+ *
+ * One line per badge, not two. The app shows `lockedHint` when a badge is not
+ * yours and `blurb` once it is, never both, and printing both here turned ten
+ * marks into twenty paragraphs of spec sheet. Tying the text to the control is
+ * also what makes the control mean something.
  *
  * Two columns, so `[1]+ Stopped` opens the wall and `[100]+ Stopped` closes it.
  * They are the same brackets printed twice and the layout should not break the
@@ -55,11 +56,8 @@ export function Badges() {
           </div>
         </div>
 
-        <p
-          className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-fg-muted"
-          aria-live="polite"
-        >
-          {earned ? copy.view.note.earned : copy.view.note.locked}
+        <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-fg-muted">
+          {copy.view.note}
         </p>
 
         <ul className="mt-10 grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2">
@@ -89,22 +87,15 @@ export function Badges() {
                   </span>
                 </div>
 
-                {/* The price first and at full strength, because that is the
-                    scannable part. The meaning sits under it, one step back. */}
-                <p className="mt-2.5 text-pretty text-[13.5px] leading-relaxed text-fg">
-                  {item.earns}
-                </p>
-                <p className="mt-1.5 text-pretty text-[13.5px] leading-relaxed text-fg-muted">
-                  {item.earned}
+                {/* What it takes, or what it meant. The app never prints both
+                    at once and neither does this. */}
+                <p className="mt-2.5 text-pretty text-[13.5px] leading-relaxed text-fg-muted">
+                  {earned ? item.earned : item.earns}
                 </p>
               </div>
             </li>
           ))}
         </ul>
-
-        <p className="mt-3 max-w-2xl text-pretty font-mono text-[11px] leading-relaxed text-fg-faint">
-          {copy.marksNote}
-        </p>
 
         {/* The three properties. This is the part of the section that is an
             argument rather than a display, so it sits under the wall and not
