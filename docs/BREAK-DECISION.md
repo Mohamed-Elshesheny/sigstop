@@ -513,7 +513,7 @@ struct EnvironmentSnapshot: Equatable {
     // system signals (facts, not guesses)
     var audioInputRunning: Bool            // kAudioDevicePropertyDeviceIsRunningSomewhere
     var cameraRunning: Bool                // kCMIODevicePropertyDeviceIsRunningSomewhere
-    var displayCaptured: Bool              // CGDisplayIsCaptured + known-sharer heuristic
+    var displayCaptured: Bool              // always false: no permission-free signal exists
     var screenLocked: Bool
     var focusModeActive: Bool?             // nil == undetectable, see §7.1
     var frontmostIsFullscreen: Bool        // AX kAXFullscreenAttribute on the focused window
@@ -539,7 +539,7 @@ enum Seam: String, Codable {
     case applicationSwitch          // the canonical seam
     case idleBlip                   // >= 20 s of no input, then input resumes
     case terminalCommandFinished    // opt-in shell integration only (§7.3)
-    case meetingEnded               // audio input device stopped
+    case meetingEnded               // declared, never produced. See 7.3
     case fullscreenExited
     case spaceSwitch
 }
@@ -599,18 +599,34 @@ enum RateLimit: String, Codable {
 | Block | Detection | Notes |
 |---|---|---|
 | `audioInputInUse` | CoreAudio `kAudioDevicePropertyDeviceIsRunningSomewhere` on every input device | Public API, no permission. Covers Zoom/Meet/Teams/huddles/recording uniformly, which is why the engine keys on *the microphone*, not on a list of app bundle ids it will always be behind on. |
-| `cameraRunning` | CMIO DAL `kCMIODevicePropertyDeviceIsRunningSomewhere` | Same idea for video. |
-| `screenBeingShared` | `CGDisplayIsCaptured` + virtual-camera running + known sharer process | **Honest limitation:** there is no complete public API for "someone is watching my screen". ScreenCaptureKit-based sharers are not always visible. The combination catches the common cases; the app also exposes a manual "I'm sharing" toggle and a global hotkey, and treats *camera running* as implying possible sharing. |
+| `cameraInUse` | CMIO `kCMIODevicePropertyDeviceIsRunningSomewhere` over `kCMIOHardwarePropertyDevices` | Same idea for video, and **shipped**. Public API, no Camera permission, no prompt, verified against `tccd`. A read failure is `nil`, never `false`. Four states with the same calibration guard as audio, because a virtual camera can hold a device open forever. This closes the camera-on / microphone-muted posture, which is the normal one on Teams and Meet, with no inference at all. |
+| `recentCallContinuing` | The call latch: a capture device ran continuously for >= 45 s and stopped less than the hold budget ago | See §7.7. Named after what it asserts, not after what you might conclude from it. |
+| `screenBeingShared` | **Nothing. This block cannot fire.** | `CGDisplayIsCaptured`, which this row used to name, is annotated `API_DEPRECATED("No longer supported", macos(10.0,10.9))` and does not compile from Swift. CoreMediaIO enumerates no display-capture device. ScreenCaptureKit needs the Screen Recording grant CLAUDE.md 4.2 forbids hard-requiring. The weaker and honest claim: someone looked for a permission-free signal and did not find one. The mitigation this row promised was a manual toggle, and it never shipped; it does now, as "I am in a meeting" in the menu, time-boxed to two hours. `--doctor` prints this block as UNOBSERVABLE with the reason and says out loud that it never fires. |
 | `presentationFullscreen` | AX `kAXFullscreenAttribute` on the focused window **AND** (presentation-capable app **OR** camera/mic live) | Fullscreen **alone is not a block** — developers work fullscreen all day, and blocking on it would mean never firing for half the user base. |
 | `focusModeActive` | Parse `~/Library/DoNotDisturb/DB/ModeConfigurations.json` when readable; otherwise unknown | **Honest limitation:** no public API. Mitigation that always works: the app posts at `UNNotificationInterruptionLevel.active` and *never* `.timeSensitive` or `.critical`, so macOS itself suppresses the banner during any Focus mode. When Focus is undetectable the engine still "delivers" and the OS may swallow it — the passive indicator is the safety net, and the cycle is recorded as `.deliveryUnconfirmed` rather than counted as ignored. |
 | `screenLocked` / `systemSleeping` / `fastUserSwitched` | Workspace + distributed notifications | Nobody is there. |
 | `settleInAfterBreak` | `now - lastBreakEndedAt < 5 min` | You do not tell someone who just sat back down to get up. |
 | `imminentMeeting` | `minutesUntilNextBusyEvent <= 2` | The two minutes before a call are not free time. |
 
-While hard-blocked: **`seamWaitElapsed` and `totalElapsed` both pause, and no notification is emitted
-on any channel.** A two-hour meeting therefore costs the break cycle nothing — it is preserved, not
-consumed and not fired stale. The work clock's own behavior during that time is governed by §4 rows
-6 and 7, independently.
+While hard-blocked: **`seamWaitElapsed` pauses and no notification is emitted on any channel.** A
+two-hour meeting therefore costs the break cycle its deferral budget nothing — the cycle is
+preserved, not consumed and not fired stale. The work clock's own behavior during that time is
+governed by §4 rows 6 and 7, independently.
+
+This paragraph used to say `totalElapsed` pauses too. It does not: `handleBreakDue` adds `dt` to it
+unconditionally, before the verdict is even computed, and the comment on `BreakDue.totalElapsed`
+calls this document out by name. §7.4 depends on the code's behaviour, not on the old sentence, so
+the doc was the bug and this is the fix. It matters more now that the call latch makes long hard
+blocks ordinary: a cycle that spends an hour blocked hits the stale ceiling and is abandoned as an
+*excluded* opportunity, which is what stops a call quietly turning into a prompt nobody asked for
+an hour later.
+
+Also true, and worth stating because nothing else in this document does: while hard-blocked, **a
+prompt already on screen is withdrawn** (`WithdrawReason.blocked`) and the prompt stamp is cleared
+with it. Without the first half, a panel delivered one second before a call sat on a screen share
+for its duration. Without the second, the 90-second prompt timeout had already elapsed the instant
+the block lifted, so the user was charged an ignored prompt for a meeting they were never allowed to
+answer during, and two of those truncate the ladder to L1 and L2.
 
 ### 7.2 Soft deferrals — wait for a seam, but on a budget
 
@@ -639,10 +655,17 @@ A seam is a moment the user has already broken their own concentration:
 |---|---|---|
 | `applicationSwitch` | `NSWorkspace.didActivateApplicationNotification` | strongest — they chose to context-switch |
 | `idleBlip` | ≥ 20 s without input, then input resumes | strong |
-| `meetingEnded` | audio input device stopped running | strong, and a hard block just lifted |
+| `meetingEnded` | **declared and never produced** | See below. |
 | `fullscreenExited` | AX attribute flipped | medium |
 | `spaceSwitch` | active space changed | medium |
 | `terminalCommandFinished` | **opt-in only** | strong when available |
+
+**`meetingEnded` has no producer, and deliberately gains none.** A seam *delivers*: `verdict` returns
+`.deliver` for any non-empty seam before the soft reasons are consulted at all. So emitting one the
+instant the microphone stops would fire the prompt on "thanks everyone, bye", which is the complaint
+this whole area exists to fix rather than a fix for it. The call latch's hold (§7.7) is what serves
+the purpose the seam was invented for, and it serves it as a *block* rather than as a trigger. The
+row stays in the table so the next person does not re-invent it.
 
 `terminalCommandFinished` requires shell integration the user installs deliberately: a `precmd`/`preexec`
 hook writing one byte to a Unix domain socket in the app's container. Without it, the app **cannot** see
@@ -702,6 +725,100 @@ Read-only EventKit, optional, degrades to nothing if not granted:
   engine may prompt *now*, framed as "good moment before your next event". This is the one case where
   the app fires early, and it is the most natural seam a calendar can offer.
 
+### 7.8 The call latch — a bounded trailing edge on two facts
+
+`audioInputInUse` and `cameraInUse` are facts, and until now they ended the instant the bit dropped,
+which is exactly what pressing mute does. That is the gap: in a call where the microphone is muted
+and the camera is off, nothing at Tier 0 is live, the deferral runs out, and the prompt lands in the
+meeting.
+
+The latch asserts something narrower than "you are in a meeting":
+
+> a capture device on this machine ran continuously for at least `latchArmDwell` and stopped less
+> than `holdBudget` seconds ago.
+
+Every clause is an OS property read plus arithmetic on the injected clock. There is no `Confidence`
+anywhere in it, no `Activity`, no `ConcurrentStates`, and no window title: the guess is not
+*representable* in `MeetingLatchInput`, which is cheaper than promising not to use it. That is why
+the block is called `recentCallContinuing` rather than `inMeeting`, and why the user-facing string
+says what was observed and when rather than what to conclude from it.
+
+**Phases.** `closed → arming → live → held → (live | closed)`.
+
+| Transition | Rule |
+|---|---|
+| `closed → arming` | capture live |
+| `arming → live` | capture continuously live for `latchArmDwell` (45 s) |
+| `arming → closed` | capture stops before the dwell, or an unobserved gap |
+| `live → held` | capture stops. `isHolding` becomes true *here*, and not before |
+| `held → live` | capture returns. No second dwell inside one episode |
+| `held → closed` | `now - lastLive >= holdBudget`, or a ceiling, or a gap |
+
+`isHolding` is deliberately **false** while capture is live, because the two live blocks already
+cover that. `heldSeconds` therefore measures the latch's *own* footprint and nothing else, which is
+what makes the ceilings below mean anything at all: a developer idling in a Discord voice channel
+with the microphone open cannot accumulate a single second of hold.
+
+**The hold budget**, recomputed every tick:
+
+```
+if an adopted anchor has quit           -> latchAnchorQuitHold   (90 s)
+else latchFactHold (8 min) + (anchor still running ? latchAnchorExtension (12 min) : 0)
+```
+
+The base is unconditional on the capture fact. The anchor can only ever *add* the extension or
+collapse the hold; delete every line of anchor logic and an eight-minute fact hold remains. The
+anchor is adopted once, at arming, preferring attribution ("CoreAudio says this bundle has the
+microphone") over frontmost over "a conferencing app is running". A browser can anchor only through
+the first two, because a browser is open on every developer's Mac all day.
+
+**Constants.** `latchArmDwell` 45 s; `latchFactHold` 8 min; `latchAnchorExtension` 12 min;
+`latchAnchorQuitHold` 90 s; `latchEpisodeCeiling` 90 min of hold; `latchDailyCeiling` 3 h of hold;
+`latchRearmQuiet` 10 min; `latchManualInhibit` 30 min; `latchManualHold` 2 h; `latchGapTolerance`
+10 s; `latchColdStartGrace` 90 s. Maximum single hold: 20 minutes, of which the last 12 need an
+adopted app still running.
+
+**Unobserved gaps.** A step larger than `latchGapTolerance` on either clock is time nobody watched,
+and it is credited in neither direction: if it exceeds what was left of the hold the latch closes,
+because a call can end while the lid is shut; if it is shorter, the hold is not *spent* on it, so a
+two-minute lid-close on the way to a meeting room does not end the call. Note that the monotonic
+clock does not advance across a system sleep while the wall clock does, so the gap is the larger of
+the two deltas. `MutableTimeSource.sleepAndWake` advances both and therefore models a throttle, not
+a sleep; the test for this uses two separately-advanced values.
+
+**Why it is not persisted.** A latch restored from disk is a suppression that can outlive the bug
+that created it, across launches, invisibly, and quitting the app is a user's crude escape hatch
+that has to keep working. `EngineState` is rebuilt `.initial` at every launch for the same reason.
+Only the day's accumulated hold survives, because a counter can only ever make the app noisier, and
+without it the daily ceiling is defeated by quitting and reopening.
+
+**The circuit breakers**, in order of how visible they are:
+
+1. `.unreliable` inheritance. The latch arms only from `.running`, so a Mac whose device signal has
+   been downgraded cannot arm it at all. Attribution (§2.3a of ACTIVITY-DETECTION) repairs the
+   common case of that rather than leaving the Mac unprotected.
+2. Episode ceiling, 90 minutes of hold, then 10 minutes of quiet capture before it may re-arm.
+3. Daily ceiling, 3 hours of hold, until the next local day.
+4. `IndicatorState.held`, a distinct menu bar state, and a dropdown line naming the fact and the
+   closing time, with "Not in a meeting" one click away. `--doctor` is not a safety valve, because
+   nobody runs it; this is.
+5. `holdBreaksDuringCalls` in Settings, which disables the latch and **nothing else**: a live
+   microphone or camera still blocks, because that is a fact and it predates the switch.
+
+**The weak states defer rather than block.** `arming`, and a 90-second cold-start window when a
+call-capable app is running, both produce `SoftDeferReason.inferredMeeting`. That is also the only
+meeting deferral a zero-permission user can receive at all: `meetingConfidence` is clamped to the
+Tier 0 ceiling (0.55), which sits below the specific-claim threshold (0.60), so
+`ConcurrentStates.inMeeting` is structurally false without Accessibility and the older branch is
+unreachable. Raising the ceiling would mean fixing an honesty mechanism by breaking it. This gets
+the deferral from a fact instead.
+
+**What it still misses**, stated rather than buried: a call joined muted with the camera off and
+never unmuted (no capture fact ever happens); Google Meet in Safari, whose audio attributes to
+`com.apple.WebKit.GPU` and so names no app; and a screen share with the microphone muted, which is
+unobservable at Tier 0. The manual "I'm in a meeting" hold is the answer to all three, and it is the
+mitigation §7.1 promised years ago and never shipped.
+
 ---
 
 ## 8. Verdict evaluation, in order
@@ -713,7 +830,8 @@ func verdict(_ s: EnvironmentSnapshot, _ session: DeveloperSession,
     if s.screenLocked            { return .hardBlocked(.screenLocked) }
     if s.audioInputRunning       { return .hardBlocked(.audioInputInUse) }
     if s.cameraRunning           { return .hardBlocked(.cameraInUse) }
-    if s.displayCaptured         { return .hardBlocked(.screenBeingShared) }
+    if s.meetingLatch.isHolding  { return .hardBlocked(.recentCallContinuing) }   // 7.8
+    if s.displayCaptured         { return .hardBlocked(.screenBeingShared) }      // cannot fire
     if s.frontmostIsFullscreen && (s.frontmostIsPresentationApp || s.cameraRunning) {
         return .hardBlocked(.presentationFullscreen)
     }

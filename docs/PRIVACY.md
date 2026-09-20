@@ -53,6 +53,16 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 22 | **Login-item registration** | `SMAppService.mainApp.register()` | Start at login, if you ask for it | A registration record owned by `launchservicesd`, outside the app's storage | Until unregistered | Yes — off by default |
 | 23 | **Notification authorization status** | `UNUserNotificationCenter.notificationSettings()` | Decide whether to use a system notification or the in-app fallback window | Memory-only (the real record is TCC's) | n/a | n/a |
 | 24 | **Unified log lines** | `os.Logger` | Debugging | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
+| 25 | **Audio input device in use** (one `Bool` per device, OR'd) | `kAudioDevicePropertyDeviceIsRunningSomewhere` on each device with input channels. **No Microphone permission; none is requested** | Do not interrupt a live call. This is the signal a hard block rests on | Not persisted. Only the derived verdict reaches the log, as a `reason` string | n/a | No — it is what stops a prompt landing in a meeting |
+| 26 | **Camera device in use** (one `Bool` per device, OR'd) and the **device names** | `kCMIODevicePropertyDeviceIsRunningSomewhere` over `kCMIOHardwarePropertyDevices`. **No Camera permission; none is requested, and a probe generated no `tccd` activity** | Same, for the camera-on / microphone-muted posture, which is the normal one on Teams and Meet | Not persisted. Device names are printed by `--doctor` on request and held in memory only | Process lifetime | No |
+| 27 | **Bundle identifiers of processes running audio input** | `kAudioHardwarePropertyProcessObjectList`, then `kAudioProcessPropertyBundleID` and `kAudioProcessPropertyIsRunningInput` per process object. **No permission; none is requested** | Say *which* app has the microphone, so the call hold names a fact rather than guessing, and so Siri, dictation and a permanently-open virtual device can be discounted instead of disabling the signal | Not persisted. Each identifier is matched against a fixed list and dropped. Nothing else about the process, not the pid, not the name, not the path, is read | Memory-only, one sample | No |
+
+Rows 25 to 27 are **property reads on device and process objects**. No stream is opened, no capture
+session is created, no frame or sample is ever available to this process, and the capability to do
+so is absent rather than merely unused. The difference matters and is the reason these rows sit in
+the inventory rather than under §3.3: reading "is some process using the camera" is a different
+operation from using the camera, in the same way that `ps` is a different operation from debugging.
+macOS agrees, which is why neither read produces a prompt.
 
 That is the complete list. There is no row for account, device identifier, hardware serial, locale
 beacon, install ID, or first-run ping, because none of those exist in the code.
@@ -489,6 +499,20 @@ The corresponding `Info.plist` usage-description keys are absent, which means ma
 the app with `TCC_CRASHING_DUE_TO_PRIVACY_VIOLATION` if any code path ever attempted them. That is
 a useful property: the absence of a usage string turns an attempted privacy violation into an
 immediate, loud crash rather than a silent prompt.
+
+**Microphone and Camera are on this list, and inventory rows 25 to 27 are not a contradiction.** The
+app reads whether a device is *running* and which process is running input. It never opens a stream
+or a capture session, so no audio and no frame is ever available to it, and those usage-description
+keys stay absent: if a future change ever did try to capture, the app would crash rather than ask.
+The absence of a prompt is not the app being sneaky, it is macOS agreeing that a property read is
+not a capture. Anyone can check with
+`log show --last 5m --predicate 'process == "tccd"'` after running `make doctor`.
+
+**Screen sharing cannot be detected at all, and the app says so rather than reporting `false`.**
+`CGDisplayIsCaptured` has been deprecated since macOS 10.9 and no longer compiles; CoreMediaIO
+enumerates no display-capture device; ScreenCaptureKit needs the Screen Recording grant on this
+list. So `HardBlock.screenBeingShared` never fires, `--doctor` prints that consequence in those
+words, and the only real mitigation is the manual "I'm in a meeting" hold in the menu.
 
 A note on Calendar: reading EventKit would be the most accurate way to know you are in a meeting.
 It was considered and rejected. It would mean access to every event title, attendee, and location on

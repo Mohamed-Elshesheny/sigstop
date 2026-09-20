@@ -294,6 +294,9 @@ Probed directly — all Tier 0 signals work with **zero** permissions:
 | Frontmost app + bundle ID | `NSWorkspace.frontmostApplication` | ✅ |
 | System idle seconds | `CGEventSource.secondsSinceLastEventType` | ✅ |
 | Mic in use (meeting signal) | `kAudioDevicePropertyDeviceIsRunningSomewhere` | ✅ |
+| Camera in use (meeting signal) | `kCMIODevicePropertyDeviceIsRunningSomewhere` | ✅ 3 devices enumerated, no prompt, no `tccd` entry |
+| Which app has the mic | `kAudioHardwarePropertyProcessObjectList` + `kAudioProcessPropertyIsRunningInput` | ✅ 36 process objects, no prompt |
+| Screen being shared | none | ❌ `CGDisplayIsCaptured` is deprecated since 10.9 and does not compile; ScreenCaptureKit needs the Screen Recording grant. Reported as unobservable, never as false |
 | Thermal / low-power | `ProcessInfo` | ✅ |
 | Window title (Tier 1) | `AXUIElement` | `AXIsProcessTrusted() == false` → clean error `-25211` |
 

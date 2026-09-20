@@ -164,7 +164,8 @@ What this genuinely tells us: *some process on this machine is running input I/O
 
 What it does **not** tell us, and we must not pretend otherwise:
 
-- **Who.** There is no permission-free attribution of a running audio device to a process.
+- **Who.** Not from *this* property. This sentence used to end "there is no permission-free
+  attribution of a running audio device to a process", and that was false. See §2.3a.
 - **Why.** Dictation, Voice Control, a voice memo, a browser tab, or a game all trip it.
 - **Persistent holders.** Krisp, Loopback, BlackHole, some headset daemons, and certain audio
   interfaces keep an input device "running somewhere" *permanently*. On such a machine the signal is
@@ -178,9 +179,50 @@ What it does **not** tell us, and we must not pretend otherwise:
 - If the user has *no* input device, the signal is absent, not `false`. Model it as
   `enum AudioInputState { case running, notRunning, noInputDevice, unreliable }` — four states, not a `Bool`.
 
-Camera-in-use via CoreMediaIO `kCMIODevicePropertyDeviceIsRunningSomewhere` is technically reachable
-and is what camera-indicator utilities use, but it is thinly documented and has shifted across
-releases. **Ship it behind a feature flag, treat a failure as `nil`, never as `false`.**
+### 2.3a Per-process microphone attribution — Tier 0, shipped
+
+`AudioProcessCollector` reads `kAudioHardwarePropertyProcessObjectList` on the system object, then
+`kAudioProcessPropertyBundleID` and `kAudioProcessPropertyIsRunningInput` per process object. macOS
+14+, which is this package's deployment target. **No Microphone permission is required and none is
+requested**, and a probe of it generated no `tccd` activity at all. Listeners are registered on the
+list and per object, so it is event-driven like its device-level sibling; bundle identifiers are
+cached per object id, because reading all of them is an IPC round trip each.
+
+Three jobs, and it is used for nothing else:
+
+1. **Naming.** "Slack has the microphone" rather than "something does". This is what lets the call
+   latch (docs/BREAK-DECISION.md §7.7) adopt an anchor from a fact instead of from which window is
+   in front.
+2. **Repairing `.unreliable`.** A persistent holder holds the *device*; it does not make Slack's
+   process object report input. So on a Krisp / Loopback / BlackHole Mac, where the device signal
+   is worthless and meeting detection is currently switched off entirely, an attributed call-capable
+   holder still counts.
+3. **Not being fooled.** A readable-and-empty table is evidence of *absence*. A table whose only
+   holders are Siri and dictation is not a call. `com.apple.CoreSpeech` was observed holding input
+   for a single sample and releasing it.
+
+Caveats that do not go away, and are printed in `--doctor` rather than smoothed over:
+
+- Audio attributes to **helper processes**: Chrome's is `com.google.Chrome.helper`, and Teams' media
+  path is `com.microsoft.vcxpc`, which is not even under the `com.microsoft.teams2` prefix. Matching
+  is therefore by prefix against a hand-checked list, and it will age badly when a vendor reshuffles
+  helpers. It degrades to the unattributed device bit, visibly.
+- Safari routes page audio through `com.apple.WebKit.GPU`, which serves every WebKit client and
+  therefore names no app. It is deliberately **not** in the list: including it would let any Safari
+  tab playing a podcast anchor a call.
+- A process appears only once it has touched CoreAudio. This is not a roster of running apps.
+
+Camera-in-use via CoreMediaIO `kCMIODevicePropertyDeviceIsRunningSomewhere` **is shipped**, as
+`CameraDeviceCollector`. This paragraph used to ask for it behind a feature flag while the code said
+the API did not exist; the doc was right and the code was the bug (CLAUDE.md §1). It enumerates
+`kCMIOHardwarePropertyDevices`, reads the in-use bit per device, registers CMIO listeners so it is
+event-driven, and treats a read failure as `nil` and never as `false`. Probed on this machine: three
+devices (two Continuity, one FaceTime HD), `running=false` for each, **no Camera permission, no
+prompt, no `tccd` entry**. It carries the same four states and the same calibration guard as the
+audio collector, because OBS Virtual Camera and a permanently attached Continuity Camera are the
+camera analogue of Krisp. The thresholds are inherited from audio and have not been validated
+against a virtual camera; `--doctor` prints the state so the data can arrive before anyone retunes
+them.
 
 ### 2.4 Screen Recording — explicitly avoided
 
@@ -1012,7 +1054,19 @@ produces wrong answers for anyone who codes during a standup.
 | A conferencing app is frontmost | 0 | +0.8 (additive) |
 | Zoom window title == `"Zoom Meeting"` (vs `"Zoom"` when idle) | 1 | +1.6 |
 | Browser title contains `Meet - `, `| Microsoft Teams`, `Zoom Meeting` | 1 | +1.6 |
-| Camera in use (feature-flagged, §2.3) | 0 | +1.0 |
+| Camera in use (§2.3a, shipped) | 0 | not wired into this ledger |
+
+The camera bit is a **hard block** (docs/BREAK-DECISION.md §7.1), not a term in this inference. It
+is deliberately kept out of the ledger for now: a fact that already prevents an interruption on its
+own does not also need to move a confidence number, and adding it would mean re-calibrating the
+bands above against a signal nobody has watched for a week yet.
+
+One thing this ledger cannot fix, and which §7.8 of the break-decision spec works around instead:
+`meetingConfidence` is clamped to the Tier 0 ceiling of **0.55**, and the specific-claim threshold is
+**0.60**. So `ConcurrentStates.inMeeting` is structurally false for a user who has granted nothing,
+whatever the evidence, and every consumer of it is unreachable in the zero-permission configuration
+CLAUDE.md §4.2 promises. The ceiling is right and is not being raised to let a guess through; the
+call latch gets its deferral from a capture fact instead.
 | Audio input `.unreliable` | 0 | **contributes nothing** |
 
 Bands: mic + conferencing app running → **0.75**. Plus a title match → **0.88**. Never above 0.90 —
