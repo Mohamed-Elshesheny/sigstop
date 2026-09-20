@@ -244,3 +244,37 @@ Never debug this by re-granting permission repeatedly; you are fighting TCC, and
 - Landing copy is developer-native. No "revolutionize your productivity." If a sentence could
   appear on a generic SaaS page, delete it.
 - Keep `docs/` in sync in the same PR as the behavior change.
+
+---
+
+## 8. Commits
+
+**Every commit message is a [Conventional Commit](https://www.conventionalcommits.org).**
+
+```
+type(scope): subject
+
+body explaining WHY, not what. The diff already says what.
+```
+
+**Types:** `feat` `fix` `refactor` `perf` `docs` `test` `build` `ci` `chore`
+**Scopes:** `core` `sensors` `app` `web` `docs` — omit when the change spans the repo.
+
+Rules:
+- Subject in the imperative, lowercase after the colon, no trailing full stop, under 72 chars.
+- A breaking change gets `!` before the colon (`feat(core)!: ...`) and a `BREAKING CHANGE:`
+  footer explaining the migration.
+- The body is for the reasoning a future reader cannot reconstruct from the diff: the
+  constraint you hit, the option you rejected, the bug the change actually fixes.
+
+```
+feat(core): degrade to the parent activity below the confidence floor
+fix(web): half fill the brand mark so it reads as a timer
+refactor(sensors): resolve providers by claim specificity
+chore: scaffold repo, architecture docs and Core contract
+```
+
+**No AI attribution.** Commits carry no `Co-Authored-By` for an assistant, no "generated
+with" footers, and no tool names in the message or the author field. Author and committer
+are the human whose account the work ships under. This is not about hiding anything; the
+commit log is a record of intent, and intent belongs to a person.
