@@ -87,6 +87,20 @@ struct ObservabilityTests {
         }
     }
 
+    /// Three files state the size of this vocabulary in words: `GateReason` itself,
+    /// `LoggedEvent.gate`, and docs/PRIVACY.md §4.3. A count in prose drifts silently, so
+    /// it is asserted here.
+    @Test("the gate vocabulary is the size the docs say it is")
+    func gateVocabularyIsTwentyEight() {
+        #expect(
+            GateReason.allCases.count == 28,
+            "GateReason changed size; update GateReason.swift, EventLog.swift and PRIVACY.md §4.3"
+        )
+        for reason in GateReason.allCases {
+            #expect(!reason.summary.isEmpty, "\(reason.rawValue as String) has no words for the user")
+        }
+    }
+
     // MARK: - Every cycle says how it ended
 
     @Test("every cycle outcome produces exactly one line that carries it", arguments: [
@@ -216,6 +230,56 @@ struct ObservabilityTests {
             #expect(session.driver.now.timeIntervalSince(last) <= 600)
         }
         #expect(session.log.lines.filter { $0.kind == .gate }.count >= 2)
+    }
+
+    /// The longest the file goes without a line, `now` included as the closing bound.
+    private static func longestSilence(_ lines: [LoggedEvent], now: Date) -> TimeInterval {
+        var worst: TimeInterval = 0
+        var previous: Date?
+        for stamp in lines.map(\.at) {
+            if let previous { worst = max(worst, stamp.timeIntervalSince(previous)) }
+            previous = stamp
+        }
+        if let previous { worst = max(worst, now.timeIntervalSince(previous)) }
+        return worst
+    }
+
+    /// `anOpenCycleIsNeverSilent` above only exercises the microphone, and a hard-blocked
+    /// cycle stays in `breakDue`, which *does* compute a verdict every tick. `snoozed`
+    /// holds the cycle open and computes none, so the ledger reset its candidate and wrote
+    /// nothing at all.
+    ///
+    /// A snooze clamps at thirty minutes per cycle, so the documented rule — an open cycle
+    /// is never silent for longer than the heartbeat, and a log that goes quiet means the
+    /// app stopped and nothing else — was false for half an hour at a stretch, on the one
+    /// path the user reaches by pressing a button.
+    @Test("a snooze does not make an open cycle go silent")
+    func aSnoozedCycleIsNeverSilent() {
+        var settings = EngineHarness.ownerSettings
+        settings.snoozeMinutes = 30
+        var session = EngineHarness.Session(settings: settings)
+        session.stepToPrompt()
+        session.step(action: .snooze)
+        session.step(times: 300) // 25 minutes, still inside the snooze
+
+        #expect(session.driver.state.name == "snoozed", "the snooze must still be running")
+        #expect(session.driver.state.openCycle != nil, "and it must still hold the cycle")
+        let worst = Self.longestSilence(session.log.lines, now: session.driver.now)
+        #expect(worst <= 600, "the log was silent for \(Int(worst))s with a cycle open")
+    }
+
+    /// The same hole, reached by walking away rather than by pressing SIGALRM. `idle` also
+    /// holds a suspended cycle and also computes no verdict.
+    @Test("an idle-suspended cycle does not make the log go silent")
+    func anIdleSuspendedCycleIsNeverSilent() {
+        var session = EngineHarness.Session()
+        session.stepToPrompt()
+        session.driver.idleSeconds = 120
+        session.step(times: 200)
+
+        guard session.driver.state.openCycle != nil else { return }
+        let worst = Self.longestSilence(session.log.lines, now: session.driver.now)
+        #expect(worst <= 600, "the log was silent for \(Int(worst))s with a cycle open")
     }
 
     /// The counterfactual that ruled out the hard-block reading, kept so it stays ruled

@@ -5,11 +5,15 @@ import Foundation
 /// `InterruptionVerdict` is the engine's answer and carries three different payload types.
 /// This is that answer flattened into a single fixed enum so it can be written to the
 /// event log as one short field. Nothing here is free text and nothing here is derived
-/// from a window title, a URL or a file path: there are twenty-five values, they are
+/// from a window title, a URL or a file path: there are twenty-eight values, they are
 /// listed below, and a reader can check that by reading this file (CLAUDE.md §4.4).
 ///
 /// The initialiser is an exhaustive switch, so adding a `HardBlock`, `SoftDeferReason` or
 /// `RateLimit` case stops this file compiling until the vocabulary is extended to match.
+///
+/// Three of the values are **not** verdicts and `init(_:)` never returns them. They name
+/// the states that hold a cycle open while the gate is not being asked at all, so that
+/// those states can still break the silence on the heartbeat. See `silence`.
 public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
     /// Nothing is holding a prompt.
     case delivered
@@ -40,6 +44,12 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
     case cycleNotificationCap
     case minimumSpacing
     case ignoreBackoff
+
+    // Not verdicts. A cycle is open and the gate was never asked, because the user
+    // answered, walked away, or is on the break already.
+    case userSnoozed
+    case userAway
+    case breakRunning
 
     public init(_ verdict: InterruptionVerdict) {
         switch verdict {
@@ -126,6 +136,9 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
         case .cycleNotificationCap:   return "this cycle has had its notifications"
         case .minimumSpacing:         return "too soon after the last one"
         case .ignoreBackoff:          return "these have been going unanswered, so the ladder is shortened"
+        case .userSnoozed:            return "you snoozed it"
+        case .userAway:               return "you are away from the keyboard"
+        case .breakRunning:           return "a break is running"
         }
     }
 }
@@ -143,9 +156,17 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
 ///     so a verdict that flickers between two values for one tick writes nothing;
 ///   * the first answer after a reset is written immediately, because the opening of a
 ///     cycle is exactly when a reader wants to know;
-///   * and while a cycle is open the ledger writes the current answer at least once every
-///     `heartbeat`, so an open cycle can never be silent for longer than that. A log that
-///     goes quiet must mean the app stopped, and nothing else.
+///   * and while a cycle is open the ledger writes at least once every `heartbeat`, so an
+///     open cycle can never be silent for longer than that. A log that goes quiet must
+///     mean the app stopped, and nothing else.
+///
+/// That last rule needs `holding`, and needed it to be true rather than documented. Three
+/// states hold a cycle open and ask the gate nothing — snoozed, idle-suspended, and on a
+/// break — so `reason` is nil on every one of their ticks and the ledger used to write
+/// nothing for the whole thirty minutes a snooze can last. `holding` is the name of that
+/// silence, and it is written on the heartbeat only: the transition into those states
+/// already has a line of its own (`break_response`, `idle_begin`, `break_begin`) and does
+/// not need a second one.
 public struct VerdictLedger: Sendable, Hashable {
     public var debounce: Int
     public var heartbeat: TimeInterval
@@ -160,10 +181,14 @@ public struct VerdictLedger: Sendable, Hashable {
         self.heartbeat = heartbeat
     }
 
-    /// Feed the ledger one tick's answer. `reason` is nil when the engine computed no
-    /// verdict, which is every tick with no cycle open.
+    /// Feed the ledger one tick's answer.
+    ///
+    /// `reason` is nil when the engine computed no verdict. `holding` is `EngineState`'s
+    /// name for why it computed none while a cycle was open, and is nil when there is no
+    /// cycle to keep speaking for.
     public mutating func observe(
         _ reason: GateReason?,
+        holding: GateReason? = nil,
         cycle: CycleID?,
         at now: Date,
         monotonic: Double
@@ -171,7 +196,12 @@ public struct VerdictLedger: Sendable, Hashable {
         guard let reason else {
             candidate = nil
             candidateCount = 0
-            return nil
+            guard let holding, cycle != nil else { return nil }
+            guard let last = writtenAtMono else {
+                return emit(holding, cycle: cycle, at: now, monotonic: monotonic)
+            }
+            guard monotonic - last >= heartbeat else { return nil }
+            return emit(holding, cycle: cycle, at: now, monotonic: monotonic)
         }
         guard let last = writtenAtMono else {
             return emit(reason, cycle: cycle, at: now, monotonic: monotonic)

@@ -346,6 +346,25 @@ public enum EngineState: Sendable, Codable, Hashable {
         }
     }
 
+    /// Why a state that holds a cycle open is not producing a verdict.
+    ///
+    /// `breakDue` and `ignored` ask the gate on every tick, so the ledger always has an
+    /// answer to write for them. These three hold `openCycle` and ask nothing: a snooze
+    /// defers the question, an idle suspension parks it, and during a break it has already
+    /// been answered. Without a name for that, the ledger had nothing to write and an open
+    /// cycle could be silent for the whole length of a thirty minute snooze — while the
+    /// docs said a quiet log means the app stopped, and nothing else.
+    ///
+    /// Nil for every state that either has no cycle or has a verdict of its own.
+    public var silence: GateReason? {
+        switch self {
+        case .snoozed:            return .userSnoozed
+        case .idle(let i):        return i.suspendedCycle == nil ? nil : .userAway
+        case .breakActive(let b): return b.cycle == nil ? nil : .breakRunning
+        case .working, .breakDue, .ignored, .quiet: return nil
+        }
+    }
+
     public var name: String {
         switch self {
         case .working:     return "working"

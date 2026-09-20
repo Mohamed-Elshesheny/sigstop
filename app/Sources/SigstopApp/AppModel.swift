@@ -472,7 +472,9 @@ final class AppModel {
         day = outcome.day
 
         if let line = verdicts.observe(
-            outcome.verdict.map(GateReason.init), cycle: openBefore, at: now, monotonic: monotonic
+            outcome.verdict.map(GateReason.init),
+            holding: engineState.silence,
+            cycle: openBefore, at: now, monotonic: monotonic
         ) {
             append(line)
         }

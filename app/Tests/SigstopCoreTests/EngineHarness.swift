@@ -44,6 +44,10 @@ enum EngineHarness {
         var monotonic: Double = 0
         var continuousWork: TimeInterval = 0
         var micRunning = false
+        /// Seconds since the last input event. Above `microIdleThresholdSeconds` the
+        /// engine suspends the cycle and goes `.idle`, which is a second state that holds
+        /// a cycle open while computing no verdict.
+        var idleSeconds: TimeInterval = 0
 
         private(set) var effects: [Effect] = []
         /// The verdict the engine computed on the last step. Nil on every tick with no
@@ -73,7 +77,7 @@ enum EngineHarness {
                 activity: .coding,
                 confidence: Confidence(0.8),
                 continuousWork: continuousWork,
-                idleSeconds: 0
+                idleSeconds: idleSeconds
             )
             let input = EngineInput(
                 now: now,
@@ -176,6 +180,7 @@ enum EngineHarness {
             let effects = driver.step(action: action)
             if let line = verdicts.observe(
                 driver.lastVerdict.map(GateReason.init),
+                holding: driver.state.silence,
                 cycle: openBefore,
                 at: driver.now,
                 monotonic: driver.monotonic
