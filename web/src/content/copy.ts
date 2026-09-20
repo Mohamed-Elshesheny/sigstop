@@ -204,29 +204,7 @@ export const privacy = {
       { cmd: "cat ~/Library/Application\\ Support/sigstop/events.jsonl", desc: "Your entire stored history. Plain JSON, one event per line. Read it yourself." },
     ],
   },
-  /**
-   * The network section.
-   *
-   * This used to be a one line joke ("it cannot phone home because it has no
-   * mouth") back when the app made no requests at all. The app now has an
-   * in app updater, so the joke became a lie and had to go. What replaces it is
-   * longer, because the true version needs more words than the false one did,
-   * and it is written to survive somebody checking every line rather than to
-   * sound reassuring.
-   */
-  network: {
-    title: "One connection",
-    sub: "The app used to make no network requests at all. It makes one now. Here is the whole of it, including the part that is not flattering.",
-    items: [
-      { k: "How many endpoints", v: "One. A static file listing the latest version, identical for every user." },
-      { k: "When", v: "When you click Check for updates. Never at launch. On a daily schedule only if you switch that on, and it ships off." },
-      { k: "What it sends", v: "A plain GET. No account, no install id, no machine id, no system profile, and a user agent that does not even carry your version." },
-      { k: "What it cannot hide", v: "Your IP address and the time you checked, to GitHub, who serve the file. No app can avoid that. Use Homebrew if it matters to you." },
-      { k: "What protects the download", v: "Every update is signed with a key that lives only in the maintainer's keychain, and verified against the public half compiled into the app." },
-    ],
-    note: "That last line is the one that matters. sigstop is not signed with a paid Apple Developer ID, so Apple's signature would prove nothing about who built an update. The EdDSA signature does. Somebody who takes over the GitHub account, the CDN, or your network can stop you getting updates and still cannot make this app run their code.",
-  },
-  zeroPermLabel: "Zero permissions",
+    zeroPermLabel: "Zero permissions",
   zeroPerm:
     "The app is fully functional with zero permissions granted. Accessibility and git context are upgrades you opt into, never gates. If it demanded permissions to work at all, the promise above would be worth nothing.",
 } as const;
