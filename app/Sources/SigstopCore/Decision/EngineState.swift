@@ -148,11 +148,41 @@ public enum CycleOutcome: String, Sendable, Codable, Hashable {
     }
 }
 
-public enum QuietCause: String, Sendable, Codable, Hashable {
+public enum QuietCause: String, Sendable, Codable, CaseIterable, Hashable {
     case scheduledQuietHours
     case userPaused
     case sustainedFocusMode
     case dailyCapReached
+
+    /// The state as the menu bar names it, the way `ps` names a state.
+    ///
+    /// The panel used to draw every one of these as the literal words "quiet hours".
+    /// Three of the four are not quiet hours, and `dailyCapReached` is terminal until the
+    /// day boundary, so the app could go silent for the rest of the day and explain it
+    /// with a lie to a user who has quiet hours switched off. The words live in `Core`
+    /// because `SigstopApp` has no test target and a vocabulary kept there is unchecked.
+    public var title: String {
+        switch self {
+        case .scheduledQuietHours: return "quiet hours"
+        case .userPaused:          return "paused"
+        case .sustainedFocusMode:  return "focus mode"
+        case .dailyCapReached:     return "daily cap"
+        }
+    }
+
+    /// Why nothing is coming, in the user's words, for the one muted line in the menu.
+    public var summary: String {
+        switch self {
+        case .scheduledQuietHours:
+            return "you are inside your quiet hours"
+        case .userPaused:
+            return "you paused it"
+        case .sustainedFocusMode:
+            return "a Focus mode has been on long enough to read as deliberate"
+        case .dailyCapReached:
+            return "today's notification budget is spent, so nothing more until the day rolls over"
+        }
+    }
 }
 
 // MARK: - Engine state

@@ -1005,7 +1005,12 @@ indicator stays amber. No further notification about this cycle is ever emitted.
 5. **Backoff:** after 2 consecutive fully-ignored cycles, for the rest of the local day the ladder is
    truncated to levels 1–2 — one notification per cycle, maximum. Reset by any accepted break.
 6. **Daily cap** (12) overrides everything above. On reaching it, the app goes passive-only until the
-   next day boundary and records `quiet(.dailyCapReached)`.
+   next day boundary and records `quiet(.dailyCapReached)`. That state is terminal until the boundary
+   and computes no verdict, so it writes no `gate` line either: the menu is the only place a user can
+   find out, and it says so in words (`QuietCause.summary`). It drew as the literal title "quiet hours"
+   for every cause until the counters started surviving a relaunch made it reachable in practice — a
+   false label on an app that has gone quiet for the rest of the day is the failure this whole section
+   exists to prevent.
 
 Cap arithmetic: a well-matched day is ~9 cycles in 8 hours × 1 notification each = 9, under the cap. A
 day where everything is ignored hits the cap after ~3 cycles — and the backoff rule engages after 2.

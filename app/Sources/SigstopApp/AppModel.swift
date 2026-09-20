@@ -81,6 +81,12 @@ final class AppModel {
     private(set) var workTarget: TimeInterval
     private(set) var indicator: IndicatorState = .working
     private(set) var engineStateName: String = "working"
+    /// Which quiet the engine is in, when it is in one.
+    ///
+    /// The menu had only `engineStateName`, so all four causes drew as "quiet hours" —
+    /// including `dailyCapReached`, which is terminal until the day boundary, for a user
+    /// whose quiet hours are off.
+    private(set) var quietCause: QuietCause?
     private(set) var todaySummary: DailySummary?
     private(set) var todayLine: String = ""
     private(set) var todayDetail: String = ""
@@ -891,14 +897,22 @@ final class AppModel {
         engineStateName = engineState.name
         permissionStatus = sensors.permissions.status()
 
-        if outcome.verdict == nil {
+        if case .quiet = engineState {
+            // Nothing is "holding off" a prompt, because the engine is not asking for one
+            // at all. Leaving the sensors gate in here let a live microphone claim the
+            // panel line while the real reason was a spent daily budget, which is the
+            // more important of the two and the only one that lasts until tomorrow.
+            gateReason = nil
+        } else if outcome.verdict == nil {
             gateReason = sample.gate.allowsPrompt ? nil : sample.gate.reason
         }
         publishHold()
 
-        if case .quiet(let q) = engineState, q.cause == .userPaused {
-            pausedUntil = q.until
+        if case .quiet(let q) = engineState {
+            quietCause = q.cause
+            pausedUntil = q.cause == .userPaused ? q.until : nil
         } else {
+            quietCause = nil
             pausedUntil = nil
         }
 
@@ -912,7 +926,18 @@ final class AppModel {
     /// an expired cycle, and `.working` inside the cooldown that follows an ignored
     /// ladder. Both look identical to ordinary running, which is what the owner was shown
     /// for eighteen minutes.
+    ///
+    /// `.quiet` is a third. It became reachable for real once the daily counters started
+    /// surviving a relaunch: `dailyCapReached` and `sustainedFocusMode` are terminal until
+    /// the day boundary or the Focus mode ends, emit no verdict and therefore no `gate`
+    /// line, so the app could go silent for the rest of the day with nothing on the panel
+    /// to say so. `--doctor` already answers this; the panel now says the same sentence.
     private func publishHold() {
+        if case .quiet(let q) = engineState {
+            workTarget = policy.targetContinuousWork
+            holdReason = q.cause == .userPaused ? nil : q.cause.summary
+            return
+        }
         guard case .working(let w) = engineState else {
             workTarget = policy.targetContinuousWork
             holdReason = nil

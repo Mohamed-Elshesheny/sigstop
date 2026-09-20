@@ -101,6 +101,33 @@ struct ObservabilityTests {
         }
     }
 
+    /// Persisting the daily counters made `.quiet(.dailyCapReached)` reachable for the
+    /// first time: before it, every rebuild reset the counter, so the state existed and
+    /// nobody ever sat in it. It is terminal until the day boundary, emits no verdict and
+    /// therefore no `gate` line, and the panel drew every quiet state with the literal
+    /// title "quiet hours" — so the app could go silent for the rest of the day and
+    /// explain it with a lie, to a user whose quiet hours are switched off.
+    ///
+    /// The words live here rather than in the view for the usual reason: `SigstopApp` has
+    /// no test target, so a vocabulary kept there cannot be checked at all.
+    @Test("every quiet state says which quiet it is")
+    func everyQuietCauseHasItsOwnWords() {
+        let causes = QuietCause.allCases
+        #expect(causes.count == 4, "a new quiet cause needs words of its own")
+        #expect(Set(causes.map(\.title)).count == causes.count, "two causes share a title")
+        for cause in causes {
+            #expect(!cause.title.isEmpty)
+            #expect(!cause.summary.isEmpty)
+        }
+        for cause in causes where cause != .scheduledQuietHours {
+            #expect(
+                !cause.title.contains("quiet hours"),
+                "\(cause.rawValue as String) is not quiet hours and must not claim to be"
+            )
+        }
+        #expect(QuietCause.dailyCapReached.summary.contains("budget"))
+    }
+
     // MARK: - Every cycle says how it ended
 
     @Test("every cycle outcome produces exactly one line that carries it", arguments: [

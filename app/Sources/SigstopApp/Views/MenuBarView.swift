@@ -154,7 +154,14 @@ struct MenuBarView: View {
         case "snoozed": return Status(title: "snoozed", signal: "SIGALRM", dot: .suspend, accent: true)
         case "breakActive": return Status(title: "stopped", signal: "state T", dot: .suspend, accent: true)
         case "idle": return Status(title: "idle", signal: "state S", dot: .off, accent: false)
-        case "quiet": return Status(title: "quiet hours", signal: "state S", dot: .off, accent: false)
+        case "quiet":
+            // Not every quiet is quiet hours. `dailyCapReached` and `sustainedFocusMode`
+            // are the other two a user can actually sit in, and both used to draw with
+            // this label whether or not quiet hours were even switched on.
+            return Status(
+                title: model.quietCause?.title ?? "quiet",
+                signal: "state S", dot: .off, accent: false
+            )
         default: return Status(title: model.engineStateName, signal: "", dot: .off, accent: false)
         }
     }
