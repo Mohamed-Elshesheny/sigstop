@@ -118,7 +118,7 @@ public enum BadgeEvaluator {
         evidence.reflexAccepts += reflexAccepts(in: events)
 
         if events.contains(where: {
-            $0.wasDelivered && $0.reason == EscalationLevel.incident.signalName
+            $0.wasDelivered && $0.reason == EscalationLevel.incident.signal
         }) {
             evidence.reachedSigstop = true
         }

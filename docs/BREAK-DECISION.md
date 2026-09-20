@@ -466,7 +466,7 @@ engine is allowed to *say*.
 | `breakDue` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
 | `breakDue` | user accepts | — | `breakActive` | begin break |
 | `breakDue` | user snoozes | `snoozesUsed < 3` and `snoozeTotal + d <= 30 min` | `snoozed` | **work clock keeps running** |
-| `breakDue` | user skips | — | `working` | `skippedBreakCount += 1`; re-arm at `W + rearmAfterSkip`; no reset |
+| `breakDue` | user skips | — | `working` | `skippedBreakCount += 1`; re-arm at `W + rearmAfterSkip`; no reset; `consecutiveIgnoredCycles` **unchanged** |
 | `breakDue` | no interaction for `promptTimeout` | user was present (input seen) | `ignored` | ladder level 1 (passive) |
 | `breakDue` | no interaction for `promptTimeout` | user was absent (idle ≥ grace) | `idle` | not an ignore; retract prompt |
 | `breakDue` | gap ≥ `qualifyingBreak` | — | `working` | break recorded (`.idleInferred`), cycle closed **honored** |
@@ -477,6 +477,7 @@ engine is allowed to *say*.
 | `ignored` | tick | ladder timing (§11) | `ignored` | next level; at most one notification per level |
 | `ignored` | any user interaction | — | per action | ladder stops |
 | `ignored` | gap ≥ `qualifyingBreak` | — | `working` | break recorded; cycle closed honored |
+| `ignored` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
 | `ignored` | level 4 delivered + no response | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1 |
 | `breakActive` | tick | `now >= plannedEnd` | `working` | reset clock, record break, `lastBreakEndedAt = now` |
 | `breakActive` | user ends early | elapsed `>= qualifyingBreak` | `working` | as above |
@@ -678,7 +679,10 @@ same moments, because people stop typing while a command runs.
 fires". The deferral policy can change *when* within a bounded window, never *whether*.
 
 **When `totalElapsed` reaches `staleBreakCeiling` (60 min)** — which can only happen under sustained
-hard blocks — the cycle is **abandoned**, not fired. A "time for a break" arriving 70 minutes late is
+hard blocks — the cycle is **abandoned**, not fired. This applies in `ignored` as well as in
+`breakDue`, and it has to: `ladderElapsed` only accrues while *not* hard-blocked, so a sustained
+block freezes the ladder and `.ignoredExhausted` can never be reached. Without the ceiling in both
+states an escalating cycle under a long meeting is unbounded. A "time for a break" arriving 70 minutes late is
 noise, and worse, it is evidence to the user that the app is not paying attention. The cycle is logged
 `.expired`, counted as an *excluded* opportunity in the rollup (§14), and the engine returns to
 `working` with the work clock **intact**, re-arming only after another `rearmAfterStale` (10 min) of
@@ -688,7 +692,7 @@ Summary of the two extremes and the specific mechanisms against each:
 
 | Failure mode | Mechanisms |
 |---|---|
-| **Nagging** | max 4 notifications per cycle; ≥ 5 min between any two; daily cap of 12; snooze always offered (3×); explicit skip that costs nothing; escalation ladder that ends permanently; backoff to 1 notification per cycle after 2 consecutive ignored cycles; ladder timing that stretches, never compresses. |
+| **Nagging** | max 4 notifications per cycle; ≥ 5 min between any two; daily cap of 12; snooze always offered (3×); explicit skip that costs nothing; escalation ladder that ends permanently; backoff to 1 notification per cycle after 2 consecutive ignored cycles; ladder timing that stretches, never compresses. A skip neither trips that backoff nor clears it: it is an answer, so it is not an ignore, and it is not a break, so it does not earn a clean slate. |
 | **Never firing** | soft deferrals are bounded at 15 min total; deep focus buys one extension, once; hard blocks pause rather than cancel; `absoluteMaxWork` floor at 90 min; the passive indicator is always live even during quiet hours, DND and cap exhaustion, so the information is never lost — only the interruption is. |
 
 ### 7.5 Channels
@@ -700,8 +704,16 @@ Summary of the two extremes and the specific mechanisms against each:
 | Notification with sound | yes | escalation level 3+ only, and never twice in a cycle |
 | Panel / HUD overlay (dismissible, non-modal, never key-window-stealing, never fullscreen) | yes | escalation level 4 only; downgraded to a notification on battery < 20 % or Low Power Mode |
 
-Nothing in the app is ever modal, ever blocks input, ever takes keyboard focus, or ever covers the
-whole screen. There is no configuration in which the app can prevent the user from working.
+Nothing in the app is ever modal, ever blocks input, or ever takes keyboard focus. There is no
+configuration in which the app can prevent the user from working.
+
+**One correction to the row above, which the implementation got wrong for a while.** When system
+notifications are off, which is the default, every rung is drawn by the app itself, because there is
+no other channel. That is fine; what was not fine is that the panel was built at `screen.frame` on
+every display and filled at 78 % black, so an L1 `SIGTSTP` blacked out the machine. Below level 4
+the app's own prompt is a card in the corner of one screen. Level 4 takes every display, and that is
+the only rung that does, because `SIGSTOP` is the one the product says cannot be ignored and the
+bluff has to cost something.
 
 ### 7.6 Low battery
 
@@ -926,6 +938,15 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   counted as a *missed* opportunity in compliance (it was a real, answered opportunity). The engine
   re-arms after another `rearmAfterSkip` (20 min) of continuous active work. This is the mid-deploy
   escape hatch and it is deliberately cheap to use.
+- **Skip is not the cheap gesture, and the UI must not let it look like one.** Twenty minutes of
+  silence is the longest suppression in the engine, so the control that buys it says so, and Escape
+  does not call it. Escape and *Not now* leave the prompt standing in the engine: it times out after
+  `promptTimeout` and the ladder climbs, which is what §10 means by ignored and what the product
+  means by a rung you are allowed to catch.
+- **Skip leaves `consecutiveIgnoredCycles` alone.** It used to reset it, which made waving a prompt
+  off worth as much to the ladder backoff as taking the break, while the same act still counted
+  against compliance. It is an answer, so it is not an ignore; it is not a break, so it does not earn
+  a clean slate.
 
 ---
 
@@ -984,7 +1005,12 @@ indicator stays amber. No further notification about this cycle is ever emitted.
 5. **Backoff:** after 2 consecutive fully-ignored cycles, for the rest of the local day the ladder is
    truncated to levels 1–2 — one notification per cycle, maximum. Reset by any accepted break.
 6. **Daily cap** (12) overrides everything above. On reaching it, the app goes passive-only until the
-   next day boundary and records `quiet(.dailyCapReached)`.
+   next day boundary and records `quiet(.dailyCapReached)`. That state is terminal until the boundary
+   and computes no verdict, so it writes no `gate` line either: the menu is the only place a user can
+   find out, and it says so in words (`QuietCause.summary`). It drew as the literal title "quiet hours"
+   for every cause until the counters started surviving a relaunch made it reachable in practice — a
+   false label on an app that has gone quiet for the rest of the day is the failure this whole section
+   exists to prevent.
 
 Cap arithmetic: a well-matched day is ~9 cycles in 8 hours × 1 notification each = 9, under the cap. A
 day where everything is ignored hits the cap after ~3 cycles — and the backoff rule engages after 2.

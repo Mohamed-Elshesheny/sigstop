@@ -96,7 +96,7 @@ struct MenuBarView: View {
                                 .foregroundStyle(status.accent ? Brand.amber : Brand.fg)
                                 .contentTransition(reduceMotion ? .identity : .numericText())
                         }
-                        Text("/ \(Format.clock(TimeInterval(model.settings.workIntervalMinutes * 60)))")
+                        Text("/ \(Format.clock(model.workTarget))")
                             .font(Brand.mono(11))
                             .foregroundStyle(Brand.fgMuted)
                     }
@@ -122,9 +122,8 @@ struct MenuBarView: View {
         case .onBreak: return 0
         case .breakDue, .escalating, .held: return 1
         default:
-            let target = model.settings.workInterval
-            guard target > 0 else { return 0 }
-            return min(1, max(0, model.continuousWork / target))
+            guard model.workTarget > 0 else { return 0 }
+            return min(1, max(0, model.continuousWork / model.workTarget))
         }
     }
 
@@ -155,7 +154,14 @@ struct MenuBarView: View {
         case "snoozed": return Status(title: "snoozed", signal: "SIGALRM", dot: .suspend, accent: true)
         case "breakActive": return Status(title: "stopped", signal: "state T", dot: .suspend, accent: true)
         case "idle": return Status(title: "idle", signal: "state S", dot: .off, accent: false)
-        case "quiet": return Status(title: "quiet hours", signal: "state S", dot: .off, accent: false)
+        case "quiet":
+            // Not every quiet is quiet hours. `dailyCapReached` and `sustainedFocusMode`
+            // are the other two a user can actually sit in, and both used to draw with
+            // this label whether or not quiet hours were even switched on.
+            return Status(
+                title: model.quietCause?.title ?? "quiet",
+                signal: "state S", dot: .off, accent: false
+            )
         default: return Status(title: model.engineStateName, signal: "", dot: .off, accent: false)
         }
     }
@@ -319,13 +325,9 @@ struct MenuBarView: View {
             }
 
             if let reason = model.gateReason {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("→")
-                    Text("holding off, \(reason).")
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .font(Brand.mono(10.5))
-                .foregroundStyle(Brand.fgMuted)
+                hold("holding off, \(reason).")
+            } else if let reason = model.holdReason {
+                hold("not asking yet, \(reason).")
             }
 
             HStack(spacing: 4) {
@@ -343,6 +345,23 @@ struct MenuBarView: View {
                     .fixedSize()
             }
         }
+    }
+
+    /// One muted line saying why the app is quiet.
+    ///
+    /// There are two of these and they are different claims. "holding off" means
+    /// something is blocking a prompt right now; "not asking yet" means nothing is, and
+    /// the engine is simply waiting for a target it raised earlier. Collapsing them would
+    /// put the app back where it was, telling a user it was running while it had no
+    /// intention of saying anything for twenty minutes.
+    private func hold(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("→")
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(Brand.mono(10.5))
+        .foregroundStyle(Brand.fgMuted)
     }
 
     private var breakWanted: Bool {

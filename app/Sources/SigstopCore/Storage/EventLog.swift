@@ -220,18 +220,26 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     case idleEnd = "idle_end"
     case lock
     case unlock
+    /// The machine suspended. `display_sleep` is a different fact and has its own name:
+    /// the screen going dark while the process keeps running is not the machine stopping,
+    /// and collapsing the two made a log that appeared to record the same event twice.
     case sleep
     case wake
+    case displaySleep = "display_sleep"
+    case displayWake = "display_wake"
     case sessionOut = "session_out"
     case sessionIn = "session_in"
     /// A break **opportunity** opened: continuous active work reached the target, i.e.
     /// the engine entered `breakDue`, including entries immediately suppressed by
     /// quiet hours or a hard block (docs/BREAK-DECISION.md §14.1).
     ///
-    /// Added beyond the vocabulary listed in docs/PRIVACY.md §4.3, because compliance
-    /// is undefined without it: a prompt that was never delivered still opened an
-    /// opportunity, and the difference between "missed" and "never asked" is the whole
-    /// honesty of the metric.
+    /// Compliance is undefined without it: a prompt that was never delivered still
+    /// opened an opportunity, and the difference between "missed" and "never asked" is
+    /// the whole honesty of the metric.
+    ///
+    /// This shipped for a while without being listed in docs/PRIVACY.md §4.3, which
+    /// claims to be the complete vocabulary. It is listed there now, along with
+    /// `break_begin` and `break_end` which had drifted the same way.
     case breakOpen = "break_open"
     case breakPrompt = "break_prompt"
     case breakResponse = "break_response"
@@ -240,6 +248,23 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     /// It ended. `dur_s` is the measured duration; the *reader*, not the writer, decides
     /// whether that was long enough to qualify.
     case breakEnd = "break_end"
+    /// A break opportunity ended, with the `CycleOutcome` that ended it.
+    ///
+    /// Without this a cycle could be closed as expired, quietSuppressed, dailyCapReached,
+    /// ignoredExhausted, skipped or honored and leave no trace at all. The day that
+    /// produced the 20:06:51Z incident holds seventeen `break_open` lines and twelve
+    /// `break_response` lines: five opportunities simply stop existing mid-file, and the
+    /// difference between "the user said no" and "the app gave up" was unrecoverable.
+    case cycleClose = "cycle_close"
+    /// Why the app is or is not allowed to speak right now, written when the answer
+    /// changes rather than when it is computed.
+    ///
+    /// The verdict is recomputed on every five second tick. A fourteen minute hold
+    /// produces 168 identical answers and used to keep none of them, so "why did you say
+    /// nothing at 20:12" had no answer after the fact. CLAUDE.md §4.1 requires the app to
+    /// always be able to say why it thinks what it thinks; this is that promise for the
+    /// one question the whole product turns on.
+    case gate
 }
 
 /// What the developer did with a delivered prompt.
@@ -276,13 +301,23 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// Length of the idle period that just ended. Kept for auditability only, the
     /// rollup diffs real timestamps instead of trusting this (CLAUDE.md §3.4).
     public var idleSeconds: Int?
-    public var reason: String?
+    /// The signal a prompt was named after, on `break_prompt`. Typed, because the
+    /// paragraph above promises no field here can hold free text and a `String?` was
+    /// quietly the one that could.
+    public var reason: SignalName?
+    /// How a break opportunity ended. Typed, so the field can hold one of six values and
+    /// nothing else.
+    public var outcome: CycleOutcome?
+    /// Why a prompt was or was not allowed. Typed for the same reason: a closed
+    /// vocabulary of twenty-eight, never a sentence, and never anything derived from a
+    /// window title (CLAUDE.md §4.4).
+    public var gate: GateReason?
     public var action: BreakResponseAction?
     public var snoozeSeconds: Int?
     /// Present on `break_prompt` when the prompt was **not** delivered: why it was
     /// withheld (`meeting`, `quiet_hours`, `rate_limit`, …). Its presence is what makes
     /// an opportunity excludable rather than missed.
-    public var deferred: String?
+    public var deferred: GateReason?
     public var origin: BreakOrigin?
     public var durationSeconds: Int?
     /// The `CycleID` this event belongs to, so counters scope to a cycle.
@@ -297,10 +332,12 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         activity: Activity? = nil,
         titleSignal: String? = nil,
         idleSeconds: Int? = nil,
-        reason: String? = nil,
+        reason: SignalName? = nil,
+        outcome: CycleOutcome? = nil,
+        gate: GateReason? = nil,
         action: BreakResponseAction? = nil,
         snoozeSeconds: Int? = nil,
-        deferred: String? = nil,
+        deferred: GateReason? = nil,
         origin: BreakOrigin? = nil,
         durationSeconds: Int? = nil,
         cycle: Int? = nil
@@ -314,6 +351,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         self.titleSignal = titleSignal
         self.idleSeconds = idleSeconds
         self.reason = reason
+        self.outcome = outcome
+        self.gate = gate
         self.action = action
         self.snoozeSeconds = snoozeSeconds
         self.deferred = deferred
@@ -328,7 +367,13 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// True for a `break_prompt` that actually reached the developer.
     public var wasDelivered: Bool { kind == .breakPrompt && deferred == nil }
 
-    private enum CodingKeys: String, CodingKey {
+    /// The on-disk field names, in the order the field reference lists them.
+    ///
+    /// Not private, and `CaseIterable`, so the export header can be **generated** from
+    /// this rather than retyped beside it. It was retyped beside it, and it drifted:
+    /// `outcome` and `gate` reached the body of an export while the header still named
+    /// the field set from two changes earlier.
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case v
         case at = "t"
         case kind = "e"
@@ -338,6 +383,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         case titleSignal = "sig"
         case idleSeconds = "idle_s"
         case reason
+        case outcome
+        case gate
         case action
         case snoozeSeconds = "snooze_s"
         case deferred
@@ -363,10 +410,12 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         activity = try c.decodeIfPresent(Activity.self, forKey: .activity)
         titleSignal = try c.decodeIfPresent(String.self, forKey: .titleSignal)
         idleSeconds = try c.decodeIfPresent(Int.self, forKey: .idleSeconds)
-        reason = try c.decodeIfPresent(String.self, forKey: .reason)
+        reason = try c.decodeIfPresent(SignalName.self, forKey: .reason)
+        outcome = try c.decodeIfPresent(CycleOutcome.self, forKey: .outcome)
+        gate = try c.decodeIfPresent(GateReason.self, forKey: .gate)
         action = try c.decodeIfPresent(BreakResponseAction.self, forKey: .action)
         snoozeSeconds = try c.decodeIfPresent(Int.self, forKey: .snoozeSeconds)
-        deferred = try c.decodeIfPresent(String.self, forKey: .deferred)
+        deferred = try c.decodeIfPresent(GateReason.self, forKey: .deferred)
         origin = try c.decodeIfPresent(BreakOrigin.self, forKey: .origin)
         durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
         cycle = try c.decodeIfPresent(Int.self, forKey: .cycle)
@@ -383,12 +432,67 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         try c.encodeIfPresent(titleSignal, forKey: .titleSignal)
         try c.encodeIfPresent(idleSeconds, forKey: .idleSeconds)
         try c.encodeIfPresent(reason, forKey: .reason)
+        try c.encodeIfPresent(outcome, forKey: .outcome)
+        try c.encodeIfPresent(gate, forKey: .gate)
         try c.encodeIfPresent(action, forKey: .action)
         try c.encodeIfPresent(snoozeSeconds, forKey: .snoozeSeconds)
         try c.encodeIfPresent(deferred, forKey: .deferred)
         try c.encodeIfPresent(origin, forKey: .origin)
         try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
         try c.encodeIfPresent(cycle, forKey: .cycle)
+    }
+}
+
+extension LoggedEvent.CodingKeys {
+    /// What this field holds, in a few words, for the export header.
+    ///
+    /// Exhaustive with no `default`, so a new field on `LoggedEvent` stops this file
+    /// compiling until somebody says what it is. That is the point: the header used to be
+    /// a hand-typed list beside the type, and it fell two fields behind it.
+    var gloss: String {
+        switch self {
+        case .v:               return "schema"
+        case .at:              return "UTC second"
+        case .kind:            return "event"
+        case .app:             return "bundle id"
+        case .category:        return "category"
+        case .activity:        return "inferred activity"
+        case .titleSignal:     return "window-title CLASS (never the title)"
+        case .idleSeconds:     return "length of the idle period that just ended"
+        case .reason:          return "the signal a prompt is named after"
+        case .outcome:         return "how a break opportunity ended"
+        case .gate:            return "why a prompt was or was not allowed"
+        case .action:          return "what was done with a prompt"
+        case .snoozeSeconds:   return "snooze length in seconds"
+        case .deferred:        return "why a prompt was withheld"
+        case .origin:          return "how a break started"
+        case .durationSeconds: return "break length in seconds"
+        case .cycle:           return "which break opportunity this line belongs to"
+        }
+    }
+}
+
+extension LoggedEvent {
+    /// Every on-disk field, `name=what it holds`, wrapped to `width` columns.
+    ///
+    /// Generated from `CodingKeys` rather than written out beside it, so an export cannot
+    /// carry a field its own header does not account for (docs/PRIVACY.md §4.3).
+    static func fieldGuide(width: Int = 66) -> [String] {
+        var lines: [String] = []
+        var current = ""
+        for key in CodingKeys.allCases {
+            let entry = "\(key.rawValue)=\(key.gloss)"
+            if current.isEmpty {
+                current = entry
+            } else if current.count + 2 + entry.count <= width {
+                current += ", " + entry
+            } else {
+                lines.append(current + ",")
+                current = entry
+            }
+        }
+        if !current.isEmpty { lines.append(current) }
+        return lines
     }
 }
 
@@ -421,12 +525,12 @@ extension LoggedEvent {
         LoggedEvent(at: at, kind: kind)
     }
 
-    public static func breakOpen(at: Date, cycle: CycleID, reason: String? = nil) -> LoggedEvent {
-        LoggedEvent(at: at, kind: .breakOpen, reason: reason, cycle: cycle.rawValue)
+    public static func breakOpen(at: Date, cycle: CycleID) -> LoggedEvent {
+        LoggedEvent(at: at, kind: .breakOpen, cycle: cycle.rawValue)
     }
 
     public static func breakPrompt(
-        at: Date, cycle: CycleID, reason: String? = nil, deferred: String? = nil
+        at: Date, cycle: CycleID, reason: SignalName? = nil, deferred: GateReason? = nil
     ) -> LoggedEvent {
         LoggedEvent(
             at: at, kind: .breakPrompt, reason: reason,
@@ -456,6 +560,14 @@ extension LoggedEvent {
             at: at, kind: .breakEnd, origin: origin,
             durationSeconds: durationSeconds, cycle: cycle?.rawValue
         )
+    }
+
+    public static func cycleClose(at: Date, cycle: CycleID, outcome: CycleOutcome) -> LoggedEvent {
+        LoggedEvent(at: at, kind: .cycleClose, outcome: outcome, cycle: cycle.rawValue)
+    }
+
+    public static func gate(at: Date, reason: GateReason, cycle: CycleID? = nil) -> LoggedEvent {
+        LoggedEvent(at: at, kind: .gate, gate: reason, cycle: cycle?.rawValue)
     }
 }
 

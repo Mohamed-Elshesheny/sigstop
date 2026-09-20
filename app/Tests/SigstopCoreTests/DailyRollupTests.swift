@@ -62,7 +62,7 @@ struct ComplianceTests {
         }
         events.append(.breakOpen(at: Fix.t(minute), cycle: CycleID(rawValue: 6)))
         events.append(
-            .breakPrompt(at: Fix.t(minute), cycle: CycleID(rawValue: 6), deferred: "meeting")
+            .breakPrompt(at: Fix.t(minute), cycle: CycleID(rawValue: 6), deferred: .inferredMeeting)
         )
         minute += 60
         events.append(.breakOpen(at: Fix.t(minute), cycle: CycleID(rawValue: 7)))
@@ -117,9 +117,9 @@ struct ComplianceTests {
             .start(at: Fix.t(0)),
             .focus(at: Fix.t(0), app: chrome, activity: .meeting),
             .breakOpen(at: Fix.t(45), cycle: .initial),
-            .breakPrompt(at: Fix.t(45), cycle: .initial, deferred: "meeting"),
+            .breakPrompt(at: Fix.t(45), cycle: .initial, deferred: .inferredMeeting),
             .breakOpen(at: Fix.t(100), cycle: CycleID(rawValue: 1)),
-            .breakPrompt(at: Fix.t(100), cycle: CycleID(rawValue: 1), deferred: "quiet_hours"),
+            .breakPrompt(at: Fix.t(100), cycle: CycleID(rawValue: 1), deferred: .quietHours),
             .stop(at: Fix.t(140)),
         ]
         let s = Fix.roll(events)
@@ -397,10 +397,10 @@ struct EventLogTests {
             activity: .debugging,
             titleSignal: "editor",
             idleSeconds: 378,
-            reason: "streak_45m",
+            reason: .sigtstp,
             action: .snoozed,
             snoozeSeconds: 600,
-            deferred: "meeting",
+            deferred: .inferredMeeting,
             origin: .accepted,
             durationSeconds: 420,
             cycle: 7
@@ -420,8 +420,8 @@ struct EventLogTests {
             .focus(at: Fix.t(0), app: xcode, category: "code", activity: .coding, titleSignal: "editor"),
             .idleBegin(at: Fix.t(31)),
             .idleEnd(at: Fix.t(37), idleSeconds: 360),
-            .breakOpen(at: Fix.t(45), cycle: .initial, reason: "streak_45m"),
-            .breakPrompt(at: Fix.t(45), cycle: .initial, reason: "streak_45m"),
+            .breakOpen(at: Fix.t(45), cycle: .initial),
+            .breakPrompt(at: Fix.t(45), cycle: .initial, reason: .sigtstp),
             .breakResponse(at: Fix.t(46), cycle: .initial, action: .snoozed, snoozeSeconds: 600),
             .breakBegin(at: Fix.t(56), origin: .accepted, cycle: .initial),
             .breakEnd(at: Fix.t(62), origin: .accepted, durationSeconds: 360, cycle: .initial),
@@ -520,6 +520,24 @@ struct StoreTests {
         let reread = EventLogCodec.decodeLines(text)
         #expect(reread.events == events)
         #expect(reread.malformedLines == 0)
+    }
+
+    /// The export's own header has to describe the export.
+    ///
+    /// It listed a field set that stopped being true two fields ago: `outcome` and `gate`
+    /// were in the body and not in the header, so the artifact a user hands to a sceptic
+    /// under-described its own contents. For a product whose pitch is that `cat` is a
+    /// complete audit tool, an undocumented field in an export is the worst place for the
+    /// vocabulary to drift, and it is the same drift docs/PRIVACY.md §4.3 was corrected
+    /// for. Driving the header off `LoggedEvent.CodingKeys` is what stops it recurring;
+    /// this is the assertion that says so.
+    @Test func the_export_header_names_every_field_the_body_can_carry() throws {
+        let store = InMemoryEventStore(events: [.start(at: Fix.t(0))])
+        let text = try store.exportText()
+        let header = text.split(separator: "\n").filter { $0.hasPrefix("#") }.joined(separator: "\n")
+        for key in LoggedEvent.CodingKeys.allCases {
+            #expect(header.contains(key.rawValue), "the export header never mentions \(key.rawValue as String)")
+        }
     }
 
     @Test func retention_prunes_beyond_the_window_and_keeps_the_rest() throws {

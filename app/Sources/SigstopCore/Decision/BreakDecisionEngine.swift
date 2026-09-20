@@ -289,7 +289,7 @@ public struct BreakDecisionEngine: Sendable {
         if let promptedMono = d.promptedAtMono,
            !verdict.isHardBlocked,
            input.monotonic - promptedMono >= policy.promptTimeout {
-            effects.append(.recordIgnoredPrompt)
+            effects.append(.recordIgnoredPrompt(cycle: d.cycle))
             effects.append(.setIndicator(.escalating))
             return (.ignored(Escalation(
                 cycle: d.cycle,
@@ -368,6 +368,14 @@ public struct BreakDecisionEngine: Sendable {
 
     // MARK: - ignored / the ladder
 
+    /// The escalation ladder, and the ceiling that bounds it.
+    ///
+    /// `handleBreakDue` has always checked `staleBreakCeiling`; this did not, and because
+    /// `ladderElapsed` only accrues below the hard-block early return, a sustained block
+    /// froze the ladder so `exhausted` could never become true. An `.ignored` cycle under
+    /// a long meeting was therefore unbounded: it could not escalate, could not exhaust,
+    /// and could only ever leave via idle. `totalElapsed` accrues regardless of blocking,
+    /// which is exactly why it, and not `ladderElapsed`, is what the ceiling measures.
     private func handleIgnored(
         _ escalation: Escalation,
         input: EngineInput,
@@ -386,6 +394,17 @@ public struct BreakDecisionEngine: Sendable {
                 since: input.now.addingTimeInterval(-input.context.idleSeconds),
                 cause: .microIdleExceeded,
                 suspendedCycle: e.cycle
+            )), nil)
+        }
+
+        if e.totalElapsed >= policy.staleBreakCeiling {
+            effects.append(.withdrawPrompt(cycle: e.cycle, reason: .cycleExpired))
+            effects.append(.closeCycle(e.cycle, .expired))
+            day.excludedOpportunities += 1
+            effects.append(.setIndicator(.working))
+            return (.working(WorkingState(
+                armThreshold: input.context.continuousWork + policy.rearmAfterStale,
+                lastWorkSeen: input.context.continuousWork
             )), nil)
         }
 
@@ -527,8 +546,9 @@ public struct BreakDecisionEngine: Sendable {
         effects: inout [Effect]
     ) -> EngineState {
         let honored = elapsed >= policy.qualifyingBreak
-        effects.append(.endBreak(origin: active.origin, honored: honored))
-        effects.append(.resumeWorkClock)
+        effects.append(
+            .endBreak(cycle: active.cycle, origin: active.origin, honored: honored, elapsed: elapsed)
+        )
         if let cycle = active.cycle {
             effects.append(.closeCycle(cycle, honored ? .honored : .skipped))
             if honored {
@@ -598,6 +618,14 @@ public struct BreakDecisionEngine: Sendable {
 
     // MARK: - user actions
 
+    /// What the developer did to a prompt. Actions are events, not state.
+    ///
+    /// One rule worth stating because it was wrong: `.skip` neither increments nor resets
+    /// `consecutiveIgnoredCycles`. It is not an ignore, the user answered, but it used to
+    /// reset the counter, which made waving a prompt off worth exactly as much to the
+    /// ladder backoff as taking the break, while `CycleOutcome.skipped` still counts
+    /// against compliance. Clearing the backoff is what a break earns. A skip already
+    /// costs the user twenty minutes of quiet; it should buy nothing on top.
     private func handle(
         _ action: UserAction,
         state: EngineState,
@@ -635,18 +663,17 @@ public struct BreakDecisionEngine: Sendable {
             d.lastStepMono = input.monotonic
             let until = input.now.addingTimeInterval(duration)
             effects.append(.withdrawPrompt(cycle: d.cycle, reason: .userSnoozed))
-            effects.append(.recordSnooze(duration))
+            effects.append(.recordSnooze(cycle: d.cycle, duration: duration))
             effects.append(.scheduleWake(at: until))
             effects.append(.setIndicator(.breakDue))
             return .snoozed(SnoozedState(cycle: d.cycle, until: until, untilMono: input.monotonic + duration, index: index, due: d))
 
         case .skip:
             guard let cycle = state.openCycle else { return state }
-            effects.append(.withdrawPrompt(cycle: cycle, reason: .breakStarted))
+            effects.append(.withdrawPrompt(cycle: cycle, reason: .userSkipped))
             effects.append(.closeCycle(cycle, .skipped))
-            effects.append(.recordSkip)
+            effects.append(.recordSkip(cycle: cycle))
             effects.append(.setIndicator(.working))
-            day.consecutiveIgnoredCycles = 0
             return .working(WorkingState(
                 armThreshold: input.context.continuousWork + policy.rearmAfterSkip,
                 lastWorkSeen: input.context.continuousWork

@@ -7,15 +7,34 @@ import Foundation
 /// `SIGKILL` appears nowhere: it is unrecoverable and destroys exactly the thing the name
 /// promises to preserve. `SIGHUP` is never a rung either, its default disposition is
 /// *terminate*, so an L1 labelled SIGHUP would quietly mean "die". It reloads settings.
+/// The four rungs, as the four signals the ladder is named after.
+///
+/// A closed enum rather than four strings, because it is written to the event log and
+/// `LoggedEvent` claims, in its own doc comment, that no field of it can hold free text.
+/// A `String?` there defeated that claim whatever anybody happened to put in it. The raw
+/// values are the same four words that were already on disk, so old logs still parse.
+public enum SignalName: String, Sendable, Codable, CaseIterable, Hashable {
+    /// Catchable. You are allowed to ignore it.
+    case sigtstp = "SIGTSTP"
+    /// Catchable, but ignoring it is rude.
+    case sigint = "SIGINT"
+    /// Catchable. This is your warning.
+    case sigterm = "SIGTERM"
+    /// Cannot be caught, blocked or ignored.
+    case sigstop = "SIGSTOP"
+}
+
 public extension EscalationLevel {
-    var signalName: String {
+    var signal: SignalName {
         switch self {
-        case .first:    return "SIGTSTP"   // catchable, you are allowed to ignore it
-        case .second:   return "SIGINT"    // catchable, but ignoring it is rude
-        case .third:    return "SIGTERM"   // catchable. this is your warning
-        case .incident: return "SIGSTOP"   // cannot be caught, blocked or ignored
+        case .first:    return .sigtstp
+        case .second:   return .sigint
+        case .third:    return .sigterm
+        case .incident: return .sigstop
         }
     }
+
+    var signalName: String { signal.rawValue }
 
     /// True when this rung may not be reached under the ignore backoff (§11.5).
     var isBeyondBackoff: Bool { self > .second }
@@ -92,11 +111,17 @@ public struct PromptRequest: Sendable, Codable, Hashable {
     }
 }
 
+/// Why a prompt that was on screen is being taken down.
+///
+/// `userSkipped` exists because the skip path used to name `breakStarted`, on a path
+/// where no break starts at all. A withdraw reason is the app's own account of what it
+/// just did; one that names the wrong event is worse than none.
 public enum WithdrawReason: String, Sendable, Codable, Hashable {
     case quietHoursStarted
     case userLeft
     case cycleExpired
     case breakStarted
+    case userSkipped
     case dailyCapReached
     case userSnoozed
     /// A hard block began while the prompt was on screen. Without this a notification or
@@ -123,11 +148,41 @@ public enum CycleOutcome: String, Sendable, Codable, Hashable {
     }
 }
 
-public enum QuietCause: String, Sendable, Codable, Hashable {
+public enum QuietCause: String, Sendable, Codable, CaseIterable, Hashable {
     case scheduledQuietHours
     case userPaused
     case sustainedFocusMode
     case dailyCapReached
+
+    /// The state as the menu bar names it, the way `ps` names a state.
+    ///
+    /// The panel used to draw every one of these as the literal words "quiet hours".
+    /// Three of the four are not quiet hours, and `dailyCapReached` is terminal until the
+    /// day boundary, so the app could go silent for the rest of the day and explain it
+    /// with a lie to a user who has quiet hours switched off. The words live in `Core`
+    /// because `SigstopApp` has no test target and a vocabulary kept there is unchecked.
+    public var title: String {
+        switch self {
+        case .scheduledQuietHours: return "quiet hours"
+        case .userPaused:          return "paused"
+        case .sustainedFocusMode:  return "focus mode"
+        case .dailyCapReached:     return "daily cap"
+        }
+    }
+
+    /// Why nothing is coming, in the user's words, for the one muted line in the menu.
+    public var summary: String {
+        switch self {
+        case .scheduledQuietHours:
+            return "you are inside your quiet hours"
+        case .userPaused:
+            return "you paused it"
+        case .sustainedFocusMode:
+            return "a Focus mode has been on long enough to read as deliberate"
+        case .dailyCapReached:
+            return "today's notification budget is spent, so nothing more until the day rolls over"
+        }
+    }
 }
 
 // MARK: - Engine state
@@ -321,6 +376,25 @@ public enum EngineState: Sendable, Codable, Hashable {
         }
     }
 
+    /// Why a state that holds a cycle open is not producing a verdict.
+    ///
+    /// `breakDue` and `ignored` ask the gate on every tick, so the ledger always has an
+    /// answer to write for them. These three hold `openCycle` and ask nothing: a snooze
+    /// defers the question, an idle suspension parks it, and during a break it has already
+    /// been answered. Without a name for that, the ledger had nothing to write and an open
+    /// cycle could be silent for the whole length of a thirty minute snooze — while the
+    /// docs said a quiet log means the app stopped, and nothing else.
+    ///
+    /// Nil for every state that either has no cycle or has a verdict of its own.
+    public var silence: GateReason? {
+        switch self {
+        case .snoozed:            return .userSnoozed
+        case .idle(let i):        return i.suspendedCycle == nil ? nil : .userAway
+        case .breakActive(let b): return b.cycle == nil ? nil : .breakRunning
+        case .working, .breakDue, .ignored, .quiet: return nil
+        }
+    }
+
     public var name: String {
         switch self {
         case .working:     return "working"
@@ -351,16 +425,26 @@ public enum Effect: Sendable, Codable, Hashable {
     case beginBreak(cycle: CycleID?, origin: BreakOrigin, plannedEnd: Date)
     /// `honored` false means the break was abandoned under the qualifying threshold: no
     /// reset, no break recorded.
-    case endBreak(origin: BreakOrigin, honored: Bool)
+    ///
+    /// `elapsed` is measured on the monotonic clock by the engine, so the log carries the
+    /// duration that was actually judged rather than a wall-clock difference the app
+    /// recomputes from a remembered start.
+    case endBreak(cycle: CycleID?, origin: BreakOrigin, honored: Bool, elapsed: TimeInterval)
     /// SIGALRM.
     case scheduleWake(at: Date)
     case cancelScheduledWake
     case recordVerdict(InterruptionVerdict)
-    case recordSkip
-    case recordIgnoredPrompt
-    case recordSnooze(TimeInterval)
-    /// SIGCONT, the work clock resumes exactly where it left off.
-    case resumeWorkClock
+    /// Every effect that records a decision names the cycle it belongs to.
+    ///
+    /// These three used to carry nothing, which forced the app layer to reconstruct the
+    /// id from its own mutable side state. `.closeCycle` clears that state, so a skip,
+    /// whose effect list is withdraw, close, record, could never be written down: the
+    /// guard that looked up the id ran after the value it needed had been cleared. Snooze
+    /// and ignore survived only because no `.closeCycle` happens to precede them. The
+    /// payload is what makes that an impossible bug rather than an ordering convention.
+    case recordSkip(cycle: CycleID)
+    case recordIgnoredPrompt(cycle: CycleID)
+    case recordSnooze(cycle: CycleID, duration: TimeInterval)
 }
 
 // MARK: - Daily counters

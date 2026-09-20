@@ -64,8 +64,29 @@ final class AppModel {
     /// Why a prompt is being held right now, in the user's words. `nil` means nothing is
     /// holding it.
     private(set) var gateReason: String?
+    /// Why the app is quiet while nothing is blocking it, in the user's words.
+    ///
+    /// `gateReason` covers the blocked case and only the blocked case, so the two states
+    /// the engine is silent in without being blocked had no vocabulary at all: a raised
+    /// `armThreshold` after a skip or an expired cycle, and a live cooldown after an
+    /// ignored ladder. That is the gap the owner sat in for eighteen minutes, watching a
+    /// panel that said RUNNING.
+    private(set) var holdReason: String?
+    /// The continuous work the engine is **actually** waiting for, which is not always
+    /// the user's interval.
+    ///
+    /// The header used to divide by `settings.workInterval` unconditionally, so a skip
+    /// that privately re-armed at 1505 seconds still drew `18:17 / 5:00` with the mark
+    /// pinned full. The number on screen is now the number in force.
+    private(set) var workTarget: TimeInterval
     private(set) var indicator: IndicatorState = .working
     private(set) var engineStateName: String = "working"
+    /// Which quiet the engine is in, when it is in one.
+    ///
+    /// The menu had only `engineStateName`, so all four causes drew as "quiet hours" —
+    /// including `dailyCapReached`, which is terminal until the day boundary, for a user
+    /// whose quiet hours are off.
+    private(set) var quietCause: QuietCause?
     private(set) var todaySummary: DailySummary?
     private(set) var todayLine: String = ""
     private(set) var todayDetail: String = ""
@@ -95,9 +116,8 @@ final class AppModel {
     /// 0…1, how full the menu bar bars are drawn. The fraction of the target interval
     /// that has actually been *worked*, clamped, never extrapolated.
     var workFraction: Double {
-        let target = settings.workInterval
-        guard target > 0 else { return 0 }
-        return min(1, max(0, displayedContinuousWork / target))
+        guard workTarget > 0 else { return 0 }
+        return min(1, max(0, displayedContinuousWork / workTarget))
     }
 
     /// `continuousWork` carried forward to now, for display only.
@@ -159,17 +179,31 @@ final class AppModel {
     @ObservationIgnored private var sensors: SensorStack
     @ObservationIgnored private var tracker: SessionTracker
     @ObservationIgnored private var decision: BreakDecisionEngine
+    /// The thresholds in force, kept so the view layer can say when the engine is waiting
+    /// for something other than the user's interval.
+    @ObservationIgnored private var policy: BreakPolicy
     @ObservationIgnored private var store: FileEventStore?
 
     // MARK: - Loop state (never observed)
 
     @ObservationIgnored private var engineState: EngineState
+    /// The day's budgets. Loaded from the store at launch and written back when they
+    /// change, because a value reconstructed on every launch is not a daily cap.
     @ObservationIgnored private var day = DailyCounters()
+    /// The last counters handed to the store, so a tick that changed nothing does not
+    /// rewrite the file.
+    @ObservationIgnored private var persistedDay: DailyCounters?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private var observerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var pendingAction: UserAction?
+    /// True while a pass of the loop is in flight. See `tick()`.
+    @ObservationIgnored private var ticking = false
+    /// Set when a tick arrives during one, so the running pass repeats rather than a
+    /// second pass starting alongside it.
+    @ObservationIgnored private var tickAgain = false
     @ObservationIgnored private var currentCycle: CycleID?
-    @ObservationIgnored private var breakStartedAt: Date?
+    /// Decides when the gate's answer is worth a line. See `VerdictLedger`.
+    @ObservationIgnored private var verdicts = VerdictLedger()
     @ObservationIgnored private var loggedApp: String??
     @ObservationIgnored private var loggedActivity: Activity?
     @ObservationIgnored private var lastFocusLogAt: Date?
@@ -216,6 +250,8 @@ final class AppModel {
         let policy = Self.policy(for: loaded)
 
         self.settings = loaded
+        self.policy = policy
+        self.workTarget = policy.targetContinuousWork
         self.sensors = SensorStack(settings: loaded, time: time, workClock: workClock)
         self.tracker = SessionTracker(time: time, policy: policy)
         self.decision = BreakDecisionEngine(policy: policy)
@@ -309,6 +345,20 @@ final class AppModel {
     func takeBreakNow() { enqueue(.startBreakNow) }
     func acceptBreak() { enqueue(.acceptBreak) }
     func snooze() { enqueue(.snooze) }
+
+    /// SIGTSTP, caught. The prompt goes off the screen and the engine is told **nothing**.
+    ///
+    /// This is what ignoring means in this codebase: the prompt stands, times out after
+    /// `promptTimeout`, is recorded as `ignored`, and the ladder climbs. It is the cheap
+    /// answer and it costs the user nothing they cannot undo by waiting ninety seconds.
+    ///
+    /// Escape and the button that says "Ignore it" used to call `skip()` instead, which
+    /// is the most expensive response in the state machine: it ends the cycle and buys
+    /// twenty minutes of silence. A control labelled ignore that does not ignore is how
+    /// the 20:06:51Z incident started.
+    func ignorePrompt() { overlay.dismissPromptPanel() }
+
+    /// A deliberate no. Ends this opportunity and re-arms twenty minutes late.
     func skip() { enqueue(.skip) }
     func endBreak() { enqueue(.endBreak) }
     func pause(for duration: TimeInterval) { enqueue(.pauseApp(duration)) }
@@ -326,7 +376,8 @@ final class AppModel {
         settings = newValue
         SettingsStore.save(newValue)
         onSettingsChanged?()
-        decision = BreakDecisionEngine(policy: Self.policy(for: newValue))
+        policy = Self.policy(for: newValue)
+        decision = BreakDecisionEngine(policy: policy)
         sensors.context.reloadSettings(newValue)
         permissionStatus = sensors.permissions.status()
         if !newValue.showBreakOverlay { overlay.dismissBreak() }
@@ -334,7 +385,36 @@ final class AppModel {
 
     // MARK: - The tick
 
+    /// One pass of the loop, and never two at once.
+    ///
+    /// `enqueue` fires an extra tick on top of the five second timer so a button press
+    /// takes effect immediately. Being on the main actor is not enough to serialise them:
+    /// `tickOnce` awaits `sampleAndPublish()`, and two ticks can interleave across that
+    /// suspension. Whichever resumed first consumed `pendingAction` and finished the
+    /// break, and the other then ran the working state against a session clock that had
+    /// not been reset yet and opened a fresh cycle in the same second.
+    ///
+    /// That is in the owner's log twice: `break_end dur_s=303` at 18:52:20Z followed by
+    /// `break_open` and `break_prompt` at 18:52:20Z, and the identical pattern at
+    /// 19:06:40Z. The `breakEndedThisTick` guard in the engine cannot help, because these
+    /// are two separate steps.
+    ///
+    /// A tick that arrives while one is running sets a flag instead of starting a second
+    /// pass, and the running one loops again before it returns, so no press is lost.
     private func tick() async {
+        if ticking {
+            tickAgain = true
+            return
+        }
+        ticking = true
+        repeat {
+            tickAgain = false
+            await tickOnce()
+        } while tickAgain
+        ticking = false
+    }
+
+    private func tickOnce() async {
         let sample = await sensors.context.sampleAndPublish()
         let raw = sensors.readSignals()
         let now = time.now
@@ -392,9 +472,18 @@ final class AppModel {
         pendingAction = nil
         seamsForNextStep.removeAll()
 
+        let openBefore = engineState.openCycle
         let outcome = decision.step(engineState, input)
         engineState = outcome.state
         day = outcome.day
+
+        if let line = verdicts.observe(
+            outcome.verdict.map(GateReason.init),
+            holding: engineState.silence,
+            cycle: openBefore, at: now, monotonic: monotonic
+        ) {
+            append(line)
+        }
 
         for effect in outcome.effects {
             execute(effect, context: context, now: now)
@@ -402,6 +491,7 @@ final class AppModel {
         verifyPromptPresentation()
 
         record(sessionEvents: sessionEvents, at: now)
+        persistCountersIfChanged()
         logFocusIfNeeded(context: context, sample: sample, at: now)
         publishViewState(sample: sample, context: context, outcome: outcome)
     }
@@ -472,15 +562,25 @@ final class AppModel {
 
     // MARK: - Effects
 
+    /// Every effect, with its log lines written first and its side effects second.
+    ///
+    /// The mapping from effect to log line is not here any more, it is
+    /// `EventLogWriter.lines(for:at:context:)` in `SigstopCore`, where it is an exhaustive
+    /// switch a test can drive without a window server. What is left here is only the
+    /// things that genuinely need AppKit, the tracker, or this object's own state.
     private func execute(_ effect: Effect, context: DeveloperContext, now: Date) {
+        for line in EventLogWriter.lines(for: effect, at: now, context: logContext) {
+            append(line)
+        }
+
         switch effect {
         case .openCycle(let cycle):
             currentCycle = cycle
-            append(.breakOpen(at: now, cycle: cycle))
 
         case .closeCycle(let cycle, _):
             if currentCycle == cycle { currentCycle = nil }
             if presentation?.request.cycle == cycle { presentation = nil }
+            verdicts.reset()
 
         case .deliverPrompt(let request):
             deliver(request, context: context, now: now)
@@ -493,9 +593,8 @@ final class AppModel {
         case .setIndicator(let state):
             indicator = state
 
-        case .beginBreak(let cycle, let origin, let plannedEnd):
+        case .beginBreak(_, let origin, let plannedEnd):
             tracker.beginBreak(origin: origin)
-            breakStartedAt = now
             breakEndsAt = plannedEnd
             breakContent = BreakContent.make(
                 for: context,
@@ -506,22 +605,12 @@ final class AppModel {
             overlay.dismissPromptPanel()
             presentation = nil
             if settings.showBreakOverlay { overlay.presentBreak(model: self) }
-            append(.breakBegin(at: now, origin: origin, cycle: cycle))
-            if let cycle { append(.breakResponse(at: now, cycle: cycle, action: .taken)) }
 
-        case .endBreak(let origin, _):
+        case .endBreak(_, let origin, _, _):
             tracker.endBreak(origin: origin)
-            let duration = max(0, now.timeIntervalSince(breakStartedAt ?? now))
             overlay.dismissBreak()
             breakEndsAt = nil
             breakContent = nil
-            breakStartedAt = nil
-            append(
-                .breakEnd(
-                    at: now, origin: origin,
-                    durationSeconds: Int(duration.rounded()), cycle: currentCycle
-                )
-            )
             refreshRollup(force: true)
 
         case .scheduleWake(let date):
@@ -536,30 +625,14 @@ final class AppModel {
 
         case .recordSkip:
             tracker.recordSkip()
-            if let cycle = currentCycle {
-                append(.breakResponse(at: now, cycle: cycle, action: .skipped))
-            }
 
-        case .recordIgnoredPrompt:
-            guard promptWasPresented(cycle: currentCycle) else { break }
+        case .recordIgnoredPrompt(let cycle):
+            guard promptWasPresented(cycle: cycle) else { break }
             tracker.recordIgnoredPrompt()
-            if let cycle = currentCycle {
-                append(.breakResponse(at: now, cycle: cycle, action: .ignored))
-            }
 
-        case .recordSnooze(let duration):
+        case .recordSnooze:
             tracker.recordSnooze()
-            if let cycle = currentCycle {
-                append(
-                    .breakResponse(
-                        at: now, cycle: cycle, action: .snoozed,
-                        snoozeSeconds: Int(duration.rounded())
-                    )
-                )
-            }
 
-        case .resumeWorkClock:
-            break
         }
     }
 
@@ -581,7 +654,7 @@ final class AppModel {
         } else {
             notifier.deliver(request, message: message)
             presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: now)
-            append(.breakPrompt(at: now, cycle: request.cycle, reason: request.signal))
+            append(.breakPrompt(at: now, cycle: request.cycle, reason: request.level.signal))
         }
     }
 
@@ -590,9 +663,20 @@ final class AppModel {
     /// line is **not** written here: it is written by `verifyPromptPresentation()` once
     /// the window server has confirmed the panel is on screen, because the line means
     /// "this reached the screen" and the rollup holds the user to exactly that.
+    ///
+    /// `presentPromptPanel` returns false when there is no screen at all, which used to
+    /// be discarded: the app then retried on every tick forever, never fell back, and
+    /// never said so. There is nothing to fall back to in that case, so it says so
+    /// instead of pretending to keep trying.
     private func presentPanel(_ request: PromptRequest, message: RenderedMessage) {
-        overlay.presentPromptPanel(request, message: message, model: self)
+        let drawn = overlay.presentPromptPanel(request, message: message, model: self)
         presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: nil)
+        if !drawn {
+            promptDeliveryFailure =
+                "The \(request.signal) prompt has nowhere to go: this Mac reports no screen. "
+                + "It is not being counted against you."
+            return
+        }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
             self?.verifyPromptPresentation()
@@ -619,7 +703,11 @@ final class AppModel {
             current.verifiedAt = now
             presentation = current
             promptDeliveryFailure = nil
-            append(.breakPrompt(at: now, cycle: current.request.cycle, reason: current.request.signal))
+            append(
+                .breakPrompt(
+                    at: now, cycle: current.request.cycle, reason: current.request.level.signal
+                )
+            )
             return
         }
         current.attempts += 1
@@ -647,6 +735,12 @@ final class AppModel {
     private func promptWasPresented(cycle: CycleID?) -> Bool {
         guard let cycle, let presentation, presentation.request.cycle == cycle else { return false }
         return presentation.verifiedAt != nil
+    }
+
+    /// The one fact `EventLogWriter` needs and the engine cannot know.
+    private var logContext: EffectLogContext {
+        guard let presentation, presentation.verifiedAt != nil else { return EffectLogContext() }
+        return EffectLogContext(confirmedPromptCycle: presentation.request.cycle)
     }
 
     private func wireNotifier() {
@@ -680,6 +774,10 @@ final class AppModel {
             self.store = store
             try store.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
             badges = store.readBadges()
+            if let stored = store.readCounters() {
+                day = stored
+                persistedDay = stored
+            }
             lastStoreError = nil
         } catch {
             store = nil
@@ -693,6 +791,27 @@ final class AppModel {
             try store.append(event)
         } catch {
             lastStoreError = "Could not write the event log, \(error)"
+        }
+    }
+
+    /// Writes the day's budgets back when they have moved.
+    ///
+    /// Without this the counters were a fresh value on every launch, so
+    /// `maxNotificationsPerDay`, the minimum spacing between notifications, the ignore
+    /// backoff and the cycle numbering all reset every time the app started. On the day
+    /// this was found the app had been relaunched 72 times and `break_open {cycle:0}`
+    /// appears eleven times in one file. A setting the user can see and set, and which
+    /// silently never binds, is worse than no setting.
+    ///
+    /// The engine still rolls the counters over itself when the logical day changes, so
+    /// a file written yesterday cannot spend today's budget.
+    private func persistCountersIfChanged() {
+        guard let store, day != persistedDay else { return }
+        do {
+            try store.writeCounters(day)
+            persistedDay = day
+        } catch {
+            lastStoreError = "Could not write the daily counters, \(error)"
         }
     }
 
@@ -778,17 +897,68 @@ final class AppModel {
         engineStateName = engineState.name
         permissionStatus = sensors.permissions.status()
 
-        if outcome.verdict == nil {
+        if case .quiet = engineState {
+            // Nothing is "holding off" a prompt, because the engine is not asking for one
+            // at all. Leaving the sensors gate in here let a live microphone claim the
+            // panel line while the real reason was a spent daily budget, which is the
+            // more important of the two and the only one that lasts until tomorrow.
+            gateReason = nil
+        } else if outcome.verdict == nil {
             gateReason = sample.gate.allowsPrompt ? nil : sample.gate.reason
         }
+        publishHold()
 
-        if case .quiet(let q) = engineState, q.cause == .userPaused {
-            pausedUntil = q.until
+        if case .quiet(let q) = engineState {
+            quietCause = q.cause
+            pausedUntil = q.cause == .userPaused ? q.until : nil
         } else {
+            quietCause = nil
             pausedUntil = nil
         }
 
         refreshRollup(force: false)
+    }
+
+    /// The target the engine is really waiting for, and why it is quiet if it is.
+    ///
+    /// Two of the engine's states are silent without anything blocking them, and neither
+    /// had any vocabulary on screen: `.working` with an `armThreshold` raised by a skip or
+    /// an expired cycle, and `.working` inside the cooldown that follows an ignored
+    /// ladder. Both look identical to ordinary running, which is what the owner was shown
+    /// for eighteen minutes.
+    ///
+    /// `.quiet` is a third. It became reachable for real once the daily counters started
+    /// surviving a relaunch: `dailyCapReached` and `sustainedFocusMode` are terminal until
+    /// the day boundary or the Focus mode ends, emit no verdict and therefore no `gate`
+    /// line, so the app could go silent for the rest of the day with nothing on the panel
+    /// to say so. `--doctor` already answers this; the panel now says the same sentence.
+    private func publishHold() {
+        if case .quiet(let q) = engineState {
+            workTarget = policy.targetContinuousWork
+            holdReason = q.cause == .userPaused ? nil : q.cause.summary
+            return
+        }
+        guard case .working(let w) = engineState else {
+            workTarget = policy.targetContinuousWork
+            holdReason = nil
+            return
+        }
+        workTarget = w.armThreshold
+
+        if let cooldown = w.cooldownUntilMono, time.monotonicSeconds < cooldown {
+            let remaining = cooldown - time.monotonicSeconds
+            holdReason = "the last one ran out of rungs, so nothing for \(DurationText.short(remaining))"
+            return
+        }
+        if w.armThreshold > policy.targetContinuousWork {
+            let extra = w.armThreshold - policy.targetContinuousWork
+            holdReason =
+                "you waved the last one off, so the next is at "
+                + "\(DurationText.short(w.armThreshold)) continuous, "
+                + "\(DurationText.short(extra)) later than usual"
+            return
+        }
+        holdReason = nil
     }
 
     /// Recomputes today's summary from the log. Throttled, because it re-reads up to three
@@ -916,6 +1086,8 @@ final class AppModel {
             lastWrittenSummary = nil
             badges = .empty
             badgeNote = nil
+            day = DailyCounters()
+            persistedDay = nil
             refreshRollup(force: true)
             return report.userFacingSummary
         } catch {
@@ -1017,9 +1189,9 @@ final class AppModel {
             sensors.system.reconcile()
             refreshPermissions()
         case .displaysSlept:
-            append(.system(at: at, .sleep))
+            append(.system(at: at, .displaySleep))
         case .displaysWoke:
-            append(.system(at: at, .wake))
+            append(.system(at: at, .displayWake))
             sensors.system.reconcile()
         case .sessionResignedActive:
             append(.system(at: at, .sessionOut))
@@ -1080,42 +1252,7 @@ final class AppModel {
     /// The verdict, in the user's words. Never a raw enum case: the menu's "why do you
     /// think that?" is the same promise `--doctor` makes.
     static func explain(_ verdict: InterruptionVerdict) -> String? {
-        switch verdict {
-        case .deliver:
-            return nil
-        case .hardBlocked(let block):
-            switch block {
-            case .audioInputInUse:        return "an audio input device is running, you may be on a call"
-            case .cameraInUse:            return "a camera is running, you may be on a call"
-            case .recentCallContinuing:   return "a microphone or camera was live until a moment ago, so this may still be a call"
-            case .screenBeingShared:      return "your screen is being shared"
-            case .presentationFullscreen: return "something fullscreen looks like a presentation"
-            case .focusModeActive:        return "a Focus mode is on"
-            case .screenLocked:           return "the screen is locked"
-            case .systemSleeping:         return "the machine is asleep"
-            case .fastUserSwitched:       return "someone else is signed in at the console"
-            case .settleInAfterBreak:     return "you just got back, settling in"
-            case .videoEventInProgress:   return "a video meeting is in progress"
-            case .imminentMeeting:        return "a meeting starts in a moment"
-            }
-        case .softDeferred(let reason):
-            switch reason {
-            case .deepFocus:               return "you look deep in it, waiting for a seam"
-            case .typingBurst:             return "you are mid-burst, waiting for a pause"
-            case .terminalCommandRunning:  return "a command is still running"
-            case .preMeetingWindow:        return "a meeting is close, waiting"
-            case .recentAppLaunch:         return "you just switched app, waiting a moment"
-            case .inferredMeeting:         return "a conferencing app is up, so you might be in a meeting"
-            case .calendarEventInProgress: return "a calendar event is in progress"
-            }
-        case .rateLimited(let limit):
-            switch limit {
-            case .quietHours:           return "quiet hours"
-            case .dailyCapReached:      return "today's notification budget is spent, passive only from here"
-            case .cycleNotificationCap: return "this cycle has had its notifications"
-            case .minimumSpacing:       return "too soon after the last one"
-            case .ignoreBackoff:        return "these have been going unanswered, so the ladder is shortened"
-            }
-        }
+        let reason = GateReason(verdict)
+        return reason == .delivered ? nil : reason.summary
     }
 }

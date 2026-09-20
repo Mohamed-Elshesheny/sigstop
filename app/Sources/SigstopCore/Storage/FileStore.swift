@@ -315,6 +315,43 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         return (try? JSONDecoder().decode(BadgeLedger.self, from: data)) ?? .empty
     }
 
+    // MARK: - Daily counters
+
+    /// `counters.json`, beside `badges.json` at the storage root.
+    public var countersFile: URL {
+        root.appendingPathComponent("counters.json", isDirectory: false)
+    }
+
+    /// The day's budgets, so a relaunch does not hand the user a fresh allowance.
+    ///
+    /// `DailyCounters` used to be a plain value constructed at launch, which meant the
+    /// notification cap, the minimum spacing, the ignore backoff and the cycle numbering
+    /// all reset every time the app started. On the day this was found the app had been
+    /// relaunched 72 times, `break_open {cycle:0}` appears eleven times in one file, and
+    /// the user-visible "notifications per day" setting had never once been a real
+    /// constraint.
+    ///
+    /// It holds counts and one timestamp. No activity, no application, nothing about what
+    /// was on screen, so it adds nothing to the inventory in docs/PRIVACY.md §1.2 that
+    /// the event log does not already hold.
+    public func writeCounters(_ counters: DailyCounters) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try writeAtomically(try encoder.encode(counters), to: countersFile)
+    }
+
+    /// The counters on disk, or nil when there are none or the file will not parse. A
+    /// corrupt file reads as absent: starting the day again is a small wrong answer, and
+    /// refusing to launch is a large one.
+    public func readCounters() -> DailyCounters? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let data = fm.contents(atPath: countersFile.path) else { return nil }
+        return try? JSONDecoder().decode(DailyCounters.self, from: data)
+    }
+
     // MARK: - Retention
 
     /// Retention is a file deletion, never a rewrite. That is the payoff for one file
