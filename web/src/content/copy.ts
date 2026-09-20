@@ -269,7 +269,7 @@ export const footer = {
 export const productDemo = {
   kicker: "The whole loop",
   headline: "Forty five minutes, then five.",
-  sub: "This is the entire product. There is no dashboard to configure, no streak to maintain, and nothing to log in to.",
+  sub: "This is the entire product. There is no dashboard to configure, no streak to maintain, and nothing to log in to. There are ten badges, kept out of the way in Settings: none of them expires, none of them can go down, and none of them rewards working longer.",
   steps: [
     {
       id: "work",
@@ -334,7 +334,7 @@ export const comparison = {
   columns: [
     { key: "sigstop", label: "sigstop", note: "this", highlight: true },
     { key: "pomodoro", label: "Pomodoro timers", note: "the 25 minute crowd", highlight: false },
-    { key: "wellness", label: "Wellness apps", note: "streaks, badges, a subscription", highlight: false },
+    { key: "wellness", label: "Wellness apps", note: "streaks to protect, a subscription", highlight: false },
     { key: "nothing", label: "Your current setup", note: "nothing", highlight: false },
   ],
   rows: [
@@ -350,6 +350,7 @@ export const comparison = {
     { trait: "Free, no account, no tier", sigstop: "yes", pomodoro: "some", wellness: "no", nothing: "yes" },
     { trait: "Escalates instead of nagging identically", sigstop: "yes", pomodoro: "no", wellness: "no", nothing: "no" },
     { trait: "Runs on Windows and Linux", sigstop: "no", pomodoro: "yes", wellness: "yes", nothing: "yes" },
+    { trait: "Keeps a streak you can lose", sigstop: "no", pomodoro: "no", wellness: "yes", nothing: "no" },
     { trait: "Tracks anything for your manager", sigstop: "no", pomodoro: "no", wellness: "some", nothing: "no" },
     { trait: "Will make you a better engineer", sigstop: "yes", pomodoro: "no", wellness: "no", nothing: "no" },
   ],

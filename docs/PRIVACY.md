@@ -49,9 +49,10 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 18 | **Preferences**: interval, threshold, quiet hours, tone, prompt channel and sound | User input | Configuration | Persisted, `settings.json` (plain JSON, human-editable) | Until you change or delete them | n/a |
 | 19 | **App category map** (`com.apple.dt.Xcode → code`) | Static JSON shipped inside the bundle, plus your own overrides | Classify #1 without heuristics | Read-only in `App.app/Contents/Resources/categories.json`; overrides in `settings.json` | Ships with the app | n/a |
 | 20 | **Break message packs** | Static JSON shipped inside the bundle | Text of the reminder | Read-only resource | Ships with the app | Yes, choose or disable |
-| 21 | **Login-item registration** | `SMAppService.mainApp.register()` | Start at login, if you ask for it | A registration record owned by `launchservicesd`, outside the app's storage | Until unregistered | Yes — off by default |
-| 22 | **Notification authorization status** | `UNUserNotificationCenter.notificationSettings()` | Decide whether to use a system notification or the in-app fallback window | Memory-only (the real record is TCC's) | n/a | n/a |
-| 23 | **Unified log lines** | `os.Logger` | Debugging | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
+| 21 | **Unlocked badges**: which of the ten marks have unlocked, and the day each did | Derived from #17 and #16, entirely — no new signal, no new event field, nothing observed that was not already in this table | So a badge earned inside the 7-day event window is not silently lost when those events are pruned | Persisted, `badges.json` (a flat map of badge id to day) | Kept until you delete your data; never expires and never decreases | n/a |
+| 22 | **Login-item registration** | `SMAppService.mainApp.register()` | Start at login, if you ask for it | A registration record owned by `launchservicesd`, outside the app's storage | Until unregistered | Yes — off by default |
+| 23 | **Notification authorization status** | `UNUserNotificationCenter.notificationSettings()` | Decide whether to use a system notification or the in-app fallback window | Memory-only (the real record is TCC's) | n/a | n/a |
+| 24 | **Unified log lines** | `os.Logger` | Debugging | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
 
 That is the complete list. There is no row for account, device identifier, hardware serial, locale
 beacon, install ID, or first-run ping, because none of those exist in the code.
@@ -589,6 +590,7 @@ never have to guess.
 <storage root>/                        (mode 0700)
 ├── settings.json                      (mode 0600)  your preferences
 ├── state.json                         (mode 0600)  break engine state, overwritten in place
+├── badges.json                        (mode 0600)  which badges have unlocked, and when
 ├── events/
 │   ├── 2026-09-18.jsonl               (mode 0600)  append-only, one JSON object per line
 │   ├── 2026-09-19.jsonl
@@ -647,6 +649,23 @@ Field reference:
   }
 }
 ```
+
+`badges.json`:
+```json
+{
+  "unlocked" : {
+    "stopped-1" : "2026-09-20",
+    "unmasked" : "2026-09-24"
+  },
+  "v" : 1
+}
+```
+
+That is the whole file. It holds ten possible keys, each a fixed badge id, each pointing at a day —
+no counters, no history, no per-badge progress, and nothing that says what you were doing when a
+badge unlocked. It exists because raw events are pruned after 7 days (§4.5) and a record of
+something you did should not disappear with the evidence for it; every badge is otherwise computed
+from rows 16 and 17 of the inventory in §1.2, which were already being kept.
 
 If a line in the event log does not parse, the reader skips it and counts it; a corrupt file never
 crashes the app and never silently changes your history.
@@ -724,6 +743,7 @@ Defaults, all user-changeable in `settings.json`:
 |---|---|---|
 | Raw events | 7 days | 0 (memory-only mode) – 365 days |
 | Daily summaries | 90 days | 0 – forever |
+| Unlocked badges | kept | not pruned — see below |
 | Debug title ring | 20 entries, memory-only | fixed |
 
 Pruning runs at launch and once an hour. "0 days" for raw events is a real mode: the store becomes
@@ -749,6 +769,11 @@ func pruneEvents(olderThan days: Int, in eventsDir: URL, now: Date = Date()) thr
 
 String comparison works here because the filenames are zero-padded ISO dates; the test
 `RetentionTests.swift` pins that assumption.
+
+`badges.json` is deliberately not pruned, and it is the one file here that is not. Pruning it would
+mean a badge vanishing a week after it was earned, which is the opposite of what a record of
+something you did is for. It stays a few hundred bytes whatever happens — ten ids and ten dates is
+its maximum size — and "Delete everything" removes it with the rest, because delete means delete.
 
 ### 4.6 Export and delete
 

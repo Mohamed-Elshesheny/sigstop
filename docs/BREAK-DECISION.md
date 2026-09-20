@@ -992,4 +992,17 @@ long form keeps it a description of a day.
   energy, alertness, mood, or productivity gains. The app knows what the clock says and nothing else.
 - Never imply the user is doing something wrong by working. "Skip this one" is a first-class button,
   not a hidden one, and skipping produces no scolding copy on the next prompt.
-- The daily summary reports; it does not grade. No streaks, no badges, no red numbers.
+- The daily summary reports; it does not grade. No streaks, no red numbers, and nothing in
+  the summary that could be read as a score.
+- **There are badges, and this is where the line between them and a streak is drawn.** Ten
+  of them, defined in `SigstopCore/Badges/Badge.swift` and shown only in Settings, never in
+  the summary and never in the prompt. Three properties make them compatible with the rule
+  above rather than an exception to it: **nothing expires** — a badge records something that
+  happened and cannot be taken back, so there is no number to protect and missing a day
+  costs nothing; **nothing is new** — every condition is arithmetic over the `DailySummary`
+  fields in §14 and the event vocabulary that already existed, so the privacy inventory grew
+  by one derived file and not one observation; and **none of them rewards working longer** —
+  every one is for taking the break or for not needing it, and `sched_yield` is explicitly
+  for a full working day in which no single stretch passed an hour. A badge for a long
+  session would have the product arguing with itself, and is the one shape of badge this
+  file forbids.

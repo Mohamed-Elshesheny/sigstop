@@ -258,6 +258,63 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         var days: [String: DailySummary]
     }
 
+    /// Every stored summary, newest month included, keyed by logical day.
+    ///
+    /// The badge evaluator needs the whole window rather than one month, and summaries
+    /// outlive raw events by design — so this is where "what did the last three months
+    /// look like" is answered without keeping the trace that produced it.
+    public func readAllSummaries() throws -> [CalendarDay: DailySummary] {
+        lock.lock()
+        defer { lock.unlock() }
+        let contents = (try? fm.contentsOfDirectory(
+            at: summariesDirectory, includingPropertiesForKeys: nil
+        )) ?? []
+        var out: [CalendarDay: DailySummary] = [:]
+        for url in contents where url.pathExtension == "json" {
+            guard
+                let data = fm.contents(atPath: url.path),
+                let file = try? JSONDecoder().decode(SummaryFile.self, from: data)
+            else { continue }
+            for (key, value) in file.days {
+                if let day = CalendarDay.parse(key) { out[day] = value }
+            }
+        }
+        return out
+    }
+
+    // MARK: - Badges
+
+    /// `badges.json`, beside `settings.json` at the storage root.
+    public var badgesFile: URL {
+        root.appendingPathComponent("badges.json", isDirectory: false)
+    }
+
+    /// Writes the ledger atomically, in the same plain readable shape as everything else
+    /// here: a schema version and a flat map of badge id to the day it unlocked.
+    ///
+    /// **This file is the only reason a badge survives retention.** Raw events are kept
+    /// for seven days, so the tallies behind most of the ten stop being recomputable
+    /// long before the badges would stop being true. Callers must merge into what is
+    /// already on disk rather than overwrite it — `BadgeLedger.merging` is that merge,
+    /// and it only ever adds.
+    public func writeBadges(_ ledger: BadgeLedger) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try writeAtomically(try encoder.encode(ledger), to: badgesFile)
+    }
+
+    /// The ledger on disk, or an empty one. A file that will not parse reads as empty
+    /// rather than throwing: the badges are a record of something nice, and no part of
+    /// the app should fail to launch over one.
+    public func readBadges() -> BadgeLedger {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let data = fm.contents(atPath: badgesFile.path) else { return .empty }
+        return (try? JSONDecoder().decode(BadgeLedger.self, from: data)) ?? .empty
+    }
+
     // MARK: - Retention
 
     /// Retention is a file deletion, never a rewrite. That is the payoff for one file

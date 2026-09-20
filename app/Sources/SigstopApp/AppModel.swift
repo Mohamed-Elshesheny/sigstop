@@ -69,6 +69,12 @@ final class AppModel {
     private(set) var todaySummary: DailySummary?
     private(set) var todayLine: String = ""
     private(set) var todayDetail: String = ""
+    /// Which of the ten badges have unlocked, and when. Read by Settings → Badges.
+    private(set) var badges: BadgeLedger = .empty
+    /// One line for the panel footer when something unlocked while the app was running,
+    /// cleared once the user has been to look. Deliberately not a panel and not a sound:
+    /// this app interrupts for exactly one thing, and a badge is not it.
+    private(set) var badgeNote: String?
     private(set) var breakEndsAt: Date?
     private(set) var breakContent: BreakContent?
     private(set) var snoozeUntil: Date?
@@ -169,6 +175,9 @@ final class AppModel {
     @ObservationIgnored private var idleBeganAt: Date?
     @ObservationIgnored private var seamsForNextStep: Set<Seam> = []
     @ObservationIgnored private var rollupComputedAt: Date?
+    /// The last summary handed to the store, so a minute that changed nothing does not
+    /// rewrite the month file.
+    @ObservationIgnored private var lastWrittenSummary: DailySummary?
 
     /// The prompt the app is currently responsible for having on screen, and whether the
     /// window server has confirmed it. See `verifyPromptPresentation()`.
@@ -541,6 +550,7 @@ final class AppModel {
             let store = try FileEventStore(root: AppPaths.storageRoot)
             self.store = store
             try store.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
+            badges = store.readBadges()
             lastStoreError = nil
         } catch {
             store = nil
@@ -668,6 +678,91 @@ final class AppModel {
         let seed = UInt64(bitPattern: Int64(today.year * 10_000 + today.month * 100 + today.day))
         todayLine = narrator.line(for: summary, seed: seed)
         todayDetail = narrator.detail(for: summary)
+        refreshBadges(today: summary, store: store)
+    }
+
+    /// Re-evaluates the ten badges. Called from `refreshRollup` and from nowhere else, so
+    /// it runs at most once a minute rather than on every five-second tick.
+    ///
+    /// Today's summary is persisted here too. `summaries/YYYY-MM.json` has been part of
+    /// the storage layout and the privacy inventory from the start but nothing ever wrote
+    /// to it; the badges are the first thing that needs a day to still be countable after
+    /// its raw events have aged out of the seven-day window, and without it
+    /// `[100]+ Stopped` would only ever be reachable by someone taking a hundred breaks
+    /// inside one week. The file holds the same aggregates the panel already shows.
+    private func refreshBadges(today: DailySummary, store: FileEventStore) {
+        if lastWrittenSummary != today {
+            do {
+                try store.writeSummary(today)
+                lastWrittenSummary = today
+            } catch {
+                lastStoreError = "Could not write the daily summary — \(error)"
+            }
+        }
+
+        let days = badgeDays(store: store)
+        guard !days.isEmpty else { return }
+        let updated = BadgeEvaluator.evaluate(
+            days: days,
+            calendar: .current,
+            policy: .default,
+            knownUnlocked: badges
+        )
+        guard updated != badges else { return }
+
+        let fresh = updated.newlyUnlocked(since: badges)
+        badges = updated
+        try? store.writeBadges(updated)
+        if let note = Self.badgeNote(for: fresh) { badgeNote = note }
+    }
+
+    /// Every logical day the app can still say anything about: the stored summaries, plus
+    /// every day the event log still covers, recomputed so the four event-derived badges
+    /// have something to read.
+    ///
+    /// Each UTC file is read once and the logical days are assembled in memory, because a
+    /// logical day straddles up to three files and reading them per day would be three
+    /// times the I/O for the same bytes.
+    private func badgeDays(store: FileEventStore) -> [BadgeDay] {
+        var byDay: [CalendarDay: BadgeDay] = [:]
+        for (day, summary) in (try? store.readAllSummaries()) ?? [:] {
+            byDay[day] = BadgeDay(summary: summary)
+        }
+
+        let fileDays = (try? store.availableDays()) ?? []
+        var loaded: [CalendarDay: [LoggedEvent]] = [:]
+        for day in fileDays {
+            loaded[day] = (try? store.load(day: day).events) ?? []
+        }
+        var logicalDays: Set<CalendarDay> = []
+        for day in fileDays {
+            logicalDays.insert(day)
+            logicalDays.insert(day.adding(days: -1))
+        }
+        for day in logicalDays.sorted() {
+            let events = [day.adding(days: -1), day, day.adding(days: 1)]
+                .flatMap { loaded[$0] ?? [] }
+                .sorted { $0.at < $1.at }
+            guard !events.isEmpty else { continue }
+            byDay[day] = BadgeDay.from(day: day, events: events, policy: .default, calendar: .current)
+        }
+        return byDay.values.sorted { $0.day < $1.day }
+    }
+
+    /// The panel footer line. Names the badge when there is one and counts them when
+    /// there are several, and points at where to look rather than describing it.
+    private static func badgeNote(for unlocked: [BadgeID]) -> String? {
+        guard let first = unlocked.first else { return nil }
+        if unlocked.count == 1 {
+            return "unlocked: \(Badge.badge(first).title) — Settings → Badges"
+        }
+        return "unlocked: \(unlocked.count) badges — Settings → Badges"
+    }
+
+    /// Clears the footer note. Called when the Badges pane appears: the notice is shown
+    /// until the user has been to look at it, and then never again.
+    func acknowledgeBadges() {
+        badgeNote = nil
     }
 
     // MARK: - Data commands, wired to the Store
@@ -689,6 +784,9 @@ final class AppModel {
             todaySummary = nil
             todayLine = ""
             todayDetail = ""
+            lastWrittenSummary = nil
+            badges = .empty
+            badgeNote = nil
             refreshRollup(force: true)
             return report.userFacingSummary
         } catch {
