@@ -64,6 +64,21 @@ final class AppModel {
     /// Why a prompt is being held right now, in the user's words. `nil` means nothing is
     /// holding it.
     private(set) var gateReason: String?
+    /// Why the app is quiet while nothing is blocking it, in the user's words.
+    ///
+    /// `gateReason` covers the blocked case and only the blocked case, so the two states
+    /// the engine is silent in without being blocked had no vocabulary at all: a raised
+    /// `armThreshold` after a skip or an expired cycle, and a live cooldown after an
+    /// ignored ladder. That is the gap the owner sat in for eighteen minutes, watching a
+    /// panel that said RUNNING.
+    private(set) var holdReason: String?
+    /// The continuous work the engine is **actually** waiting for, which is not always
+    /// the user's interval.
+    ///
+    /// The header used to divide by `settings.workInterval` unconditionally, so a skip
+    /// that privately re-armed at 1505 seconds still drew `18:17 / 5:00` with the mark
+    /// pinned full. The number on screen is now the number in force.
+    private(set) var workTarget: TimeInterval
     private(set) var indicator: IndicatorState = .working
     private(set) var engineStateName: String = "working"
     private(set) var todaySummary: DailySummary?
@@ -95,9 +110,8 @@ final class AppModel {
     /// 0…1, how full the menu bar bars are drawn. The fraction of the target interval
     /// that has actually been *worked*, clamped, never extrapolated.
     var workFraction: Double {
-        let target = settings.workInterval
-        guard target > 0 else { return 0 }
-        return min(1, max(0, displayedContinuousWork / target))
+        guard workTarget > 0 else { return 0 }
+        return min(1, max(0, displayedContinuousWork / workTarget))
     }
 
     /// `continuousWork` carried forward to now, for display only.
@@ -159,6 +173,9 @@ final class AppModel {
     @ObservationIgnored private var sensors: SensorStack
     @ObservationIgnored private var tracker: SessionTracker
     @ObservationIgnored private var decision: BreakDecisionEngine
+    /// The thresholds in force, kept so the view layer can say when the engine is waiting
+    /// for something other than the user's interval.
+    @ObservationIgnored private var policy: BreakPolicy
     @ObservationIgnored private var store: FileEventStore?
 
     // MARK: - Loop state (never observed)
@@ -217,6 +234,8 @@ final class AppModel {
         let policy = Self.policy(for: loaded)
 
         self.settings = loaded
+        self.policy = policy
+        self.workTarget = policy.targetContinuousWork
         self.sensors = SensorStack(settings: loaded, time: time, workClock: workClock)
         self.tracker = SessionTracker(time: time, policy: policy)
         self.decision = BreakDecisionEngine(policy: policy)
@@ -327,7 +346,8 @@ final class AppModel {
         settings = newValue
         SettingsStore.save(newValue)
         onSettingsChanged?()
-        decision = BreakDecisionEngine(policy: Self.policy(for: newValue))
+        policy = Self.policy(for: newValue)
+        decision = BreakDecisionEngine(policy: policy)
         sensors.context.reloadSettings(newValue)
         permissionStatus = sensors.permissions.status()
         if !newValue.showBreakOverlay { overlay.dismissBreak() }
@@ -780,6 +800,7 @@ final class AppModel {
         if outcome.verdict == nil {
             gateReason = sample.gate.allowsPrompt ? nil : sample.gate.reason
         }
+        publishHold()
 
         if case .quiet(let q) = engineState, q.cause == .userPaused {
             pausedUntil = q.until
@@ -788,6 +809,37 @@ final class AppModel {
         }
 
         refreshRollup(force: false)
+    }
+
+    /// The target the engine is really waiting for, and why it is quiet if it is.
+    ///
+    /// Two of the engine's states are silent without anything blocking them, and neither
+    /// had any vocabulary on screen: `.working` with an `armThreshold` raised by a skip or
+    /// an expired cycle, and `.working` inside the cooldown that follows an ignored
+    /// ladder. Both look identical to ordinary running, which is what the owner was shown
+    /// for eighteen minutes.
+    private func publishHold() {
+        guard case .working(let w) = engineState else {
+            workTarget = policy.targetContinuousWork
+            holdReason = nil
+            return
+        }
+        workTarget = w.armThreshold
+
+        if let cooldown = w.cooldownUntilMono, time.monotonicSeconds < cooldown {
+            let remaining = cooldown - time.monotonicSeconds
+            holdReason = "the last one ran out of rungs, so nothing for \(DurationText.short(remaining))"
+            return
+        }
+        if w.armThreshold > policy.targetContinuousWork {
+            let extra = w.armThreshold - policy.targetContinuousWork
+            holdReason =
+                "you waved the last one off, so the next is at "
+                + "\(DurationText.short(w.armThreshold)) continuous, "
+                + "\(DurationText.short(extra)) later than usual"
+            return
+        }
+        holdReason = nil
     }
 
     /// Recomputes today's summary from the log. Throttled, because it re-reads up to three
