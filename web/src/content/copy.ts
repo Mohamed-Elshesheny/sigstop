@@ -16,7 +16,7 @@
 
 export const site = {
   name: "sigstop",
-  repo: "https://github.com/sigstop/sigstop",
+  repo: "https://github.com/Mohamed-Elshesheny/sigstop",
   tagline: "Suspend. Resume. Nothing lost.",
   description:
     "An open-source macOS menu bar app that notices what you're actually working on and tells you to step away, in a language you'll recognise.",
@@ -213,9 +213,9 @@ export const openSource = {
   headline: "Built in the open.",
   sub: "Apache-2.0 licensed. No paid tier, no \"pro\" version withholding the useful half, no account to create. If it's useful, star it. If it's wrong, open an issue. If you have a better joke, open a PR, the message corpus is a JSON file.",
   cards: [
-    { title: "Read the architecture", body: "Four design documents written before a line of Swift. The activity detection doc is honest about what macOS will and won't let an app know.", cta: "docs/", href: "https://github.com/sigstop/sigstop/tree/main/docs" },
-    { title: "Add your editor", body: "Support for a new app is one provider file and a bundle id. It requires zero changes to core code, if it did, the extension point would be wrong.", cta: "Providers", href: "https://github.com/sigstop/sigstop/tree/main/app/Sources/SigstopSensors/Providers" },
-    { title: "Write a better line", body: "The corpus is plain JSON with structured preconditions. Contribute a joke that only fires when someone's been in Xcode for 90 minutes on a Friday.", cta: "corpus.json", href: "https://github.com/sigstop/sigstop/blob/main/app/Sources/SigstopCore/Message/corpus.json" },
+    { title: "Read the architecture", body: "Four design documents written before a line of Swift. The activity detection doc is honest about what macOS will and won't let an app know.", cta: "docs/", href: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs" },
+    { title: "Add your editor", body: "Support for a new app is one provider file and a bundle id. It requires zero changes to core code, if it did, the extension point would be wrong.", cta: "Providers", href: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/app/Sources/SigstopSensors/Providers" },
+    { title: "Write a better line", body: "The corpus is plain JSON with structured preconditions. Contribute a joke that only fires when someone's been in Xcode for 90 minutes on a Friday.", cta: "corpus.json", href: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/app/Sources/SigstopCore/Message/corpus.json" },
   ],
   facts: [
     { k: "Language", v: "Swift 6" },
@@ -254,8 +254,8 @@ export const finalCta = {
 export const footer = {
   blurb: "An open-source macOS menu bar app for developers who forget to stop.",
   columns: [
-    { title: "Product", links: [ { label: "Download", href: "#download" }, { label: "How it works", href: "#how-it-works" }, { label: "Privacy", href: "#privacy" }, { label: "Changelog", href: "https://github.com/sigstop/sigstop/releases" } ] },
-    { title: "Source", links: [ { label: "GitHub", href: "https://github.com/sigstop/sigstop" }, { label: "Architecture docs", href: "https://github.com/sigstop/sigstop/tree/main/docs" }, { label: "Contributing", href: "https://github.com/sigstop/sigstop/blob/main/CONTRIBUTING.md" }, { label: "License (Apache-2.0)", href: "https://github.com/sigstop/sigstop/blob/main/LICENSE" } ] },
+    { title: "Product", links: [ { label: "Download", href: "#download" }, { label: "How it works", href: "#how-it-works" }, { label: "Privacy", href: "#privacy" }, { label: "Changelog", href: "https://github.com/Mohamed-Elshesheny/sigstop/releases" } ] },
+    { title: "Source", links: [ { label: "GitHub", href: "https://github.com/Mohamed-Elshesheny/sigstop" }, { label: "Architecture docs", href: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs" }, { label: "Contributing", href: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md" }, { label: "License (Apache-2.0)", href: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/LICENSE" } ] },
   ],
   colophon: "No analytics on this page either. It would have been a strange thing to do.",
 } as const;
