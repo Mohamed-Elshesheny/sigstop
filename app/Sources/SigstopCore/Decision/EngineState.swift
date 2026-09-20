@@ -51,6 +51,10 @@ public enum PromptChannel: String, Sendable, Codable, Hashable {
 public enum IndicatorState: String, Sendable, Codable, Hashable {
     case working
     case breakDue
+    /// A break is due and the app is deliberately holding it: a live microphone or
+    /// camera, or the call latch. Distinct from `.escalating` on purpose, because an
+    /// escalating indicator during a call is both wrong and alarming.
+    case held
     case escalating
     case onBreak
     case idle
@@ -95,6 +99,9 @@ public enum WithdrawReason: String, Sendable, Codable, Hashable {
     case breakStarted
     case dailyCapReached
     case userSnoozed
+    /// A hard block began while the prompt was on screen. Without this a notification or
+    /// panel delivered one second before a call sat there for the whole call.
+    case blocked
 }
 
 /// How a cycle ended. Only `honored` counts in the numerator; `expired`, `quietSuppressed`
@@ -229,6 +236,9 @@ public struct Escalation: Sendable, Codable, Hashable {
     public var deliveredLevels: Set<EscalationLevel> = []
     /// `ladderElapsed` at which level 4 was delivered; the ladder ends `promptTimeout` later.
     public var finalDeliveredAt: TimeInterval?
+    /// Set once the outstanding prompt has been pulled for a hard block, so the withdraw
+    /// fires on the transition rather than on every blocked tick.
+    public var withdrawnForBlock: Bool = false
     public var lastStepMono: Double
 
     public init(
