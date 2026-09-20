@@ -144,8 +144,8 @@ public struct BreakDecisionEngine: Sendable {
                 effects.append(.withdrawPrompt(cycle: cycle, reason: .userLeft))
                 effects.append(.closeCycle(cycle, .honored))
                 day.honoredOpportunities += 1
-                day.consecutiveIgnoredCycles = 0
             }
+            day.consecutiveIgnoredCycles = 0
             effects.append(.setIndicator(.working))
             let working = WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork)
             return EngineOutcome(state: .working(working), effects: effects, day: day, verdict: nil)
@@ -217,7 +217,10 @@ public struct BreakDecisionEngine: Sendable {
         effects: inout [Effect]
     ) -> EngineState {
         var w = working
-        if input.context.continuousWork < w.lastWorkSeen { w.armThreshold = policy.targetContinuousWork }
+        if input.context.continuousWork < w.lastWorkSeen {
+            w.armThreshold = policy.targetContinuousWork
+            w.standDown = nil
+        }
         w.lastWorkSeen = input.context.continuousWork
 
         if input.context.idleSeconds >= policy.microIdleGrace || input.signals.screenLocked {
@@ -228,10 +231,14 @@ public struct BreakDecisionEngine: Sendable {
 
         if let cooldown = w.cooldownUntilMono {
             if input.monotonic < cooldown {
-                effects.append(.setIndicator(.working))
+                /// A break is owed and the app has decided not to ask for it yet. Saying
+                /// `.working` here drew a full bright mark and a clock climbing against a
+                /// threshold nothing was waiting for.
+                effects.append(.setIndicator(.backedOff))
                 return .working(w)
             }
             w.cooldownUntilMono = nil
+            w.standDown = nil
         }
 
         let due = input.context.continuousWork >= w.armThreshold
@@ -278,10 +285,12 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.setIndicator(.working))
             return (.working(WorkingState(
                 armThreshold: input.context.continuousWork + policy.rearmAfterStale,
-                lastWorkSeen: input.context.continuousWork
+                lastWorkSeen: input.context.continuousWork,
+                standDown: .cycleExpired
             )), nil)
         }
 
+        d.uncorroboratedAudioElapsed = advanceAudioHold(d.uncorroboratedAudioElapsed, by: dt, input: input)
         let verdict = interruption.verdict(input, budget: d.budget)
         d.lastVerdict = verdict
         effects.append(.recordVerdict(verdict))
@@ -296,6 +305,7 @@ public struct BreakDecisionEngine: Sendable {
                 dueSince: d.dueSince,
                 ignoredAt: input.now,
                 notificationsThisCycle: d.notificationsThisCycle,
+                uncorroboratedAudioElapsed: d.uncorroboratedAudioElapsed,
                 totalElapsed: d.totalElapsed,
                 lastStepMono: input.monotonic
             )), verdict)
@@ -404,10 +414,12 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.setIndicator(.working))
             return (.working(WorkingState(
                 armThreshold: input.context.continuousWork + policy.rearmAfterStale,
-                lastWorkSeen: input.context.continuousWork
+                lastWorkSeen: input.context.continuousWork,
+                standDown: .cycleExpired
             )), nil)
         }
 
+        e.uncorroboratedAudioElapsed = advanceAudioHold(e.uncorroboratedAudioElapsed, by: dt, input: input)
         let verdict = interruption.verdict(input, budget: e.budget)
         effects.append(.recordVerdict(verdict))
 
@@ -447,18 +459,30 @@ public struct BreakDecisionEngine: Sendable {
             }
         }
 
+        /// The ladder ends when it has nothing left to deliver, not when a four-rung
+        /// timer runs out over rungs that were switched off.
+        ///
+        /// Under the ignore backoff the ceiling is capped to `.second` and `.second` is
+        /// then refused by `ignoreBackoff` for the rest of the cycle, so the engine used
+        /// to sit for `ladderLevel4 + promptTimeout` waiting on a ladder it had already
+        /// disabled. That was 36 of the 63 minutes a user was left alone after two
+        /// ignored opportunities; nobody chose it, and the cooldown that follows is
+        /// untouched. `ladderIsSpent` states the same fact `rateLimit` states.
         let exhausted: Bool = {
             if let delivered = e.finalDeliveredAt { return e.ladderElapsed - delivered >= policy.promptTimeout }
+            if interruption.ladderIsSpent(input, budget: e.budget) { return true }
             return e.ladderElapsed >= policy.ladderLevel4 + policy.promptTimeout
         }()
         if exhausted {
             effects.append(.closeCycle(e.cycle, .ignoredExhausted))
             day.consecutiveIgnoredCycles += 1
-            effects.append(.setIndicator(.escalating))
+            effects.append(.setIndicator(.backedOff))
+            let backedOff = day.consecutiveIgnoredCycles >= policy.ignoreBackoffThreshold
             return (.working(WorkingState(
                 armThreshold: policy.targetContinuousWork,
                 cooldownUntilMono: input.monotonic + policy.cooldownAfterExhausted,
-                lastWorkSeen: input.context.continuousWork
+                lastWorkSeen: input.context.continuousWork,
+                standDown: backedOff ? .backedOff : .ladderExhausted
             )), verdict)
         }
 
@@ -487,11 +511,25 @@ public struct BreakDecisionEngine: Sendable {
         }
     }
 
+    /// How long this opportunity has been held by an input device nothing else
+    /// corroborates. Zero the instant the device stops, or the instant anything
+    /// independent says it is a call, so short real calls never accumulate towards the
+    /// ceiling and a long corroborated one never reaches it at all.
+    private func advanceAudioHold(
+        _ elapsed: TimeInterval, by dt: TimeInterval, input: EngineInput
+    ) -> TimeInterval {
+        guard input.signals.audioInputRunning, !interruption.audioIsCorroborated(input) else { return 0 }
+        return elapsed + dt
+    }
+
+    /// Live capture suppresses the sound channel for the same reason low power does: the
+    /// rung still arrives, it just does not chime into somebody's recording.
     private func channelFor(level: EscalationLevel, signals: SystemSignals) -> PromptChannel {
+        let quiet = signals.isPowerConstrained || signals.audioInputRunning || signals.cameraRunning
         switch level {
         case .first:    return .passiveIndicator
         case .second:   return .notification
-        case .third:    return signals.isPowerConstrained ? .notification : .notificationWithSound
+        case .third:    return quiet ? .notification : .notificationWithSound
         case .incident: return signals.isPowerConstrained ? .notification : .panel
         }
     }
@@ -551,11 +589,25 @@ public struct BreakDecisionEngine: Sendable {
         )
         if let cycle = active.cycle {
             effects.append(.closeCycle(cycle, honored ? .honored : .skipped))
-            if honored {
-                day.honoredOpportunities += 1
-                day.consecutiveIgnoredCycles = 0
-            }
+            if honored { day.honoredOpportunities += 1 }
         }
+        /// The backoff is cleared by the break, not by the cycle the break happened to be
+        /// attached to. Under the backoff a cycle gets one prompt and closes
+        /// `promptTimeout` later, so a user who answers even a minute late starts their
+        /// break with `cycle == nil` — and while this reset lived inside `if let cycle`
+        /// that break bought them nothing. `consecutiveIgnoredCycles` never fell back
+        /// under the threshold, every later opportunity was still a single prompt, and
+        /// `PromptOutlook`'s "taking a break clears that and the full ladder comes back"
+        /// was a sentence the engine did not honour. The only exit was answering inside
+        /// the 90 second window, which is the window the backoff exists to shorten.
+        ///
+        /// A spontaneous break with no opportunity behind it clears it too, deliberately:
+        /// the counter means "opportunities in a row that went unanswered by a break", and
+        /// it is the nagging that stands down, not the accounting. `honoredOpportunities`
+        /// stays inside the `if let` for exactly the opposite reason — crediting a break
+        /// nobody asked for would inflate compliance against a denominator that never
+        /// grew, and the ledger the panel actually reads would disagree with it.
+        if honored { day.consecutiveIgnoredCycles = 0 }
         effects.append(.setIndicator(.working))
         return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: 0))
     }
@@ -676,7 +728,8 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.setIndicator(.working))
             return .working(WorkingState(
                 armThreshold: input.context.continuousWork + policy.rearmAfterSkip,
-                lastWorkSeen: input.context.continuousWork
+                lastWorkSeen: input.context.continuousWork,
+                standDown: .skipped
             ))
 
         case .endBreak:

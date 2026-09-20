@@ -599,7 +599,7 @@ enum RateLimit: String, Codable {
 
 | Block | Detection | Notes |
 |---|---|---|
-| `audioInputInUse` | CoreAudio `kAudioDevicePropertyDeviceIsRunningSomewhere` on every input device | Public API, no permission. Covers Zoom/Meet/Teams/huddles/recording uniformly, which is why the engine keys on *the microphone*, not on a list of app bundle ids it will always be behind on. |
+| `audioInputInUse` | CoreAudio `kAudioDevicePropertyDeviceIsRunningSomewhere` on every input device, attributed through `kAudioProcessPropertyIsRunningInput`, and **bounded**: see §7.1.1 | Public API, no permission. Covers Zoom/Meet/Teams/huddles/recording uniformly, which is why the engine keys on *the microphone*, not on a list of app bundle ids it will always be behind on. |
 | `cameraInUse` | CMIO `kCMIODevicePropertyDeviceIsRunningSomewhere` over `kCMIOHardwarePropertyDevices` | Same idea for video, and **shipped**. Public API, no Camera permission, no prompt, verified against `tccd`. A read failure is `nil`, never `false`. Four states with the same calibration guard as audio, because a virtual camera can hold a device open forever. This closes the camera-on / microphone-muted posture, which is the normal one on Teams and Meet, with no inference at all. |
 | `recentCallContinuing` | The call latch: a capture device ran continuously for >= 45 s and stopped less than the hold budget ago | See §7.7. Named after what it asserts, not after what you might conclude from it. |
 | `screenBeingShared` | **Nothing. This block cannot fire.** | `CGDisplayIsCaptured`, which this row used to name, is annotated `API_DEPRECATED("No longer supported", macos(10.0,10.9))` and does not compile from Swift. CoreMediaIO enumerates no display-capture device. ScreenCaptureKit needs the Screen Recording grant CLAUDE.md 4.2 forbids hard-requiring. The weaker and honest claim: someone looked for a permission-free signal and did not find one. The mitigation this row promised was a manual toggle, and it never shipped; it does now, as "I am in a meeting" in the menu, time-boxed to two hours. `--doctor` prints this block as UNOBSERVABLE with the reason and says out loud that it never fires. |
@@ -628,6 +628,48 @@ with it. Without the first half, a panel delivered one second before a call sat 
 for its duration. Without the second, the 90-second prompt timeout had already elapsed the instant
 the block lifted, so the user was charged an ignored prompt for a meeting they were never allowed to
 answer during, and two of those truncate the ladder to L1 and L2.
+
+#### 7.1.1 The microphone is a fact, but "you are on a call" is an inference
+
+Every other row above is an OS fact *about the user*: the screen really is locked, another
+account really is on the console. `audioInputInUse` is the odd one. The fact is **a device is
+running**. "Therefore you are on a call" is a guess, and a guess in the uncatchable list is how
+a Mac with Krisp, BlackHole, an aggregate device or a headset daemon goes silent forever: those
+hold an input device open permanently, the engine read it as a call, and every cycle it opened
+was hard-blocked on arrival. Recovery depended on `AudioDeviceCollector`'s calibration, an hour
+of awake observation away, and nothing on screen said any of it.
+
+Two changes, and neither of them lowers the bar for a real call.
+
+**Attribution.** `SensorStack.audioDeviceHold` asks the question `micLiveForLatch` already asked
+one method above and the hard block never did. Three answers: the device bit is false, so false;
+the process table could not be read, so the bare bit, exactly as before; the table was read and
+**nothing at all** has input open, named or not, which is evidence of absence and drops the
+block. A running process with no bundle id counts as a holder, because a command-line recorder
+has no bundle id and interrupting a recording would turn a silence bug into an interruption bug.
+The empty reading has to hold still for 30 s before it is acted on: the per-object listener's
+latency against the device property is unmeasured, and a transient disagreement at the start of
+every real call would be worse than the bug.
+
+**A ceiling in Core.** Attribution does nothing for Krisp, which is an app and holds the
+microphone through its own process. So `CycleBudget.uncorroboratedAudioElapsed` measures how long
+the current opportunity has been held by a device with nothing else agreeing, and past
+`uncorroboratedAudioCeiling` the block downgrades to `SoftDeferReason.liveCaptureUnattributed`,
+which §7.2's seam budget then bounds. The ceiling is `latchFactHold + latchAnchorExtension`
+(8 + 12 = 20 min), this repo's own written answer to how long a capture fact alone may mean call,
+rather than a new number.
+
+Corroboration is anything independent of that microphone bit: a camera running, a call app the
+latch actually adopted, a manual "I'm in a meeting", or a busy calendar event in progress. Any
+one of them and the block is unbounded exactly as it was. The latch arming on the same microphone
+is *not* corroboration; that is the same evidence counted twice. The counter resets the instant
+the device releases, so a run of real short calls never accumulates.
+
+**The cost, stated rather than discovered.** A long uncorroborated capture, a podcast take or a
+DAW session with no camera and no calendar entry, can now be interrupted where before it never
+would be. It is a seam wait rather than an immediate prompt, the sound channel is suppressed for
+the whole time capture is live (§7.5), and "Ignore this input device" buys 30 minutes. That is
+the trade: one interrupted take against an app that is invisible forever on a Krisp Mac.
 
 ### 7.2 Soft deferrals — wait for a seam, but on a budget
 
@@ -701,11 +743,15 @@ Summary of the two extremes and the specific mechanisms against each:
 |---|---|---|
 | Passive menu-bar indicator (icon state + title) | no | **always**, including quiet hours, DND, daily cap, hard blocks |
 | Standard notification (`.active`, silent by default) | yes | not hard-blocked, not rate-limited |
-| Notification with sound | yes | escalation level 3+ only, and never twice in a cycle |
+| Notification with sound | yes | escalation level 3+ only, never twice in a cycle, and never while a microphone or camera is live |
 | Panel / HUD overlay (dismissible, non-modal, never key-window-stealing, never fullscreen) | yes | escalation level 4 only; downgraded to a notification on battery < 20 % or Low Power Mode |
 
 Nothing in the app is ever modal, ever blocks input, or ever takes keyboard focus. There is no
 configuration in which the app can prevent the user from working.
+
+Live capture suppresses the sound channel for the same reason low battery does, and it matters more
+now that §7.1.1 lets a prompt reach a Mac with a microphone open: the rung still arrives, it just
+does not chime into somebody's recording.
 
 **One correction to the row above, which the implementation got wrong for a while.** When system
 notifications are off, which is the default, every rung is drawn by the app itself, because there is
@@ -991,8 +1037,24 @@ If `focusModeActive` is unknown and the OS may have swallowed the banner, the cy
 | **4 — Final** | `t0 + 35 min` | dismissible panel/HUD (downgraded to a notification on low battery, or if hard-blocked when due) | yes | One assertive, still non-blocking presentation. Then the ladder **ends permanently for this cycle**. |
 
 After level 4 with no response: cycle → `.ignoredExhausted`, `consecutiveIgnoredCycles += 1`, engine
-returns to `working` with a **25-minute cooldown** before a new cycle may open, and the passive
-indicator stays amber. No further notification about this cycle is ever emitted.
+returns to `working` with a **25-minute cooldown** before a new cycle may open. No further
+notification about this cycle is ever emitted.
+
+**A ladder ends when it has nothing left to deliver, not when its timer runs out.** The engine used
+to decide exhaustion by waiting for `ladderLevel4 + promptTimeout` whenever level 4 had not been
+delivered. Under rule 5 below the ceiling is capped to level 2, and level 2 is then refused by
+`ignoreBackoff` for the rest of the cycle, so nothing could ever arrive and the engine sat running a
+four-rung clock over rungs it had already switched off. That was **36 of the 63 minutes** a user was
+left alone after two ignored opportunities, and nobody chose it: the cooldown is 25 and the timeout
+is 1.5. `InterruptionPolicy.ladderIsSpent` states the same fact `rateLimit` states, from counters
+that only grow, so exhaustion now fires when it becomes true. The gap falls to **26 min 30 s**, which
+is not a new cadence: it is already the gap between a normally exhausted ladder and the next cycle.
+`cooldownAfterExhausted` is untouched at 25 minutes, and so is every other number here.
+
+The indicator through all of this is `IndicatorState.backedOff`, which is dim and full: a break is
+owed and the app has decided not to ask. It used to be `.escalating` during the capped ladder, which
+was a positive claim that the opposite of the truth was happening, and `.working` during the
+cooldown, with the work clock still climbing against a threshold nothing was waiting for.
 
 **Anti-spam invariants** (all enforced in `verdict`, all independently sufficient):
 
@@ -1003,7 +1065,13 @@ indicator stays amber. No further notification about this cycle is ever emitted.
 4. A hard block at a level's scheduled time **postpones** that level (the ladder clock pauses); it never
    stacks two levels together on release.
 5. **Backoff:** after 2 consecutive fully-ignored cycles, for the rest of the local day the ladder is
-   truncated to levels 1–2 — one notification per cycle, maximum. Reset by any accepted break.
+   truncated to levels 1–2 — one notification per cycle, maximum. Reset by any **qualifying break**
+   (`qualifyingBreak`, 5 min), and deliberately not by the cycle it was attached to. A truncated cycle
+   is closed `promptTimeout` after its single prompt — that is what truncating it means — so a user who
+   answers even a minute late starts their break with no open cycle. While the reset was conditional on
+   one, the backoff was unescapable for the rest of the day for everyone who did not answer inside 90
+   seconds, which is the window the backoff exists to shorten. `honoredOpportunities` stays conditional
+   on an open cycle, because the compliance denominator only grows when an opportunity was opened.
 6. **Daily cap** (12) overrides everything above. On reaching it, the app goes passive-only until the
    next day boundary and records `quiet(.dailyCapReached)`. That state is terminal until the boundary
    and computes no verdict, so it writes no `gate` line either: the menu is the only place a user can
@@ -1015,6 +1083,66 @@ indicator stays amber. No further notification about this cycle is ever emitted.
 Cap arithmetic: a well-matched day is ~9 cycles in 8 hours × 1 notification each = 9, under the cap. A
 day where everything is ignored hits the cap after ~3 cycles — and the backoff rule engages after 2.
 The caps bind in exactly the situation they are meant for.
+
+The knock-on from ending a capped ladder promptly, said here rather than left to be found: backed-off
+cycles close sooner, so a user who ignores everything reaches the daily cap earlier in the afternoon.
+That trades an unnamed hour of drift for `quiet(.dailyCapReached)`, which is named in words, dim on
+the menu bar mark, bounded by the day boundary, and a number the user set. The rate goes up and the
+*weight* goes down: each backed-off cycle still spends exactly one level-1 notification, never four
+rungs with a sound and a panel. If that trade is ever judged wrong, the answer is a quieter channel
+for the surviving rung, not a longer cooldown, because a longer cooldown re-creates the invisible
+hole this section exists to close.
+
+---
+
+## 11.1 The waiting line: the app is never quiet without saying so
+
+Silence by design and silence by defect look identical from outside the process. A user who is not
+prompted for an hour cannot tell whether the app decided to back off, is blocked, crashed, or never
+worked, and they do not file a bug about it, they delete it. §4.1 says the app must always be able to
+answer "why do you think that"; being quiet is a claim like any other, and it was the one claim the
+app made without evidence.
+
+`WaitingLine.read` is therefore **total over the engine's state space**: every state, every quiet
+cause, every stand-down cause and every gate reason produces exactly one short line, and its last
+branch names itself as a bug rather than rendering nothing. It carries one of three claims, and they
+are three different claims:
+
+| Claim | Means |
+|---|---|
+| `holding off, X.` | something is blocking or rate-limiting a prompt right now |
+| `not asking yet, X.` | nothing is, and the engine is waiting on its own clock |
+| `waiting on you, X.` | the ask is already out, or a break is running; the silence is yours |
+
+Deadlines in it are wall-clock times and never countdowns, and every one of them comes from a value
+the engine already holds (`cooldownUntilMono`, `snoozeUntil`, `plannedEnd`, `pausedUntil`, the quiet
+window, the audio ceiling). Nothing is scheduled to make them true and nothing polls. They are
+rendered in the reader's locale, short style, which is the style the panel's own subtitle one row
+above uses; the 24-hour `HH:mm` form is reserved for the quiet-hours window, where the reader is
+comparing two ends of a range against the settings field that produced it.
+
+**Nothing is checked ahead of the state.** The confirmation that "ignore this input device" worked
+used to be, and it therefore answered for every state for the full 30 minutes of the inhibit: on the
+stuck-device Mac the button exists for, the device never stops running, so the line talked about the
+microphone while the header said STOPPED, PAUSED or snoozed. It now sits inside `working`, below the
+stand-downs — a cooldown is the reason the app is quiet, an ignored input device is not the reason for
+anything, it is a button answering back.
+
+It lives in `SigstopCore` for the reason `QuietCause.title` already gives: `SigstopApp` has no test
+target, so a vocabulary kept there is unchecked. It is deliberately **not** fed by `PromptOutlook`,
+which reads the event log because `--doctor` is a separate process that cannot see the running
+engine; in-process `continuousWork`, `armThreshold` and `cooldownUntilMono` are free and no
+`LoggedEvent` carries them.
+
+`WorkingState.standDown` exists for the same honesty reason. A raised `armThreshold` has two causes,
+and the panel used to infer a skip from the number, so a user whose opportunity expired unseen was
+told they had waved it off. `StandDownCause` names which it was, and the four causes have four
+sentences.
+
+The menu bar mark carries one bit of this, because the user who never opens the panel is exactly the
+user who concludes the app is broken. Opacity now means **is the app going to ask**: dim for `.idle`,
+`.quiet` and `.backedOff`, full brightness otherwise. No new hue and no new glyph, which keeps the
+decision in `MenuBarIcon` intact. The tooltip carries the sentence, so hovering is enough.
 
 ---
 

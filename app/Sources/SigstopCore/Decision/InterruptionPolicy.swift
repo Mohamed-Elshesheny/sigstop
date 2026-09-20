@@ -71,6 +71,21 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     /// After 2 consecutive fully-ignored cycles the ladder truncates to L1–L2.
     public var ignoreBackoffThreshold: Int = 2
 
+    /// How long a running input device may hold a break on its own evidence.
+    ///
+    /// `audioInputInUse` is filed under hard blocks, whose contract one line below is
+    /// "only a real system signal may hard-block, nothing here is inferred". It does not
+    /// meet that contract. The OS fact is *a device is running*; "therefore you are on a
+    /// call" is an inference, and an inference in the uncatchable list is how a Mac with
+    /// Krisp, BlackHole, an aggregate device or a headset daemon goes silent forever.
+    ///
+    /// Derived rather than tasted: `latchFactHold + latchAnchorExtension`, which is this
+    /// repo's own written answer to "the longest a capture fact alone should be allowed
+    /// to mean call". Past it, with nothing independent corroborating, the device stops
+    /// hard-blocking and becomes a soft deferral the seam budget bounds. Corroborated
+    /// capture is not bounded at all: see `audioIsCorroborated`.
+    public var uncorroboratedAudioCeiling: TimeInterval = 20 * 60
+
     // MARK: The call latch (docs/BREAK-DECISION.md §7.7)
 
     /// Continuous microphone or camera use before the latch will arm at all. Nothing
@@ -288,6 +303,10 @@ public enum SoftDeferReason: String, Sendable, Codable, Hashable {
     /// An *inferred* meeting: a conferencing app is frontmost, the mic is not actually
     /// running. "I think you're in a meeting" is not "the mic is on", so it defers only.
     case inferredMeeting
+    /// An input device has been running past `uncorroboratedAudioCeiling` with nothing
+    /// independent saying it is a call. The device is still live, so this waits for a
+    /// seam and suppresses the sound channel; it no longer blocks outright.
+    case liveCaptureUnattributed
     /// A busy calendar event with no corroborating system signal. A calendar entry is a
     /// guess: people leave events on their calendars they are not attending.
     case calendarEventInProgress
@@ -299,6 +318,19 @@ public enum RateLimit: String, Sendable, Codable, Hashable {
     case cycleNotificationCap
     case minimumSpacing
     case ignoreBackoff
+
+    /// True when this limit cannot lift again before the cycle closes.
+    ///
+    /// Both of these are built from `notificationsThisCycle`, which only ever grows, so
+    /// once they fire nothing further can be delivered in this cycle whatever happens
+    /// next. `minimumSpacing` lifts on its own and is not one of them; `quietHours` and
+    /// `dailyCapReached` close the cycle on their own branch and never reach here.
+    public var isTerminalForCycle: Bool {
+        switch self {
+        case .ignoreBackoff, .cycleNotificationCap: return true
+        case .minimumSpacing, .quietHours, .dailyCapReached: return false
+        }
+    }
 }
 
 /// The per-cycle deferral budget the verdict reads and the engine advances.
@@ -309,12 +341,23 @@ public struct CycleBudget: Sendable, Codable, Hashable {
     public var seamWaitTotal: TimeInterval
     public var deepFocusExtensionUsed: Bool
     public var notificationsThisCycle: Int
+    /// Continuous seconds this cycle has been held by a running input device that nothing
+    /// else corroborates. Reset to zero the moment the device bit drops or something
+    /// independent says it is a call, so a run of real short calls never accumulates.
+    public var uncorroboratedAudioElapsed: TimeInterval
 
-    public init(seamWaitElapsed: TimeInterval = 0, seamWaitTotal: TimeInterval = 0, deepFocusExtensionUsed: Bool = false, notificationsThisCycle: Int = 0) {
+    public init(
+        seamWaitElapsed: TimeInterval = 0,
+        seamWaitTotal: TimeInterval = 0,
+        deepFocusExtensionUsed: Bool = false,
+        notificationsThisCycle: Int = 0,
+        uncorroboratedAudioElapsed: TimeInterval = 0
+    ) {
         self.seamWaitElapsed = seamWaitElapsed
         self.seamWaitTotal = seamWaitTotal
         self.deepFocusExtensionUsed = deepFocusExtensionUsed
         self.notificationsThisCycle = notificationsThisCycle
+        self.uncorroboratedAudioElapsed = uncorroboratedAudioElapsed
     }
 }
 
@@ -332,7 +375,7 @@ public struct InterruptionPolicy: Sendable {
     /// rate limits (a blocked prompt must not burn the cycle's notification budget), rate
     /// limits precede the absolute-max floor, and a seam beats every soft reason.
     public func verdict(_ input: EngineInput, budget: CycleBudget) -> InterruptionVerdict {
-        if let block = hardBlock(input) { return .hardBlocked(block) }
+        if let block = hardBlock(input, budget: budget) { return .hardBlocked(block) }
         if let limit = rateLimit(input, budget: budget) { return .rateLimited(limit) }
 
         if input.context.continuousWork >= policy.absoluteMaxWork { return .deliver }
@@ -346,7 +389,11 @@ public struct InterruptionPolicy: Sendable {
     }
 
     /// Only a real system signal may hard-block. Nothing here is inferred.
-    public func hardBlock(_ input: EngineInput) -> HardBlock? {
+    ///
+    /// The one exception used to be the microphone, and it was the exception that made
+    /// the app invisible: see `BreakPolicy.uncorroboratedAudioCeiling`. The budget is how
+    /// long the current opportunity has already been held by it.
+    public func hardBlock(_ input: EngineInput, budget: CycleBudget = CycleBudget()) -> HardBlock? {
         let s = input.signals
         if s.screenLocked { return .screenLocked }
         if s.systemSleeping { return .systemSleeping }
@@ -355,7 +402,10 @@ public struct InterruptionPolicy: Sendable {
             if let c = input.calendar, c.eventInProgress, c.inProgressIsBusy, c.inProgressHasVideoLink {
                 return .videoEventInProgress
             }
-            return .audioInputInUse
+            if audioIsCorroborated(input)
+                || budget.uncorroboratedAudioElapsed < policy.uncorroboratedAudioCeiling {
+                return .audioInputInUse
+            }
         }
         if s.cameraRunning { return .cameraInUse }
         /// After the two live facts, so that while a device is actually running the more
@@ -374,6 +424,32 @@ public struct InterruptionPolicy: Sendable {
         }
         if let minutes = input.calendar?.minutesUntilNextBusyEvent, minutes <= 2 { return .imminentMeeting }
         return nil
+    }
+
+    /// Is anything other than the input device itself saying this is a call?
+    ///
+    /// Every term is independent of `audioInputRunning`, which is the whole point: the
+    /// latch arming on the same microphone bit would be the same evidence counted twice.
+    /// Any one of these and the block is unbounded, exactly as it was.
+    public func audioIsCorroborated(_ input: EngineInput) -> Bool {
+        let s = input.signals
+        if s.cameraRunning { return true }
+        if s.meetingLatch.basis == .manual { return true }
+        if s.meetingLatch.anchorName != nil { return true }
+        if let c = input.calendar, c.eventInProgress, c.inProgressIsBusy { return true }
+        return false
+    }
+
+    /// True when no further rung can reach this cycle, whatever happens next.
+    ///
+    /// Both clauses mirror `rateLimit` exactly and are built from `notificationsThisCycle`,
+    /// which only grows, so neither limit can lift before the cycle closes. Without this
+    /// the engine ran `ladderLevel4`'s timer to completion over a ladder whose rungs it
+    /// had already switched off, which is where 36 of the reported 63 quiet minutes went.
+    public func ladderIsSpent(_ input: EngineInput, budget: CycleBudget) -> Bool {
+        if budget.notificationsThisCycle >= policy.maxNotificationsPerCycle { return true }
+        return input.day.consecutiveIgnoredCycles >= policy.ignoreBackoffThreshold
+            && budget.notificationsThisCycle >= 1
     }
 
     /// Rate limits do not pause the deferral clocks; they close the cycle instead.
@@ -419,6 +495,13 @@ public struct InterruptionPolicy: Sendable {
         /// without Accessibility and the branch below it is unreachable. Raising the
         /// ceiling would be fixing an honesty mechanism by breaking it; this gets the
         /// deferral from a fact instead.
+        /// Reaching here with the input device still running means `hardBlock` gave up on
+        /// it: past the ceiling, uncorroborated. The device is live, so this defers rather
+        /// than delivers, which is what keeps the bound off a long call the app cannot
+        /// corroborate. It is ordered above the latch on purpose, because the latch
+        /// suspecting a call from that same microphone bit is the same evidence twice, and
+        /// `inferredMeeting` would name a conferencing app that is not running.
+        if input.signals.audioInputRunning { return .liveCaptureUnattributed }
         if input.signals.meetingLatch.suspectsCall { return .inferredMeeting }
         if input.context.concurrent.inMeeting,
            input.context.concurrent.meetingConfidence.isConfidentEnoughForSpecificClaim {

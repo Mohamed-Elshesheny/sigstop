@@ -174,6 +174,14 @@ What it does **not** tell us, and we must not pretend otherwise:
     `true` for > 4 hours, or is `true` for > 85% of the last 24h of awake time, mark the audio
     signal `.unreliable` and stop contributing it to `MEETING` at all. Surface this in the UI as
     "microphone signal disabled on this Mac — it never turns off."
+  - **This guard is no longer what ends the silence, and its thresholds are unchanged.** It needs an
+    hour of awake observation before the duty-cycle clause may fire at all, it is held in memory and
+    so is re-served on every launch, and a holder that briefly releases the device evades it
+    entirely. Two faster answers now sit in front of it: per-process attribution (§2.3a job 4) for a
+    driver-level holder, and a ceiling in the engine (docs/BREAK-DECISION.md §7.1.1) for an app-level
+    one. The guard stays exactly as it is, as the long-run judgement about signal *quality*, which is
+    what it is good at. Its numbers were never validated against a real virtual device and retuning
+    numbers nobody validated, to fix a symptom two other layers already cover, is how this got here.
 - **Meeting-over ≠ mic-off.** Zoom holds the device briefly after a call, and holds it in a waiting
   room. Expect ±30s of edge error; never bill meeting duration to the second off this signal alone.
 - If the user has *no* input device, the signal is absent, not `false`. Model it as
@@ -211,6 +219,23 @@ Three jobs, and it is used for nothing else:
 3. **Not being fooled.** A readable-and-empty table is evidence of *absence*. A table whose only
    holders are Siri and dictation is not a call. `com.apple.CoreSpeech` was observed holding input
    for a single sample and releasing it.
+4. **Ending the invisible hour.** The hard block asks this too now, and used not to: it took the
+   bare device bit while `micLiveForLatch` one method above asked the attributed question, so on a
+   Mac where a driver holds the device and no process has it, the two disagreed in the same instant
+   from the same signal. The latch correctly declined to arm and the block fired anyway, until the
+   calibration guard below rescued it an hour later. `SensorStack.audioDeviceHold` is that question,
+   and docs/BREAK-DECISION.md §7.1.1 is what the engine does with the answer.
+
+   Two conditions on it, both load-bearing. A process that **is** running input but reports no
+   bundle id used to be dropped while the set was still reported as readable-and-empty, which is
+   exactly what a command-line recorder looks like; `unnamedInputHolders` counts those, because
+   "nobody has the microphone" turning out to be false in that direction converts a silence bug into
+   an interruption bug. And the empty reading has to hold for 30 s before it drops a block, because
+   the per-object listener's latency against the device property has never been measured.
+
+   What this does **not** cover, said plainly because the collector's own doc comment names Krisp
+   first: Krisp is an app and holds input through its own process, so the table is not empty and
+   attribution buys nothing there. That case is covered by the Core ceiling in §7.1.1, not here.
 
 Caveats that do not go away, and are printed in `--doctor` rather than smoothed over:
 

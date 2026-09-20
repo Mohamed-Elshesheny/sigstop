@@ -5,7 +5,7 @@ import Foundation
 /// `InterruptionVerdict` is the engine's answer and carries three different payload types.
 /// This is that answer flattened into a single fixed enum so it can be written to the
 /// event log as one short field. Nothing here is free text and nothing here is derived
-/// from a window title, a URL or a file path: there are twenty-eight values, they are
+/// from a window title, a URL or a file path: there are twenty-nine values, they are
 /// listed below, and a reader can check that by reading this file (CLAUDE.md §4.4).
 ///
 /// The initialiser is an exhaustive switch, so adding a `HardBlock`, `SoftDeferReason` or
@@ -38,6 +38,7 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
     case recentAppLaunch
     case inferredMeeting
     case calendarEventInProgress
+    case liveCaptureUnattributed
 
     case quietHours
     case dailyCapReached
@@ -79,6 +80,7 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
             case .recentAppLaunch:         self = .recentAppLaunch
             case .inferredMeeting:         self = .inferredMeeting
             case .calendarEventInProgress: self = .calendarEventInProgress
+            case .liveCaptureUnattributed: self = .liveCaptureUnattributed
             }
         case .rateLimited(let limit):
             switch limit {
@@ -131,6 +133,8 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
         case .recentAppLaunch:        return "you just switched app, waiting a moment"
         case .inferredMeeting:        return "a conferencing app is up, so you might be in a meeting"
         case .calendarEventInProgress: return "a calendar event is in progress"
+        case .liveCaptureUnattributed:
+            return "the mic here looks stuck on, so it waits for a pause instead of blocking"
         case .quietHours:             return "quiet hours"
         case .dailyCapReached:        return "today's notification budget is spent, passive only from here"
         case .cycleNotificationCap:   return "this cycle has had its notifications"

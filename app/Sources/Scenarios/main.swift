@@ -68,8 +68,13 @@ struct World {
     /// Everything the engine emitted, stamped with when.
     private(set) var trace: [(at: TimeInterval, line: String)] = []
     private(set) var prompts: [(at: TimeInterval, level: EscalationLevel)] = []
+    /// What the panel would have said, and when it changed. A timeline of an app going
+    /// quiet is only half the story: the bug these scenarios describe is that the quiet
+    /// was never explained, so the explanation is recorded beside it.
+    private(set) var says: [(at: TimeInterval, line: String)] = []
     private var lastStateName = ""
     private var lastVerdictName = ""
+    private var lastSaid = ""
 
     init(settings: SigstopSettings, start: Date) {
         self.settings = settings
@@ -185,6 +190,27 @@ struct World {
                 record("verdict: \(vName)")
                 lastVerdictName = vName
             }
+        }
+
+        let line = WaitingLine.read(
+            WaitingLine.Reading(
+                state: state,
+                gate: outcome.verdict.map(GateReason.init),
+                continuousWork: continuousWork,
+                audioInputRunning: c.micRunning,
+                now: now,
+                monotonic: monotonic,
+                policy: engine.policy,
+                settings: settings
+            )
+        ).text
+        says.append((monotonic, line))
+        /// Numbers are stripped before comparing, so a countdown ticking down one minute
+        /// is not a new claim and does not bury the timeline it is meant to annotate.
+        let shape = line.filter { !$0.isNumber }
+        if shape != lastSaid {
+            lastSaid = shape
+            record("says: \(line)")
         }
     }
 
@@ -402,14 +428,23 @@ let scenarios: [Scenario] = [
         settings: settings(),
         beats: [Beat(120, Conditions(micRunning: true), note: "Krisp or BlackHole holding the input device")],
         check: { w in
-            w.prompts.isEmpty
-                ? "never prompted in two hours. This scenario feeds the raw device bit, so it "
+            if w.prompts.isEmpty {
+                return "never prompted in two hours. This scenario feeds the raw device bit, so it "
                     + "measures the engine alone, and the engine has no defence: every cycle it "
                     + "opens is hard blocked on arrival. The only defence is upstream, in "
                     + "AudioDeviceCollector's calibration, which needs an hour of observation "
                     + "before it downgrades the signal. So the honest reading is not that this is "
                     + "broken, it is that recovery takes an hour and nothing tells the user why"
-                : nil
+            }
+            /// While it is still holding, the panel has to say what it is doubting and
+            /// until when, because the wait before the first prompt is exactly the window
+            /// in which a new user decides the app does not work.
+            let doubted = w.says.contains { $0.line.contains("nothing call-shaped") }
+            if !doubted {
+                return "it prompts eventually, but nothing the panel would show says why it "
+                    + "was quiet first"
+            }
+            return nil
         }
     ),
 
@@ -428,6 +463,14 @@ let scenarios: [Scenario] = [
             if worst > 30 * 60 {
                 return "longest silence \(Int(worst / 60)) minutes against a 5 minute target, and "
                     + "nothing in the interface says the app has backed off"
+            }
+            /// The second half of the same sentence, which used to live only in the
+            /// failure message above. A shorter silence that is still unexplained is the
+            /// same bug wearing a smaller number.
+            let backedOff = w.says.contains { $0.line.contains("went unanswered") }
+            if !backedOff {
+                return "the gaps are short enough now, but nothing the panel would show "
+                    + "ever says the app has stood down"
             }
             return nil
         }

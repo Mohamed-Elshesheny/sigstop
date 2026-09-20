@@ -11,6 +11,15 @@ public struct AudioProcessSnapshot: Sendable, Hashable {
     /// evidence of absence and is treated as such. A collector that collapsed those two
     /// into `[]` would turn "I could not look" into "I looked and there was nothing".
     public let inputBundleIDs: Set<String>?
+    /// Processes that ARE running input but report no bundle id at all.
+    ///
+    /// They exist: three CoreAudio process objects on the development machine have empty
+    /// bundle ids right now, and every command-line recorder (`ffmpeg`, `sox`, a Python
+    /// `sounddevice` script) is in the same class. They used to be dropped, which made an
+    /// empty `inputBundleIDs` say "I looked and nobody has the microphone" while somebody
+    /// did. That is harmless while the set is only used to name a call, and not harmless
+    /// at all now that an empty set is evidence of absence for the hard block.
+    public let unnamedInputHolders: Int
     /// How many process objects CoreAudio knows about, for `--doctor`.
     public let processCount: Int
     public let readAt: Date
@@ -19,10 +28,23 @@ public struct AudioProcessSnapshot: Sendable, Hashable {
         inputBundleIDs: nil, processCount: 0, readAt: .distantPast
     )
 
-    public init(inputBundleIDs: Set<String>?, processCount: Int, readAt: Date) {
+    public init(
+        inputBundleIDs: Set<String>?,
+        unnamedInputHolders: Int = 0,
+        processCount: Int,
+        readAt: Date
+    ) {
         self.inputBundleIDs = inputBundleIDs
+        self.unnamedInputHolders = unnamedInputHolders
         self.processCount = processCount
         self.readAt = readAt
+    }
+
+    /// nil when the table could not be read; otherwise whether anything at all has input
+    /// open, named or not. This is the only form of the question that may carry weight.
+    public var anyInputRunning: Bool? {
+        guard let ids = inputBundleIDs else { return nil }
+        return !ids.isEmpty || unnamedInputHolders > 0
     }
 }
 
@@ -138,16 +160,22 @@ public final class AudioProcessCollector: @unchecked Sendable {
 
     private func recompute(objects: [AudioObjectID], cache: [AudioObjectID: String]) {
         var holders: Set<String> = []
+        var unnamed = 0
         var anyReadable = false
         for object in objects {
             guard let running = Self.isRunningInput(object) else { continue }
             anyReadable = true
-            guard running, let id = cache[object] else { continue }
+            guard running else { continue }
+            guard let id = cache[object] else {
+                unnamed += 1
+                continue
+            }
             holders.insert(id)
         }
         lock.lock()
         snapshotValue = AudioProcessSnapshot(
             inputBundleIDs: anyReadable ? holders : nil,
+            unnamedInputHolders: unnamed,
             processCount: objects.count,
             readAt: time.now
         )

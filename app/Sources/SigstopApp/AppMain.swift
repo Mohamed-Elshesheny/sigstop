@@ -211,6 +211,10 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         /// `ImageRenderer` draws outside any window, so an unresolved dynamic colour falls
         /// back to the light variant. The mark's amber has a dark ink value for light
         /// backgrounds, which is why the icon came out a muddy brown in a dark menu bar.
+        /// The only words the mark can carry. One bit of opacity cannot say *why* the app
+        /// is quiet, and hovering is cheaper than opening the panel.
+        item.button?.toolTip = model.iconTooltip
+
         guard let image = renderer.nsImage else { return }
         image.isTemplate = false
         item.button?.image = image
@@ -225,6 +229,10 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         withObservationTracking {
             _ = model.workFraction
             _ = model.indicator
+            /// Read here or the tooltip goes stale: `withObservationTracking` only
+            /// watches what the first block touched. It carries a wall-clock time and
+            /// never a countdown, so this still fires a handful of times an hour.
+            _ = model.iconTooltip
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

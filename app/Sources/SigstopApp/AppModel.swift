@@ -44,6 +44,16 @@ final class AppModel {
     /// a long uninterrupted stretch needs a heartbeat or it credits nothing.
     static let focusHeartbeat: TimeInterval = 5 * 60
 
+    /// How long "the input device is running and nothing on this Mac has it" has to hold
+    /// still before it is allowed to drop the hard block.
+    ///
+    /// CoreAudio's per-object `IsRunningInput` listener and the device property are two
+    /// different notifications and their relative latency is unmeasured. If attribution
+    /// lags the device bit by even a second, a rule that reads "running but unheld" would
+    /// fire at the start of every real call. Six ticks costs a stuck Mac half a minute
+    /// and costs a real call nothing.
+    static let unheldDeviceDwell: TimeInterval = 30
+
     // MARK: - Observable view state
 
     private(set) var continuousWork: TimeInterval = 0
@@ -61,16 +71,13 @@ final class AppModel {
     private(set) var confidence: Double = 0
     private(set) var evidenceLines: [EvidenceLine] = []
     private(set) var caveats: [String] = []
-    /// Why a prompt is being held right now, in the user's words. `nil` means nothing is
-    /// holding it.
-    private(set) var gateReason: String?
-    /// Why the app is quiet while nothing is blocking it, in the user's words.
+    /// The one line the panel always shows: what the app is waiting for, and when.
     ///
-    /// `gateReason` covers the blocked case and only the blocked case, so the two states
-    /// the engine is silent in without being blocked had no vocabulary at all: a raised
-    /// `armThreshold` after a skip or an expired cycle, and a live cooldown after an
-    /// ignored ladder. That is the gap the owner sat in for eighteen minutes, watching a
-    /// panel that said RUNNING.
+    /// Total over the engine's state space, because silence by design and silence by
+    /// defect look identical from the outside and the second one is never reported. See
+    /// `WaitingLine`, which computes it in `Core` where it can be tested.
+    private(set) var waiting: WaitingLine = WaitingLine(.notAskingYet, "starting up")
+    /// The middle of `waiting`, kept separately only because `--doctor` prints it.
     private(set) var holdReason: String?
     /// The continuous work the engine is **actually** waiting for, which is not always
     /// the user's interval.
@@ -79,6 +86,11 @@ final class AppModel {
     /// that privately re-armed at 1505 seconds still drew `18:17 / 5:00` with the mark
     /// pinned full. The number on screen is now the number in force.
     private(set) var workTarget: TimeInterval
+    /// `false` when no work threshold is in force at all, which is the cooldown after an
+    /// unanswered opportunity: that wait is a wall-clock one and the work clock is not
+    /// counting towards anything. The header hides the denominator rather than inventing
+    /// a threshold nobody is waiting for; the time is on the line below instead.
+    private(set) var workTargetInForce = true
     private(set) var indicator: IndicatorState = .working
     private(set) var engineStateName: String = "working"
     /// Which quiet the engine is in, when it is in one.
@@ -127,7 +139,7 @@ final class AppModel {
     /// the engine has not credited is exactly the lie this project does not tell.
     var displayedContinuousWork: TimeInterval {
         guard indicator == .working || indicator == .breakDue || indicator == .escalating
-            || indicator == .held else {
+            || indicator == .held || indicator == .backedOff else {
             return continuousWork
         }
         guard continuousWorkMeasuredAt > 0 else { return continuousWork }
@@ -137,6 +149,21 @@ final class AppModel {
     }
 
     var isOnBreak: Bool { breakEndsAt != nil }
+
+    /// The words the menu bar mark can carry, for anyone who hovers.
+    ///
+    /// The icon is the only thing visible without opening anything, and one bit of
+    /// opacity cannot say *why* it is quiet. This can, it costs nothing, and hovering is
+    /// the cheapest thing an irritated person does before deciding an app is broken.
+    ///
+    /// Every deadline in it is a wall-clock time and the one duration in it is to the
+    /// minute. That is deliberate: this string is read inside the icon's
+    /// `withObservationTracking` block, so anything ticking per second here would be a
+    /// redraw per second.
+    var iconTooltip: String {
+        "\(MenuBarIcon.label(for: indicator)). \(waiting.text.prefix(1).uppercased())"
+            + "\(waiting.text.dropFirst())"
+    }
 
     /// True only while a cycle is actually open. Snoozing with nothing pending is a
     /// no-op in the engine, so the menu does not offer it.
@@ -219,6 +246,17 @@ final class AppModel {
     /// survives a relaunch, because a counter can only ever make the app noisier.
     @ObservationIgnored private var latch = MeetingLatch()
     @ObservationIgnored private var lastPersistedHold: TimeInterval = 0
+    /// Monotonic deadline for "I told you this is not a call", which suppresses the live
+    /// input-device hard block as well as the latch. Never persisted, for the same reason
+    /// the latch is not.
+    @ObservationIgnored private var micInhibitUntilMono: Double = 0
+    /// The same deadline on the wall clock, so the panel can say when it runs out.
+    @ObservationIgnored private var micInhibitUntil: Date?
+    /// When the process table first said nothing at all holds the running input device.
+    @ObservationIgnored private var unheldDeviceSince: Double?
+    /// The raw device bit at the last sample, so the panel can confirm that "not a call"
+    /// is doing something while the device is still open.
+    @ObservationIgnored private var lastAudioDeviceRunning = false
     /// The verdict the engine last acted on, so the presentation layer cannot put a
     /// prompt on screen that the engine has already refused.
     @ObservationIgnored private var lastVerdict: InterruptionVerdict?
@@ -447,7 +485,9 @@ final class AppModel {
 
         advanceLatch(raw, now: now, monotonic: monotonic)
 
+        lastAudioDeviceRunning = raw.audio.contributesToMeeting
         var signals = raw.systemSignals
+        signals.audioInputRunning = audioBlocks(raw, monotonic: monotonic)
         signals.frontmostIsFullscreen = sample.context.concurrent.fullscreen
         signals.meetingLatch = latchSignal(now: now, monotonic: monotonic)
 
@@ -545,6 +585,20 @@ final class AppModel {
         latchSignal(now: time.now, monotonic: time.monotonicSeconds).summary
     }
 
+    /// True while a live input device, and not the latch, is what is holding a break.
+    ///
+    /// The panel offered "I'm in a meeting" here, which is the opposite of what the line
+    /// above it says, because `callHoldSummary` is nil when the latch correctly declined
+    /// to arm on a device nobody is using.
+    var inputDeviceIsHoldingABreak: Bool {
+        guard case .hardBlocked(.audioInputInUse) = lastVerdict else { return false }
+        return callHoldSummary == nil
+    }
+
+    var ignoreInputDeviceLabel: String {
+        "Ignore this input device · \(DurationText.short(latchPolicy.latchManualInhibit))"
+    }
+
     /// "I'm in a meeting". The only answer available for the states no Tier 0 signal can
     /// reach: a Meet call in Safari, a screen share with the microphone muted, and a
     /// phone dial-in while presenting from the Mac.
@@ -555,9 +609,42 @@ final class AppModel {
 
     /// "Not in a meeting". Closes the latch and stops it re-opening from the same still
     /// running app for half an hour.
+    ///
+    /// It also inhibits the live-device hard block for the same half hour, which it used
+    /// not to: `hardBlock` tests `audioInputRunning` before it ever reaches the latch, so
+    /// on exactly the Mac where this button matters, one with a device held open by a
+    /// driver or by Krisp, pressing it changed nothing and said nothing. The bound is the
+    /// latch's own `latchManualInhibit`, because a mute button that never expires is what
+    /// `MeetingLatch` already refuses to be.
     func clearMeetingHold() {
         latch = latch.clearedByUser(at: time.monotonicSeconds, policy: latchPolicy)
+        micInhibitUntilMono = time.monotonicSeconds + latchPolicy.latchManualInhibit
+        micInhibitUntil = time.now.addingTimeInterval(latchPolicy.latchManualInhibit)
         Task { [weak self] in await self?.tick() }
+    }
+
+    /// Does a running input device still hold a break?
+    ///
+    /// Three answers, and the third is the one that ends the invisible hour: a device
+    /// that is running while CoreAudio's process table says nothing at all has input open
+    /// is a virtual device, not a call, and the app has that table in hand. The dwell is
+    /// why "nothing has it" has to stay true for half a minute first.
+    private func audioBlocks(_ raw: RawSignals, monotonic: Double) -> Bool {
+        switch raw.audioDeviceHold {
+        case .notRunning:
+            unheldDeviceSince = nil
+            return false
+        case .held:
+            unheldDeviceSince = nil
+            return monotonic >= micInhibitUntilMono
+        case .runningButUnheld:
+            let since = unheldDeviceSince ?? monotonic
+            unheldDeviceSince = since
+            guard monotonic - since >= Self.unheldDeviceDwell else {
+                return monotonic >= micInhibitUntilMono
+            }
+            return false
+        }
     }
 
     // MARK: - Effects
@@ -621,7 +708,6 @@ final class AppModel {
 
         case .recordVerdict(let verdict):
             lastVerdict = verdict
-            gateReason = Self.explain(verdict)
 
         case .recordSkip:
             tracker.recordSkip()
@@ -897,16 +983,13 @@ final class AppModel {
         engineStateName = engineState.name
         permissionStatus = sensors.permissions.status()
 
-        if case .quiet = engineState {
-            // Nothing is "holding off" a prompt, because the engine is not asking for one
-            // at all. Leaving the sensors gate in here let a live microphone claim the
-            // panel line while the real reason was a spent daily budget, which is the
-            // more important of the two and the only one that lasts until tomorrow.
-            gateReason = nil
-        } else if outcome.verdict == nil {
-            gateReason = sample.gate.allowsPrompt ? nil : sample.gate.reason
-        }
-        publishHold()
+        /// Only the engine's own verdict feeds the line. The sensor gate used to fill in
+        /// whenever no cycle was open, which meant a Mac with a stuck input device read
+        /// "an audio input device is running, you may be on a call" for an hour while the
+        /// app held, in the same process, a process table saying nobody had the
+        /// microphone. Nothing is being held while the engine is working, so the honest
+        /// line there is the work clock.
+        publishHold(gate: outcome.verdict.map(GateReason.init))
 
         if case .quiet(let q) = engineState {
             quietCause = q.cause
@@ -919,46 +1002,39 @@ final class AppModel {
         refreshRollup(force: false)
     }
 
-    /// The target the engine is really waiting for, and why it is quiet if it is.
+    /// The target the engine is really waiting for, and the one line that says what it is
+    /// waiting for, in every state.
     ///
-    /// Two of the engine's states are silent without anything blocking them, and neither
-    /// had any vocabulary on screen: `.working` with an `armThreshold` raised by a skip or
-    /// an expired cycle, and `.working` inside the cooldown that follows an ignored
-    /// ladder. Both look identical to ordinary running, which is what the owner was shown
-    /// for eighteen minutes.
-    ///
-    /// `.quiet` is a third. It became reachable for real once the daily counters started
-    /// surviving a relaunch: `dailyCapReached` and `sustainedFocusMode` are terminal until
-    /// the day boundary or the Focus mode ends, emit no verdict and therefore no `gate`
-    /// line, so the app could go silent for the rest of the day with nothing on the panel
-    /// to say so. `--doctor` already answers this; the panel now says the same sentence.
-    private func publishHold() {
-        if case .quiet(let q) = engineState {
+    /// This used to answer for three states and return `nil` for the rest, which meant
+    /// the two worst silences in the app, a backed-off opportunity and an input device
+    /// held open by a virtual driver, drew a panel that said RUNNING and nothing else.
+    /// The sentence itself now comes from `WaitingLine` in `Core`, where it can be
+    /// asserted against the real engine; this is only the wiring.
+    private func publishHold(gate: GateReason?) {
+        let monotonic = time.monotonicSeconds
+        workTargetInForce = true
+        if case .working(let w) = engineState {
+            workTarget = w.armThreshold
+            if let cooldown = w.cooldownUntilMono, monotonic < cooldown { workTargetInForce = false }
+        } else {
             workTarget = policy.targetContinuousWork
-            holdReason = q.cause == .userPaused ? nil : q.cause.summary
-            return
         }
-        guard case .working(let w) = engineState else {
-            workTarget = policy.targetContinuousWork
-            holdReason = nil
-            return
-        }
-        workTarget = w.armThreshold
 
-        if let cooldown = w.cooldownUntilMono, time.monotonicSeconds < cooldown {
-            let remaining = cooldown - time.monotonicSeconds
-            holdReason = "the last one ran out of rungs, so nothing for \(DurationText.short(remaining))"
-            return
-        }
-        if w.armThreshold > policy.targetContinuousWork {
-            let extra = w.armThreshold - policy.targetContinuousWork
-            holdReason =
-                "you waved the last one off, so the next is at "
-                + "\(DurationText.short(w.armThreshold)) continuous, "
-                + "\(DurationText.short(extra)) later than usual"
-            return
-        }
-        holdReason = nil
+        waiting = WaitingLine.read(
+            WaitingLine.Reading(
+                state: engineState,
+                gate: gate,
+                continuousWork: continuousWork,
+                audioInputRunning: lastAudioDeviceRunning,
+                micIgnoredUntil: micInhibitUntilMono > monotonic ? micInhibitUntil : nil,
+                now: time.now,
+                monotonic: monotonic,
+                policy: policy,
+                settings: settings,
+                calendar: .current
+            )
+        )
+        holdReason = waiting.body
     }
 
     /// Recomputes today's summary from the log. Throttled, because it re-reads up to three

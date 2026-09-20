@@ -134,9 +134,15 @@ enum Doctor {
             row("0", "audio input, by app", "the process table could not be read, so the")
             out.append("                              microphone bit above carries no attribution.")
             out.append("                              That is reported as unknown, never as nobody.")
-        case .some(let holders) where holders.isEmpty:
+        case .some(let holders) where holders.isEmpty && raw.audioProcesses.unnamedInputHolders == 0:
             row("0", "audio input, by app", "nobody. \(raw.audioProcesses.processCount) processes are known to")
             out.append("                              CoreAudio and none of them is running input.")
+            out.append("                              A device running with nobody holding it is a virtual")
+            out.append("                              device, and it does not hold your break.")
+        case .some(let holders) where holders.isEmpty:
+            row("0", "audio input, by app", "\(raw.audioProcesses.unnamedInputHolders) with no bundle id, which is what a")
+            out.append("                              command-line recorder looks like. Counted as a holder,")
+            out.append("                              never as nobody.")
         case .some(let holders):
             row("0", "audio input, by app", holders.sorted().joined(separator: ", "))
             out.append("                              kAudioProcessPropertyIsRunningInput, per process object.")
@@ -303,13 +309,29 @@ enum Doctor {
         /// on cycle state that lives in the running app and is not visible from here, so
         /// they are not printed at all rather than printed wrong.
         var signals = raw.systemSignals
+        /// The same attributed question the running app asks. A device that is running
+        /// while nothing at all on this Mac has input open is a virtual device, and the
+        /// doctor used to print BLOCKED for it with the row two screens up saying nobody
+        /// had the microphone.
+        signals.audioInputRunning = raw.audioDeviceHold == .held
         signals.frontmostIsFullscreen = context.concurrent.fullscreen
+        let policy = BreakPolicy(settings: settings)
         let probe = EngineInput(
             now: Date(), monotonic: 0, context: context, signals: signals, settings: settings
         )
-        if let block = InterruptionPolicy(policy: BreakPolicy(settings: settings)).hardBlock(probe) {
+        if let block = InterruptionPolicy(policy: policy).hardBlock(probe) {
             out.append("    BLOCKED, \(AppModel.explain(.hardBlocked(block)) ?? block.rawValue)")
             out.append("    (an OS fact, not an inference. This is the only thing allowed to block.)")
+            if block == .audioInputInUse {
+                out.append("    A running input device holds a break for at most")
+                out.append("    \(DurationText.long(policy.uncorroboratedAudioCeiling)) on its own evidence. Past")
+                out.append("    that, with no camera, no adopted call app, no manual hold and no calendar")
+                out.append("    event, it stops blocking and only waits for a natural pause.")
+            }
+        } else if raw.audioDeviceHold == .runningButUnheld {
+            out.append("    no hard block right now")
+            out.append("    An input device IS running, and nothing on this Mac has input open, so it")
+            out.append("    is not treated as a call. That is the virtual-device case.")
         } else {
             out.append("    no hard block right now")
         }

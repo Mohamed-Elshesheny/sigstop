@@ -75,9 +75,26 @@ public enum IndicatorState: String, Sendable, Codable, Hashable {
     /// escalating indicator during a call is both wrong and alarming.
     case held
     case escalating
+    /// A break is owed and the app has decided not to ask for a while.
+    ///
+    /// The cooldown after an unanswered opportunity used to draw as `.working` with the
+    /// clock still climbing, and the moment before it as `.escalating` while the ladder
+    /// had already been switched off. Both are positive claims that the opposite of the
+    /// truth is happening, and both left a user who never opens the panel with nothing
+    /// to distinguish "counting up towards a break" from "deliberately quiet".
+    case backedOff
     case onBreak
     case idle
     case quiet
+
+    /// True when the app has no intention of asking. This is what the menu bar mark's
+    /// opacity means, and the only thing it means.
+    public var isStoodDown: Bool {
+        switch self {
+        case .idle, .quiet, .backedOff: return true
+        case .working, .breakDue, .held, .escalating, .onBreak: return false
+        }
+    }
 }
 
 /// What the app layer should show. The engine never presents anything itself.
@@ -187,6 +204,35 @@ public enum QuietCause: String, Sendable, Codable, CaseIterable, Hashable {
 
 // MARK: - Engine state
 
+/// Why the engine is quiet while nothing at all is blocking it.
+///
+/// One enum rather than an inference from `armThreshold > target`, which is what the
+/// panel used to do: a raised threshold has two causes and the panel told every user of
+/// the second one that they had waved a prompt off, when the opportunity had expired
+/// unseen and they had waved off nothing. The words live in `Core` for the reason
+/// `QuietCause` already gives: `SigstopApp` has no test target.
+public enum StandDownCause: String, Sendable, Codable, CaseIterable, Hashable {
+    /// The last opportunity ran its escalations out unanswered.
+    case ladderExhausted
+    /// The same, often enough in a row that each opportunity now gets one prompt.
+    case backedOff
+    /// The user waved the last one off.
+    case skipped
+    /// The last one went stale without ever being answered.
+    case cycleExpired
+
+    /// The middle of the sentence, in the user's words. The line that carries it adds
+    /// the claim and the deadline, because only the caller knows those.
+    public var summary: String {
+        switch self {
+        case .ladderExhausted: return "the last one went unanswered"
+        case .backedOff:       return "the last few went unanswered"
+        case .skipped:         return "you waved the last one off"
+        case .cycleExpired:    return "the last one timed out unseen"
+        }
+    }
+}
+
 public struct WorkingState: Sendable, Codable, Hashable {
     /// Continuous active work required to open the next cycle. Above `targetContinuousWork`
     /// after a skip (+20 min) or an expired cycle (+10 min), so the user is not re-prompted
@@ -196,11 +242,19 @@ public struct WorkingState: Sendable, Codable, Hashable {
     public var cooldownUntilMono: Double?
     /// Last continuous-work value seen, used to notice a clock reset and re-arm at the target.
     public var lastWorkSeen: TimeInterval
+    /// Why this working state is quieter than an ordinary one, when it is.
+    public var standDown: StandDownCause?
 
-    public init(armThreshold: TimeInterval, cooldownUntilMono: Double? = nil, lastWorkSeen: TimeInterval = 0) {
+    public init(
+        armThreshold: TimeInterval,
+        cooldownUntilMono: Double? = nil,
+        lastWorkSeen: TimeInterval = 0,
+        standDown: StandDownCause? = nil
+    ) {
         self.armThreshold = armThreshold
         self.cooldownUntilMono = cooldownUntilMono
         self.lastWorkSeen = lastWorkSeen
+        self.standDown = standDown
     }
 }
 
@@ -222,6 +276,9 @@ public struct BreakDue: Sendable, Codable, Hashable {
     public var snoozesUsed: Int = 0
     public var snoozeTotal: TimeInterval = 0
     public var notificationsThisCycle: Int = 0
+    /// Continuous seconds this opportunity has been held by a running input device with
+    /// nothing else corroborating a call. See `BreakPolicy.uncorroboratedAudioCeiling`.
+    public var uncorroboratedAudioElapsed: TimeInterval = 0
     public var lastVerdict: InterruptionVerdict?
     public var lastStepMono: Double
 
@@ -236,7 +293,8 @@ public struct BreakDue: Sendable, Codable, Hashable {
             seamWaitElapsed: seamWaitElapsed,
             seamWaitTotal: seamWaitTotal,
             deepFocusExtensionUsed: deepFocusExtensionUsed,
-            notificationsThisCycle: notificationsThisCycle
+            notificationsThisCycle: notificationsThisCycle,
+            uncorroboratedAudioElapsed: uncorroboratedAudioElapsed
         )
     }
 }
@@ -288,6 +346,8 @@ public struct Escalation: Sendable, Codable, Hashable {
     public var ladderElapsed: TimeInterval = 0
     public var totalElapsed: TimeInterval = 0
     public var notificationsThisCycle: Int
+    /// As on `BreakDue`: this opportunity's continuous uncorroborated input-device hold.
+    public var uncorroboratedAudioElapsed: TimeInterval = 0
     public var deliveredLevels: Set<EscalationLevel> = []
     /// `ladderElapsed` at which level 4 was delivered; the ladder ends `promptTimeout` later.
     public var finalDeliveredAt: TimeInterval?
@@ -302,6 +362,7 @@ public struct Escalation: Sendable, Codable, Hashable {
         ignoredAt: Date,
         level: EscalationLevel = .first,
         notificationsThisCycle: Int,
+        uncorroboratedAudioElapsed: TimeInterval = 0,
         totalElapsed: TimeInterval,
         lastStepMono: Double
     ) {
@@ -310,6 +371,7 @@ public struct Escalation: Sendable, Codable, Hashable {
         self.ignoredAt = ignoredAt
         self.level = level
         self.notificationsThisCycle = notificationsThisCycle
+        self.uncorroboratedAudioElapsed = uncorroboratedAudioElapsed
         self.totalElapsed = totalElapsed
         self.lastStepMono = lastStepMono
     }
@@ -319,7 +381,8 @@ public struct Escalation: Sendable, Codable, Hashable {
             seamWaitElapsed: .greatestFiniteMagnitude,
             seamWaitTotal: .greatestFiniteMagnitude,
             deepFocusExtensionUsed: true,
-            notificationsThisCycle: notificationsThisCycle
+            notificationsThisCycle: notificationsThisCycle,
+            uncorroboratedAudioElapsed: uncorroboratedAudioElapsed
         )
     }
 }
@@ -392,6 +455,17 @@ public enum EngineState: Sendable, Codable, Hashable {
         case .idle(let i):        return i.suspendedCycle == nil ? nil : .userAway
         case .breakActive(let b): return b.cycle == nil ? nil : .breakRunning
         case .working, .breakDue, .ignored, .quiet: return nil
+        }
+    }
+
+    /// How long the open opportunity has been held by an uncorroborated input device.
+    /// Nil when there is nothing open to be held.
+    public var uncorroboratedAudioElapsed: TimeInterval? {
+        switch self {
+        case .breakDue(let d): return d.uncorroboratedAudioElapsed
+        case .ignored(let e):  return e.uncorroboratedAudioElapsed
+        case .snoozed(let s):  return s.due.uncorroboratedAudioElapsed
+        case .working, .breakActive, .idle, .quiet: return nil
         }
     }
 
