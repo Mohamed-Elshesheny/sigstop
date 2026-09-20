@@ -437,7 +437,7 @@ final class AppModel {
             ]
         )
         let message = messages.select(for: messageContext).message
-        if request.channel == .panel {
+        if request.channel == .panel || !settings.useSystemNotifications {
             // Escalation 4 — SIGSTOP. The ladder's last rung is a panel the app draws
             // itself, not a louder notification (docs/BREAK-DECISION.md §7.5). It is
             // dismissible, non-modal, never key-window-stealing and never fullscreen, and

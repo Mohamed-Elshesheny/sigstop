@@ -99,6 +99,11 @@ final class Notifier: NSObject {
             }
             do {
                 try await center.add(notification)
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                let shown = await center.deliveredNotifications().contains { $0.request.identifier == identifier }
+                if !shown {
+                    self.onFallbackNeeded?(request, message)
+                }
                 self.onStateChange?(.available)
             } catch {
                 self.onStateChange?(.unavailable("macOS refused the notification — \(error)"))

@@ -111,6 +111,15 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     /// Show a Dock icon. Menu bar utilities conventionally have none, which is why the
     /// app is LSUIElement, but the activation policy is changeable at runtime and some
     /// people want the app where they look for apps.
+    /// Deliver prompts through macOS notifications instead of the app's own panel.
+    ///
+    /// Off by default, and the reason matters. A notification is only reliably shown when
+    /// the app has a stable signing identity. An ad-hoc or unsigned build, which is every
+    /// development build and every unsigned download, gets `authorizationStatus ==
+    /// .authorized` and a successful `add()` and is still never drawn on screen. The app
+    /// then records a prompt nobody saw as ignored, backs off, and goes quiet. A break
+    /// reminder that fails silently is worse than no break reminder.
+    public var useSystemNotifications: Bool
     public var showInDock: Bool
     public var launchAtLogin: Bool
     public var showBreakOverlay: Bool
@@ -129,6 +138,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         accessibilityEnabled: Bool = false,
         gitContextEnabled: Bool = false,
         browserHostEnabled: Bool = false,
+        useSystemNotifications: Bool = false,
         showInDock: Bool = true,
         launchAtLogin: Bool = false,
         showBreakOverlay: Bool = true,
@@ -146,6 +156,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.accessibilityEnabled = accessibilityEnabled
         self.gitContextEnabled = gitContextEnabled
         self.browserHostEnabled = browserHostEnabled
+        self.useSystemNotifications = useSystemNotifications
         self.showInDock = showInDock
         self.launchAtLogin = launchAtLogin
         self.showBreakOverlay = showBreakOverlay
@@ -176,6 +187,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         accessibilityEnabled = try c.decodeIfPresent(Bool.self, forKey: .accessibilityEnabled) ?? d.accessibilityEnabled
         gitContextEnabled = try c.decodeIfPresent(Bool.self, forKey: .gitContextEnabled) ?? d.gitContextEnabled
         browserHostEnabled = try c.decodeIfPresent(Bool.self, forKey: .browserHostEnabled) ?? d.browserHostEnabled
+        useSystemNotifications = try c.decodeIfPresent(Bool.self, forKey: .useSystemNotifications) ?? d.useSystemNotifications
         showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? d.showInDock
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         showBreakOverlay = try c.decodeIfPresent(Bool.self, forKey: .showBreakOverlay) ?? d.showBreakOverlay

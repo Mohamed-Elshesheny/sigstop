@@ -46,8 +46,17 @@ final class BreakOverlayController {
     private var keyMonitor: Any?
     private weak var model: AppModel?
 
+    /// The virtual key code for Escape.
+    private static let escapeKeyCode: UInt16 = 53
+
     // MARK: Break overlay
 
+    /// Shows the overlay on every screen and installs a *local* Escape monitor.
+    ///
+    /// Escape works while sigstop happens to be the active application. A global monitor
+    /// would catch it everywhere, but that needs Accessibility or Input Monitoring —
+    /// permissions this app refuses to require for a convenience. So: Escape works when
+    /// the overlay or the app has focus, and the SIGCONT button always works.
     func presentBreak(model: AppModel) {
         self.model = model
         dismissBreak()
@@ -65,12 +74,8 @@ final class BreakOverlayController {
             }
         }
 
-        // Escape while sigstop happens to be the active application. A *global* monitor
-        // would catch it everywhere, but that needs Accessibility or Input Monitoring —
-        // permissions this app refuses to require for a convenience. So: Escape works when
-        // the overlay or the app has focus, and the SIGCONT button always works.
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 53 else { return event }   // 53 = Escape
+            guard event.keyCode == Self.escapeKeyCode else { return event }
             self?.model?.endBreak()
             return nil
         }
@@ -88,6 +93,9 @@ final class BreakOverlayController {
         }
     }
 
+    /// One panel per screen at `.statusBar` level: above the menu bar, and visible over
+    /// another app's fullscreen space without joining it, so leaving the break does not
+    /// shuffle spaces.
     private func buildBreakPanels(model: AppModel) {
         for screen in NSScreen.screens {
             let panel = NonActivatingPanel(
@@ -103,14 +111,14 @@ final class BreakOverlayController {
             panel.isMovable = false
             panel.hidesOnDeactivate = false
             panel.ignoresMouseEvents = false
-            // Above the menu bar, and visible over another app's fullscreen space —
-            // without joining it, so leaving the break does not shuffle spaces.
             panel.level = .statusBar
             panel.collectionBehavior = [
                 .canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle,
             ]
             panel.setFrame(screen.frame, display: true)
-            panel.contentView = NSHostingView(rootView: BreakOverlayView(model: model))
+            let hosting = NSHostingView(rootView: BreakOverlayView(model: model))
+            hosting.sizingOptions = []
+            panel.contentView = hosting
             panel.orderFrontRegardless()
             breakPanels.append(panel)
         }
@@ -141,7 +149,7 @@ final class BreakOverlayController {
         dismissPromptPanel()
         guard let screen = NSScreen.main else { return }
 
-        let size = NSSize(width: 380, height: 150)
+        let size = FallbackPromptView.size
         let origin = NSPoint(
             x: screen.visibleFrame.maxX - size.width - 18,
             y: screen.visibleFrame.maxY - size.height - 18
@@ -159,7 +167,7 @@ final class BreakOverlayController {
         panel.hidesOnDeactivate = false
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        panel.contentView = NSHostingView(
+        let hosting = NSHostingView(
             rootView: FallbackPromptView(
                 request: request,
                 message: message,
@@ -168,6 +176,8 @@ final class BreakOverlayController {
                 onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
             )
         )
+        hosting.sizingOptions = []
+        panel.contentView = hosting
         panel.orderFrontRegardless()
         fallbackPanel = panel
     }
@@ -187,73 +197,121 @@ final class BreakOverlayController {
 
 // MARK: - The break view
 
+/// The screen while the process is in state T.
+///
+/// Dimmed, not opaque: the work is still there, and the point of the name is that
+/// nothing was lost. The palette is the fixed dark one because the backdrop is black
+/// whatever the system appearance is. The countdown is the hero; under it a bar fills
+/// with the break as it elapses, which is the mark's own idea — outline for the whole,
+/// fill for how much has passed — turned on its side for a five-minute span.
 struct BreakOverlayView: View {
     let model: AppModel
 
+    @State private var hoveringResume = false
+
     var body: some View {
         ZStack {
-            // Dimmed, not opaque: the work is still there, and the point of the name is
-            // that nothing was lost.
             Rectangle()
-                .fill(.black.opacity(0.62))
+                .fill(.black.opacity(0.7))
                 .ignoresSafeArea()
 
-            VStack(spacing: 26) {
-                Text("SIGSTOP")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .tracking(3)
-                    .foregroundStyle(.white.opacity(0.55))
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    BrandMark(size: 16, fill: 0, tint: Brand.Dark.amber, fillTint: Brand.Dark.amber)
+                    Text("STATE T · SIGSTOP")
+                        .font(Brand.mono(12, weight: .semibold))
+                        .tracking(3)
+                        .foregroundStyle(Brand.Dark.amber)
+                }
 
                 countdown
+                    .padding(.top, 30)
 
                 Text(model.breakContent?.prompt ?? "Stand up.")
-                    .font(.system(size: 34, weight: .medium))
-                    .foregroundStyle(.white)
+                    .font(Brand.sans(34, weight: .medium))
+                    .foregroundStyle(Brand.Dark.fg)
                     .multilineTextAlignment(.center)
+                    .padding(.top, 44)
 
                 if let quest = model.breakContent?.quest {
                     Text(quest)
-                        .font(.system(size: 17))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .font(Brand.sans(17))
+                        .foregroundStyle(Brand.Dark.fgMuted)
                         .multilineTextAlignment(.center)
+                        .padding(.top, 12)
                 }
 
-                Button(action: { model.endBreak() }) {
-                    Text("SIGCONT")
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .tracking(2)
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-                .background(.white.opacity(0.14), in: Capsule())
-                .foregroundStyle(.white)
-                .padding(.top, 6)
+                resume
+                    .padding(.top, 44)
 
                 Text("Your process is stopped, not killed. Escape resumes.")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(Brand.mono(12))
+                    .foregroundStyle(Brand.Dark.fgMuted)
+                    .padding(.top, 20)
             }
             .padding(48)
         }
     }
 
-    /// The countdown is driven by a timeline, not by a stored counter that something has
-    /// to remember to advance. It reads `breakEndsAt` — a real timestamp — so a screen
-    /// that was asleep for a minute shows the truth when it comes back.
+    /// Driven by a timeline, not by a stored counter that something has to remember to
+    /// advance. It reads `breakEndsAt` — a real timestamp — so a screen that was asleep
+    /// for a minute shows the truth when it comes back.
     private var countdown: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
+            let total = max(1, TimeInterval(model.settings.breakDurationMinutes * 60))
             let remaining = max(0, (model.breakEndsAt ?? context.date).timeIntervalSince(context.date))
-            Text(Format.clock(remaining))
-                .font(.system(size: 76, weight: .thin, design: .monospaced))
-                .monospacedDigit()
-                .foregroundStyle(.white)
+            VStack(spacing: 14) {
+                Text(Format.clock(remaining))
+                    .font(Brand.mono(120, weight: .light))
+                    .tracking(-4)
+                    .monospacedDigit()
+                    .foregroundStyle(Brand.Dark.fg)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text("remaining")
+                    Text("·")
+                    Text("of \(Format.clock(total))")
+                }
+                .font(Brand.mono(12))
+                .foregroundStyle(Brand.Dark.fgMuted)
+                TransferBar(
+                    fraction: min(1, max(0, 1 - remaining / total)),
+                    tint: Brand.Dark.amber,
+                    track: Brand.Dark.line,
+                    height: 3
+                )
+                .frame(width: 320)
+                .padding(.top, 4)
+            }
         }
+    }
+
+    /// `SIGCONT`, filled amber with black text. The one action the screen exists for,
+    /// and never labelled "Dismiss".
+    private var resume: some View {
+        Button(action: { model.endBreak() }) {
+            Text("SIGCONT")
+                .font(Brand.mono(13, weight: .semibold))
+                .tracking(2.5)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Brand.Dark.onAmber)
+        .background(
+            Brand.Dark.amber.opacity(hoveringResume ? 0.88 : 1),
+            in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+        )
+        .onHover { hoveringResume = $0 }
     }
 }
 
 // MARK: - The fallback prompt view
 
+/// The corner prompt: the signal this rung is named after, the joke, and three
+/// monospaced buttons. The signal is amber at levels 1–3 and red at level 4, which is
+/// the only red in the product — `SIGSTOP` is the one rung that cannot be ignored, and
+/// the colour says so once.
 struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage
@@ -261,42 +319,72 @@ struct FallbackPromptView: View {
     let onSnooze: () -> Void
     let onSkip: () -> Void
 
+    /// The panel's size, owned by the view so the frame the controller opens and the
+    /// frame the view lays out for are the same number. The hosting view is told not to
+    /// size its window, because a `Spacer` in a flexible frame reports an ideal height
+    /// the window would otherwise grow to.
+    static let size = CGSize(width: 420, height: 176)
+
+    private var isIncident: Bool { request.level == .incident }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                StateDot(state: isIncident ? .alert : .suspend)
                 Text(request.signal)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .font(Brand.mono(11, weight: .semibold))
+                    .tracking(1)
+                    .foregroundStyle(isIncident ? Brand.alert : Brand.amber)
+                Text("L\(request.level.rawValue)")
+                    .font(Brand.mono(10))
+                    .foregroundStyle(Brand.fgFaint)
                 Spacer()
-                Text(DurationText.short(request.continuousWork))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                Text("\(DurationText.short(request.continuousWork)) continuous")
+                    .font(Brand.mono(10))
+                    .foregroundStyle(Brand.fgFaint)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(Brand.surface)
 
-            if let title = message.title {
-                Text(title).font(.headline)
-            }
-            Text(message.text)
-                .font(.system(size: 13))
-                .fixedSize(horizontal: false, vertical: true)
+            Rule()
 
-            Spacer(minLength: 0)
-
-            HStack(spacing: 8) {
-                Button("Take it", action: onTake).keyboardShortcut(.defaultAction)
-                if !request.snoozeOffered.isEmpty {
-                    Button("Snooze (SIGALRM)", action: onSnooze)
+            VStack(alignment: .leading, spacing: 5) {
+                if let title = message.title {
+                    Text(title)
+                        .font(Brand.sans(13, weight: .semibold))
+                        .foregroundStyle(Brand.fg)
                 }
-                Button("Skip", action: onSkip)
+                Text(message.text)
+                    .font(Brand.sans(13))
+                    .foregroundStyle(Brand.fg)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .controlSize(.small)
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+
+            Spacer(minLength: 10)
+
+            HStack(spacing: 6) {
+                TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
+                    .fixedSize()
+                if !request.snoozeOffered.isEmpty {
+                    TerminalButton("Snooze · SIGALRM", action: onSnooze)
+                        .fixedSize()
+                }
+                TerminalButton("Skip", style: .quiet, action: onSkip)
+                    .fixedSize()
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
+        .background(Brand.bgRaised)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(.separator, lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Brand.lineHi, lineWidth: 1)
         )
     }
 }
