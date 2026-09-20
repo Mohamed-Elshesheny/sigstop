@@ -615,6 +615,7 @@ never have to guess.
 ├── settings.json                      (mode 0600)  your preferences
 ├── state.json                         (mode 0600)  break engine state, overwritten in place
 ├── badges.json                        (mode 0600)  which badges have unlocked, and when
+├── counters.json                      (mode 0600)  today's budgets, overwritten in place
 ├── events/
 │   ├── 2026-09-18.jsonl               (mode 0600)  append-only, one JSON object per line
 │   ├── 2026-09-19.jsonl
@@ -622,6 +623,13 @@ never have to guess.
 └── summaries/
     └── 2026-09.json                   (mode 0600)  one object per day
 ```
+
+`counters.json` holds the day's budgets: how many notifications have been delivered, when
+the last one was, how many cycles in a row went unanswered, the compliance tallies, and the
+next cycle number. It exists because those were rebuilt from nothing on every launch, so
+the "notifications per day" setting was never a real constraint for anyone who restarts the
+app. It is counts and one timestamp; it adds nothing to the inventory in §1.2 that the
+event log does not already hold, and nothing in it says what you were doing.
 
 There is no database, no binary blob, no `.sqlite`, and nothing encrypted or encoded. Formats were
 chosen so that `cat` is a complete audit tool.

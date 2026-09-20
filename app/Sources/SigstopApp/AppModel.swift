@@ -181,7 +181,12 @@ final class AppModel {
     // MARK: - Loop state (never observed)
 
     @ObservationIgnored private var engineState: EngineState
+    /// The day's budgets. Loaded from the store at launch and written back when they
+    /// change, because a value reconstructed on every launch is not a daily cap.
     @ObservationIgnored private var day = DailyCounters()
+    /// The last counters handed to the store, so a tick that changed nothing does not
+    /// rewrite the file.
+    @ObservationIgnored private var persistedDay: DailyCounters?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private var observerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var pendingAction: UserAction?
@@ -444,6 +449,7 @@ final class AppModel {
         verifyPromptPresentation()
 
         record(sessionEvents: sessionEvents, at: now)
+        persistCountersIfChanged()
         logFocusIfNeeded(context: context, sample: sample, at: now)
         publishViewState(sample: sample, context: context, outcome: outcome)
     }
@@ -713,6 +719,10 @@ final class AppModel {
             self.store = store
             try store.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
             badges = store.readBadges()
+            if let stored = store.readCounters() {
+                day = stored
+                persistedDay = stored
+            }
             lastStoreError = nil
         } catch {
             store = nil
@@ -726,6 +736,27 @@ final class AppModel {
             try store.append(event)
         } catch {
             lastStoreError = "Could not write the event log, \(error)"
+        }
+    }
+
+    /// Writes the day's budgets back when they have moved.
+    ///
+    /// Without this the counters were a fresh value on every launch, so
+    /// `maxNotificationsPerDay`, the minimum spacing between notifications, the ignore
+    /// backoff and the cycle numbering all reset every time the app started. On the day
+    /// this was found the app had been relaunched 72 times and `break_open {cycle:0}`
+    /// appears eleven times in one file. A setting the user can see and set, and which
+    /// silently never binds, is worse than no setting.
+    ///
+    /// The engine still rolls the counters over itself when the logical day changes, so
+    /// a file written yesterday cannot spend today's budget.
+    private func persistCountersIfChanged() {
+        guard let store, day != persistedDay else { return }
+        do {
+            try store.writeCounters(day)
+            persistedDay = day
+        } catch {
+            lastStoreError = "Could not write the daily counters, \(error)"
         }
     }
 
@@ -981,6 +1012,8 @@ final class AppModel {
             lastWrittenSummary = nil
             badges = .empty
             badgeNote = nil
+            day = DailyCounters()
+            persistedDay = nil
             refreshRollup(force: true)
             return report.userFacingSummary
         } catch {
