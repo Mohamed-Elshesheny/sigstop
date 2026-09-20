@@ -143,8 +143,18 @@ final class BreakOverlayController {
     ///     the user declined notifications.
     ///
     /// It needs no permission, and it does **not** respect Do Not Disturb, which is
-    /// exactly why it is reserved for those two cases, and why it is deliberately small,
-    /// corner-anchored, dismissible and never fullscreen.
+    /// exactly why it is reserved for those two cases, and why below escalation 4 it is
+    /// deliberately small, corner-anchored, dismissible and never fullscreen.
+    ///
+    /// That sentence used to be a lie. Every rung was drawn as a 78% black panel across
+    /// every display, because `deliver()` routes all four channels here whenever system
+    /// notifications are off, and this method sized every panel at `screen.frame`. An L1
+    /// `SIGTSTP`, documented as passive and silent and costing no notification budget,
+    /// blacked out the machine. That is the warden tone CLAUDE.md §0 warns against, and
+    /// it is the most likely reason a prompt gets waved off within one tick.
+    ///
+    /// `SIGSTOP` still takes the whole screen on every display, because that rung is the
+    /// one the product says cannot be ignored and the bluff has to be worth something.
     ///
     /// Returns `false` only when there is no screen to draw on at all. Ordering the panel
     /// front is a request to the window server, not a fact about pixels: the caller
@@ -153,11 +163,14 @@ final class BreakOverlayController {
     @discardableResult
     func presentPromptPanel(_ request: PromptRequest, message: RenderedMessage, model: AppModel) -> Bool {
         dismissPromptPanel()
-        guard !NSScreen.screens.isEmpty else { return false }
+        let fullscreen = request.level == .incident
+        let screens = fullscreen ? NSScreen.screens : [Self.promptScreen()].compactMap { $0 }
+        guard !screens.isEmpty else { return false }
 
-        for screen in NSScreen.screens {
+        for screen in screens {
+            let frame = fullscreen ? screen.frame : Self.cornerFrame(on: screen)
             let panel = NonActivatingPanel(
-                contentRect: screen.frame,
+                contentRect: frame,
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -173,12 +186,13 @@ final class BreakOverlayController {
             panel.hidesOnDeactivate = false
             panel.level = .statusBar
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-            panel.setFrame(screen.frame, display: true)
+            panel.setFrame(frame, display: true)
 
             let hosting = NSHostingView(
                 rootView: FallbackPromptView(
                     request: request,
                     message: message,
+                    compact: !fullscreen,
                     onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
                     onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
                     onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
@@ -206,11 +220,29 @@ final class BreakOverlayController {
 
     /// Puts the prompt panel back where it belongs and orders it front again. Idempotent
     /// and cheap, so the model can call it on every tick until the window server agrees.
+    ///
+    /// The frame each panel was built with is re-applied rather than recomputed from
+    /// `NSScreen.screens`, which is what a corner-anchored panel needs and what a
+    /// fullscreen one needed anyway: zipping panels against a screen list that may have
+    /// changed length put a panel on the wrong display.
     func reassertPromptPanel() {
-        for (panel, screen) in zip(fallbackPanels, NSScreen.screens) {
-            panel.setFrame(screen.frame, display: true)
+        for panel in fallbackPanels {
             panel.orderFrontRegardless()
         }
+    }
+
+    /// Top-right of the screen with the menu bar, inset from the visible frame so it
+    /// clears the menu bar and the notch without overlapping either.
+    private static func cornerFrame(on screen: NSScreen) -> NSRect {
+        let size = NSSize(width: 400, height: 208)
+        let inset: CGFloat = 16
+        let visible = screen.visibleFrame
+        return NSRect(
+            x: visible.maxX - size.width - inset,
+            y: visible.maxY - size.height - inset,
+            width: size.width,
+            height: size.height
+        )
     }
 
     /// The screen with the menu bar. `NSScreen.main` is the screen of this app's key
@@ -357,11 +389,13 @@ struct BreakOverlayView: View {
 
 // MARK: - The fallback prompt view
 
-/// The corner prompt: the signal this rung is named after, the joke, and three
-/// monospaced buttons. The signal is amber at levels 1–3 and red at level 4, which is
-/// the only red in the product, `SIGSTOP` is the one rung that cannot be ignored, and
-/// the colour says so once.
-/// The prompt.
+/// The prompt: the signal this rung is named after, the joke, and three monospaced
+/// buttons. The signal is amber at levels 1 to 3 and red at level 4, which is the only
+/// red in the product, `SIGSTOP` is the one rung that cannot be ignored, and the colour
+/// says so once.
+///
+/// `compact` is the ordinary case: a card in the corner of one screen. Only `SIGSTOP`
+/// gets the full screen, on every display.
 ///
 /// This used to be two choices, "Take it" and "Ignore it", and the second one was a lie:
 /// it called `skip()`, which is the most expensive response the state machine has. It
@@ -378,6 +412,7 @@ struct BreakOverlayView: View {
 struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage
+    var compact: Bool = false
     let onTake: () -> Void
     let onIgnore: () -> Void
     let onSkip: () -> Void
@@ -386,44 +421,63 @@ struct FallbackPromptView: View {
 
     var body: some View {
         ZStack {
-            Rectangle()
-                .fill(.black.opacity(0.78))
-                .ignoresSafeArea()
+            if compact {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.black.opacity(0.92))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Brand.Dark.line, lineWidth: 1)
+                    )
+            } else {
+                Rectangle()
+                    .fill(.black.opacity(0.78))
+                    .ignoresSafeArea()
+            }
 
-            VStack(spacing: 0) {
-                HStack(spacing: 10) {
+            VStack(alignment: compact ? .leading : .center, spacing: 0) {
+                HStack(spacing: compact ? 7 : 10) {
                     StateDot(state: isIncident ? .alert : .suspend)
                     Text(request.signal)
-                        .font(Brand.mono(13, weight: .semibold))
-                        .tracking(3)
+                        .font(Brand.mono(compact ? 11 : 13, weight: .semibold))
+                        .tracking(compact ? 2 : 3)
                         .foregroundStyle(isIncident ? Brand.alert : Brand.Dark.amber)
                     Text("L\(request.level.rawValue)")
-                        .font(Brand.mono(12))
+                        .font(Brand.mono(compact ? 10 : 12))
                         .foregroundStyle(Brand.Dark.fgFaint)
+                    if compact {
+                        Spacer(minLength: 0)
+                        Text("\(DurationText.short(request.continuousWork)) continuous")
+                            .font(Brand.mono(10))
+                            .foregroundStyle(Brand.Dark.fgFaint)
+                    }
                 }
 
-                Text("\(DurationText.short(request.continuousWork)) continuous")
-                    .font(Brand.mono(12))
-                    .foregroundStyle(Brand.Dark.fgFaint)
-                    .padding(.top, 10)
+                if !compact {
+                    Text("\(DurationText.short(request.continuousWork)) continuous")
+                        .font(Brand.mono(12))
+                        .foregroundStyle(Brand.Dark.fgFaint)
+                        .padding(.top, 10)
+                }
 
                 if let title = message.title {
                     Text(title)
-                        .font(Brand.sans(20, weight: .semibold))
+                        .font(Brand.sans(compact ? 12 : 20, weight: .semibold))
                         .foregroundStyle(Brand.Dark.fgMuted)
-                        .padding(.top, 34)
+                        .padding(.top, compact ? 14 : 34)
                 }
 
                 Text(message.text)
-                    .font(Brand.sans(38, weight: .medium))
+                    .font(Brand.sans(compact ? 16 : 38, weight: .medium))
                     .foregroundStyle(Brand.Dark.fg)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(6)
+                    .multilineTextAlignment(compact ? .leading : .center)
+                    .lineSpacing(compact ? 2 : 6)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 820)
-                    .padding(.top, message.title == nil ? 34 : 14)
+                    .frame(maxWidth: compact ? .infinity : 820, alignment: compact ? .leading : .center)
+                    .padding(.top, compact ? (message.title == nil ? 14 : 6) : (message.title == nil ? 34 : 14))
 
-                HStack(spacing: 14) {
+                if compact { Spacer(minLength: 12) }
+
+                HStack(spacing: compact ? 8 : 14) {
                     TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
                         .fixedSize()
                     TerminalButton("Not now", action: onIgnore)
@@ -431,14 +485,14 @@ struct FallbackPromptView: View {
                     TerminalButton("Skip it · 20m", style: .quiet, action: onSkip)
                         .fixedSize()
                 }
-                .padding(.top, 44)
+                .padding(.top, compact ? 0 : 44)
 
                 Text("esc for not now, it comes back in 90 seconds")
-                    .font(Brand.mono(11))
+                    .font(Brand.mono(compact ? 9.5 : 11))
                     .foregroundStyle(Brand.Dark.fgFaint)
-                    .padding(.top, 18)
+                    .padding(.top, compact ? 10 : 18)
             }
-            .padding(48)
+            .padding(compact ? 18 : 48)
         }
     }
 }
