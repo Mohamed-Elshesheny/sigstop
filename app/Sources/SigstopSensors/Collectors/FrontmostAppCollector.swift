@@ -112,8 +112,6 @@ public final class FrontmostAppCollector {
             me.emit(.terminated(app, at: at))
         })
 
-        // One reconciliation at start: notifications only tell us about *changes*, so the
-        // initial state has to be read directly.
         reconcile()
     }
 
@@ -159,7 +157,6 @@ public final class FrontmostAppCollector {
 
     private func handleActivation(_ app: AppIdentity, at: Date) {
         guard app != current else { return }
-        // Close the outgoing entry, open a new one.
         history.append(AppSwitch(app: current, enteredAt: currentSince, leftAt: at))
         if history.count > Self.historyDepth { history.removeFirst(history.count - Self.historyDepth) }
         current = app
@@ -179,13 +176,8 @@ public final class FrontmostAppCollector {
         _ body: @escaping @MainActor (FrontmostAppCollector, AppIdentity, Date) -> Void
     ) -> NSObjectProtocol {
         center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-            // `NSRunningApplication` is not Sendable, so it is reduced to an `AppIdentity`
-            // here, on the main thread where the notification was delivered, and the
-            // object itself never escapes this closure.
             let raw = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             let identity = raw.map(Self.identity(of:))
-            // `queue: .main` means this block runs on the main thread; `assumeIsolated`
-            // states that statically instead of adding a hop that would reorder events.
             MainActor.assumeIsolated {
                 guard let self, let identity else { return }
                 body(self, identity, self.time.now)
@@ -205,8 +197,6 @@ public final class FrontmostAppCollector {
         if let app = NSWorkspace.shared.frontmostApplication {
             return identity(of: app)
         }
-        // `frontmostApplication` can lag during a switch; the menu bar owner is the
-        // documented tiebreaker.
         if let owner = NSWorkspace.shared.runningApplications.first(where: { $0.ownsMenuBar }) {
             return identity(of: owner)
         }
@@ -216,8 +206,6 @@ public final class FrontmostAppCollector {
     private nonisolated static func readRunningBundleIDs() -> Set<String> {
         var ids: Set<String> = []
         for app in NSWorkspace.shared.runningApplications {
-            // `.accessory` and `.prohibited` are background agents — they are never the
-            // "frontmost app", but they DO matter for "is Zoom/Docker running".
             guard let id = app.bundleIdentifier else { continue }
             ids.insert(id)
         }

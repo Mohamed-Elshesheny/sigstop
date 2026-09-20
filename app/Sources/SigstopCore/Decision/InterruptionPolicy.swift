@@ -10,7 +10,6 @@ import Foundation
 /// all over the engine keeps one place to look when a number misbehaves.
 public struct BreakPolicy: Sendable, Codable, Hashable {
 
-    // --- session model ---
     public var tickInterval: TimeInterval = 1
     /// A tick that lands later than `tickInterval + tickTolerance` is not a tick, it is a
     /// discontinuity: the process was throttled, suspended, or the machine slept. It is
@@ -29,7 +28,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     /// NTP step or a user changing the date. It is never work and never a break.
     public var wallClockSkewTolerance: TimeInterval = 5
 
-    // --- break cycle ---
     public var targetContinuousWork: TimeInterval = 45 * 60
     /// The floor that makes generosity elsewhere safe: at this much continuous work the
     /// engine fires regardless of deep focus.
@@ -39,7 +37,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     public var settleInAfterBreak: TimeInterval = 5 * 60
     public var deepFocusMinimumWork: TimeInterval = 20 * 60
 
-    // --- deferral ---
     public var softDeferralWindow: TimeInterval = 8 * 60
     public var deepFocusExtension: TimeInterval = 7 * 60
     /// Hard ceiling on seam-waiting per cycle — "maximum 15 minutes of seam-waiting per
@@ -53,7 +50,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     public var rearmAfterSkip: TimeInterval = 20 * 60
     public var cooldownAfterExhausted: TimeInterval = 25 * 60
 
-    // --- prompts ---
     public var promptTimeout: TimeInterval = 90
     public var snoozeDurations: [TimeInterval] = [5 * 60, 10 * 60, 15 * 60]
     public var maxSnoozesPerCycle: Int = 3
@@ -62,7 +58,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     public var maxNotificationsPerCycle: Int = 4
     public var dailyNotificationCap: Int = 12
 
-    // --- escalation ladder timing, measured from t0 (§11) ---
     /// L1 SIGTSTP — passive, silent, costs no notification budget.
     public var ladderLevel1: TimeInterval = 0
     /// L2 SIGINT — quiet repeat.
@@ -90,8 +85,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
         let unit = TimeInterval(settings.snoozeMinutes * 60)
         snoozeDurations = [unit, unit * 2, unit * 3]
         absoluteMaxWork = max(absoluteMaxWork, targetContinuousWork * 2)
-        // A qualifying break can never be shorter than the micro-idle grace, or reading a
-        // long function would be recorded as a break the user never took.
         qualifyingBreak = max(qualifyingBreak, microIdleGrace + 30)
         sessionGap = max(sessionGap, qualifyingBreak * 2)
         longPauseReset = min(max(longPauseReset, qualifyingBreak), sessionGap)
@@ -293,7 +286,6 @@ public struct InterruptionPolicy: Sendable {
         if let block = hardBlock(input) { return .hardBlocked(block) }
         if let limit = rateLimit(input, budget: budget) { return .rateLimited(limit) }
 
-        // The floor beats every soft consideration.
         if input.context.continuousWork >= policy.absoluteMaxWork { return .deliver }
 
         if budget.seamWaitElapsed < softBudget(input, budget: budget),
@@ -318,7 +310,6 @@ public struct InterruptionPolicy: Sendable {
         }
         if s.cameraRunning { return .cameraInUse }
         if s.displayCaptured { return .screenBeingShared }
-        // Fullscreen ALONE is not a block — developers work fullscreen all day.
         if s.frontmostIsFullscreen && (s.frontmostIsPresentationApp || s.cameraRunning) {
             return .presentationFullscreen
         }
@@ -365,8 +356,6 @@ public struct InterruptionPolicy: Sendable {
         if input.keystrokeRate > 2.0 { return .typingBurst }
         if input.terminalCommandRunning { return .terminalCommandRunning }
         if input.secondsSinceFrontmostChange < policy.seamIdleBlip { return .recentAppLaunch }
-        // An inferred meeting. Confidence gates deferral, never blocking (CLAUDE.md §4.1) —
-        // and below the specific-claim threshold the guess earns nothing at all.
         if input.context.concurrent.inMeeting,
            input.context.concurrent.meetingConfidence.isConfidentEnoughForSpecificClaim {
             return .inferredMeeting

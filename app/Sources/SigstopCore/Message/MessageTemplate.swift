@@ -1,10 +1,6 @@
 import Foundation
 
 // MARK: - Predicates
-//
-// A template declares its preconditions as a flat list. All of them must hold
-// (conjunction); disjunction lives *inside* a predicate as a set. Flat enough to validate
-// in CI and to print in a debug panel. See docs/MESSAGE-ENGINE.md §1.2.
 
 public enum Predicate: Sendable, Hashable, Codable {
     case app(Set<AppKey>)
@@ -24,9 +20,6 @@ public enum Predicate: Sendable, Hashable, Codable {
         case .appFamily(let s):
             return s.contains(ctx.appFamily)
         case .activity(let s):
-            // A claim about an ANCESTOR of the current activity is still true: if you are
-            // debugging, you are coding. A claim about a SIBLING never is. Walking up the
-            // taxonomy here is the same rule as `claimableActivity`, applied to matching.
             var node: Activity? = ctx.activity
             while let n = node {
                 if s.contains(n) { return true }
@@ -44,9 +37,6 @@ public enum Predicate: Sendable, Hashable, Codable {
         case .streak(let key, let n):
             return ctx.streak(key) >= n
         case .fact(let key, let match):
-            // A MISSING fact fails the predicate. Absence is never truth — this is the
-            // rule that stops the engine claiming you are on `main` because the git
-            // collector has not reported yet.
             guard let v = ctx.facts[key] else { return false }
             switch (match, v) {
             case (.isTrue, .bool(let b)):                return b
@@ -293,8 +283,6 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let bounds = try c.decode(EscalationBounds.self, forKey: .escalation)
-        // Clamp and repair rather than trust: a pack is a file on disk, and a file on disk
-        // is user input.
         let lo = EscalationLevel(rawValue: Swift.min(Swift.max(bounds.min, 1), 4)) ?? .first
         let hi = EscalationLevel(rawValue: Swift.min(Swift.max(bounds.max, 1), 4)) ?? .incident
         let range = lo <= hi ? lo...hi : hi...lo
@@ -477,10 +465,6 @@ public struct Corpus: Sendable, Hashable {
     }
 
     // MARK: Emergency pool
-    //
-    // Compiled in, not loadable, not disable-able. This is what makes `select` total: it
-    // has no failure return and cannot throw. Tone is friendly at every rung — if we have
-    // fallen this far we have nothing specific to be smug about.
 
     public static let emergencyPool: [MessageTemplate] = [
         MessageTemplate(

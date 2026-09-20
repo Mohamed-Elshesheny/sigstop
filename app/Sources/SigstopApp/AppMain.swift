@@ -49,10 +49,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: StatusItemController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Bare `swift run` builds have no Info.plist, so the activation policy is set here
-        // too rather than silently being a normal app with a Dock icon.
-        // The policy is re-applied from settings by the controller; this is only the
-        // pre-settings default so a bare `swift run` never flashes a Dock icon.
         NSApp.setActivationPolicy(.accessory)
         controller = StatusItemController()
     }
@@ -128,9 +124,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         if let button = item.button {
             button.action = #selector(toggle)
             button.target = self
-            // Mouse *down*, like a menu, so the toggle runs before anything else can react
-            // to the click; and both buttons, so a right click opens the same panel rather
-            // than nothing.
             button.sendAction(on: [.leftMouseDown, .rightMouseDown])
 
             let icon = PassthroughHostingView(rootView: StatusIcon(model: model))
@@ -144,9 +137,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             ])
         }
 
-        // The panel follows the SwiftUI content's ideal size: the disclosure opens, the
-        // action rows change with state, and the window has to grow and shrink with them
-        // while staying hung from the menu bar.
         content.sizingOptions = [.preferredContentSize]
         content.onPreferredContentSizeChange = { [weak self] in self?.layoutPanel() }
         panel.contentViewController = content
@@ -193,10 +183,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     private func show() {
         model.refreshRollup(force: true)
         layoutPanel()
-        // `orderFrontRegardless` orders without activating; `makeKey` on a
-        // `.nonactivatingPanel` takes keyboard focus for Escape without taking the app
-        // to the front. The frontmost app stays frontmost, which is also what lets
-        // `windowDidResignKey` mean "the user clicked somewhere else".
         panel.orderFrontRegardless()
         panel.makeKey()
         item.button?.highlight(true)
@@ -249,7 +235,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             self?.dismiss()
         }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            // 53 = Escape
             guard event.keyCode == 53, let self, self.panel.isVisible else { return event }
             self.dismiss()
             return nil
@@ -319,15 +304,9 @@ private final class MenuBarPanel: NSPanel {
         hasShadow = true
         isMovable = false
         isReleasedWhenClosed = false
-        // NSPanel hides itself when the app deactivates by default. This app is never
-        // active while the panel is open, so leaving that on would make the very first
-        // deactivation notice — whenever it happened — close the panel under the user.
         hidesOnDeactivate = false
         isExcludedFromWindowsMenu = true
         animationBehavior = .none
-        // The same level as the status item itself, so the panel sits above every
-        // ordinary and floating window of every app, and over another app's full-screen
-        // space without joining it.
         level = .statusBar
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
     }

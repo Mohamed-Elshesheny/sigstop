@@ -144,28 +144,16 @@ public struct AppSwitch: Sendable, Hashable, Codable {
 }
 
 // MARK: - Tier 2 signal shapes
-//
-// These types live here, with the rest of `SignalContext`, because providers must be
-// able to read them without the Tier 2 collector existing yet. The Tier 2 collector
-// (process introspection + `.git/HEAD` watching) is a separate work item; until it
-// ships, `SignalContext.processes` and `.git` are simply `nil` and every provider
-// degrades exactly as docs/ACTIVITY-DETECTION.md §7.2 requires.
 
 /// Allowlisted tool names. The ONLY thing ever extracted from `KERN_PROCARGS2`.
 /// Raw argv is matched against this list and immediately discarded — argv routinely
 /// contains secrets (`psql "postgres://user:password@…"`). See §4.3.
 public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
-    // debuggers
     case lldb, debugserver, gdb, delve, debugpy, nodeInspect
-    // test runners
     case pytest, jest, vitest, xctest, goTest, cargoTest, swiftTesting, rspec, phpunit, playwright
-    // terminal editors
     case vim, nvim, helix, emacs, nano
-    // AI CLIs
     case claudeCLI, aider, codexCLI, gooseCLI
-    // build / vcs
     case gitProcess, ghCLI, xcodebuild, gradle, cargo, swiftBuild, tsc, webpack, vite
-    // remote
     case ssh, mosh, kubectl
 
     public static let debuggers: Set<ToolToken> = [.lldb, .debugserver, .gdb, .delve, .debugpy, .nodeInspect]
@@ -245,7 +233,6 @@ public struct SignalContext: Sendable {
     /// at any moment with no notification, so this is a runtime value, never a constant.
     public let available: SignalTierSet
 
-    // Tier 0
     public let frontmost: AppIdentity
     public let frontmostSince: Date
     /// Ring buffer, most recent last. Lets a provider see "this is a 3-second lookup
@@ -258,13 +245,11 @@ public struct SignalContext: Sendable {
     public let audioInput: AudioInputState
     public let windowGeometry: WindowGeometrySnapshot?
 
-    // Tier 1
     public let windowTitle: String?
     public let documentURL: URL?
     /// Tier 1b, separately opted in. HOST ONLY — never a path, never a query string.
     public let browserHost: String?
 
-    // Tier 2
     public let processes: ProcessSnapshot?
     public let git: GitSignal?
 

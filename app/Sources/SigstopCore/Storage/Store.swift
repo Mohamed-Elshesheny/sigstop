@@ -1,9 +1,5 @@
 import Foundation
 
-// Foundation only. No AppKit (CLAUDE.md §3.1), no networking module of any kind
-// (CLAUDE.md §4.3), no clock reads (CLAUDE.md §3.2) — `prune` takes `now` as an
-// argument precisely so that this file never has to know what time it is.
-
 // MARK: - Errors
 
 public enum StoreError: Error, Sendable, Hashable {
@@ -174,7 +170,6 @@ extension EventStore {
         let malformed = loads.reduce(0) { $0 + $1.malformedLines }
         guard let interval = day.interval(boundaryHour: policy.dayBoundaryHour, calendar: calendar)
         else { return (merged, malformed) }
-        // Keep one event before the window so the opening state is known.
         let inWindow = merged.filter { $0.at >= interval.start && $0.at < interval.end }
         let before = merged.last { $0.at < interval.start }
         return ((before.map { [$0] } ?? []) + inWindow, malformed)

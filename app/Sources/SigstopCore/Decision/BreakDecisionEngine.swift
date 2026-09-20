@@ -122,7 +122,6 @@ public struct BreakDecisionEngine: Sendable {
         var verdict: InterruptionVerdict?
         var state = state
 
-        // --- day boundary (04:00 local). Cycle ids survive; budgets do not. ---
         let today = LocalDay.index(of: input.now, calendar: input.calendarSystem, boundaryHour: policy.dayBoundaryHour)
         if day.dayIndex != today {
             let wasCapped: Bool = {
@@ -135,13 +134,11 @@ public struct BreakDecisionEngine: Sendable {
             }
         }
 
-        // --- an explicit user action outranks everything the engine might infer ---
         if let action = input.userAction {
             state = handle(action, state: state, input: input, day: &day, effects: &effects)
             return EngineOutcome(state: state, effects: effects, day: day, verdict: nil)
         }
 
-        // --- the developer took a real break on their own: that is the success case ---
         if input.qualifyingBreakObserved, !isBreakActive(state) {
             if let cycle = state.openCycle {
                 effects.append(.withdrawPrompt(cycle: cycle, reason: .userLeft))
@@ -154,12 +151,6 @@ public struct BreakDecisionEngine: Sendable {
             return EngineOutcome(state: .working(working), effects: effects, day: day, verdict: nil)
         }
 
-        // --- quiet hours withdraw, never queue ---
-        // `.working` is deliberately NOT short-circuited here: an opportunity opens every
-        // time W reaches T, *including* one quiet hours will suppress (§14.1). Letting it
-        // chain into `breakDue` makes the verdict's `.quietHours` rate limit close it as
-        // `.quietSuppressed`, which is what counts it as an *excluded* opportunity instead
-        // of hiding it from the rollup entirely.
         let inQuietWindow = input.settings.quietHours.contains(input.now, calendar: input.calendarSystem)
         if inQuietWindow, !isBreakActive(state), !state.isWorking {
             if case .quiet = state {
@@ -175,7 +166,6 @@ public struct BreakDecisionEngine: Sendable {
             return EngineOutcome(state: .quiet(QuietState(cause: .scheduledQuietHours)), effects: effects, day: day, verdict: nil)
         }
 
-        // --- states that do not chain ---
         switch state {
         case .breakActive(let b):
             state = handleBreakActive(b, input: input, day: &day, effects: &effects)
@@ -189,7 +179,6 @@ public struct BreakDecisionEngine: Sendable {
             break
         }
 
-        // --- states that chain, in the only order they can chain in ---
         if case .working(let w) = state {
             state = handleWorking(w, input: input, day: &day, effects: &effects)
         }
@@ -216,7 +205,6 @@ public struct BreakDecisionEngine: Sendable {
         effects: inout [Effect]
     ) -> EngineState {
         var w = working
-        // The work clock reset (a break, a long pause, a new day): re-arm at the target.
         if input.context.continuousWork < w.lastWorkSeen { w.armThreshold = policy.targetContinuousWork }
         w.lastWorkSeen = input.context.continuousWork
 
@@ -241,8 +229,6 @@ public struct BreakDecisionEngine: Sendable {
             return .working(w)
         }
 
-        // A break opportunity opens here — including one that quiet hours or the daily cap
-        // will immediately suppress. The rollup must see it, or compliance flatters itself.
         let cycle = day.takeCycle()
         day.breakOpportunities += 1
         effects.append(.openCycle(cycle))
@@ -263,8 +249,6 @@ public struct BreakDecisionEngine: Sendable {
         d.lastStepMono = input.monotonic
         d.totalElapsed += dt
 
-        // Nobody is there. That is not an ignore, and escalating at an empty chair is the
-        // purest form of the failure this design exists to avoid.
         if input.context.idleSeconds >= policy.microIdleGrace {
             if d.promptedAt != nil { effects.append(.withdrawPrompt(cycle: d.cycle, reason: .userLeft)) }
             effects.append(.setIndicator(.idle))
@@ -275,8 +259,6 @@ public struct BreakDecisionEngine: Sendable {
             )), nil)
         }
 
-        // A "time for a break" arriving 70 minutes late is noise, and worse, it is evidence
-        // that the app is not paying attention. Abandon, do not fire.
         if d.totalElapsed >= policy.staleBreakCeiling {
             if d.promptedAt != nil { effects.append(.withdrawPrompt(cycle: d.cycle, reason: .cycleExpired)) }
             effects.append(.closeCycle(d.cycle, .expired))
@@ -292,12 +274,6 @@ public struct BreakDecisionEngine: Sendable {
         d.lastVerdict = verdict
         effects.append(.recordVerdict(verdict))
 
-        // §10: delivered, `promptTimeout` elapsed, no interaction, and the user was present
-        // (the absent case returned above). Whether the *next* rung may fire is a rate-limit
-        // question; whether this prompt was ignored is not — so it is decided before the
-        // verdict switch, or the minimum-spacing limit would silently push t0 five minutes
-        // out and stretch the whole ladder with it. A hard block still postpones it: the
-        // banner may never have reached the screen.
         if let promptedMono = d.promptedAtMono,
            !verdict.isHardBlocked,
            input.monotonic - promptedMono >= policy.promptTimeout {
@@ -315,8 +291,6 @@ public struct BreakDecisionEngine: Sendable {
 
         switch verdict {
         case .hardBlocked:
-            // The seam budget does not burn while blocked: a two-hour meeting costs the
-            // cycle nothing. It is preserved, not consumed and not fired stale.
             effects.append(.setIndicator(.breakDue))
             return (.breakDue(d), verdict)
 
@@ -340,8 +314,6 @@ public struct BreakDecisionEngine: Sendable {
         case .softDeferred:
             d.seamWaitElapsed += dt
             d.seamWaitTotal += dt
-            // Record that this cycle has taken its one deep-focus extension. `softBudget`
-            // keeps granting it from here; `maxSeamWaitPerCycle` is what makes it one.
             if interruption.isDeepFocus(input) { d.deepFocusExtensionUsed = true }
             effects.append(.setIndicator(.breakDue))
             return (.breakDue(d), verdict)
@@ -396,15 +368,12 @@ public struct BreakDecisionEngine: Sendable {
         let verdict = interruption.verdict(input, budget: e.budget)
         effects.append(.recordVerdict(verdict))
 
-        // A hard block postpones a rung; it never stacks two rungs together on release.
         if verdict.isHardBlocked {
             effects.append(.setIndicator(.escalating))
             return (.ignored(e), verdict)
         }
         e.ladderElapsed += dt
 
-        // After two consecutive fully-ignored cycles the ladder truncates to L1–L2 for the
-        // rest of the day: one notification per cycle, maximum.
         let ceiling: EscalationLevel = day.consecutiveIgnoredCycles >= policy.ignoreBackoffThreshold ? .second : .incident
         var target = ladderLevel(for: e, input: input)
         if target > ceiling { target = ceiling }
@@ -430,8 +399,6 @@ public struct BreakDecisionEngine: Sendable {
             }
         }
 
-        // The ladder ends permanently for this cycle — there is no level 5, and SIGSTOP is
-        // already uncatchable.
         let exhausted: Bool = {
             if let delivered = e.finalDeliveredAt { return e.ladderElapsed - delivered >= policy.promptTimeout }
             return e.ladderElapsed >= policy.ladderLevel4 + policy.promptTimeout
@@ -454,7 +421,6 @@ public struct BreakDecisionEngine: Sendable {
     private func ladderLevel(for e: Escalation, input: EngineInput) -> EscalationLevel {
         if e.ladderElapsed >= policy.ladderLevel4 { return .incident }
         if e.ladderElapsed >= policy.ladderLevel3Forced { return .third }
-        // Armed, then waiting for the user to break their own concentration.
         if e.ladderElapsed >= policy.ladderLevel3Armed, !input.seams.isEmpty { return .third }
         if e.ladderElapsed >= policy.ladderLevel2 { return .second }
         return .first
@@ -480,7 +446,6 @@ public struct BreakDecisionEngine: Sendable {
         var s = snoozed
         let dt = max(0, input.monotonic - s.due.lastStepMono)
         s.due.lastStepMono = input.monotonic
-        // Snoozing cannot be used to outrun the stale ceiling.
         s.due.totalElapsed += dt
 
         guard input.monotonic >= s.untilMono else {
@@ -488,7 +453,6 @@ public struct BreakDecisionEngine: Sendable {
             return .snoozed(s)
         }
 
-        // SIGALRM fired: a fresh seam window, the same cycle.
         var d = s.due
         d.seamWaitElapsed = 0
         d.promptedAt = nil
@@ -546,8 +510,6 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.setIndicator(.idle))
             return .idle(idle)
         }
-        // They are back, and the gap was too short to have been a break (a qualifying one
-        // would have arrived as a session event and closed the cycle honored).
         if let cycle = idle.suspendedCycle {
             var d = BreakDue(cycle: cycle, dueSince: input.now, lastStepMono: input.monotonic)
             d.totalElapsed = 0
@@ -573,7 +535,6 @@ public struct BreakDecisionEngine: Sendable {
                 effects.append(.setIndicator(.quiet))
                 return .quiet(quiet)
             }
-            // Leaving quiet hours never flushes a backlog: a fresh cycle, fresh clocks.
             return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
         case .userPaused:
             if let untilMono = quiet.untilMono, input.monotonic >= untilMono {
@@ -588,7 +549,6 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.setIndicator(.quiet))
             return .quiet(quiet)
         case .dailyCapReached:
-            // Passive-only until the next day boundary, which is handled in `step`.
             effects.append(.setIndicator(.quiet))
             return .quiet(quiet)
         }
@@ -625,8 +585,6 @@ public struct BreakDecisionEngine: Sendable {
             guard var d = pendingCycle(state) else { return state }
             let offered = interruption.offeredSnoozes(used: d.snoozesUsed, total: d.snoozeTotal)
             guard let duration = offered.first else {
-                // The cap is spent. The prompt stops offering snooze rather than offering a
-                // fourth one that silently behaves like the third.
                 return state
             }
             let index = d.snoozesUsed
@@ -638,7 +596,6 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.recordSnooze(duration))
             effects.append(.scheduleWake(at: until))
             effects.append(.setIndicator(.breakDue))
-            // The work clock keeps running. Snoozing defers the question; it does not buy credit.
             return .snoozed(SnoozedState(cycle: d.cycle, until: until, untilMono: input.monotonic + duration, index: index, due: d))
 
         case .skip:
@@ -648,7 +605,6 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.recordSkip)
             effects.append(.setIndicator(.working))
             day.consecutiveIgnoredCycles = 0
-            // Deliberately cheap to use: no reset, no break recorded, no scolding copy.
             return .working(WorkingState(
                 armThreshold: input.context.continuousWork + policy.rearmAfterSkip,
                 lastWorkSeen: input.context.continuousWork

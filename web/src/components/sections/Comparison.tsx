@@ -118,13 +118,6 @@ export function Comparison() {
           ))}
         </div>
 
-        <div className="mt-8">
-          {copy.footnotes.map((f, i) => (
-            <p key={i} className="rounded-lg border border-line bg-surface/30 px-4 py-3 text-[13px] leading-relaxed text-fg-muted">
-              {f}
-            </p>
-          ))}
-        </div>
 
         <div className="mt-10 rounded-xl border border-line bg-surface/30 p-6 sm:p-8">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-suspend-ink">

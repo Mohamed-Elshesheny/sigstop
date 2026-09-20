@@ -1,13 +1,5 @@
 import Foundation
 
-// Foundation only. This is the one file in `SigstopCore` that touches the filesystem,
-// and it is still forbidden AppKit (CLAUDE.md §3.1) and every networking module
-// (CLAUDE.md §4.3). It reads and writes exactly one directory tree — the storage root
-// it was handed — and nothing else on the disk (docs/PRIVACY.md §2.1).
-//
-// It reads no clock: `prune` takes `now`, and every event carries its own timestamp
-// from a `TimeSource` upstream (CLAUDE.md §3.2).
-
 /// The on-disk store.
 ///
 /// ```

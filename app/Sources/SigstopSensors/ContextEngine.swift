@@ -352,22 +352,11 @@ public final class ContextEngine {
             windowGeometry: geometry,
             windowTitle: axInfo.title,
             documentURL: axInfo.documentURL,
-            // There is no permission-free way to read a browser's current URL. The only
-            // routes are Apple Events (an Automation grant, per-app prompts) and Screen
-            // Recording, both declined in docs/ACTIVITY-DETECTION.md §2.6/§12. So Tier 1b
-            // stays nil here rather than being faked: the opt-in exists, the collector
-            // that would honour it does not, and the providers already degrade cleanly.
             browserHost: nil,
-            // Tier 2 collectors (process snapshot, `.git/HEAD` watch) are a separate work
-            // item. Until they land these are nil and every provider degrades exactly as
-            // §7.2 requires — which is why DEBUGGING is currently unreachable and CODING
-            // is flagged ambiguous instead of guessed at.
             processes: nil,
             git: nil
         )
 
-        // Classification happens exactly once per sample. The verdict feeds both axes: the
-        // primary activity, and the Tier 1 half of the meeting evidence.
         let classified = registry.classify(signals)
 
         let (concurrent, meetingIsOSFact, meetingCaveat) = concurrentStates(
@@ -385,9 +374,6 @@ public final class ContextEngine {
 
         let developerContext = DeveloperContext(
             timestamp: now,
-            // The frontmost app is an OS fact and is always reported truthfully, even while
-            // the dwell gate is holding the previous *activity*. Lying about which app is in
-            // front to keep a story tidy is not a trade this app makes.
             application: snapshot.frontmost,
             activity: gated.observation.activity,
             confidence: gated.observation.confidence,
@@ -397,8 +383,6 @@ public final class ContextEngine {
             tiersUsed: gated.observation.tiersUsed,
             continuousWork: reading.continuousWork,
             timeSinceLastBreak: reading.timeSinceLastBreak,
-            // Honest absence is not representable in this field, so unknown idle is
-            // reported as 0 and the caveat above says so in words.
             idleSeconds: input.knownIdleSeconds ?? 0,
             applicationSwitches: signals.switchCount(within: 60)
         )
@@ -424,7 +408,6 @@ public final class ContextEngine {
         classified: (verdict: ProviderVerdict, providerID: ProviderID),
         concurrent: ConcurrentStates
     ) -> (observation: ActivityObservation, label: String?, providerID: ProviderID) {
-        // 1. OS facts win outright, and they are the only route to `.certain`.
         if signals.session.userDefinitelyAway {
             let evidence = Ev.make(
                 "session.away", .tier0, 3.0, awayReason(signals.session)
@@ -440,10 +423,6 @@ public final class ContextEngine {
             return (observation, nil, observation.providerID)
         }
 
-        // 2. Measured idle past the threshold. Deliberately built directly rather than
-        //    through the tier ceiling: 0.55 is the ceiling on *guessing what an app means*,
-        //    and this number does not come from a guess — it is the OS's own HID idle
-        //    counter. It still is not `.certain`, because a person can sit and read.
         if let idle = signals.input.knownIdleSeconds, idle > configuration.idleThreshold {
             let evidence = Ev.make(
                 "input.absent", .tier0, 3.0,
@@ -463,13 +442,9 @@ public final class ContextEngine {
             return (observation, nil, observation.providerID)
         }
 
-        // 3. Otherwise a provider owns the verdict.
         let (verdict, providerID) = classified
         var evidence = verdict.evidence
 
-        // The 120–300 s band is NOT idle. Reading code, reading a PR and thinking are all
-        // input-idle and all work; calling that "idle" is the most common way a time
-        // tracker lies to its user. Keep the class, lower the number, say why.
         if let idle = signals.input.knownIdleSeconds, idle > configuration.softIdleFloor {
             evidence.append(
                 Ev.make(
@@ -480,13 +455,6 @@ public final class ContextEngine {
             )
         }
 
-        // Decay. Sitting in the same editor for forty minutes with no input and no title
-        // change is *less* evidence of coding as time passes, not the same amount. A
-        // half-life is a straight line in log-odds, which is the space evidence already
-        // lives in, so decay is expressed as evidence and remains visible in "why?".
-        // (`ConfidenceEngine` clamps any single item to ±2.0, so decay bottoms out at
-        // roughly a seventh of the original odds rather than falling forever. Acceptable:
-        // past 300 s of no input the idle rule above takes over entirely.)
         updateCorroboration(verdict: verdict, signals: signals)
         let staleness = signals.now.timeIntervalSince(corroboratedAt)
         if staleness > configuration.decayHalfLife / 4 {
@@ -559,8 +527,6 @@ public final class ContextEngine {
                 + "\(Int(signals.frontmostDwell))s, so this is still being counted as "
                 + "\(previous.activity.displayName)."
         )
-        // Re-stamp so downstream consumers see a current sample rather than a frozen one;
-        // the claim itself, its evidence and its confidence are untouched.
         return (
             ActivityObservation(
                 timestamp: signals.now,
@@ -599,15 +565,11 @@ public final class ContextEngine {
             meetingEvidence.append(Ev.conferencingRunning(Self.conferencingName(bundleID)))
         }
 
-        // Providers contribute the Tier 1 half: "Zoom Meeting" rather than "Zoom", a
-        // browser tab titled "Meet - …".
         let hints = registry.classify(signals).verdict.concurrentHints
         meetingEvidence.append(contentsOf: hints.meetingEvidence)
 
         let hasTitleEvidence = meetingEvidence.contains { $0.tier == .tier1 }
         if signals.audioInput == .unreliable && !hasTitleEvidence {
-            // A permanently-on detector is worse than no detector. Switch the whole axis
-            // off and say so, rather than reporting a meeting all day.
             meetingEvidence = []
             caveat = "Meeting detection is off on this Mac — see the microphone note above."
         }
@@ -642,20 +604,15 @@ public final class ContextEngine {
         concurrent: ConcurrentStates,
         meetingIsOSFact: Bool
     ) -> PromptGate {
-        // --- Hard blocks. Every one of these is a fact, not a guess. ---
         if session.screenLocked { return .hardBlocked(reason: "the screen is locked") }
         if session.displaysAsleep { return .hardBlocked(reason: "the displays are asleep") }
         if !session.sessionActive {
             return .hardBlocked(reason: "someone else is signed in at the console")
         }
         if meetingIsOSFact {
-            // The device is genuinely running. We cannot tell *which* app has it, and we
-            // never claim to — but "an audio input device is open" is a system signal, not
-            // an inference, so it is allowed to block.
             return .hardBlocked(reason: "an audio input device is running — you may be on a call")
         }
 
-        // --- Soft deferrals. Inferences may delay a prompt; they may never kill it. ---
         if concurrent.inMeeting {
             return .softDeferred(
                 reason: "a conferencing app is running, so you might be in a meeting — "
@@ -683,7 +640,6 @@ public final class ContextEngine {
             titleCache = nil
             return .empty
         }
-        // No point paying for IPC into an app nobody is using.
         if let idle = input.knownIdleSeconds, idle > configuration.idleThreshold {
             return titleCache?.pid == pid ? titleCache?.info ?? .empty : .empty
         }
@@ -717,8 +673,6 @@ public final class ContextEngine {
                 guard let self else { return }
                 switch event {
                 case .activated:
-                    // Tier 1 can be revoked in System Settings with no notification, so the
-                    // (cheap, non-prompting) trust check runs on every activation.
                     self.permissions.refresh()
                     self.titleDirty = true
                     self.refreshGeometry()
@@ -749,8 +703,6 @@ public final class ContextEngine {
                     self.audioCollector.setSystemAwake(false)
                     self.suspendSampling()
                 case .didWake, .screenUnlocked, .displaysWoke, .sessionBecameActive:
-                    // Notifications posted while we were suspended are notifications we did
-                    // not get, so wake reconciles every cached view of the world.
                     self.audioCollector.setSystemAwake(true)
                     self.frontmostCollector.reconcile()
                     self.systemCollector.reconcile()
@@ -788,8 +740,6 @@ public final class ContextEngine {
                     self.titleDirty = true
                     await self.sampleAndPublish()
                 case .observationFailed:
-                    // Expected at zero permissions and after a revocation. Nothing to do:
-                    // the next sample reads the tier set and degrades on its own.
                     self.titleDirty = true
                 }
             }
@@ -809,8 +759,6 @@ public final class ContextEngine {
     }
 
     private func refreshGeometry() {
-        // On demand only, never on a timer: this is garnish (a fullscreen hint and two
-        // counts), it is on a deprecation path, and nothing may become load-bearing on it.
         geometry = systemCollector.windowGeometry(frontmostPID: frontmostCollector.snapshot().frontmost.pid)
     }
 
@@ -837,8 +785,6 @@ public final class ContextEngine {
     private func suspendSampling() {
         suspended = true
         cancelTimer()
-        // Nothing periodic survives suspension — cancelled outright, not merely skipped.
-        // A laptop with the lid closed for eight hours must cost exactly zero.
         accessibilityCollector.stopObservingAll()
         observedPID = nil
     }

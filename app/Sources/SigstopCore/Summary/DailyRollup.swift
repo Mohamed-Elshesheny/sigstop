@@ -1,12 +1,5 @@
 import Foundation
 
-// Pure domain. Foundation only — no AppKit (CLAUDE.md §3.1), no networking module of
-// any kind (CLAUDE.md §4.3), and no clock reads: every date this file reasons about
-// arrives inside a `LoggedEvent` or as a parameter (CLAUDE.md §3.2).
-//
-// This is the `jobs` command of the product vocabulary: everything you had suspended
-// today. It reports; it does not grade (docs/BREAK-DECISION.md §16).
-
 // MARK: - Policy
 
 /// The thresholds the rollup reads a day against. Defaults are the reference values in
@@ -56,7 +49,6 @@ public struct DailySummary: Sendable, Codable, Hashable {
     /// Local y/m/d, with the day boundary at `RollupPolicy.dayBoundaryHour`.
     public let day: CalendarDay
 
-    // ---- work ----
     /// Credited active work across the day. Not wall clock, not app-foreground time.
     public let totalActiveWork: TimeInterval
     /// Partitions `totalActiveWork` by inferred activity. Keyed by `Activity.rawValue`
@@ -71,7 +63,6 @@ public struct DailySummary: Sendable, Codable, Hashable {
     /// work stretch, not a `DeveloperSession`; the field name follows everyday usage.
     public let longestContinuousSession: TimeInterval
 
-    // ---- breaks ----
     /// Qualifying breaks: accepted + idle-inferred + user-initiated.
     public let breakCount: Int
     public let breaksAccepted: Int
@@ -83,7 +74,6 @@ public struct DailySummary: Sendable, Codable, Hashable {
     public let snoozeCount: Int
     public let ignoredPromptCount: Int
 
-    // ---- opportunities ----
     public let breakOpportunities: Int
     public let honoredOpportunities: Int
     public let excludedOpportunities: Int
@@ -215,33 +205,6 @@ public enum DailyRollup {
     public static let unattributedApplication = "unattributed"
 
     // MARK: Interpretation notes
-    //
-    // Two readings the doc leaves open, decided here and stated so a reviewer can
-    // disagree with the decision rather than reverse-engineer it:
-    //
-    // 1. "Honored": §14.1 says an opportunity is honored iff a qualifying break BEGAN
-    //    within 10 minutes of it opening, regardless of how it started. Implemented
-    //    literally — `break_begin` inside the window, whose measured duration reaches
-    //    `qualifyingBreak`. A break whose `break_end` is missing (in flight at the day
-    //    boundary, or a crash) qualifies only if the day's end is already far enough
-    //    past its start. The alternative — assuming an unterminated break was long
-    //    enough — would inflate compliance using data the app does not have.
-    //
-    // 2. "Excluded": §14.1 lists four causes (quiet hours, unbroken hard block, rate
-    //    limit, stale expiry). Those are engine-internal states the log does not record
-    //    individually, so the rollup uses their single observable consequence:
-    //    **no prompt was delivered inside the window.** A `break_prompt` carrying a
-    //    `deferred` reason is a prompt that was withheld and does not count as asking.
-    //    This is the defensible reading — "you cannot hold a user to a prompt that was
-    //    never delivered" is the stated principle, and delivery is exactly what the log
-    //    can prove. It is also the conservative direction: a delivered-then-withheld
-    //    cycle counts as asked, so the metric never flatters the user by inventing an
-    //    excuse.
-    //
-    // Third, smaller: the timeline is closed at the last observed event, never at the
-    // day boundary. Without a `stop` event, crediting to midnight would fabricate work
-    // out of an absent log. `credited work <= wall-clock elapsed` (§15 property 1)
-    // holds by construction.
 
     public static func compute(
         day: CalendarDay,
@@ -386,8 +349,6 @@ public enum DailyRollup {
                 suspensions.remove(.lock)
             case .wake:
                 suspensions.remove(.sleep)
-                // A wake also ends a display-sleep-shaped lock in practice; the
-                // matching `unlock` clears that one.
             case .sessionIn:
                 suspensions.remove(.sessionOut)
             case .breakBegin:
@@ -403,8 +364,6 @@ public enum DailyRollup {
             if cursor == nil { cursor = event.at }
         }
 
-        // Close at the last observed event, never at the day boundary. See the
-        // interpretation notes above.
         if let cursor, let last = events.last?.at, last > cursor {
             closeSegment(at: last)
         }
@@ -450,7 +409,6 @@ public enum DailyRollup {
                 i += 1
                 continue
             }
-            // Gather the maximal uncredited stretch.
             var j = i
             var stretch: TimeInterval = 0
             var idleOnly = true
@@ -503,14 +461,11 @@ public enum DailyRollup {
             switch event.kind {
             case .breakBegin:
                 if let pending = open {
-                    // Unterminated: measure conservatively against this new begin.
                     spans.append(span(from: pending, to: event.at, measured: nil, policy: policy))
                 }
                 open = event
             case .breakEnd:
                 guard let pending = open else {
-                    // An end with no begin in this day: the break started before the
-                    // boundary. Not attributed here.
                     continue
                 }
                 let measured = event.durationSeconds.map(TimeInterval.init)
@@ -609,7 +564,6 @@ public enum DailyRollup {
             } else if !delivered.contains(where: { $0 >= open.at && $0 <= windowEnd }) {
                 totals.excluded += 1
             }
-            // Otherwise: missed. A real, delivered question that went unanswered.
         }
         return totals
     }

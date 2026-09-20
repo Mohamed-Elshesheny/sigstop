@@ -1,19 +1,6 @@
 import Foundation
 
 // MARK: - Why this file exists
-//
-// ADDITIVE, not a contract change. `DeveloperContext` (Model/DeveloperContext.swift) says
-// who you are, what you appear to be doing and how long you have been at it. The message
-// engine additionally needs:
-//
-//   * the *insistence* axis — which escalation rung we are on and the user's tone ceiling,
-//   * session counters the collectors maintain (skip streaks, repeated commands),
-//   * cheap booleans about the session (CI pending, tests failing),
-//   * a bucketed view of the same numbers, because templates match on *bands* not minutes.
-//
-// None of that belongs in `DeveloperContext`, which is deliberately behaviour-free, so it
-// lives here in `MessageContext` — a wrapper, never a replacement. The contract types are
-// untouched. See docs/MESSAGE-ENGINE.md §1.1.
 
 // MARK: - Application vocabulary
 
@@ -32,8 +19,6 @@ public enum AppKey: String, Codable, Sendable, CaseIterable, Hashable {
             return
         }
 
-        // Cursor first: it ships under a todesktop identifier that has nothing to do with
-        // its name, and its Electron shell would otherwise look like a generic editor.
         if raw.contains("cursor") || raw == "com.todesktop.230313mzl4w4u92" {
             self = .cursor
         } else if raw.hasPrefix("com.microsoft.vscode")
@@ -119,9 +104,6 @@ public enum AppFamily: String, Codable, Sendable, CaseIterable, Hashable {
 }
 
 // MARK: - Bands
-//
-// Templates match on bands, never on raw minutes. Raw minutes are a *slot*; bands are a
-// *predicate*. Keeping those separate is what stops the corpus from encoding thresholds.
 
 public enum WorkBand: String, Codable, Sendable, CaseIterable, Hashable {
     case short      // < 25
@@ -298,12 +280,8 @@ public struct MessageContext: Sendable, Hashable {
     public var appConfidence: Double {
         if let override = appConfidenceOverride { return min(max(override, 0), 1) }
         guard let bundleID = developer.application.bundleID, !bundleID.isEmpty else {
-            // A bundle-less process (a binary run from a shell). We know almost nothing.
             return 0.20
         }
-        // Frontmost bundle identifier is a Tier 0 OS fact (CLAUDE.md §6), so this is one
-        // of the few places a high number is honest. An app we have no key for is still
-        // an app we identified — we just have nothing specific to say about it.
         return app == .unknown ? 0.50 : 0.95
     }
 

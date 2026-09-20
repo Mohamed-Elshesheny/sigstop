@@ -42,8 +42,6 @@ public struct AppClaim: Sendable, Hashable {
             guard let id = app.bundleID else { return false }
             return id.lowercased().hasPrefix(prefix.lowercased())
         case .executableName(let name):
-            // The fallback for bundle-less processes AND for apps whose bundle ID is an
-            // opaque generated string that can change under us (Cursor's ToDesktop ID).
             return app.localizedName.caseInsensitiveCompare(name) == .orderedSame
         case .bundleIDRegex(let pattern):
             guard let id = app.bundleID else { return pattern == ".*" }
@@ -235,8 +233,6 @@ public struct ProviderRegistry: Sendable {
                 return (verdict, provider.identifier)
             }
         }
-        // Unreachable in practice — the fallback never declines — but the honest answer
-        // to "nobody would claim it" is `unknown`, not a crash.
         return (
             ProviderVerdict(activity: .unknown, evidence: []),
             ProviderID("dev.sigstop.provider.none")
@@ -360,8 +356,6 @@ public enum ConfidenceEngine {
             confidence = Confidence(min(confidence.value, bound))
         }
 
-        // Context fields are tier-gated at the source: a `projectName` parsed from a title
-        // cannot survive into an observation that does not cite Tier 1.
         var context = verdict.context
         if !tiers.contains(.tier1) {
             context.projectName = nil

@@ -1,16 +1,5 @@
 import Foundation
 
-// This file is `Foundation` only, by design.
-//
-// It must never import AppKit/Cocoa/SwiftUI (CLAUDE.md §3.1), and it must never
-// import a networking module — not `Network`, not `FoundationNetworking` — and must
-// never reference `URLSession`, `NWConnection`, `CFHost` or a socket symbol, even
-// unused (CLAUDE.md §4.3, docs/PRIVACY.md §2.7). `URL` appears here only as a path
-// type for `file://` locations.
-//
-// It must also never call `Date()` / `Date.now` (CLAUDE.md §3.2). Every timestamp in
-// this file arrives from the caller, which got it from a `TimeSource`.
-
 // MARK: - Schema
 
 public enum EventSchema {
@@ -224,21 +213,17 @@ public enum ISO8601Second {
 ///
 /// Raw values are the short strings written to disk.
 public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
-    // Lifecycle
     case start
     case stop
-    // Attention
     case focus
     case idleBegin = "idle_begin"
     case idleEnd = "idle_end"
-    // System facts
     case lock
     case unlock
     case sleep
     case wake
     case sessionOut = "session_out"
     case sessionIn = "session_in"
-    // Break cycle
     /// A break **opportunity** opened: continuous active work reached the target, i.e.
     /// the engine entered `breakDue` — including entries immediately suppressed by
     /// quiet hours or a hard block (docs/BREAK-DECISION.md §14.1).
@@ -343,7 +328,6 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     /// True for a `break_prompt` that actually reached the developer.
     public var wasDelivered: Bool { kind == .breakPrompt && deferred == nil }
 
-    // Declaration order here is the on-disk field order: `v`, `t`, `e`, then payload.
     private enum CodingKeys: String, CodingKey {
         case v
         case at = "t"
@@ -490,10 +474,6 @@ public enum EventLogCodec {
 
     public static func makeEncoder() -> JSONEncoder {
         let e = JSONEncoder()
-        // .sortedKeys matters more than it looks: without it JSONEncoder emits keys
-        // in hash order, so two runs produce byte-different lines for identical
-        // events. A log people are invited to read, diff and verify has to be
-        // deterministic. The cost is alphabetical rather than narrative key order.
         e.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return e
     }

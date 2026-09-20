@@ -2,10 +2,6 @@ import Foundation
 import Testing
 @testable import SigstopCore
 
-// Every test here runs headlessly: no window server, no Xcode, no GUI session, no real
-// clock. Dates are literals and the store is in-memory, which is the entire point of
-// keeping `DailyRollup` a pure function behind the `EventStore` protocol.
-
 // MARK: - Fixtures
 
 private enum Fix {
@@ -53,7 +49,6 @@ struct ComplianceTests {
         var events: [LoggedEvent] = [.start(at: Fix.t(0)), .focus(at: Fix.t(0), app: xcode, activity: .coding)]
         var minute = 10.0
 
-        // 6 honoured: opportunity, delivered prompt, qualifying break inside the window.
         for i in 0..<6 {
             let cycle = CycleID(rawValue: i)
             events.append(.breakOpen(at: Fix.t(minute), cycle: cycle))
@@ -65,20 +60,17 @@ struct ComplianceTests {
             )
             minute += 60
         }
-        // 1 excluded: the opportunity opened, every prompt was withheld.
         events.append(.breakOpen(at: Fix.t(minute), cycle: CycleID(rawValue: 6)))
         events.append(
             .breakPrompt(at: Fix.t(minute), cycle: CycleID(rawValue: 6), deferred: "meeting")
         )
         minute += 60
-        // 1 skipped: delivered, answered "skip".
         events.append(.breakOpen(at: Fix.t(minute), cycle: CycleID(rawValue: 7)))
         events.append(.breakPrompt(at: Fix.t(minute), cycle: CycleID(rawValue: 7)))
         events.append(
             .breakResponse(at: Fix.t(minute + 1), cycle: CycleID(rawValue: 7), action: .skipped)
         )
         minute += 60
-        // 1 ignored through level 4: delivered, no response.
         events.append(.breakOpen(at: Fix.t(minute), cycle: CycleID(rawValue: 8)))
         events.append(.breakPrompt(at: Fix.t(minute), cycle: CycleID(rawValue: 8)))
         events.append(
@@ -269,25 +261,19 @@ struct WorkClockTests {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
             .focus(at: Fix.t(0), app: xcode, activity: .coding),
-            // stretch 1: 30 min
             .idleBegin(at: Fix.t(30)),
             .idleEnd(at: Fix.t(40), idleSeconds: 600),   // 10 min: qualifying, resets
             .focus(at: Fix.t(40), app: xcode, activity: .coding),
-            // stretch 2: 55 min, with a 2-minute pause inside that must NOT split it
             .idleBegin(at: Fix.t(70)),
             .idleEnd(at: Fix.t(72), idleSeconds: 120),
             .focus(at: Fix.t(72), app: xcode, activity: .coding),
             .system(at: Fix.t(97), .lock),               // 25 min locked: resets
             .system(at: Fix.t(122), .unlock),
             .focus(at: Fix.t(122), app: xcode, activity: .coding),
-            // stretch 3: 20 min
             .stop(at: Fix.t(142)),
         ]
         let s = Fix.roll(events)
-        // stretch 2 = (70-40) + (97-72) = 30 + 25 = 55 minutes
         #expect(s.longestContinuousSession == 55 * 60)
-        // total = 30 + 55 + 20 = 105 minutes credited; the 10-min idle, the 2-min pause
-        // and the 25-min lock are all uncredited.
         #expect(s.totalActiveWork == 105 * 60)
     }
 
@@ -453,7 +439,6 @@ struct EventLogTests {
     /// is that a line is readable at a glance.
     @Test func a_line_is_short_and_plainly_named() throws {
         let line = try EventLogCodec.encode(.focus(at: Fix.t(0), app: xcode, category: "code"))
-        // Keys are sorted, which is what makes the line byte-stable across runs.
         #expect(line == #"{"app":"com.apple.dt.Xcode","cat":"code","e":"focus","t":"2026-09-20T09:00:00Z","v":1}"#)
         #expect(!line.contains("null"))
     }
@@ -616,7 +601,6 @@ struct StoreTests {
         #expect(load.events.count == 3)
         #expect(load.malformedLines == 0)
 
-        // The file really is one JSON object per line and nothing else.
         let raw = try String(contentsOf: store.url(for: Fix.day), encoding: .utf8)
         #expect(raw.split(separator: "\n").count == 3)
         #expect(raw.hasSuffix("\n"))
@@ -634,7 +618,6 @@ struct StoreTests {
         let store = try FileEventStore(root: root)
 
         try store.append(.start(at: Fix.t(0)))
-        // Simulate a process killed mid-write: a partial line, no newline.
         let handle = try FileHandle(forWritingTo: store.url(for: Fix.day))
         try handle.seekToEnd()
         try handle.write(contentsOf: Data(#"{"v":1,"t":"2026-09-20T09:05:00Z","e":"fo"#.utf8))
@@ -662,7 +645,6 @@ struct StoreTests {
         let text = try String(contentsOf: destination, encoding: .utf8)
         #expect(EventLogCodec.decodeLines(text).events.count == 2)
 
-        // Overwriting an existing export must also work (replaceItemAt path).
         try store.append(.stop(at: Fix.t(5)))
         #expect(try store.export(to: destination).events == 3)
 
@@ -798,7 +780,6 @@ struct SummaryNarratorTests {
             "incompetent", "stupid", "idiot", "lazy", "sloppy",
             "fired", "performance review", "your manager", "promotion",
         ]
-        // The trait detector from lint W1: this grammar attaches a label to the person.
         let traitDetector = try Regex(#"(?i)\byou(?:'re| are)\s+(?:a|an|so|such|just)\b"#)
 
         for text in SummaryNarrator.allTemplateTexts {

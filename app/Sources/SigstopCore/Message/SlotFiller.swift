@@ -67,49 +67,36 @@ public struct SlotResolver: Sendable {
     public func table(for ctx: MessageContext) -> [SlotKey: SlotValue] {
         var out: [SlotKey: SlotValue] = [:]
 
-        // {minutes} — derived from timestamps the session clock already diffed.
         out[.minutes] = SlotValue(
             text: format(integer: ctx.continuousWorkMinutes, locale: ctx.locale),
             confidence: 0.99, provenance: .derived)
 
-        // {hour} — derived from the injected clock, formatted for the user's locale.
         out[.hour] = SlotValue(
             text: format(time: ctx.now, locale: ctx.locale, timeZone: ctx.calendar.timeZone),
             confidence: 0.99, provenance: .derived)
 
-        // {app} — the frontmost app's localized name is a Tier 0 OS fact.
         if let name = ctx.appDisplayName {
             out[.app] = SlotValue(text: name, confidence: ctx.appConfidence, provenance: .exact)
         }
 
-        // {project} — parsed out of a window title. A heuristic, and priced like one.
         if let project = ctx.developer.context.projectName, !project.isEmpty {
             out[.project] = SlotValue(text: project, confidence: 0.75, provenance: .exact)
         }
 
-        // {branch} — read from .git/HEAD when the user opted in. Exact or nothing.
         if let branch = ctx.developer.context.branch, !branch.isEmpty {
             out[.branch] = SlotValue(text: branch, confidence: 0.95, provenance: .exact)
         }
 
-        // {activity} — only the CLAIMABLE activity, already degraded to the parent class
-        // by the contract type when confidence is low. Its confidence is the activity
-        // confidence, so the slot floor gives a second, independent barrier.
         out[.activity] = SlotValue(
             text: ctx.activity.displayName,
             confidence: ctx.activityConfidence, provenance: .exact)
 
-        // {streak} — a counter, not an inference. Only present when the ledger has one.
         if let skipped = ctx.streaks[.skippedConsecutive] ?? ctx.streaks[.skippedToday] {
             out[.streak] = SlotValue(
                 text: format(integer: skipped, locale: ctx.locale),
                 confidence: 0.99, provenance: .exact)
         }
 
-        // {count} has no general source: whatever is being counted is known only to the
-        // collector that counted it. Absent unless supplied.
-
-        // Explicit overrides win — this is how a collector supplies {count}.
         for (k, v) in ctx.slotOverrides { out[k] = v }
         return out
     }
@@ -145,8 +132,6 @@ public struct SlotResolver: Sendable {
     ) -> String? {
         guard canSatisfyRequired(t, table: table) else { return nil }
 
-        // Step 5 of the fallback chain: if an optional slot cannot be satisfied and the
-        // template ships an altText with that slot removed, use the variant.
         let optionalsOK = t.optionalSlots.allSatisfy { key in
             resolve(key, table: table, family: family, required: false) != nil
         }
@@ -170,7 +155,6 @@ public struct SlotResolver: Sendable {
             rendered = rendered.replacingOccurrences(of: token, with: value)
         }
 
-        // Belt and braces: a line that still carries a placeholder never ships.
         if rendered.contains("{") && rendered.contains("}") { return nil }
         return rendered
     }
@@ -195,8 +179,6 @@ public struct SlotResolver: Sendable {
     }
 
     // MARK: Formatting
-    //
-    // Numbers and times go through the locale, never string interpolation. See §7.4.
 
     private func format(integer: Int, locale: Locale) -> String {
         integer.formatted(.number.locale(locale))

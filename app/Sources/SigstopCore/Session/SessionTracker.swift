@@ -181,14 +181,11 @@ public struct SessionTracker: Sendable {
         let now = time.now
         let mono = time.monotonicSeconds
 
-        // Monotonic time is the only thing durations are allowed to come from.
         let delta = max(0, mono - lastTickMono)
         let wallDelta = now.timeIntervalSince(lastTickWall)
         let skew = wallDelta - delta
         let skewed = abs(skew) > policy.wallClockSkewTolerance
         if skewed {
-            // An NTP step or a user changing the date. Rebase the day index so the step does
-            // not masquerade as a day boundary, and otherwise ignore it entirely.
             dayIndex = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
             events.append(.wallClockSkewIgnored(seconds: skew))
         }
@@ -198,20 +195,16 @@ public struct SessionTracker: Sendable {
         session.observe(elapsed: delta)
         session.note(application: sample.application, activity: sample.activity, confidence: sample.confidence, at: now)
 
-        // A tick that arrived far too late is not a tick. Credit nothing for it and let the
-        // gap machinery below decide what it was. CLAUDE.md §3.4.
         let discontinuity = delta > policy.tickInterval + policy.tickTolerance
         let idle = max(0, sample.idleSeconds)
         let inputMono = mono - idle
 
         if !discontinuity, inputMono > lastInputMono + 0.001 {
-            // Real input arrived: everything credited during the last gap was real work.
             session.confirmProvisionalCredit()
             lastInputMono = inputMono
         }
         session.noteIdle(idle, lastInputAt: now.addingTimeInterval(-idle))
 
-        // Day boundary (04:00 local). Skew never triggers it — we rebased above.
         if !skewed {
             let today = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
             if today != dayIndex {
@@ -253,8 +246,6 @@ public struct SessionTracker: Sendable {
         if session.pauseCause == .breakActive { return .breakActive }
         if discontinuity { return pendingWakeCause ?? (sample.micRunning ? .meetingNoInput : .microIdleExceeded) }
         if idle >= policy.microIdleGrace {
-            // A 40-minute call where you never touch the keyboard is not coding, and it is
-            // not a break either. It pauses, and nothing else — until the long-pause reset.
             return sample.micRunning ? .meetingNoInput : .microIdleExceeded
         }
         return nil
@@ -268,8 +259,6 @@ public struct SessionTracker: Sendable {
         events: inout [SessionEvent]
     ) {
         if gap == nil {
-            // An input gap started when input stopped. A lock, a sleep or a starved timer
-            // started no later than the previous tick — never credit the difference.
             let startMono: Double
             switch cause {
             case .microIdleExceeded, .meetingNoInput:
@@ -284,8 +273,6 @@ public struct SessionTracker: Sendable {
                 startWall: now.addingTimeInterval(-(mono - clamped))
             )
         } else if var existing = gap, existing.cause != cause {
-            // A gap that began as "not typing" and became "locked" is still one absence:
-            // keep the earlier start, take the more specific cause.
             if cause != .microIdleExceeded { existing.cause = cause }
             gap = existing
         }
@@ -293,8 +280,6 @@ public struct SessionTracker: Sendable {
     }
 
     private func lastTickMonoBefore(mono: Double, discontinuity: Bool) -> Double {
-        // `lastTickMono` has already been advanced to `mono` by the time this runs, so the
-        // conservative choice is the current instant: credit nothing for the unknown stretch.
         mono
     }
 
@@ -328,7 +313,6 @@ public struct SessionTracker: Sendable {
 
         case .pause(let cause):
             if !current.paused {
-                // The gap turned out to be absence, not reading: take the grace back.
                 let revoked = session.provisionalGraceCredit
                 session.revokeProvisionalCredit()
                 if revoked > 0 { events.append(.graceRevoked(seconds: revoked)) }
@@ -336,8 +320,6 @@ public struct SessionTracker: Sendable {
                 current.paused = true
                 events.append(.clockPaused(cause: cause, since: current.startWall))
             }
-            // Row 7: after 20 minutes away for any reason the context is gone. The clock
-            // resets — but no break is recorded, because the user did not take one.
             if duration >= policy.longPauseReset, !current.didReset {
                 current.didReset = true
                 session.reset(reason: .longPause)
@@ -390,8 +372,6 @@ public struct SessionTracker: Sendable {
     public func classify(duration: TimeInterval, cause: PauseCause) -> GapClassification {
         switch cause {
         case .meetingNoInput, .userPaused, .breakActive:
-            // Never a qualifying break: crediting it would overstate the work, and recording
-            // it as a break would tell the user they rested when they did not.
             return .pause(cause)
         case .screenLocked, .systemSleep, .displaySleep, .fastUserSwitch:
             if duration < policy.qualifyingBreak { return .pause(cause) }
@@ -410,13 +390,10 @@ public struct SessionTracker: Sendable {
     private mutating func creditIfPossible(delta: TimeInterval, mono: Double, bundleID: String?) {
         guard delta > 0, session.isRunning else { return }
         let start = mono - delta
-        // Credit runs out at the grace horizon, and never runs past the start of an open gap.
         var creditEnd = min(mono, lastInputMono + policy.microIdleGrace)
         if let gap { creditEnd = min(creditEnd, gap.startMono) }
         let credited = max(0, creditEnd - start)
         guard credited > 0 else { return }
-        // Anything after the last input is provisional: credited now, revoked if the gap
-        // turns out to be absence rather than reading.
         let provisional = max(0, creditEnd - max(start, lastInputMono))
         session.credit(credited, provisional: provisional, bundleID: bundleID)
     }

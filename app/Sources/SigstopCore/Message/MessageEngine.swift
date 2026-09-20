@@ -1,10 +1,6 @@
 import Foundation
 
 // MARK: - Randomness
-//
-// Core cannot reach for global random state and stay testable, for the same reason it
-// cannot reach for the clock. Randomness is injected, and the seeded source makes every
-// selection reproducible from a seed.
 
 /// A source of uniform randomness. Class-bound so the engine can hold one without
 /// existential-mutation gymnastics, `Sendable` so the engine stays `Sendable`.
@@ -12,10 +8,6 @@ public protocol RandomSource: AnyObject, Sendable {
     /// Uniform in `0 ..< 1`.
     func nextUniform() -> Double
 }
-
-// SeededGenerator lives in Model/SeededGenerator.swift: both this file and
-// the other consumer defined an identical copy, so it was hoisted.
-
 
 public final class SeededRandomSource: RandomSource, @unchecked Sendable {
     private let lock = NSLock()
@@ -27,7 +19,6 @@ public final class SeededRandomSource: RandomSource, @unchecked Sendable {
 
     public func nextUniform() -> Double {
         lock.withLock {
-            // 53 significant bits, the most a Double represents exactly.
             Double(generator.next() >> 11) * (1.0 / 9_007_199_254_740_992.0)
         }
     }
@@ -42,10 +33,6 @@ public final class SystemRandomSource: RandomSource, @unchecked Sendable {
 }
 
 // MARK: - Stable hashing
-//
-// `Hasher` is seeded per process, so a tie-break built on it is reproducible within one
-// run and nowhere else. FNV-1a is stable across runs and machines, which is what "the same
-// context on the same day yields the same line" actually requires.
 
 enum StableHash {
     static func fnv1a(_ string: String) -> UInt64 {
@@ -162,11 +149,6 @@ public final class MessageEngine: @unchecked Sendable {
     }
 
     // MARK: Confidence gate
-    //
-    // The single most important function in this file. "You've been debugging for 61
-    // minutes" said to someone who was writing docs costs more credibility than ten good
-    // jokes earn, because the user KNOWS it guessed — which retroactively makes every
-    // accurate line look like a guess too.
 
     public static func confidenceGate(_ t: MessageTemplate, _ ctx: MessageContext) -> Bool {
         let usesActivity = t.usesActivityClaim
@@ -175,7 +157,6 @@ public final class MessageEngine: @unchecked Sendable {
         if usesActivity && ctx.activityConfidence < t.minConfidence { return false }
         if usesApp && ctx.appConfidence < max(t.minConfidence, 0.60) { return false }
 
-        // Hard floor: below 0.35 on the relevant signal, only non-claiming templates live.
         if usesActivity && ctx.activityConfidence < 0.35 { return false }
         if usesApp && ctx.appConfidence < 0.35 { return false }
         return true
@@ -193,7 +174,6 @@ public final class MessageEngine: @unchecked Sendable {
         trace.effectiveToneCeiling = ceiling
         let table = slots.table(for: ctx)
 
-        // ---- Step 1: hard gates. No partial credit, no soft scoring around them. ----
         var eligible: [MessageTemplate] = []
         eligible.reserveCapacity(corpus.templates.count)
         for t in corpus.templates {
@@ -205,7 +185,6 @@ public final class MessageEngine: @unchecked Sendable {
         }
         trace.afterHardGates = eligible.count
 
-        // ---- Step 2: recency, walking the relaxation ladder until something survives ----
         let lastShownID = ledger.recentTemplateIDs(limit: 1).first
         var stage: RelaxationStage = .strict
         var candidates: [MessageTemplate] = []
@@ -220,7 +199,6 @@ public final class MessageEngine: @unchecked Sendable {
         }
 
         if candidates.isEmpty {
-            // Stage 5. Compiled in, not loadable, not disable-able.
             stage = .emergency
             let pool = Corpus.emergencyPool.filter { $0.escalation.contains(ctx.escalation) }
             candidates = pool.filter { $0.id != lastShownID }
@@ -230,14 +208,11 @@ public final class MessageEngine: @unchecked Sendable {
         trace.relaxation = stage
         trace.afterRecency = candidates.count
 
-        // ---- Steps 3-5: score, band, freshness-weighted pick, deterministic tie-break --
         var band = Self.band(candidates, ctx: ctx)
         trace.topScore = band.first.map(Scorer.score) ?? 0
         trace.bandSize = band.count
         trace.bandIDs = band.map(\.id)
 
-        // ---- Step 6: render. A line that cannot be filled honestly is dropped here and
-        // the next candidate is tried, so the caller can never receive a broken string. --
         var chosen: MessageTemplate?
         var rendered: String?
         while !band.isEmpty {
@@ -345,9 +320,6 @@ public final class MessageEngine: @unchecked Sendable {
     }
 
     // MARK: Deterministic tie-break
-    //
-    // Exposed so the debug panel and the golden tests can compute the same ordering the
-    // engine does. Stable across processes, unlike `Hasher`.
 
     public static func tieBreakKey(_ t: MessageTemplate, ctx: MessageContext) -> UInt64 {
         let day = ctx.calendar.startOfDay(for: ctx.now).timeIntervalSince1970

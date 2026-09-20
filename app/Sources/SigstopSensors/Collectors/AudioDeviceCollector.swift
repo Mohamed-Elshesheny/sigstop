@@ -38,7 +38,6 @@ public final class AudioDeviceCollector: @unchecked Sendable {
     /// own serial queue keeps every device read off the main thread.
     private let queue = DispatchQueue(label: "dev.sigstop.audio", qos: .utility)
 
-    // Guarded by `lock`.
     private var isRunningRaw: Bool?           // nil ⇒ no input device at all
     private var runningSince: Date?
     private var windowStart: Date
@@ -59,7 +58,6 @@ public final class AudioDeviceCollector: @unchecked Sendable {
     }
 
     deinit {
-        // Listener teardown touches CoreAudio only; safe from deinit.
         removeAllListeners()
         for c in continuations.values { c.finish() }
     }
@@ -192,7 +190,6 @@ public final class AudioDeviceCollector: @unchecked Sendable {
         if isRunningRaw == true { runningAwakeSeconds += elapsed }
 
         if now.timeIntervalSince(windowStart) > Self.calibrationWindow {
-            // Decay rather than hard-reset, so the verdict does not flap at the boundary.
             observedAwakeSeconds *= 0.5
             runningAwakeSeconds *= 0.5
             windowStart = now.addingTimeInterval(-Self.calibrationWindow / 2)

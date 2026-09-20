@@ -2,15 +2,6 @@ import Foundation
 import SigstopCore
 import SigstopSensors
 
-// This file is Foundation-only plumbing for the app layer: where state lives on disk,
-// how settings are read and written, and the tiny box that lets a `@Sendable` closure
-// and a main-actor model share a value without a data race.
-//
-// No networking symbol appears anywhere in THIS FILE, and every `URL` below is a `file://`
-// path. That used to be true of the whole target; it is now true of everything in it except
-// `UpdateChecker.swift`, which is the app's one network capability and is documented at
-// length there. CLAUDE.md §4.3 is the current statement of what the app may and may not do.
-
 // MARK: - Where things live
 
 enum AppPaths {
@@ -53,8 +44,6 @@ enum SettingsStore {
         guard let data = FileManager.default.contents(atPath: AppPaths.settingsFile.path) else {
             return .default
         }
-        // `SigstopSettings.init(from:)` tolerates missing keys and clamps hostile values,
-        // so a hand-edited file cannot put the engine into a bad state.
         return (try? JSONDecoder().decode(SigstopSettings.self, from: data)) ?? .default
     }
 

@@ -2,32 +2,17 @@ import Foundation
 import SigstopCore
 
 // MARK: - Bundle identifier catalog
-//
-// Verification legend, and it is not decoration:
-//   VERIFIED  — read from the actual Info.plist on this machine with PlistBuddy.
-//   UNVERIFIED — the app is not installed here. The value comes from documentation and
-//                prior knowledge and MUST be confirmed before shipping.
-//
-// Two of the values that were "obviously" known turned out to be wrong when read directly
-// (ChatGPT reports `com.openai.codex`, not `com.openai.chat`; LaunchServices resolves the
-// name "Docker Desktop" to an Electron helper). So an unmarked guess is not a small thing:
-// a wrong ID here silently misclassifies an app forever. Everything unverified is marked,
-// and everything unrecognised falls through to `GenericProvider` rather than being guessed.
 public enum BundleIDs {
-    // Editors / IDEs
     public static let vscode = "com.microsoft.VSCode"                       // VERIFIED
     public static let vscodeInsiders = "com.microsoft.VSCodeInsiders"       // UNVERIFIED
     public static let vscodium = "com.vscodium"                             // UNVERIFIED
     public static let cursor = "com.todesktop.230313mzl4w4u92"              // VERIFIED — opaque
-    // ToDesktop generates that ID; it is not stable across a rebrand or a repackage, which
-    // is why CursorProvider also claims the localized name "Cursor".
     public static let zedPrefix = "dev.zed."                                // UNVERIFIED
     public static let jetbrainsPrefix = "com.jetbrains."                    // UNVERIFIED
     public static let androidStudio = "com.google.android.studio"           // UNVERIFIED
     public static let xcode = "com.apple.dt.Xcode"                          // UNVERIFIED here
     public static let antigravity = "com.google.antigravity"                // VERIFIED
 
-    // Terminals
     public static let terminal = "com.apple.Terminal"                       // VERIFIED
     public static let iterm2 = "com.googlecode.iterm2"                      // UNVERIFIED
     public static let warp = "dev.warp.Warp-Stable"                         // UNVERIFIED
@@ -36,7 +21,6 @@ public enum BundleIDs {
     public static let kitty = "net.kovidgoyal.kitty"                        // UNVERIFIED
     public static let termius = "com.termius-dmg.mac"                       // VERIFIED
 
-    // Browsers
     public static let chrome = "com.google.Chrome"                          // VERIFIED
     public static let arc = "company.thebrowser.Browser"                    // VERIFIED
     public static let safari = "com.apple.Safari"                           // VERIFIED
@@ -44,7 +28,6 @@ public enum BundleIDs {
     public static let firefox = "org.mozilla.firefox"                       // UNVERIFIED
     public static let edge = "com.microsoft.edgemac"                        // UNVERIFIED
 
-    // Communication
     public static let slack = "com.tinyspeck.slackmacgap"                   // VERIFIED
     public static let discord = "com.hnc.Discord"                           // VERIFIED
     public static let zoom = "us.zoom.xos"                                  // VERIFIED
@@ -52,7 +35,6 @@ public enum BundleIDs {
     public static let mail = "com.apple.mail"                               // UNVERIFIED
     public static let messages = "com.apple.MobileSMS"                      // UNVERIFIED
 
-    // Tools / design / AI / notes
     public static let figma = "com.figma.Desktop"                           // VERIFIED
     public static let postman = "com.postmanlabs.mac"                       // VERIFIED
     public static let docker = "com.docker.docker"                          // VERIFIED
@@ -87,12 +69,6 @@ public enum BundleIDs {
 }
 
 // MARK: - Title parsing
-//
-// Privacy line, enforced here rather than promised elsewhere: a raw window title is used
-// for *matching* and then discarded. Only the parsed fields (project name, file name, file
-// extension) are ever returned, stored, or displayed. Titles routinely contain customer
-// names and ticket subjects; retaining them wholesale is not justified by anything this
-// product does with them.
 
 public struct ParsedTitle: Sendable, Hashable {
     public var projectName: String?
@@ -205,7 +181,6 @@ public enum TitleParsing {
             parsed.fileExtension = file.ext
             parsed.projectName = parts.dropFirst().first
         } else {
-            // No file component: a folder-only window. A project name is still useful.
             parsed.projectName = parts.count > 1 ? parts[1] : parts[0]
         }
         return parsed.isEmpty ? nil : parsed
@@ -216,7 +191,6 @@ public enum TitleParsing {
         let parts = droppingAppName(components(title))
         guard !parts.isEmpty else { return nil }
         var parsed = ParsedTitle()
-        // JetBrains embeds the workspace path in brackets. We want the name, never the path.
         if let first = parts.first {
             let withoutPath = first.components(separatedBy: " [").first ?? first
             parsed.projectName = withoutPath.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -289,17 +263,12 @@ public enum BrowserTitlePatterns {
 }
 
 // MARK: - Evidence catalog
-//
-// Every log-odds weight below is a *reasoned prior, not a measured one*. They come from
-// docs/ACTIVITY-DETECTION.md §7 and they have not yet been calibrated against a labelled
-// session. Saying so is part of the design; see §13.5.
 
 enum Ev {
     static func make(_ id: String, _ tier: SignalTier, _ logOdds: Double, _ summary: String) -> Evidence {
         Evidence(id: EvidenceID(id), tier: tier, logOdds: logOdds, summary: summary)
     }
 
-    // Tier 0
     static func editorFrontmost(_ name: String) -> Evidence {
         make("editor.frontmost", .tier0, 1.6, "\(name) is the frontmost app")
     }
@@ -338,7 +307,6 @@ enum Ev {
         )
     }
 
-    // Tier 1
     static func titleParsed(_ file: String, _ project: String?) -> Evidence {
         let where_ = project.map { " in \($0)" } ?? ""
         return make("title.parsed", .tier1, 1.1, "the window title names a file, \(file)\(where_)")
@@ -380,7 +348,6 @@ enum Ev {
         make("communication.title", .tier1, 1.0, "the window title names a channel or a conversation")
     }
 
-    // Tier 2
     static func debuggerProcess(_ tool: ToolToken, childOfFrontmost: Bool) -> Evidence {
         let weight = tool == .debugserver ? 3.0 : 2.2
         let suffix = childOfFrontmost ? ", started by the app you are in" : ""
@@ -409,7 +376,6 @@ enum Ev {
         make("git.repoState", .tier2, 0.6, "the repository is mid-\(state.rawValue)")
     }
 
-    // Meeting axis
     static func micRunning() -> Evidence {
         make("meeting.mic", .tier0, 1.8, "an audio input device is running — though we cannot tell which app has it")
     }
@@ -443,7 +409,6 @@ enum EditorClassifier {
             evidence.append(Ev.recentInput(idle))
         }
 
-        // Tier 1: window title.
         var parsed: ParsedTitle?
         if let title = signals.titleIfPermitted {
             parsed = parse(title)
@@ -459,7 +424,6 @@ enum EditorClassifier {
             }
         }
 
-        // Tier 1: a real file path beats any amount of title guessing.
         if let url = signals.documentURLIfPermitted {
             context.documentURL = url
             context.fileName = url.lastPathComponent
@@ -472,7 +436,6 @@ enum EditorClassifier {
             evidence.append(Ev.codeExtension(ext))
         }
 
-        // Tier 2: git.
         if let git = signals.gitIfPermitted {
             context.branch = git.branch
             context.repoState = git.repoState
@@ -480,7 +443,6 @@ enum EditorClassifier {
             if let state = git.repoState, state != .clean { evidence.append(Ev.repoState(state)) }
         }
 
-        // Tier 2: processes are the ONLY thing that can promote CODING to a child class.
         let processes = signals.processesIfPermitted
 
         if let tool = processes?.firstChildMatch(in: ToolToken.debuggers)
@@ -499,7 +461,6 @@ enum EditorClassifier {
             return ProviderVerdict(activity: .testing, evidence: evidence, context: context)
         }
 
-        // Tier 1 only: prose file open ⇒ documentation. This one the title can carry.
         if TitleParsing.isDocumentFile(context.fileExtension), let ext = context.fileExtension {
             evidence.append(Ev.documentExtension(ext))
             if TitleParsing.looksLikeDocsProject(context.projectName), let project = context.projectName {
@@ -508,8 +469,6 @@ enum EditorClassifier {
             return ProviderVerdict(activity: .documentation, evidence: evidence, context: context)
         }
 
-        // Tier 1 only: a test file is OPEN. That is not the same as tests RUNNING, and the
-        // ceiling says so out loud (§7.3).
         if TitleParsing.looksLikeTestFile(context.fileName), let file = context.fileName {
             evidence.append(Ev.testFileName(file))
             evidence.append(Ev.editingNotRunningTests())
@@ -518,14 +477,6 @@ enum EditorClassifier {
             )
         }
 
-        // CODING, and the honest question of whether to flag ambiguity.
-        //
-        // §7.2 says that without Tier 2 we emit CODING with `degradedFromAmbiguity = true`
-        // because debugging is undetectable. §7.1 says Tier 0+1 coding sits at 0.75–0.85.
-        // Both cannot hold at once — degrading always would cap every coding claim at 0.60
-        // and make the §7.1 band unreachable. Resolved in favour of flagging ambiguity when
-        // there is something to be ambiguous ABOUT: no Tier 2, plus the weak rapid-
-        // alternation pattern that is the only Tier 0 hint debugging leaves behind.
         let switches = signals.switchCount(within: 60)
         let alternating = switches >= 4
         let cannotSeeProcesses = processes == nil
@@ -573,9 +524,6 @@ public struct CursorProvider: ActivityProvider {
         var verdict = EditorClassifier.verdict(
             context, editorName: "Cursor", parse: TitleParsing.fileFirst
         )
-        // In-editor AI use (Cursor's inline chat, Copilot, any AI side panel) produces no
-        // observable signal at any tier we are willing to use. We classify it as CODING and
-        // say nothing about AI. We do not infer it from typing cadence. (§7.6)
         if let processes = context.processesIfPermitted,
            let tool = processes.firstChildMatch(in: ToolToken.aiCLIs) {
             var evidence = verdict.evidence
@@ -590,7 +538,6 @@ public struct CursorProvider: ActivityProvider {
 
 public struct ZedProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.zed")
-    // Claimed by prefix so `dev.zed.Zed`, `-Preview` and `-Dev` all land here.
     public let claims = [AppClaim(.bundleIDPrefix(BundleIDs.zedPrefix)), AppClaim(.executableName("Zed"))]
     public init() {}
 
@@ -623,9 +570,6 @@ public struct XcodeProvider: ActivityProvider {
     public init() {}
 
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
-        // Xcode is document-based, so `kAXDocument` gives a real path rather than a parse,
-        // and `debugserver` exists for exactly one reason — which makes it the one app
-        // where DEBUGGING is genuinely unambiguous, given Tier 2.
         EditorClassifier.verdict(context, editorName: "Xcode", parse: TitleParsing.projectFirst)
     }
 }
@@ -714,14 +658,11 @@ public struct BrowserProvider: ActivityProvider {
         var activityContext = ActivityContext()
         var meetingEvidence: [Evidence] = []
 
-        // Tier 1b, separately opted in, HOST ONLY. Never a path, never a query string.
         if let host = context.browserHostIfPermitted {
             activityContext.browserHost = host
         }
 
         guard let title = context.titleIfPermitted else {
-            // Without a window title, CODE_REVIEW is simply undetectable. Tier 0 sees
-            // "Chrome is frontmost" and the honest answer is BROWSING. We do not guess.
             return ProviderVerdict(activity: .browsing, evidence: evidence, context: activityContext)
         }
 
@@ -751,8 +692,6 @@ public struct BrowserProvider: ActivityProvider {
             )
         }
 
-        // A forge host on its own is never enough. github.com is equally an issue tracker,
-        // a docs site, and somewhere to read a stranger's README.
         if let host = activityContext.browserHost, BrowserTitlePatterns.isForge(host) {
             evidence.append(Ev.forgeHost(host))
         }
@@ -787,8 +726,6 @@ public struct CommunicationProvider: ActivityProvider {
         var meetingEvidence: [Evidence] = [Ev.conferencingFrontmost(name)]
 
         if let title = context.titleIfPermitted {
-            // Zoom's window is titled "Zoom Meeting" during a call and "Zoom" when idle.
-            // That one word is the difference between a real signal and a guess.
             if BrowserTitlePatterns.isMeeting(title) || title.caseInsensitiveCompare("Zoom Meeting") == .orderedSame {
                 meetingEvidence.append(Ev.meetingTitle("a meeting is in progress"))
             } else if title.contains("#") || title.localizedCaseInsensitiveContains("DM") {
@@ -827,8 +764,6 @@ public struct APIToolProvider: ActivityProvider {
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         var evidence = [Ev.genericAppFrontmost("Postman", 1.4, "an API client")]
         if let idle = context.input.knownIdleSeconds, idle < 60 { evidence.append(Ev.recentInput(idle, 0.5)) }
-        // Poking at an API is development work, but it is not *writing code*, and the
-        // taxonomy has no better home for it than the parent class.
         return ProviderVerdict(activity: .coding, evidence: evidence, degradedFromAmbiguity: true)
     }
 }
@@ -837,9 +772,6 @@ public struct ContainerProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.container")
     public let claims = [
         AppClaim(.bundleID(BundleIDs.docker)),
-        // LaunchServices resolves the *name* "Docker Desktop" to this Electron helper
-        // rather than to the app. Claimed as a secondary so the helper is not mistaken
-        // for an unknown app.
         AppClaim(.bundleID(BundleIDs.dockerElectronHelper)),
     ]
     public init() {}
@@ -904,8 +836,6 @@ public struct NotesProvider: ActivityProvider {
 
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
-        // Notion is also a project-management tool and Linear is purely one, so the
-        // notes-app signal is weaker than it looks and is capped accordingly.
         let isTracker = context.frontmost.bundleID == BundleIDs.linear
         if isTracker {
             return ProviderVerdict(
@@ -958,7 +888,6 @@ public struct GenericProvider: ActivityProvider {
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
         guard let id = context.frontmost.bundleID, let entry = Self.categories[id] else {
-            // Not in the catalog and nothing else discriminates. "Not sure" is the answer.
             return ProviderVerdict(activity: .unknown, evidence: [], maximumConfidence: 0.2)
         }
         var evidence = [Ev.genericAppFrontmost(name, entry.1, entry.2)]

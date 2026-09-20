@@ -40,7 +40,6 @@ public struct IdleCollector: Sendable {
         if let seconds = Self.hidIdleSecondsFromIORegistry() {
             return InputActivity(idleSeconds: seconds, source: .ioRegistry)
         }
-        // Honest absence. Consumers must not read this as "the user is right here".
         return .unknown
     }
 
@@ -55,8 +54,6 @@ public struct IdleCollector: Sendable {
         maximum: TimeInterval = 300
     ) -> TimeInterval {
         guard let next = thresholds.sorted().first(where: { $0 > idleSeconds }) else {
-            // Past every threshold: nothing further to learn until input resumes, and
-            // input resumption arrives as an event, not a tick.
             return maximum
         }
         return max(1.0, next - idleSeconds)

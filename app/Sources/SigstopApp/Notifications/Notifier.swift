@@ -59,9 +59,6 @@ final class Notifier: NSObject {
 
     func deliver(_ request: PromptRequest, message: RenderedMessage) {
         guard let center = resolveCenter() else {
-            // No bundle: `UNUserNotificationCenter.current()` cannot be reached at all.
-            // This is the ordinary case for `swift run sigstop`, so it is reported as a
-            // fact rather than an error.
             onStateChange?(
                 .unavailable(
                     "Notifications need a real .app bundle — this build is running as a "
@@ -151,9 +148,6 @@ final class Notifier: NSObject {
 
     private func resolveCenter() -> UNUserNotificationCenter? {
         if let center { return center }
-        // `UNUserNotificationCenter.current()` raises an Objective-C exception, not a
-        // Swift error, when the process has no bundle identifier. It cannot be caught, so
-        // the only safe thing is not to call it.
         guard AppPaths.isBundled else { return nil }
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -168,8 +162,6 @@ final class Notifier: NSObject {
         let take = UNNotificationAction(
             identifier: Action.take, title: "Take it", options: [.foreground]
         )
-        // SIGALRM, in the product's own vocabulary. The minutes are decided by the engine,
-        // not here, so the title does not name a number it might be wrong about.
         let snooze = UNNotificationAction(
             identifier: Action.snooze, title: "Snooze (SIGALRM)", options: []
         )
@@ -234,9 +226,6 @@ extension Notifier: UNUserNotificationCenterDelegate {
             case Action.skip:
                 self.onResponse?(.skip)
             default:
-                // Dismissed from Notification Center. That is not an answer, and it must
-                // not be recorded as one: the engine's own prompt timeout decides when
-                // silence becomes an ignore.
                 break
             }
         }

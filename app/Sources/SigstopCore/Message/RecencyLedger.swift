@@ -157,11 +157,8 @@ public final class RecencyLedger: @unchecked Sendable {
     public func allows(
         _ t: MessageTemplate, at stage: RelaxationStage, now: Date, calendar: Calendar
     ) -> Bool {
-        // The LRU ring. A plain array of ids: a Bloom filter buys nothing at n=60, and its
-        // false positives would silently blacklist good lines.
         if recentTemplateIDs(limit: stage.lruWindow).contains(t.id) { return false }
 
-        // Same-day uniqueness. The rule users actually notice.
         if let today = lastShownToday(templateID: t.id, calendar: calendar, now: now) {
             if stage.enforcesSameDayUniqueness { return false }
             if now.timeIntervalSince(today) < Policy.sameDayRepeatMinimumHours * 3600 {
@@ -180,8 +177,6 @@ public final class RecencyLedger: @unchecked Sendable {
             }
         }
 
-        // NUCLEAR budget: at most one per calendar day, at most one per six hours. This
-        // survives every relaxation stage — scarcity is the joke's delivery mechanism.
         if t.tone == .nuclear {
             if countOnDay(tone: .nuclear, calendar: calendar, now: now) >= Policy.nuclearPerDay {
                 return false

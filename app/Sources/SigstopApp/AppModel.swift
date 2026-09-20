@@ -45,8 +45,6 @@ final class AppModel {
     static let focusHeartbeat: TimeInterval = 5 * 60
 
     // MARK: - Observable view state
-    //
-    // Plain values. The views never reach into an engine, a tracker or a collector.
 
     private(set) var continuousWork: TimeInterval = 0
     private(set) var timeSinceLastBreak: TimeInterval?
@@ -229,11 +227,6 @@ final class AppModel {
     }
 
     // MARK: - User actions
-    //
-    // These never mutate the state machine directly. They queue a `UserAction`, and the
-    // very next `step` applies it — an explicit action outranks everything the engine
-    // might infer, and letting two writers touch `engineState` is how a state machine
-    // stops being one.
 
     func takeBreakNow() { enqueue(.startBreakNow) }
     func acceptBreak() { enqueue(.acceptBreak) }
@@ -269,8 +262,6 @@ final class AppModel {
         let now = time.now
         let monotonic = time.monotonicSeconds
 
-        // 1. The session clock. Tier 0 facts only — the activity is passed for
-        //    attribution, never to move the clock.
         let tickSample = TickSample(
             idleSeconds: raw.input.knownIdleSeconds ?? 0,
             screenLocked: raw.session.screenLocked,
@@ -283,8 +274,6 @@ final class AppModel {
         )
         let sessionEvents = tracker.tick(tickSample)
 
-        // The tracker owns the clock, so its reading is the authoritative one: publish it
-        // for the next context sample, and build the engine's context from it.
         workClock.publish(
             WorkClockReading(
                 continuousWork: tracker.session.continuousActiveWork,
@@ -298,7 +287,6 @@ final class AppModel {
             concurrent: sample.context.concurrent
         )
 
-        // 2. The decision.
         var signals = raw.systemSignals
         signals.frontmostIsFullscreen = sample.context.concurrent.fullscreen
 
@@ -309,13 +297,8 @@ final class AppModel {
             signals: signals,
             settings: settings,
             calendarSystem: .current,
-            // EventKit is declined outright (docs/PRIVACY.md §3.3), so the app knows
-            // nothing about the day's events and claims nothing about them.
             calendar: nil,
             seams: Array(seamsForNextStep),
-            // Keystroke *rate* would need Input Monitoring, which is declined on
-            // principle. Zero here means "cannot tell". The only consequence is that the
-            // engine never defers for a typing burst; it never fires extra.
             keystrokeRate: 0,
             terminalCommandRunning: false,
             secondsSinceFrontmostChange: max(0, now.timeIntervalSince(raw.frontmost.frontmostSince)),
@@ -332,7 +315,6 @@ final class AppModel {
         engineState = outcome.state
         day = outcome.day
 
-        // 3. The only place effects happen.
         for effect in outcome.effects {
             execute(effect, context: context, now: now)
         }
@@ -357,9 +339,6 @@ final class AppModel {
             append(.breakOpen(at: now, cycle: cycle))
 
         case .closeCycle(let cycle, _):
-            // The outcome is reconstructed by the rollup from the prompt and break lines.
-            // There is no "cycle closed" line in the vocabulary, and inventing one would
-            // put a second, disagreeing source of truth in the log.
             if currentCycle == cycle { currentCycle = nil }
             if presentation?.request.cycle == cycle { presentation = nil }
 
@@ -367,8 +346,6 @@ final class AppModel {
             deliver(request, context: context, now: now)
 
         case .withdrawPrompt(let cycle, _):
-            // A withdrawal is not a delivery, and is not logged as one: the line written
-            // at delivery already records what reached the screen.
             notifier.withdraw(cycle: cycle)
             overlay.dismissPromptPanel()
             if presentation?.request.cycle == cycle { presentation = nil }
@@ -408,9 +385,6 @@ final class AppModel {
             refreshRollup(force: true)
 
         case .scheduleWake(let date):
-            // No timer is armed for this. The loop already runs every few seconds and the
-            // engine decides purely from a monotonic comparison, so a second scheduler
-            // here could only ever disagree with it.
             snoozeUntil = date
 
         case .cancelScheduledWake:
@@ -426,10 +400,6 @@ final class AppModel {
             }
 
         case .recordIgnoredPrompt:
-            // The engine judges silence from the moment it emitted the prompt; only the
-            // app knows whether the prompt reached the screen. Silence at a prompt that
-            // was never shown is not an ignore, and recording it as one would feed the
-            // ignore backoff with evidence that does not exist.
             guard promptWasPresented(cycle: currentCycle) else { break }
             tracker.recordIgnoredPrompt()
             if let cycle = currentCycle {
@@ -448,8 +418,6 @@ final class AppModel {
             }
 
         case .resumeWorkClock:
-            // `tracker.endBreak` already resumed it. SIGCONT is a statement about the
-            // clock continuing from exactly where it stopped, not a second resume.
             break
         }
     }
@@ -536,9 +504,6 @@ final class AppModel {
         notifier.onStateChange = { [weak self] state in
             self?.notificationState = state
         }
-        // docs/PRIVACY.md §3.2: if notifications are unavailable or refused, the app draws
-        // its own borderless panel. It needs no permission, and it is strictly more
-        // intrusive — so it exists as a fallback and never as the default.
         notifier.onFallbackNeeded = { [weak self] request, message in
             self?.presentPanel(request, message: message)
         }
@@ -550,8 +515,6 @@ final class AppModel {
         do {
             let store = try FileEventStore(root: AppPaths.storageRoot)
             self.store = store
-            // Retention is enforced at launch rather than by a background timer: the only
-            // moment that matters is before anything new is written.
             try store.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
             lastStoreError = nil
         } catch {
@@ -586,8 +549,6 @@ final class AppModel {
                 guard let began = idleBeganAt else { continue }
                 idleBeganAt = nil
                 append(.idleEnd(at: now, idleSeconds: Int(now.timeIntervalSince(began).rounded())))
-                // Coming back from a gap is a moment the user has already broken their own
-                // concentration — which is exactly what a seam is.
                 seamsForNextStep.insert(.idleBlip)
             case .sessionStarted(_, let at):
                 append(.start(at: at))
@@ -615,14 +576,6 @@ final class AppModel {
                 app: bundle,
                 category: Self.category(for: bundle),
                 activity: context.activity,
-                // `sig` is reserved for the five-value window-title CLASSIFICATION
-                // (docs/PRIVACY.md §4.3), and the Tier 1 classifier is not wired up yet.
-                // So it stays nil. Writing "readable"/"unavailable" here would have been
-                // easy and would have put a private vocabulary into a field whose meaning
-                // is documented — a reader would have no way to tell the difference.
-                //
-                // The title itself is never written under any circumstances: there is no
-                // field in `LoggedEvent` that could hold one (CLAUDE.md §4.4).
                 titleSignal: nil
             )
         )
@@ -660,8 +613,6 @@ final class AppModel {
         engineStateName = engineState.name
         permissionStatus = sensors.permissions.status()
 
-        // When the decision engine computed no verdict this step, the context engine's own
-        // gate is the honest answer: it is where the OS facts are actually read.
         if outcome.verdict == nil {
             gateReason = sample.gate.allowsPrompt ? nil : sample.gate.reason
         }
@@ -688,8 +639,6 @@ final class AppModel {
         guard let summary = try? DailyRollup.compute(day: today, from: store) else { return }
         todaySummary = summary
         let narrator = SummaryNarrator(tone: settings.tone)
-        // Seeded by the day, so reopening the menu does not reshuffle the sentence, and a
-        // new day does not repeat yesterday's.
         let seed = UInt64(bitPattern: Int64(today.year * 10_000 + today.month * 100 + today.day))
         todayLine = narrator.line(for: summary, seed: seed)
         todayDetail = narrator.detail(for: summary)
@@ -782,10 +731,6 @@ final class AppModel {
             break
         }
 
-        // Anything that invalidates accumulated elapsed time is reported to the tracker, so
-        // the next gap is labelled a sleep rather than a starved timer. The durations are
-        // identical either way: the tracker diffs monotonic timestamps across the gap and
-        // never trusts the tick count (CLAUDE.md §3.4).
         if event.invalidatesElapsedTime {
             tracker.noteSystemWake()
         }
@@ -800,11 +745,7 @@ final class AppModel {
                 for await event in stream {
                     guard let self else { return }
                     if case .activated = event {
-                        // Switching app is the cheapest, most reliable seam there is.
                         self.seamsForNextStep.insert(.applicationSwitch)
-                        // Accessibility can be revoked at any moment and macOS posts no
-                        // notification when it is; re-checking here is a cheap,
-                        // non-prompting call.
                         self.refreshPermissions()
                     }
                 }

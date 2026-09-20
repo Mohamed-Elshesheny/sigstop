@@ -221,8 +221,6 @@ struct MessageEngineSelectionTests {
         let result = engine.select(for: ctx)
         #expect(result.message.templateID.hasPrefix("cursor."),
                 "picked \(result.message.templateID) over an eligible Cursor line")
-        // And it is a property of the band, not of the seed: every candidate considered
-        // was a Cursor line.
         #expect(result.trace.bandIDs.allSatisfy { $0.hasPrefix("cursor.") })
     }
 
@@ -304,8 +302,6 @@ struct MessageEngineSelectionTests {
         let first = engine.select(for: ctx).message.templateID
         let second = engine.select(for: ctx).message.templateID
         #expect(first == "test.solo.only-line")
-        // The pool is exhausted, so the engine must move to the emergency pool rather
-        // than repeat itself or return nothing.
         #expect(second != first)
     }
 }
@@ -426,7 +422,6 @@ struct MessageEngineGatingTests {
         #expect(MessageEngine.effectiveToneCeiling(at: .third, userCeiling: .roast) == .roast)
         #expect(MessageEngine.effectiveToneCeiling(at: .third, userCeiling: .nuclear) == .nuclear)
         #expect(MessageEngine.effectiveToneCeiling(at: .incident, userCeiling: .nuclear) == .nuclear)
-        // A friendly user preference stays friendly at the top of the ladder.
         #expect(MessageEngine.effectiveToneCeiling(at: .incident, userCeiling: .friendly) == .friendly)
 
         let engine = makeEngine()
@@ -455,7 +450,6 @@ struct MessageEngineGatingTests {
         #expect(!p.holds(in: makeContext()))
         #expect(p.holds(in: makeContext(facts: [.testsFailing: .bool(true)])))
         #expect(!p.holds(in: makeContext(facts: [.testsFailing: .bool(false)])))
-        // Wrong shape is also false, never a crash.
         #expect(!p.holds(in: makeContext(facts: [.testsFailing: .int(3)])))
     }
 
@@ -467,8 +461,6 @@ struct MessageEngineGatingTests {
         #expect(coding.holds(in: makeContext(activity: .testing, confidence: 0.9)))
         #expect(!debugging.holds(in: makeContext(activity: .testing, confidence: 0.9)))
         #expect(!debugging.holds(in: makeContext(activity: .documentation, confidence: 0.9)))
-        // Below the specific-claim threshold the context degrades to the parent, so a
-        // sibling-level predicate stops matching entirely.
         #expect(!debugging.holds(in: makeContext(activity: .debugging, confidence: 0.3)))
         #expect(coding.holds(in: makeContext(activity: .debugging, confidence: 0.3)))
     }
@@ -504,7 +496,6 @@ struct RecencyLedgerTests {
 
         var stages: [RelaxationStage] = [first.trace.relaxation]
         for _ in 0..<40 { stages.append(engine.select(for: ctx).trace.relaxation) }
-        // Monotonic pressure: the stage never goes backwards for an identical context.
         #expect(zip(stages, stages.dropFirst()).allSatisfy { $0 <= $1 })
     }
 
@@ -601,7 +592,6 @@ struct SlotFillerTests {
 
         let unsure = resolver.table(for: makeContext(activity: .debugging, confidence: 0.3))
         #expect(unsure[.activity]?.text == Activity.coding.displayName)
-        // And it cannot be used as a required slot at that confidence.
         #expect((unsure[.activity]?.confidence ?? 1) < SlotResolver.requiredFloor)
     }
 }
@@ -636,7 +626,6 @@ struct AppKeyTests {
             confidence: Confidence(0.8))
         let ctx = MessageContext(developer: dev, calendar: fixedCalendar)
         #expect(ctx.appConfidence < 0.35)
-        // Which means no app-naming template can be selected for it.
         let appTemplate = MessageTemplate(
             id: "test.gate.app-line", text: "Long stretch in the editor.", tone: .friendly,
             category: "test_gate", escalation: EscalationLevel.first...EscalationLevel.incident,

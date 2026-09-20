@@ -125,10 +125,6 @@ final class UpdateChecker {
     }
 
     init() {
-        // Sparkle updates a *bundle*. Under `swift run` there is no `.app`, nothing to
-        // replace, and no Info.plist holding the feed URL or the public key — so it says
-        // so rather than starting an updater that would fail later with something
-        // mystifying.
         guard AppPaths.isBundled else {
             state = .unavailable("Updating needs the bundled app. Build it with `make bundle`.")
             return
@@ -142,16 +138,8 @@ final class UpdateChecker {
             delegate: nil
         )
 
-        // A constant, deliberately without the version Sparkle would put here by default.
-        // The comparison happens on this machine against a file that is the same for
-        // everybody, so the server has no use for the version and is not given it.
         updater.userAgentString = "sigstop"
-        // Redundant with SUEnableSystemProfiling in Info.plist, and set anyway: this one
-        // is the value that actually governs the request, and a future edit to the plist
-        // must not be able to quietly turn profiling on.
         updater.sendsSystemProfile = false
-        // Never fetch in the background, even for a user who turned scheduled checks on.
-        // They press the button; the app does not decide to spend their bandwidth.
         updater.automaticallyDownloadsUpdates = false
 
         do {
@@ -233,9 +221,6 @@ final class UpdateChecker {
     }
 
     // MARK: - Callbacks from the user driver
-    //
-    // One private method per driver message, so the driver stays a dumb forwarder and all
-    // of the state transitions are visible in one place, in order.
 
     fileprivate func didStartUserInitiatedCheck(cancellation: @escaping () -> Void) {
         cancelInFlight = cancellation
@@ -257,8 +242,6 @@ final class UpdateChecker {
 
     fileprivate func didFindNothing(error: any Error, acknowledgement: @escaping () -> Void) {
         cancelInFlight = nil
-        // Sparkle reports "you are on the latest version" as an NSError. It is not a
-        // failure and must not be drawn as one.
         state = .upToDate(current: currentVersion)
         acknowledgement()
     }
@@ -288,7 +271,6 @@ final class UpdateChecker {
     }
 
     fileprivate func didStartExtracting() {
-        // Past this point the download cannot be cancelled — Sparkle's own contract.
         cancelInFlight = nil
         state = .extracting(fraction: nil)
     }
@@ -298,8 +280,6 @@ final class UpdateChecker {
     }
 
     fileprivate func readyToInstall(reply: @escaping (SPUUserUpdateChoice) -> Void) {
-        // Everything before this has already been signature-checked by Sparkle. Reaching
-        // this state at all is the verification passing.
         pendingChoice = reply
         state = .readyToInstall(version: offeredVersion ?? "the new version")
     }
@@ -345,11 +325,6 @@ private final class UserDriver: NSObject, SPUUserDriver {
         _ request: SPUUpdatePermissionRequest,
         reply: @escaping (SUUpdatePermissionResponse) -> Void
     ) {
-        // Sparkle's "may I check automatically?" prompt on first launch. The app answers
-        // it here, without showing anything, and the answer is no. The switch in
-        // Settings > About is the only thing that turns scheduled checks on, and a modal
-        // asking for permission to phone home before the user has even opened the app
-        // would be exactly the pattern this app exists to not be.
         reply(SUUpdatePermissionResponse(automaticUpdateChecks: false, sendSystemProfile: false))
     }
 
@@ -362,10 +337,6 @@ private final class UserDriver: NSObject, SPUUserDriver {
         state: SPUUserUpdateState,
         reply: @escaping (SPUUserUpdateChoice) -> Void
     ) {
-        // An information-only update has nothing to download and Sparkle forbids replying
-        // `.install` to one. They exist mostly as a fallback when a bad build shipped, so
-        // the honest handling is to say a newer version exists and send the user to the
-        // releases page — which the links row at the bottom of the About pane already is.
         guard !appcastItem.isInformationOnlyUpdate else {
             reply(.dismiss)
             owner?.didFindInformationOnly(version: appcastItem.displayVersionString)
@@ -374,9 +345,6 @@ private final class UserDriver: NSObject, SPUUserDriver {
         owner?.didFindUpdate(version: appcastItem.displayVersionString, reply: reply)
     }
 
-    // Release notes are not fetched: the appcast embeds its description, and a linked
-    // release-notes URL would be a second network request for decoration. Both of these
-    // are required by the protocol and both are deliberately empty.
     func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
     func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {}
 

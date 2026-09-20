@@ -359,9 +359,6 @@ export const comparison = {
     some: "sometimes",
     "n/a": "not applicable",
   },
-  footnotes: [
-    "macOS only, and honestly so. The detection is built on NSWorkspace, CoreGraphics and CoreAudio. A Windows port would not be a port, it would be a rewrite, and pretending otherwise on a landing page is how you get issues you cannot close.",
-  ],
 
   /**
    * The last row claims something, so it has to carry its evidence, including the

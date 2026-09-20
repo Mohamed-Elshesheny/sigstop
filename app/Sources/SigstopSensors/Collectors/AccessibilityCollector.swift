@@ -155,7 +155,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
             record(.noFocusedWindow)
             return .empty
         }
-        // Guarded by the CFGetTypeID check above.
         let window = unsafeDowncast(windowRef, to: AXUIElement.self)
         AXUIElementSetMessagingTimeout(window, Self.messagingTimeout)
 
@@ -209,10 +208,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
             let element = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
 
-            // The one unsafe boundary in this design, kept in this file and nowhere else:
-            // the AX callback is a C function pointer with a `void *` refcon, so the
-            // dispatch target is an `Unmanaged`-boxed token. The box holds only the pid
-            // and a sink closure, both `Sendable`.
             let token = AXObserverToken(pid: pid) { [weak self] event in self?.emit(event) }
             let refcon = Unmanaged.passRetained(token).toOpaque()
 
@@ -377,8 +372,6 @@ private final class AXRunLoopThread: @unchecked Sendable {
             lock.unlock()
             ready.signal()
 
-            // A run loop with no sources returns immediately; the port keeps it alive so
-            // observer sources have somewhere to be delivered.
             let keepAlive = NSMachPort()
             RunLoop.current.add(keepAlive, forMode: .default)
             while !Thread.current.isCancelled {
@@ -389,7 +382,6 @@ private final class AXRunLoopThread: @unchecked Sendable {
         created.qualityOfService = .utility
         thread = created
         created.start()
-        // Bounded: if the thread cannot start we degrade to Tier 0 rather than deadlock.
         _ = ready.wait(timeout: .now() + 2.0)
     }
 

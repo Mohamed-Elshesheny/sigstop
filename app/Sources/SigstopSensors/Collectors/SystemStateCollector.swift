@@ -109,8 +109,6 @@ public final class SystemStateCollector {
             me.emit(.sessionBecameActive(at: at))
         })
 
-        // Undocumented but stable for a decade. Best-effort, cross-checked against
-        // CGSessionCopyCurrentDictionary, and never the sole basis for anything.
         let distributed = DistributedNotificationCenter.default()
         distributedObservers.append(observe(distributed, Notification.Name("com.apple.screenIsLocked")) { me, at in
             me.screenLocked = true
@@ -182,8 +180,6 @@ public final class SystemStateCollector {
         guard let raw = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]],
               !raw.isEmpty
         else {
-            // Windows are demonstrably on screen (we are running a GUI session), so an
-            // empty answer means the API stopped working for us. Disable, permanently.
             windowGeometryAvailable = false
             return nil
         }

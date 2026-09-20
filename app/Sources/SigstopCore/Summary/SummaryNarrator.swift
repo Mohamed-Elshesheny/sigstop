@@ -1,29 +1,6 @@
 import Foundation
 
-// Pure domain. Foundation only — no AppKit (CLAUDE.md §3.1), no networking module
-// (CLAUDE.md §4.3), no clock reads (CLAUDE.md §3.2).
-//
-// ─── Content rails, enforced by what is written below, not by a note ───────────────
-//
-// CLAUDE.md §4.5 and docs/MESSAGE-ENGINE.md §4.2: never about body weight, appearance,
-// medical conditions, mental health, competence, or job security. No medical claims
-// anywhere — this is a workflow tool, not a health product.
-//
-// One deliberate narrowing, because three normative documents do not quite agree.
-// CLAUDE.md §4.5 permits "your posture" as the safe alternative to "your health";
-// docs/MESSAGE-ENGINE.md §4.4 lint L7 puts `\bposture\b` in the banned lexicon; and
-// docs/BREAK-DECISION.md §16 forbids describing bodies at all ("no claims about eyes,
-// wrists, posture, strain, energy, alertness, mood"). The intersection of the three is
-// the strictest one, so **no line here refers to a body at all** — not posture, not a
-// spine, not a wrist. Every joke targets the clock, the tooling, the log, the chair, or
-// a behaviour. Nothing here would trip the corpus lint if it were ever pointed at this
-// file, which is the property worth having.
-
 // MARK: - Deterministic selection
-
-// SeededGenerator lives in Model/SeededGenerator.swift: both this file and
-// the other consumer defined an identical copy, so it was hoisted.
-
 
 // MARK: - Duration formatting
 
@@ -31,9 +8,6 @@ import Foundation
 /// seconds is inviting someone to optimise seconds.
 public enum DurationText {
     public static func short(_ seconds: TimeInterval) -> String {
-        // Round to the NEAREST minute, never floor. Flooring reports 59 seconds of
-        // work as "0m", which understates the day and is the one direction a
-        // summary must not be wrong in.
         let totalMinutes = max(0, Int((seconds / 60).rounded()))
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60

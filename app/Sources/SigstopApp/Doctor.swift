@@ -30,8 +30,6 @@ enum Doctor {
         let settings = SettingsStore.load()
         let sensors = SensorStack(settings: settings)
 
-        // Event-driven collectors need one read to have anything to say. This registers
-        // CoreAudio listeners and re-reads the lock/console state; none of it prompts.
         sensors.audio.refresh()
         sensors.system.reconcile()
         sensors.frontmost.reconcile()
@@ -243,9 +241,6 @@ enum Doctor {
             "  format           one JSON object per line; `cat` is a complete audit tool",
             "  retention        \(Retention.defaultEventDays) days of raw events",
         ]
-        // Read-only on purpose. `FileEventStore.init` creates its directory tree, and
-        // `--doctor` is a diagnostic: running it must not leave anything behind on a
-        // machine that has never run the app.
         guard FileManager.default.fileExists(atPath: root.path) else {
             out.append("  days on disk     nothing stored yet — the app has not run here")
             out.append("")
