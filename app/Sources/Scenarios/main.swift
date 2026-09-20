@@ -28,12 +28,14 @@ struct Conditions {
     var screenLocked = false
     var sleeping = false
     var fullscreen = false
+    /// A conferencing app is running, which is what lets the latch adopt an anchor.
+    var callAppRunning = false
     var action: UserAction?
     var seams: [Seam] = []
 
     static let working = Conditions()
     static let idle = Conditions(working: false, idleSeconds: 600)
-    static let inMeeting = Conditions(micRunning: true)
+    static let inMeeting = Conditions(micRunning: true, callAppRunning: true)
 }
 
 /// A step in a script: hold these conditions for this long.
@@ -61,6 +63,7 @@ struct World {
     var monotonic: Double = 0
     var continuousWork: TimeInterval = 0
     var lastBreakEndedAt: Date?
+    var latch = MeetingLatch()
 
     /// Everything the engine emitted, stamped with when.
     private(set) var trace: [(at: TimeInterval, line: String)] = []
@@ -115,12 +118,28 @@ struct World {
             idleSeconds: c.idleSeconds
         )
 
+        let conferencing = CallCapableApp(
+            bundleID: "com.tinyspeck.slackmacgap", name: "Slack", isConferencing: true
+        )
+        let latchInput = MeetingLatchInput(
+            monotonic: monotonic,
+            wall: now,
+            micLive: c.micRunning,
+            cameraLive: c.cameraRunning,
+            callCapableRunning: c.callAppRunning ? [conferencing] : [],
+            attributedCallCapable: c.callAppRunning && (c.micRunning || c.cameraRunning) ? conferencing : nil,
+            screenLocked: c.screenLocked,
+            sessionActive: !c.sleeping
+        )
+        latch = latch.advanced(latchInput, policy: engine.policy)
+
         let signals = SystemSignals(
             audioInputRunning: c.micRunning,
             cameraRunning: c.cameraRunning,
             screenLocked: c.screenLocked,
             systemSleeping: c.sleeping,
-            frontmostIsFullscreen: c.fullscreen
+            frontmostIsFullscreen: c.fullscreen,
+            meetingLatch: latch.signal(at: monotonic, wall: now, policy: engine.policy)
         )
 
         let input = EngineInput(
@@ -384,7 +403,12 @@ let scenarios: [Scenario] = [
         beats: [Beat(120, Conditions(micRunning: true), note: "Krisp or BlackHole holding the input device")],
         check: { w in
             w.prompts.isEmpty
-                ? "never prompted in two hours: one always-on audio device disables the product entirely"
+                ? "never prompted in two hours. This scenario feeds the raw device bit, so it "
+                    + "measures the engine alone, and the engine has no defence: every cycle it "
+                    + "opens is hard blocked on arrival. The only defence is upstream, in "
+                    + "AudioDeviceCollector's calibration, which needs an hour of observation "
+                    + "before it downgrades the signal. So the honest reading is not that this is "
+                    + "broken, it is that recovery takes an hour and nothing tells the user why"
                 : nil
         }
     ),
