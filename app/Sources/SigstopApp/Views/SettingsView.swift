@@ -190,6 +190,12 @@ struct SettingsView: View {
                 SettingRow("Suggest something to do", detail: "A small, finishable nudge to leave the chair.") {
                     TerminalSwitch(isOn: settings.breakQuestsEnabled)
                 }
+                SettingRow(
+                    "Hold my break during calls",
+                    detail: "After a microphone or camera stops, hold the prompt for up to 20 minutes in case you only muted. Turning it off also ends an \"I'm in a meeting\" hold, and turning it back on restores the feature. A live microphone or camera still blocks on its own \u{2014} except on a Mac whose audio signal the app cannot trust, where this switch is the only thing holding; --doctor says which one this is."
+                ) {
+                    TerminalSwitch(isOn: settings.holdBreaksDuringCalls)
+                }
             }
 
             SettingsSection("system") {

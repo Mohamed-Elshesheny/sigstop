@@ -71,6 +71,44 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     /// After 2 consecutive fully-ignored cycles the ladder truncates to L1–L2.
     public var ignoreBackoffThreshold: Int = 2
 
+    // MARK: The call latch (docs/BREAK-DECISION.md §7.7)
+
+    /// Continuous microphone or camera use before the latch will arm at all. Nothing
+    /// briefer than this is a call: a Siri wake word, a "test your microphone" chirp, one
+    /// dictated sentence and Photo Booth opening are all far shorter. The dwell costs no
+    /// coverage, because while capture is live the pre-existing `audioInputInUse` and
+    /// `cameraInUse` blocks are already in force.
+    public var latchArmDwell: TimeInterval = 45
+    /// How long the latch holds after capture stops, unconditionally. This is the price of
+    /// being wrong, set deliberately: a false latch does not suppress a prompt, it delays
+    /// one, because the work clock keeps running in the session tracker.
+    public var latchFactHold: TimeInterval = 8 * 60
+    /// Extra hold while an adopted call-capable app is still running. It can only ever
+    /// lengthen the hold to 20 minutes, never carry it.
+    public var latchAnchorExtension: TimeInterval = 12 * 60
+    /// The hold once an app the latch actually adopted has quit. The call is over.
+    public var latchAnchorQuitHold: TimeInterval = 90
+    /// Accumulated HOLD seconds in one episode. Past this the latch is wrong about
+    /// something, so it closes and says so.
+    public var latchEpisodeCeiling: TimeInterval = 90 * 60
+    /// Accumulated HOLD seconds in one local day.
+    public var latchDailyCeiling: TimeInterval = 3 * 3600
+    /// Quiet capture required before the latch may arm again after an episode ceiling.
+    public var latchRearmQuiet: TimeInterval = 10 * 60
+    /// After the user presses "Not in a meeting".
+    public var latchManualInhibit: TimeInterval = 30 * 60
+    /// After the user presses "I'm in a meeting". It expires; a manual hold that never
+    /// expires is a mute button.
+    public var latchManualHold: TimeInterval = 2 * 3600
+    /// A step larger than this on either clock is a gap nobody watched, not a tick.
+    /// Deliberately its own number rather than `tickInterval + tickTolerance`, which the
+    /// app overrides at runtime and tests do not.
+    public var latchGapTolerance: TimeInterval = 10
+    /// For this long after launch, a running conferencing app is enough to DEFER. The app
+    /// may have started in the middle of a call it never saw begin, and at Tier 0 the
+    /// inference path cannot say so on its own.
+    public var latchColdStartGrace: TimeInterval = 90
+
     public init() {}
 
     /// Derive the policy from the user's settings, keeping the product constants.
@@ -117,6 +155,8 @@ public enum LocalDay {
 public struct SystemSignals: Sendable, Codable, Hashable {
     /// `kAudioDevicePropertyDeviceIsRunningSomewhere`. The mic is actually running.
     public var audioInputRunning: Bool
+    /// `kCMIODevicePropertyDeviceIsRunningSomewhere`. A camera device is actually running.
+    /// Read permission-free, exactly as the audio bit above is.
     public var cameraRunning: Bool
     public var displayCaptured: Bool
     public var screenLocked: Bool
@@ -129,6 +169,8 @@ public struct SystemSignals: Sendable, Codable, Hashable {
     public var batteryFraction: Double?
     public var isCharging: Bool
     public var lowPowerMode: Bool
+    /// The trailing edge of a capture fact. See `MeetingLatch`.
+    public var meetingLatch: MeetingLatchSignal
 
     public init(
         audioInputRunning: Bool = false,
@@ -142,7 +184,8 @@ public struct SystemSignals: Sendable, Codable, Hashable {
         frontmostIsPresentationApp: Bool = false,
         batteryFraction: Double? = nil,
         isCharging: Bool = true,
-        lowPowerMode: Bool = false
+        lowPowerMode: Bool = false,
+        meetingLatch: MeetingLatchSignal = .closed
     ) {
         self.audioInputRunning = audioInputRunning
         self.cameraRunning = cameraRunning
@@ -156,6 +199,7 @@ public struct SystemSignals: Sendable, Codable, Hashable {
         self.batteryFraction = batteryFraction
         self.isCharging = isCharging
         self.lowPowerMode = lowPowerMode
+        self.meetingLatch = meetingLatch
     }
 
     public static let none = SystemSignals()
@@ -218,6 +262,11 @@ public enum InterruptionVerdict: Sendable, Codable, Hashable {
 public enum HardBlock: String, Sendable, Codable, Hashable {
     case audioInputInUse
     case cameraInUse
+    /// A capture device ran continuously for at least `latchArmDwell` and stopped less
+    /// than the latch's hold budget ago. Named after what it asserts, not after what a
+    /// person might conclude from it: the app does not know you are in a meeting, it
+    /// knows a microphone or camera was live and how long ago. See `MeetingLatch`.
+    case recentCallContinuing
     case screenBeingShared
     case presentationFullscreen
     case focusModeActive
@@ -309,6 +358,10 @@ public struct InterruptionPolicy: Sendable {
             return .audioInputInUse
         }
         if s.cameraRunning { return .cameraInUse }
+        /// After the two live facts, so that while a device is actually running the more
+        /// precise block explains itself. Before `settleInAfterBreak`, so a call is never
+        /// mis-explained as "you just got back".
+        if s.meetingLatch.isHolding { return .recentCallContinuing }
         if s.displayCaptured { return .screenBeingShared }
         if s.frontmostIsFullscreen && (s.frontmostIsPresentationApp || s.cameraRunning) {
             return .presentationFullscreen
@@ -356,6 +409,17 @@ public struct InterruptionPolicy: Sendable {
         if input.keystrokeRate > 2.0 { return .typingBurst }
         if input.terminalCommandRunning { return .terminalCommandRunning }
         if input.secondsSinceFrontmostChange < policy.seamIdleBlip { return .recentAppLaunch }
+        /// The latch's weak states. Arming means a capture fact exists but has not lasted
+        /// long enough to block on; the cold-start window means the app may have launched
+        /// in the middle of a call it never saw begin. Both are guesses, so both defer.
+        ///
+        /// This is also the only meeting deferral a zero-permission user can ever get.
+        /// `meetingConfidence` is clamped to the Tier 0 ceiling, which sits below the
+        /// specific-claim threshold, so `concurrent.inMeeting` is structurally false
+        /// without Accessibility and the branch below it is unreachable. Raising the
+        /// ceiling would be fixing an honesty mechanism by breaking it; this gets the
+        /// deferral from a fact instead.
+        if input.signals.meetingLatch.suspectsCall { return .inferredMeeting }
         if input.context.concurrent.inMeeting,
            input.context.concurrent.meetingConfidence.isConfidentEnoughForSpecificClaim {
             return .inferredMeeting

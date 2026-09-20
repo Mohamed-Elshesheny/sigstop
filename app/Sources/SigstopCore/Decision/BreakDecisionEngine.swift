@@ -302,8 +302,20 @@ public struct BreakDecisionEngine: Sendable {
         }
 
         switch verdict {
-        case .hardBlocked:
-            effects.append(.setIndicator(.breakDue))
+        case .hardBlocked(let block):
+            /// A prompt that was already on screen when the block began is pulled, and
+            /// the prompt stamp is cleared with it. Both halves matter. Leaving the panel
+            /// up means the joke sits on a screen share for the whole call; leaving
+            /// `promptedAtMono` set means the 90-second prompt timeout has already
+            /// elapsed the instant the block lifts, so the user is charged an ignored
+            /// prompt for a meeting they were never allowed to answer during, and two of
+            /// those silently truncate the ladder.
+            if d.promptedAt != nil {
+                effects.append(.withdrawPrompt(cycle: d.cycle, reason: .blocked))
+                d.promptedAt = nil
+                d.promptedAtMono = nil
+            }
+            effects.append(.setIndicator(Self.indicator(for: block)))
             return (.breakDue(d), verdict)
 
         case .rateLimited(let limit):
@@ -380,10 +392,15 @@ public struct BreakDecisionEngine: Sendable {
         let verdict = interruption.verdict(input, budget: e.budget)
         effects.append(.recordVerdict(verdict))
 
-        if verdict.isHardBlocked {
-            effects.append(.setIndicator(.escalating))
+        if case .hardBlocked(let block) = verdict {
+            if !e.withdrawnForBlock {
+                e.withdrawnForBlock = true
+                effects.append(.withdrawPrompt(cycle: e.cycle, reason: .blocked))
+            }
+            effects.append(.setIndicator(Self.indicator(for: block)))
             return (.ignored(e), verdict)
         }
+        e.withdrawnForBlock = false
         e.ladderElapsed += dt
 
         let ceiling: EscalationLevel = day.consecutiveIgnoredCycles >= policy.ignoreBackoffThreshold ? .second : .incident
@@ -436,6 +453,19 @@ public struct BreakDecisionEngine: Sendable {
         if e.ladderElapsed >= policy.ladderLevel3Armed, !input.seams.isEmpty { return .third }
         if e.ladderElapsed >= policy.ladderLevel2 { return .second }
         return .first
+    }
+
+    /// A call block gets its own indicator. The three that mean "you are probably on a
+    /// call" say `held`, so a user who is never prompted for twenty minutes can see that
+    /// the app is holding rather than broken.
+    static func indicator(for block: HardBlock) -> IndicatorState {
+        switch block {
+        case .audioInputInUse, .cameraInUse, .recentCallContinuing, .videoEventInProgress:
+            return .held
+        case .screenBeingShared, .presentationFullscreen, .focusModeActive, .screenLocked,
+             .systemSleeping, .fastUserSwitched, .settleInAfterBreak, .imminentMeeting:
+            return .breakDue
+        }
     }
 
     private func channelFor(level: EscalationLevel, signals: SystemSignals) -> PromptChannel {

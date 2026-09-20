@@ -105,6 +105,29 @@ public enum AudioInputState: String, Sendable, Codable, Hashable {
     public var contributesToMeeting: Bool { self == .running }
 }
 
+// MARK: - Camera
+
+/// Four states, not a `Bool`, for exactly the reasons `AudioInputState` has four.
+///
+/// `kCMIODevicePropertyDeviceIsRunningSomewhere` is the CoreMediaIO twin of the
+/// `kAudioDevicePropertyDeviceIsRunningSomewhere` the audio collector already reads. It
+/// needs **no Camera permission and produces no prompt**: it is a property read on a
+/// device object, and the app never opens a capture session, so it cannot see a frame.
+///
+/// `.unreliable` exists because OBS Virtual Camera, EpocCam and a permanently attached
+/// Continuity Camera are the camera analogue of Krisp: a device that is "running
+/// somewhere" forever tells you nothing, and a permanently-on detector is worse than no
+/// detector.
+public enum CameraInputState: String, Sendable, Codable, Hashable {
+    case running
+    case notRunning
+    case noCameraDevice
+    case unreliable
+
+    /// Only `.running` is a usable positive. `.unreliable` deliberately is not.
+    public var contributesToMeeting: Bool { self == .running }
+}
+
 // MARK: - Window geometry (garnish only)
 
 /// Geometry from `CGWindowListCopyWindowInfo`, **no titles**, no Screen Recording.

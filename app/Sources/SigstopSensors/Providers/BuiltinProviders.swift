@@ -68,6 +68,80 @@ public enum BundleIDs {
     }
 }
 
+// MARK: - Call-capable apps
+
+/// The apps whose audio or camera I/O can genuinely mean a call, for the call latch in
+/// `SigstopCore`.
+///
+/// Matched by **prefix**, not equality, because macOS attributes audio to helper
+/// processes rather than to apps: Chrome's input shows up as `com.google.Chrome.helper`
+/// and Teams' media path is `com.microsoft.vcxpc`, which is not under the
+/// `com.microsoft.teams2` prefix at all. Every entry is marked VERIFIED or UNVERIFIED per
+/// CONTRIBUTING.md; a guess is marked, never invented.
+///
+/// `com.apple.WebKit.GPU` is deliberately absent. Safari routes every WebKit client's
+/// audio through it, so it names no app, and listing it would let any Safari tab playing
+/// a podcast anchor a call. Meet in Safari is therefore a stated false negative rather
+/// than a false positive, and `--doctor` says so.
+public enum CallCapableApps {
+
+    /// prefix to canonical app. Longest match wins, so a helper resolves to its app.
+    static let table: [(prefix: String, app: CallCapableApp)] = [
+        (BundleIDs.slack, CallCapableApp(bundleID: BundleIDs.slack, name: "Slack", isConferencing: true)),
+        (BundleIDs.teams, CallCapableApp(bundleID: BundleIDs.teams, name: "Microsoft Teams", isConferencing: true)),
+        ("com.microsoft.vcxpc", CallCapableApp(bundleID: BundleIDs.teams, name: "Microsoft Teams", isConferencing: true)),  // UNVERIFIED
+        ("us.zoom.", CallCapableApp(bundleID: BundleIDs.zoom, name: "Zoom", isConferencing: true)),
+        (BundleIDs.discord, CallCapableApp(bundleID: BundleIDs.discord, name: "Discord", isConferencing: true)),
+        (BundleIDs.chrome, CallCapableApp(bundleID: BundleIDs.chrome, name: "Google Chrome", isConferencing: false)),
+        (BundleIDs.arc, CallCapableApp(bundleID: BundleIDs.arc, name: "Arc", isConferencing: false)),
+        (BundleIDs.brave, CallCapableApp(bundleID: BundleIDs.brave, name: "Brave", isConferencing: false)),
+        (BundleIDs.safari, CallCapableApp(bundleID: BundleIDs.safari, name: "Safari", isConferencing: false)),
+        (BundleIDs.edge, CallCapableApp(bundleID: BundleIDs.edge, name: "Microsoft Edge", isConferencing: false)),
+        (BundleIDs.firefox, CallCapableApp(bundleID: BundleIDs.firefox, name: "Firefox", isConferencing: false)),
+    ]
+
+    /// Processes that hold the microphone and are definitively not a call. Siri's wake
+    /// word was observed holding input for a single sample and releasing it; that is the
+    /// exact shape of transient this list and the latch's arm dwell exist to reject.
+    static let neverAMeetingPrefixes: [String] = [
+        "com.apple.CoreSpeech",                 // VERIFIED, seen live in the process table
+        "com.apple.assistantd",                 // VERIFIED, seen live in the process table
+        "com.apple.Siri",                       // UNVERIFIED
+        "com.apple.speech.",                    // UNVERIFIED
+        "com.apple.SpeechRecognitionCore",      // UNVERIFIED
+        "com.apple.universalaccessd",           // VERIFIED, seen live in the process table
+        "dev.sigstop.app",                      // we are never the reason
+    ]
+
+    public static func match(_ bundleID: String) -> CallCapableApp? {
+        var bestLength = -1
+        var bestApp: CallCapableApp?
+        for entry in table where bundleID.hasPrefix(entry.prefix) {
+            if entry.prefix.count > bestLength {
+                bestLength = entry.prefix.count
+                bestApp = entry.app
+            }
+        }
+        return bestApp
+    }
+
+    public static func isNeverAMeeting(_ bundleID: String) -> Bool {
+        neverAMeetingPrefixes.contains { bundleID.hasPrefix($0) }
+    }
+
+    /// The call-capable apps among a set of bundle identifiers, folded to canonical apps
+    /// and ordered so that the choice of anchor is deterministic.
+    public static func resolve(_ bundleIDs: some Sequence<String>) -> [CallCapableApp] {
+        var seen: Set<String> = []
+        var out: [CallCapableApp] = []
+        for id in bundleIDs.sorted() {
+            guard let app = match(id), seen.insert(app.bundleID).inserted else { continue }
+            out.append(app)
+        }
+        return out
+    }
+}
+
 // MARK: - Title parsing
 
 public struct ParsedTitle: Sendable, Hashable {
