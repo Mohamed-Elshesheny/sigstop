@@ -1,0 +1,85 @@
+name: Feature request
+description: Something the app should do and does not.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two shortcuts before you write anything long.
+
+        **Support for an app you use** needs no core changes and no issue. It is a pure function
+        in `app/Sources/SigstopSensors/Providers/`, and the "Adding support for an app" section of
+        [CONTRIBUTING.md](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md) is the whole story. Open a PR.
+
+        **A joke** is a line of data in `app/Sources/SigstopCore/Message/corpus.json`, with
+        preconditions so it fires only in the situation it is about. Also a PR, not an issue.
+
+        Everything else belongs here.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What goes wrong today
+      description: >-
+        Describe the situation, not the solution. The most useful requests here have all been a
+        specific moment where the app got something wrong, and the feature was obvious afterwards.
+      placeholder: >-
+        When I am in a call in a browser tab rather than in Zoom, the app has no way to know, so
+        it prompts me in the middle of a meeting.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you think it should do
+      description: If you have a shape in mind, put it here. If you only have the problem, say so and leave this short.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Roughly where this would live
+      description: A guess is fine. It is for triage, not a commitment.
+      options:
+        - A new signal or provider (Sensors)
+        - Break timing, snoozing, or the decision engine (Core)
+        - Messages, tone, or escalation (Core)
+        - Badges, the summary, or something else in the data model (Core)
+        - "Interface: the menu bar, the popup, the overlay, Settings (App)"
+        - The website
+        - I do not know
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: The constraints this has to live inside
+      description: >-
+        These are in [CLAUDE.md](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CLAUDE.md) in full. A request that breaks one of them
+        is not refused out of hand, but it has to argue the case explicitly, and that argument
+        changes `CLAUDE.md` in its own PR before any code moves. Tick what holds.
+      options:
+        - label: It works with zero permissions granted, or it degrades cleanly when they are not. A feature that hard requires a permission is a design error.
+          required: false
+        - label: It reads no content. Window titles only, redacted. Never document bodies, keystrokes, the clipboard, screen contents, or message text.
+          required: false
+        - label: It adds no network call. There is exactly one, and it is the update check.
+          required: false
+        - label: It never claims more confidence than the signals support.
+          required: false
+        - label: It makes no medical claim, and any attention or performance claim it implies comes with a citation that has a resolvable DOI.
+          required: false
+        - label: One or more of these does not hold, and I have explained why below.
+          required: false
+
+  - type: textarea
+    id: exception
+    attributes:
+      label: If you ticked the last box, make the argument here
+      description: What the rule costs you, why the feature is worth it anyway, and what you would put in its place.
+    validations:
+      required: false

@@ -1,0 +1,51 @@
+name: Question
+description: Ask how something works, or why it was built this way.
+title: "q: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most "why does it do that" questions already have a written answer, and the written one is
+        better than anything typed into an issue at speed:
+
+        - [`docs/ACTIVITY-DETECTION.md`](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/ACTIVITY-DETECTION.md), what the app can
+          see at each tier, how evidence is combined, and why confidence degrades to a parent
+          activity instead of guessing between siblings.
+        - [`docs/BREAK-DECISION.md`](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/BREAK-DECISION.md), the states, what moves
+          between them, and why a break is not a timer.
+        - [`docs/MESSAGE-ENGINE.md`](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/MESSAGE-ENGINE.md), how a line is chosen,
+          repetition avoidance, escalation, and the rails on tone.
+        - [`docs/PRIVACY.md`](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/PRIVACY.md), what leaves the machine, which is the
+          update check and nothing else.
+        - [`TRADEMARK.md`](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/TRADEMARK.md), what a fork may keep and what it must rename.
+
+        `sigstop --doctor` answers most of "what does it think I am doing right now" on its own.
+
+        Ask anyway if the answer is not there, or if it is there and it is wrong.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What you already looked at
+      description: >-
+        Which document, which file, or which part of `--doctor`, and what was unclear or did not
+        match what you saw. If a document says one thing and the app does another, that is a bug in
+        one of the two and this is exactly how it gets found.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version, if the answer depends on it
+      placeholder: "0.1.0, or ec040b3"
+    validations:
+      required: false

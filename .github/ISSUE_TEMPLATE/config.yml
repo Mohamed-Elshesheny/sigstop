@@ -1,0 +1,15 @@
+blank_issues_enabled: false
+contact_links:
+  - name: The Accessibility grant will not stick
+    url: https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md
+    about: >-
+      macOS ties the grant to the binary's cdhash and swift build changes it on every compile.
+      Read the first section before filing this as a bug. It is the most common false report.
+  - name: Adding support for an app, or writing a joke
+    url: https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md
+    about: >-
+      Both need zero core changes. A provider is a pure function and a joke is a line of JSON.
+      Open a pull request rather than an issue.
+  - name: Naming, logo, and forks
+    url: https://github.com/Mohamed-Elshesheny/sigstop/blob/main/TRADEMARK.md
+    about: The code is Apache 2.0. The name and the mark are not part of that grant.

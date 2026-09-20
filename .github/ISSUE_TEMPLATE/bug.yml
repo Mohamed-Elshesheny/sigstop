@@ -1,0 +1,133 @@
+name: Bug report
+description: The app does something it should not, or fails to do something it should.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Run `--doctor` first and paste the output below.** From a downloaded build that is
+        `/Applications/sigstop.app/Contents/MacOS/sigstop --doctor`, and from a checkout it is
+        `make doctor`. It exists for exactly this.
+        It prints every signal the app can currently see, which tier it came from, the inferred
+        activity, the confidence, and the evidence behind it, and it is honest about what is
+        unavailable and why. It sends nothing anywhere.
+
+        **If the Accessibility permission "keeps turning itself off", that is almost certainly
+        not a bug.** macOS ties the grant to the binary's cdhash, and `swift build` ad-hoc signs,
+        so the cdhash changes on every compile. Read the first section of
+        [CONTRIBUTING.md](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md) and sign with a stable identity before
+        filing.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, in the order you saw it. Times help more than you would expect.
+      placeholder: |
+        14:02 a break prompt appeared and I took it.
+        14:07 the overlay closed and a second prompt appeared immediately,
+        instead of the work timer starting again from zero.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        If it only happens sometimes, say roughly how often, and what was different on the
+        occasions it did not happen. "I have not managed to reproduce it deliberately" is a
+        useful answer. Write that rather than leaving this empty.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it is
+      options:
+        - The break decision, timing, snooze, or the daily reset
+        - What the app thinks I am doing (activity or confidence)
+        - A message or a joke that fired wrongly
+        - The menu bar item, the popup, or the break overlay
+        - Settings, badges, or the daily summary
+        - Updates, permissions, or launch at login
+        - The website
+        - Something else, or I cannot tell
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: sigstop --doctor
+      description: >-
+        Paste the whole thing. Read it before you post it: at Tier 1 it includes redacted window
+        titles, and at Tier 2 a branch name. Redact anything further that you would not put in a
+        public issue.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The version shown in Settings, or the commit you built from.
+      placeholder: "0.1.0, or ec040b3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you are running it
+      options:
+        - A downloaded release build
+        - Built from source with make run
+        - Built from source with swift run, no bundle
+    validations:
+      required: true
+
+  - type: input
+    id: system
+    attributes:
+      label: macOS version and chip
+      placeholder: "26.1, M2 Pro"
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Event log lines, if they are relevant
+      description: >-
+        For anything about timing, breaks, or the session tracker, the log is usually decisive.
+        It lives at `~/Library/Application Support/dev.sigstop.app/events/YYYY-MM-DD.jsonl`, one
+        JSON object per line, and it never contains content. Paste the minute or two around the
+        problem, not the whole day.
+      render: json
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you post
+      options:
+        - label: I searched the existing issues and this is not one of them.
+          required: true
+        - label: I read my `--doctor` output and any log lines above, and I am willing for them to be public.
+          required: true
