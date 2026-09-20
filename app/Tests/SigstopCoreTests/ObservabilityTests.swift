@@ -236,4 +236,28 @@ struct ObservabilityTests {
         #expect(opens.count == 1, "a blocked cycle must not re-arm")
         #expect(session.driver.state.isBreakDue)
     }
+
+    /// An escalating cycle under a sustained block used to be unbounded: `ladderElapsed`
+    /// accrues below the hard-block early return, so the ladder froze and `exhausted`
+    /// could never become true, and unlike `breakDue` this state had no ceiling at all.
+    @Test("an escalating cycle cannot outlive the stale ceiling")
+    func escalatingCycleIsBounded() {
+        var session = EngineHarness.Session()
+        session.stepToPrompt()
+        session.step(untilLimit: 60) { effects in
+            effects.contains { if case .recordIgnoredPrompt = $0 { return true } else { return false } }
+        }
+        #expect(session.driver.state.name == "ignored", "the ladder must have started")
+
+        session.micRunning = true
+        let closed = session.step(untilLimit: 900) { effects in
+            effects.contains { if case .closeCycle = $0 { return true } else { return false } }
+        }
+        #expect(!closed.isEmpty, "a blocked ladder must still end")
+        #expect(
+            session.log.lines.contains { $0.kind == .cycleClose && $0.outcome == .expired },
+            "and it ends as expired, which is excluded from compliance"
+        )
+        #expect(session.driver.state.isWorking)
+    }
 }

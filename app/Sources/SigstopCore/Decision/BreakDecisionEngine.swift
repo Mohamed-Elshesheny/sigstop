@@ -368,6 +368,14 @@ public struct BreakDecisionEngine: Sendable {
 
     // MARK: - ignored / the ladder
 
+    /// The escalation ladder, and the ceiling that bounds it.
+    ///
+    /// `handleBreakDue` has always checked `staleBreakCeiling`; this did not, and because
+    /// `ladderElapsed` only accrues below the hard-block early return, a sustained block
+    /// froze the ladder so `exhausted` could never become true. An `.ignored` cycle under
+    /// a long meeting was therefore unbounded: it could not escalate, could not exhaust,
+    /// and could only ever leave via idle. `totalElapsed` accrues regardless of blocking,
+    /// which is exactly why it, and not `ladderElapsed`, is what the ceiling measures.
     private func handleIgnored(
         _ escalation: Escalation,
         input: EngineInput,
@@ -386,6 +394,17 @@ public struct BreakDecisionEngine: Sendable {
                 since: input.now.addingTimeInterval(-input.context.idleSeconds),
                 cause: .microIdleExceeded,
                 suspendedCycle: e.cycle
+            )), nil)
+        }
+
+        if e.totalElapsed >= policy.staleBreakCeiling {
+            effects.append(.withdrawPrompt(cycle: e.cycle, reason: .cycleExpired))
+            effects.append(.closeCycle(e.cycle, .expired))
+            day.excludedOpportunities += 1
+            effects.append(.setIndicator(.working))
+            return (.working(WorkingState(
+                armThreshold: input.context.continuousWork + policy.rearmAfterStale,
+                lastWorkSeen: input.context.continuousWork
             )), nil)
         }
 
