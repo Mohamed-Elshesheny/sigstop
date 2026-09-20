@@ -810,11 +810,23 @@ final class AppModel {
         permissionStatus = sensors.permissions.status()
     }
 
-    /// macOS posts this the moment the Accessibility switch is flipped, for any app.
+    /// Three triggers, because the interesting one is not reliable on its own.
     ///
-    /// Without it the pane kept showing whatever was true the last time something asked,
-    /// so granting the permission while the window was open looked like it had not
-    /// worked, and the Re-check button was the only way to find out otherwise.
+    /// `com.apple.accessibility.api` is posted when the Accessibility switch is flipped
+    /// for any app. It is undocumented, and it did not arrive on the machine where this
+    /// was reported: the owner granted the permission, came back, and the pane still read
+    /// "not granted" while `--doctor` on the same bundle reported the title as readable.
+    /// The pane was the only thing that was wrong, which is the worst version of this bug,
+    /// because the user has just done the thing they were asked to do and is being told it
+    /// did not work.
+    ///
+    /// So the state is also re-read on the two moments that actually bracket the grant.
+    /// The user leaves for System Settings and comes back, which makes this app active
+    /// again, and they click the window, which makes it key. Both are ordinary AppKit
+    /// notifications and both are exactly the instant the answer may have changed.
+    /// `AXIsProcessTrusted()` is a cheap non-prompting read, so this costs nothing and
+    /// does not poll: there is no timer here, and a permission the user never touches
+    /// never causes a single extra check.
     private func observeAccessibilityGrant() {
         DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.accessibility.api"),
@@ -824,6 +836,19 @@ final class AppModel {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(400))
                 self?.refreshPermissions()
+            }
+        }
+
+        for name in [
+            NSApplication.didBecomeActiveNotification,
+            NSWindow.didBecomeKeyNotification,
+        ] {
+            NotificationCenter.default.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.refreshPermissions() }
             }
         }
     }

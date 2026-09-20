@@ -358,6 +358,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .onAppear { model.refreshPermissions() }
     }
 
     // MARK: Data
