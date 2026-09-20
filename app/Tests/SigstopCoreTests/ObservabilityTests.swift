@@ -225,6 +225,18 @@ struct ObservabilityTests {
         #expect(line?.gate == .audioInputInUse)
     }
 
+    /// The longest the file goes without a line, `now` included as the closing bound.
+    private static func longestSilence(_ lines: [LoggedEvent], now: Date) -> TimeInterval {
+        var worst: TimeInterval = 0
+        var previous: Date?
+        for stamp in lines.map(\.at) {
+            if let previous { worst = max(worst, stamp.timeIntervalSince(previous)) }
+            previous = stamp
+        }
+        if let previous { worst = max(worst, now.timeIntervalSince(previous)) }
+        return worst
+    }
+
     /// The property the incident actually violated. Hold the microphone on for the whole
     /// fourteen minutes the owner sat there and assert the file is never silent for longer
     /// than the heartbeat.
@@ -241,34 +253,9 @@ struct ObservabilityTests {
 
         #expect(session.driver.state.isBreakDue, "the mic must still be holding the cycle open")
 
-        let stamps = session.log.lines.map(\.at)
-        var previous = try? #require(stamps.first)
-        for stamp in stamps.dropFirst() {
-            if let previous {
-                #expect(
-                    stamp.timeIntervalSince(previous) <= 600,
-                    "the log was silent for \(Int(stamp.timeIntervalSince(previous)))s with a cycle open"
-                )
-            }
-            previous = stamp
-        }
-        let last = try? #require(stamps.last)
-        if let last {
-            #expect(session.driver.now.timeIntervalSince(last) <= 600)
-        }
+        let worst = Self.longestSilence(session.log.lines, now: session.driver.now)
+        #expect(worst <= 600, "the log was silent for \(Int(worst))s with a cycle open")
         #expect(session.log.lines.filter { $0.kind == .gate }.count >= 2)
-    }
-
-    /// The longest the file goes without a line, `now` included as the closing bound.
-    private static func longestSilence(_ lines: [LoggedEvent], now: Date) -> TimeInterval {
-        var worst: TimeInterval = 0
-        var previous: Date?
-        for stamp in lines.map(\.at) {
-            if let previous { worst = max(worst, stamp.timeIntervalSince(previous)) }
-            previous = stamp
-        }
-        if let previous { worst = max(worst, now.timeIntervalSince(previous)) }
-        return worst
     }
 
     /// `anOpenCycleIsNeverSilent` above only exercises the microphone, and a hard-blocked
