@@ -263,9 +263,31 @@ final class AppModel {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.tick()
-                try? await Task.sleep(for: .seconds(Self.tickInterval))
+                try? await Task.sleep(for: .seconds(self.secondsUntilNextTick()))
             }
         }
+    }
+
+    /// How long to sleep before the next tick.
+    ///
+    /// Normally the full interval. But a break ending, a snooze expiring and a pause
+    /// running out are **known instants**, and sleeping past one of them means the app
+    /// notices it late by up to the whole interval. That is visible, and it was reported:
+    /// the overlay sat on 0:00 for a few seconds before closing, and the work counter in
+    /// the panel did not start moving again until the tick after the break had already
+    /// ended.
+    ///
+    /// Waking exactly on the deadline instead is not polling and costs nothing: it is the
+    /// same number of wakeups, moved. The floor keeps a deadline that has just passed from
+    /// spinning the loop.
+    private func secondsUntilNextTick() -> TimeInterval {
+        let now = time.now
+        let deadlines = [breakEndsAt, snoozeUntil, pausedUntil]
+            .compactMap { $0 }
+            .map { $0.timeIntervalSince(now) }
+            .filter { $0 > 0 }
+        guard let soonest = deadlines.min() else { return Self.tickInterval }
+        return max(0.25, min(Self.tickInterval, soonest))
     }
 
     func stop() {

@@ -4,6 +4,7 @@ import { Hero } from "@/components/sections/Hero";
 import { ContextDemo } from "@/components/sections/ContextDemo";
 import { ProductDemo } from "@/components/sections/ProductDemo";
 import { NotPomodoro } from "@/components/sections/NotPomodoro";
+import { Meetings } from "@/components/sections/Meetings";
 import { Badges } from "@/components/sections/Badges";
 import { Comparison } from "@/components/sections/Comparison";
 import { BeforeAfter } from "@/components/sections/BeforeAfter";
@@ -22,6 +23,10 @@ export default function Home() {
         <ContextDemo />
         <ProductDemo />
         <NotPomodoro />
+        {/* NotPomodoro ends on "a timer doesn't know you're on a call", so the
+            section that says what this one actually does about a call follows it
+            directly, and lands before the Comparison row that claims it. */}
+        <Meetings />
         <Badges />
         <Comparison />
         <BeforeAfter />
