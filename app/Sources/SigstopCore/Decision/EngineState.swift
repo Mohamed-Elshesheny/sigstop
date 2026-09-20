@@ -356,9 +356,17 @@ public enum Effect: Sendable, Codable, Hashable {
     case scheduleWake(at: Date)
     case cancelScheduledWake
     case recordVerdict(InterruptionVerdict)
-    case recordSkip
-    case recordIgnoredPrompt
-    case recordSnooze(TimeInterval)
+    /// Every effect that records a decision names the cycle it belongs to.
+    ///
+    /// These three used to carry nothing, which forced the app layer to reconstruct the
+    /// id from its own mutable side state. `.closeCycle` clears that state, so a skip,
+    /// whose effect list is withdraw, close, record, could never be written down: the
+    /// guard that looked up the id ran after the value it needed had been cleared. Snooze
+    /// and ignore survived only because no `.closeCycle` happens to precede them. The
+    /// payload is what makes that an impossible bug rather than an ordering convention.
+    case recordSkip(cycle: CycleID)
+    case recordIgnoredPrompt(cycle: CycleID)
+    case recordSnooze(cycle: CycleID, duration: TimeInterval)
     /// SIGCONT, the work clock resumes exactly where it left off.
     case resumeWorkClock
 }

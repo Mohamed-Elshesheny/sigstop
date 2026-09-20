@@ -534,29 +534,23 @@ final class AppModel {
             lastVerdict = verdict
             gateReason = Self.explain(verdict)
 
-        case .recordSkip:
+        case .recordSkip(let cycle):
             tracker.recordSkip()
-            if let cycle = currentCycle {
-                append(.breakResponse(at: now, cycle: cycle, action: .skipped))
-            }
+            append(.breakResponse(at: now, cycle: cycle, action: .skipped))
 
-        case .recordIgnoredPrompt:
-            guard promptWasPresented(cycle: currentCycle) else { break }
+        case .recordIgnoredPrompt(let cycle):
+            guard promptWasPresented(cycle: cycle) else { break }
             tracker.recordIgnoredPrompt()
-            if let cycle = currentCycle {
-                append(.breakResponse(at: now, cycle: cycle, action: .ignored))
-            }
+            append(.breakResponse(at: now, cycle: cycle, action: .ignored))
 
-        case .recordSnooze(let duration):
+        case .recordSnooze(let cycle, let duration):
             tracker.recordSnooze()
-            if let cycle = currentCycle {
-                append(
-                    .breakResponse(
-                        at: now, cycle: cycle, action: .snoozed,
-                        snoozeSeconds: Int(duration.rounded())
-                    )
+            append(
+                .breakResponse(
+                    at: now, cycle: cycle, action: .snoozed,
+                    snoozeSeconds: Int(duration.rounded())
                 )
-            }
+            )
 
         case .resumeWorkClock:
             break

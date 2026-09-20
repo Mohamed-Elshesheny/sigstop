@@ -289,7 +289,7 @@ public struct BreakDecisionEngine: Sendable {
         if let promptedMono = d.promptedAtMono,
            !verdict.isHardBlocked,
            input.monotonic - promptedMono >= policy.promptTimeout {
-            effects.append(.recordIgnoredPrompt)
+            effects.append(.recordIgnoredPrompt(cycle: d.cycle))
             effects.append(.setIndicator(.escalating))
             return (.ignored(Escalation(
                 cycle: d.cycle,
@@ -635,7 +635,7 @@ public struct BreakDecisionEngine: Sendable {
             d.lastStepMono = input.monotonic
             let until = input.now.addingTimeInterval(duration)
             effects.append(.withdrawPrompt(cycle: d.cycle, reason: .userSnoozed))
-            effects.append(.recordSnooze(duration))
+            effects.append(.recordSnooze(cycle: d.cycle, duration: duration))
             effects.append(.scheduleWake(at: until))
             effects.append(.setIndicator(.breakDue))
             return .snoozed(SnoozedState(cycle: d.cycle, until: until, untilMono: input.monotonic + duration, index: index, due: d))
@@ -644,7 +644,7 @@ public struct BreakDecisionEngine: Sendable {
             guard let cycle = state.openCycle else { return state }
             effects.append(.withdrawPrompt(cycle: cycle, reason: .breakStarted))
             effects.append(.closeCycle(cycle, .skipped))
-            effects.append(.recordSkip)
+            effects.append(.recordSkip(cycle: cycle))
             effects.append(.setIndicator(.working))
             day.consecutiveIgnoredCycles = 0
             return .working(WorkingState(
