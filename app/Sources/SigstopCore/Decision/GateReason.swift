@@ -176,7 +176,11 @@ public struct VerdictLedger: Sendable, Hashable {
     private var written: GateReason?
     private var writtenAtMono: Double?
 
-    public init(debounce: Int = 2, heartbeat: TimeInterval = 10 * 60) {
+    /// The shipping heartbeat. Named, because `PromptOutlook` bounds its present-tense
+    /// claims by it: a gap longer than this with a cycle open is the app not running.
+    public static let defaultHeartbeat: TimeInterval = 10 * 60
+
+    public init(debounce: Int = 2, heartbeat: TimeInterval = VerdictLedger.defaultHeartbeat) {
         self.debounce = max(1, debounce)
         self.heartbeat = heartbeat
     }

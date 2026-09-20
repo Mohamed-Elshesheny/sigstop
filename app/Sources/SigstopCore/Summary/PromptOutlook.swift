@@ -57,20 +57,7 @@ public struct PromptOutlook: Sendable, Hashable {
         let cycleIsOpen = opened != nil && (closed == nil || closed!.at < opened!.at)
 
         if let opened, cycleIsOpen {
-            var detail = ["A break opportunity opened at \(clock(opened.at)) and has not closed."]
-            if let prompt = sorted.last(where: { $0.kind == .breakPrompt }), prompt.at >= opened.at {
-                detail.append("The prompt reached the screen at \(clock(prompt.at)).")
-            } else {
-                detail.append("No prompt has reached the screen for it yet.")
-            }
-            if let gate = sorted.last(where: { $0.kind == .gate }), let reason = gate.gate {
-                detail.append(
-                    reason == .delivered
-                        ? "As of \(clock(gate.at)) nothing was holding a prompt."
-                        : "As of \(clock(gate.at)) it was holding off: \(reason.summary)."
-                )
-            }
-            return PromptOutlook(headline: "A break is due right now.", detail: detail)
+            return openCycle(opened, in: sorted, now: now, clock: clock)
         }
 
         guard let closed, let outcome = closed.outcome else {
@@ -141,5 +128,145 @@ public struct PromptOutlook: Sendable, Hashable {
                 ]
             )
         }
+    }
+
+    /// How long an open cycle may go without a line before the file is evidence that the
+    /// app stopped rather than evidence about now.
+    ///
+    /// `VerdictLedger` writes at least once per `heartbeat` for as long as a cycle is
+    /// open, whatever state holds it, so a longer gap than that cannot happen while the
+    /// app is running. One tick of slack for a heartbeat that landed late.
+    static let silenceCeiling: TimeInterval = VerdictLedger.defaultHeartbeat + 60
+
+    /// A cycle that is open in the file, which is a claim about *now* and therefore has to
+    /// be bounded by what the file can actually support.
+    ///
+    /// This said "A break is due right now" for any unclosed `break_open`, no matter how
+    /// old, and no matter what the user had already done about it. On the log it was
+    /// designed from it was wrong three ways at once: a `start` had orphaned the cycle, a
+    /// `break_response` had answered it, and the newest line was a day old.
+    private static func openCycle(
+        _ opened: LoggedEvent,
+        in sorted: [LoggedEvent],
+        now: Date,
+        clock: (Date) -> String
+    ) -> PromptOutlook {
+        // Engine state is deliberately not persisted, so a relaunch forgets an open cycle.
+        // A `start` after the open is therefore the end of it, and the only record there
+        // will ever be of the end of it.
+        if let restart = sorted.last(where: { $0.kind == .start }), restart.at > opened.at {
+            return PromptOutlook(
+                headline: "The break opportunity from \(clock(opened.at)) was dropped by a restart"
+                    + " at \(clock(restart.at)).",
+                detail: [
+                    "Engine state is not kept across launches on purpose, so a restart forgets"
+                        + " an open cycle rather than resuming a stale one.",
+                    "The work clock starts again from there. Nothing was recorded against you.",
+                ]
+            )
+        }
+
+        // Everything below this line except the two past-tense answers is a claim about
+        // now, and a claim about now needs a live file under it. An open cycle writes at
+        // least one line per heartbeat for as long as it is open, whatever state holds it,
+        // so a longer gap than that is the process being gone: a rebuild, a crash, a quit
+        // that never reached its `stop`.
+        let stopped: Bool = sorted.last.map {
+            now.timeIntervalSince($0.at) > silenceCeiling
+        } ?? false
+
+        // What the user already did about it. The answer is in the file; not reading it is
+        // what let the reader tell somebody who had just pressed SIGALRM that a break was
+        // due right now and nothing was holding it.
+        let response = sorted.last { $0.kind == .breakResponse && $0.at >= opened.at }
+        if let response, let action = response.action {
+            switch action {
+            case .snoozed:
+                let seconds = TimeInterval(response.snoozeSeconds ?? 0)
+                let returns = response.at.addingTimeInterval(seconds)
+                if seconds > 0, returns > now, !stopped {
+                    return PromptOutlook(
+                        headline: "You snoozed it at \(clock(response.at)). It comes back at"
+                            + " \(clock(returns)).",
+                        detail: [
+                            "SIGALRM defers the question. The work clock keeps running, so a"
+                                + " snooze buys quiet, never credit.",
+                            "The opportunity from \(clock(opened.at)) is still open underneath it.",
+                        ]
+                    )
+                }
+            case .ignored where !stopped:
+                let rung = sorted.last {
+                    $0.kind == .breakPrompt && $0.at >= opened.at && $0.reason != nil
+                }?.reason
+                let named = rung.map { " The last rung delivered was \($0.rawValue)." } ?? ""
+                return PromptOutlook(
+                    headline: "The prompt from \(clock(opened.at)) went unanswered, so the ladder"
+                        + " is climbing.\(named)",
+                    detail: [
+                        "Each rung is louder than the last and the ladder ends by itself; four"
+                            + " unanswered escalations close the opportunity.",
+                        "Answering any of them, including waving it off, stops it now.",
+                    ]
+                )
+            case .taken:
+                if let ended = sorted.last(where: { $0.kind == .breakEnd && $0.at >= response.at }) {
+                    return PromptOutlook(
+                        headline: "You took the last one at \(clock(response.at)) and it ended at"
+                            + " \(clock(ended.at)).",
+                        detail: [
+                            "The opportunity itself was never marked closed, which is this log"
+                                + " predating the cycle_close event rather than a live problem.",
+                        ]
+                    )
+                }
+                if !stopped {
+                    return PromptOutlook(
+                        headline: "You are on a break. It started at \(clock(response.at)).",
+                        detail: ["Nothing is prompted during one, and the clock resumes when it ends."]
+                    )
+                }
+            case .ignored:
+                // Stale, so the log-stopped answer below is the honest one: a ladder that
+                // was climbing when the process died is not a ladder that is climbing.
+                break
+            case .skipped:
+                return PromptOutlook(
+                    headline: "You waved it off at \(clock(response.at)).",
+                    detail: [
+                        "The opportunity was never marked closed, which is this log predating the"
+                            + " cycle_close event rather than a live problem.",
+                    ]
+                )
+            }
+        }
+
+        var detail = ["A break opportunity opened at \(clock(opened.at)) and has not closed."]
+        if let prompt = sorted.last(where: { $0.kind == .breakPrompt }), prompt.at >= opened.at {
+            detail.append("The prompt reached the screen at \(clock(prompt.at)).")
+        } else {
+            detail.append("No prompt has reached the screen for it yet.")
+        }
+        if let gate = sorted.last(where: { $0.kind == .gate }), let reason = gate.gate {
+            detail.append(
+                reason == .delivered
+                    ? "As of \(clock(gate.at)) nothing was holding a prompt."
+                    : "As of \(clock(gate.at)) it was holding off: \(reason.summary)."
+            )
+        }
+
+        if stopped, let newest = sorted.last {
+            return PromptOutlook(
+                headline: "The log stops at \(clock(newest.at)) and nothing has been recorded since.",
+                detail: detail + [
+                    "An open cycle writes at least one line every"
+                        + " \(DurationText.long(VerdictLedger.defaultHeartbeat)), so this is the app"
+                        + " no longer running rather than the app being quiet.",
+                    "It says nothing about what is happening now. Start it and it will.",
+                ]
+            )
+        }
+
+        return PromptOutlook(headline: "A break is due right now.", detail: detail)
     }
 }
