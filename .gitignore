@@ -25,3 +25,6 @@ web/*.tsbuildinfo
 
 # ---- Local app state (never commit a real session log) ----
 *.jsonl.local
+
+# Agent worktrees
+.claude/worktrees/
