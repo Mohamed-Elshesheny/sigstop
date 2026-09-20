@@ -7,9 +7,6 @@ import { PixelDevStanding } from "../ui/PixelDevStanding";
 import { Button } from "../ui/Primitives";
 
 export function Hero() {
-  // The session clock ticks so the icon visibly fills, the mark is the timer,
-  // and a static screenshot would not show that. Starts near the threshold so a
-  // visitor sees the interesting part within a few seconds rather than in 45 min.
   const [minutes, setMinutes] = useState(41);
 
   useEffect(() => {

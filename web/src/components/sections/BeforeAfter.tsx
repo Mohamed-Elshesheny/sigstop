@@ -168,15 +168,9 @@ function Column({
 }) {
   const { segs, total, start } = build(items, end);
 
-  // Labelling every block is impossible at true scale, consecutive events in
-  // the right-hand column are five minutes apart. The rail is labelled at the
-  // events that carry the argument: the opening block, every seam, every
-  // withheld break, and every hour the left column spends not noticing. The
-  // full sequence stays in the DOM for screen readers either way.
   const labelled = (s: Seg, i: number) =>
     i === 0 || s.tone === "break" || s.tone === "held" || s.tone === "strain";
 
-  // Hour rules, so "same scale" is checkable rather than asserted.
   const hours: number[] = [];
   for (let m = start + ((60 - (start % 60)) % 60); m < start + total; m += 60) hours.push(m);
 

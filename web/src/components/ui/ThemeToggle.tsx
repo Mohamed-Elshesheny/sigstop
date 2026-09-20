@@ -30,8 +30,6 @@ export function ThemeToggle() {
     try { localStorage.setItem("sigstop-theme", next); } catch { /* private mode */ }
   }
 
-  // Render a stable-size placeholder until we know the theme, so the nav
-  // does not shift when it resolves.
   if (!theme) return <span className="h-9 w-9" aria-hidden />;
 
   const dark = theme === "dark";

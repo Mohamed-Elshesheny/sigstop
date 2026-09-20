@@ -18,8 +18,6 @@ import { cn } from "@/lib/cn";
 export function Privacy() {
   const { ref, visible } = useReveal<HTMLDivElement>();
 
-  // One polite live region for the whole proof list. Four separate regions
-  // would fight each other on a screen reader for no extra information.
   const [status, setStatus] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -33,8 +31,6 @@ export function Privacy() {
       setCopied(cmd);
       setStatus(`${copy.proof.copiedLabel}: ${cmd}`);
     } catch {
-      // Clipboard access can be denied outright. Say so rather than showing a
-      // "Copied" state for a thing that did not get copied.
       setCopied(null);
       setStatus(copy.proof.copyFailLabel);
     }

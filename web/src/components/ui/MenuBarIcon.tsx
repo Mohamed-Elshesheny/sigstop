@@ -15,9 +15,6 @@ export function MenuBarIcon({
 }: { fill?: number; size?: number; className?: string; brand?: boolean }) {
   const clamped = Math.min(1, Math.max(0, fill));
   const due = clamped >= 1;
-  // `brand` is the wordmark usage: always the accent, because a logo that
-  // changes colour with state is not a logo. Everywhere else the colour is
-  // semantic, amber only when a break is actually due.
   const color = brand || due ? "var(--color-suspend)" : "var(--color-fg)";
   const barW = size * 0.3;
   const gap = size * 0.16;

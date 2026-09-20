@@ -252,7 +252,6 @@ export function PixelDev({
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReduced(mq.matches);
     if (mq.matches) return;
-    // ~4 keystrokes a second: reads as typing without strobing.
     const id = setInterval(() => setTick((t) => t + 1), 250);
     return () => clearInterval(id);
   }, []);
@@ -271,11 +270,6 @@ export function PixelDev({
       className={className}
       style={
         {
-          // Themed bits only. Skin, hair and hardware keep fixed values so the
-          // character does not change identity between light and dark.
-          // A pixel art outline must be DARKER than every fill, in both themes.
-          // Binding this to --color-fg made it near-white in dark mode, which drew a
-          // glowing halo around the whole figure.
           "--px-line": "#100f0d",
           "--px-lens": "var(--color-suspend)",
           "--px-lens-hi": "color-mix(in srgb, var(--color-suspend) 45%, white)",

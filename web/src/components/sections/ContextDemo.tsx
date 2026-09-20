@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { appDemos, escalation, type AppDemo } from "@/content/apps";
 import { context as copy } from "@/content/copy";
 import { Section, Kicker, Headline, Lede, StateDot } from "../ui/Primitives";
+import { AppLogo } from "../ui/AppLogo";
 import { useReveal } from "@/lib/useReveal";
 import { cn } from "@/lib/cn";
 
@@ -61,14 +62,14 @@ export function ContextDemo() {
                     )}
                   >
                     <span
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-md border font-mono text-sm"
-                      style={{
-                        borderColor: on ? app.accent : "var(--color-line-hi)",
-                        color: on ? app.accent : "var(--color-fg-faint)",
-                      }}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-md border"
+                      style={{ borderColor: on ? app.accent : "var(--color-line-hi)" }}
                       aria-hidden
                     >
-                      {app.glyph}
+                      <AppLogo
+                        app={app.key}
+                        className={cn("h-[18px] w-[18px]", on ? "text-fg" : "text-fg-faint")}
+                      />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className={cn("block truncate font-mono text-[13px]", on ? "text-fg" : "text-fg-muted")}>
