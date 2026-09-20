@@ -1124,9 +1124,9 @@ final class AppModel {
             sensors.system.reconcile()
             refreshPermissions()
         case .displaysSlept:
-            append(.system(at: at, .sleep))
+            append(.system(at: at, .displaySleep))
         case .displaysWoke:
-            append(.system(at: at, .wake))
+            append(.system(at: at, .displayWake))
             sensors.system.reconcile()
         case .sessionResignedActive:
             append(.system(at: at, .sessionOut))

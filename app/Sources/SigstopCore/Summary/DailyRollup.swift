@@ -342,13 +342,15 @@ public enum DailyRollup {
                 isIdle = true
             case .idleEnd:
                 isIdle = false
-            case .lock, .sleep, .sessionOut:
+            case .lock, .sleep, .displaySleep, .sessionOut:
                 suspensions.insert(event.kind)
                 running = true
             case .unlock:
                 suspensions.remove(.lock)
             case .wake:
                 suspensions.remove(.sleep)
+            case .displayWake:
+                suspensions.remove(.displaySleep)
             case .sessionIn:
                 suspensions.remove(.sessionOut)
             case .breakBegin:

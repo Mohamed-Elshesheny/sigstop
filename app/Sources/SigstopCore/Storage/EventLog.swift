@@ -220,8 +220,13 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     case idleEnd = "idle_end"
     case lock
     case unlock
+    /// The machine suspended. `display_sleep` is a different fact and has its own name:
+    /// the screen going dark while the process keeps running is not the machine stopping,
+    /// and collapsing the two made a log that appeared to record the same event twice.
     case sleep
     case wake
+    case displaySleep = "display_sleep"
+    case displayWake = "display_wake"
     case sessionOut = "session_out"
     case sessionIn = "session_in"
     /// A break **opportunity** opened: continuous active work reached the target, i.e.

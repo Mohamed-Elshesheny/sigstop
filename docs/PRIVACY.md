@@ -669,7 +669,7 @@ Field reference:
 |---|---|---|
 | `v` | int | Schema version. Bumped on any breaking change; readers reject unknown majors |
 | `t` | string | ISO-8601 UTC, second resolution. Sub-second precision is deliberately discarded |
-| `e` | string | One of: `start`, `stop`, `focus`, `idle_begin`, `idle_end`, `lock`, `unlock`, `sleep`, `wake`, `session_out`, `session_in`, `break_open`, `break_prompt`, `break_response`, `break_begin`, `break_end`, `cycle_close`, `gate` |
+| `e` | string | One of: `start`, `stop`, `focus`, `idle_begin`, `idle_end`, `lock`, `unlock`, `sleep`, `wake`, `display_sleep`, `display_wake`, `session_out`, `session_in`, `break_open`, `break_prompt`, `break_response`, `break_begin`, `break_end`, `cycle_close`, `gate` |
 | `app` | string? | Bundle identifier. Absent if app tracking is off |
 | `cat` | string? | One of `code`, `browse`, `meet`, `write`, `other` — from `categories.json` |
 | `sig` | string? | Title signal. Present only if Accessibility fidelity is on. **Never the title itself** |
