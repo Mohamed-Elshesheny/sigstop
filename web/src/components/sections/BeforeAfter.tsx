@@ -354,14 +354,6 @@ export function BeforeAfter() {
         {/* The refusal. Not small print: a diagram like the one above is exactly
             where a product would normally slip in a claim it cannot support, so
             the refusal is set at the same weight as the diagram. */}
-        <div className="mt-14 rounded-xl border border-line-hi bg-surface/60 p-6 sm:p-8">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.2em] text-suspend">
-            {copy.disclaimerLabel}
-          </h3>
-          <p className="mt-4 max-w-3xl text-pretty text-base leading-relaxed text-fg sm:text-lg">
-            {copy.disclaimer}
-          </p>
-        </div>
       </div>
     </Section>
   );

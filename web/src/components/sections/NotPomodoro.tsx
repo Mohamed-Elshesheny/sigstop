@@ -202,26 +202,6 @@ export function NotPomodoro() {
         </div>
 
         {/* The line this whole section exists to land. */}
-        <div className="mt-16 flex flex-col gap-4 rounded-xl border border-suspend/30 bg-suspend/[0.05] p-6 sm:flex-row sm:items-center sm:gap-6 sm:p-8">
-          <svg
-            className="h-7 w-7 shrink-0 text-suspend"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            aria-hidden
-          >
-            <path d="M15 9.34V5a3 3 0 0 0-5.94-.6" />
-            <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
-            <path d="M19 10v2a7 7 0 0 1-.11 1.23M5 10v2a7 7 0 0 0 10.7 5.95" />
-            <path d="M12 19v3" />
-            <path d="M3 3l18 18" />
-          </svg>
-          <p className="text-balance font-mono text-lg font-bold leading-snug tracking-tight text-fg sm:text-xl">
-            {copy.sigstop.note}
-          </p>
-        </div>
       </div>
     </Section>
   );

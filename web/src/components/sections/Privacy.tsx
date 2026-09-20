@@ -51,8 +51,8 @@ export function Privacy() {
         {/* ── (a) The contrast. Two columns, deliberately unequal in weight. ──
             The left one is an inventory. The right one is the reason anybody
             installs this, so it gets the heavier surface and the larger type. */}
-        <div className="mt-14 grid gap-5 md:grid-cols-2 md:gap-6">
-          <div className="rounded-xl border border-line bg-surface/30 p-6 sm:p-7">
+        <div className="mt-10 grid gap-4 md:grid-cols-2 md:gap-5">
+          <div className="rounded-xl border border-line bg-surface/30 p-5 sm:p-6">
             <h3 className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight text-fg">
               <StateDot state="running" />
               {copy.sees.title}
@@ -72,7 +72,7 @@ export function Privacy() {
             </p>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-line-hi bg-surface p-6 sm:p-7">
+          <div className="relative overflow-hidden rounded-xl border border-line-hi bg-surface p-5 sm:p-6">
             <span className="absolute inset-x-0 top-0 h-px bg-suspend/60" aria-hidden />
 
             <h3 className="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight text-fg">
@@ -142,12 +142,6 @@ export function Privacy() {
         </div>
 
         {/* ── (c) The claim everything above rests on. ────────────────────── */}
-        <div className="mt-16 border-l-2 border-suspend bg-bg-raised px-6 py-7 sm:px-9">
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-suspend">{copy.zeroPermLabel}</p>
-          <p className="mt-4 max-w-3xl text-pretty text-lg leading-relaxed text-fg sm:text-xl">
-            {copy.zeroPerm}
-          </p>
-        </div>
       </div>
     </Section>
   );

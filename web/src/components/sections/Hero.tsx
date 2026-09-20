@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { hero, namePitch, site } from "@/content/copy";
 import { MenuBarPanel } from "../ui/MenuBarPanel";
+import { PixelDevStanding } from "../ui/PixelDevStanding";
 import { Button } from "../ui/Primitives";
 
 export function Hero() {
@@ -28,10 +29,15 @@ export function Hero() {
       />
 
       <div className="relative mx-auto w-full max-w-6xl">
-        <p className="mb-7 inline-flex items-center gap-2 rounded-full border border-line-hi bg-surface/60 px-3.5 py-1.5 font-mono text-[11px] tracking-wide text-fg-muted backdrop-blur">
-          <span className="h-1.5 w-1.5 rounded-full bg-running" aria-hidden />
-          {hero.eyebrow}
-        </p>
+        <div className="mb-7 flex items-end justify-between gap-4">
+          <p className="inline-flex items-center gap-2 rounded-full border border-line-hi bg-surface/60 px-3.5 py-1.5 font-mono text-[11px] tracking-wide text-fg-muted backdrop-blur">
+            <span className="h-1.5 w-1.5 rounded-full bg-running" aria-hidden />
+            {hero.eyebrow}
+          </p>
+          {/* He gets up and stretches on a loop, above the fold, before anyone
+              has read a word of the copy. */}
+          <PixelDevStanding className="h-24 w-16 shrink-0 sm:h-28 sm:w-[4.6rem]" />
+        </div>
 
         {/* Full-bleed headline. Both statements need to land on their own line ,
             orphaning "Not a" above "server." breaks the rhythm of the joke. */}

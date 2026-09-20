@@ -53,73 +53,7 @@ export const namePitch = {
   body: "You don't avoid breaks because you're busy. You avoid them because you're holding something fragile in your head and you're afraid of dropping it. Stopping doesn't drop it.",
 } as const;
 
-export const problem = {
-  kicker: "A normal Tuesday",
-  headline: "Nothing here looks wrong. That's the problem.",
-  sub: "No single hour of this is unreasonable. Look at the column on the right.",
-  day: [
-    { time: "09:04", label: "Open the editor", detail: "Standup notes still unread", sitting: 0 },
-    { time: "09:40", label: "First real commit", detail: "feat/auth-refresh", sitting: 36 },
-    { time: "10:15", label: "Still in the same file", detail: "It hasn't got prettier", sitting: 71 },
-    { time: "11:02", label: "Something breaks", detail: "It worked on the last commit", sitting: 118 },
-    { time: "11:58", label: "Still debugging", detail: "You've added 14 console.logs", sitting: 174 },
-    { time: "12:30", label: "Lunch. At the desk.", detail: "One hand on the trackpad", sitting: 206 },
-    { time: "13:20", label: "PR review", detail: "4 files, 900 lines, 'LGTM'", sitting: 256 },
-    { time: "14:35", label: "Back to the AI", detail: "Accepting diffs you skimmed", sitting: 331 },
-    { time: "15:50", label: "It finally works", detail: "You don't know which change fixed it", sitting: 406 },
-    { time: "17:10", label: "Just one more thing", detail: "It is never one more thing", sitting: 486 },
-  ],
-  footer: {
-    stat: "8h 06m",
-    label: "seated, screen-facing, uninterrupted",
-    line: "Your laptop throttled itself twice today to cool down. You didn't.",
-  },
-  /** Chrome for the timeline: column headings and the running counter. */
-  ui: {
-    counterLabel: "minutes seated",
-    counterUnit: "min",
-    counterHint: "Keep scrolling. It only goes one way.",
-    colTime: "Time",
-    colEvent: "What happened",
-    colSeated: "Seated",
-    runningTotal: "Running total, uninterrupted",
-    closing: "None of these is the bad decision. The tenth one is.",
-  },
-} as const;
 
-export const server = {
-  kicker: "The comparison nobody enjoys",
-  headline: "Your laptop has better monitoring than you do.",
-  sub: "Both of you have been up for nine hours. Only one of you is instrumented.",
-  rows: [
-    { trait: "Runs continuously", server: true, dev: true, devNote: "Yes" },
-    { trait: "Handles concurrent load", server: true, dev: true, devNote: "Badly, but yes" },
-    { trait: "Active cooling", server: true, dev: false, devNote: "A desk fan, maybe" },
-    { trait: "Health checks", server: true, dev: false, devNote: "None" },
-    { trait: "Alerting on degradation", server: true, dev: false, devNote: "Ignored" },
-    { trait: "Scheduled maintenance", server: true, dev: false, devNote: "\"After this ticket\"" },
-    { trait: "Thermal throttling", server: true, dev: false, devNote: "Pushes through" },
-    { trait: "Someone gets paged", server: true, dev: false, devNote: "Nobody is on call for you" },
-  ],
-  punch: "You would never run a service like this. You'd get paged at 3am and you'd fix it by morning.",
-  /**
-   * Chrome for the status board. The joke only lands if it is dressed as a real
-   * monitoring page, so the two columns are hosts with uptime and a check count.
-   */
-  ui: {
-    boardTitle: "status, 2 hosts",
-    colTrait: "Check",
-    hosts: {
-      server: { name: "prod-web-01", role: "SERVER", meta: "up 9h 04m", score: "8/8 checks configured" },
-      dev: { name: "you@localhost", role: "DEVELOPER", meta: "up 9h 12m", score: "2/8 checks configured" },
-    },
-    pass: "configured",
-    absent: "not configured",
-    /** The one row that earns the red. Matched by trait, so the copy stays the source of truth. */
-    alertTrait: "Someone gets paged",
-    legend: "Green is a check that exists. Grey is a check nobody wrote.",
-  },
-} as const;
 
 export const context = {
   kicker: "The difference",
