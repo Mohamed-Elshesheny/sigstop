@@ -141,3 +141,18 @@ echo
 echo "built ${BUNDLE}"
 echo "  size:   $(du -sh "${BUNDLE}" | cut -f1)"
 echo "  linked: $(otool -L "${BUNDLE}/Contents/MacOS/${APP_NAME}" | grep -c dylib) dylibs"
+echo "  cdhash: $(codesign -dvvv "${BUNDLE}" 2>&1 | awk -F= '/^CDHash=/{print $2}')"
+
+# Say it at the moment it costs something, not only in a document nobody reads
+# twice. An ad-hoc bundle gets a fresh cdhash here, which means any Accessibility
+# grant given to the previous build just died, and the app will honestly report
+# "not granted" while the user is looking at the permission they granted an hour
+# ago. Three separate debugging sessions have started from that.
+if [ "${SIGN_IDENTITY}" = "-" ]; then
+  echo
+  echo "  note: ad-hoc signed, so this bundle has a NEW cdhash."
+  echo "        macOS keys the Accessibility grant to the cdhash, so any grant"
+  echo "        given to the previous build no longer applies to this one."
+  echo "        Fix it once:  make dev-cert"
+  echo "        then build:   SIGN_IDENTITY=sigstop-dev make run"
+fi
