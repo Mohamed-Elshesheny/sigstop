@@ -62,11 +62,13 @@ public enum EventLogWriter {
             if let cycle { out.append(.breakResponse(at: now, cycle: cycle, action: .taken)) }
             return out
 
-        case .endBreak(let cycle, let origin, _, let elapsed):
+        case .endBreak(let cycle, let origin, _, let elapsed, let threshold):
             return [
                 .breakEnd(
                     at: now, origin: origin,
-                    durationSeconds: Int(max(0, elapsed).rounded()), cycle: cycle
+                    durationSeconds: Int(max(0, elapsed).rounded()),
+                    thresholdSeconds: Int(max(0, threshold).rounded()),
+                    cycle: cycle
                 )
             ]
 

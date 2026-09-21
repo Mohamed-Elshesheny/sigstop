@@ -53,7 +53,7 @@ struct ObservabilityTests {
             .withdrawPrompt(cycle: cycle, reason: .userSkipped),
             .setIndicator(.working),
             .beginBreak(cycle: cycle, origin: .accepted, plannedEnd: epoch),
-            .endBreak(cycle: cycle, origin: .accepted, honored: true, elapsed: 303),
+            .endBreak(cycle: cycle, origin: .accepted, honored: true, elapsed: 303, threshold: 300),
             .scheduleWake(at: epoch),
             .cancelScheduledWake,
             .recordVerdict(.deliver),

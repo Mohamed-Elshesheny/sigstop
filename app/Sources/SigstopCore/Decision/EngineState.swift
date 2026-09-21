@@ -547,7 +547,12 @@ public enum Effect: Sendable, Codable, Hashable {
     /// `elapsed` is measured on the monotonic clock by the engine, so the log carries the
     /// duration that was actually judged rather than a wall-clock difference the app
     /// recomputes from a remembered start.
-    case endBreak(cycle: CycleID?, origin: BreakOrigin, honored: Bool, elapsed: TimeInterval)
+    /// `threshold` is the number `honored` was decided against, carried so the log line
+    /// can be re-judged without knowing what the settings were at the time.
+    case endBreak(
+        cycle: CycleID?, origin: BreakOrigin, honored: Bool,
+        elapsed: TimeInterval, threshold: TimeInterval
+    )
     /// SIGALRM.
     case scheduleWake(at: Date)
     case cancelScheduledWake

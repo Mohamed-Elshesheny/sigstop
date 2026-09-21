@@ -642,9 +642,13 @@ public struct BreakDecisionEngine: Sendable {
         /// taking breaks could unlock.
         ///
         /// Ending one early still has to clear the bar, which is the case the bar is for.
-        let honored = elapsed >= min(policy.qualifyingBreak, active.plannedDuration)
+        let threshold = min(policy.qualifyingBreak, active.plannedDuration)
+        let honored = elapsed >= threshold
         effects.append(
-            .endBreak(cycle: active.cycle, origin: active.origin, honored: honored, elapsed: elapsed)
+            .endBreak(
+                cycle: active.cycle, origin: active.origin, honored: honored,
+                elapsed: elapsed, threshold: threshold
+            )
         )
         if let cycle = active.cycle {
             effects.append(.closeCycle(cycle, honored ? .honored : .skipped))

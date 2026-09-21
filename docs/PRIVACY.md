@@ -769,7 +769,7 @@ below is a bug under CLAUDE.md §7, not a documentation chore.
 {"v":1,"t":"2026-09-20T10:34:31Z","e":"break_response","action":"snoozed","snooze_s":600,"cycle":4}
 {"v":1,"t":"2026-09-20T10:44:31Z","e":"break_response","action":"taken","cycle":4}
 {"v":1,"t":"2026-09-20T10:44:31Z","e":"break_begin","origin":"accepted","cycle":4}
-{"v":1,"t":"2026-09-20T10:49:34Z","e":"break_end","origin":"accepted","dur_s":303,"cycle":4}
+{"v":1,"t":"2026-09-20T10:49:34Z","e":"break_end","origin":"accepted","dur_s":303,"plan_s":300,"cycle":4}
 {"v":1,"t":"2026-09-20T10:49:34Z","e":"cycle_close","outcome":"honored","cycle":4}
 {"v":1,"t":"2026-09-20T10:52:04Z","e":"lock"}
 {"v":1,"t":"2026-09-20T11:31:55Z","e":"unlock"}
@@ -790,6 +790,7 @@ Field reference:
 | `cycle` | int? | Which break opportunity this line belongs to, so counters scope to a cycle |
 | `origin` | string? | How a break started: `accepted`, `idleInferred`, `userInitiated` |
 | `dur_s` | int? | Measured length of a break, in seconds |
+| `plan_s` | int? | The length that break had to reach to count, in seconds. `dur_s >= plan_s` is the whole verdict, so the line can be re-judged without knowing what your settings were when it was written |
 | `outcome` | string? | On `cycle_close`, how the opportunity ended: one of the six `CycleOutcome` values |
 | `gate` | string? | On `gate`, why a prompt was or was not allowed: one of the twenty-nine `GateReason` values |
 | `reason` | string? | On `break_prompt`, the signal that rung is named after: one of `SIGTSTP`, `SIGINT`, `SIGTERM`, `SIGSTOP` |

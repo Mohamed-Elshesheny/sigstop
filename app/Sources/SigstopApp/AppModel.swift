@@ -755,7 +755,7 @@ final class AppModel {
             presentation = nil
             if settings.showBreakOverlay { overlay.presentBreak(model: self) }
 
-        case .endBreak(_, let origin, _, _):
+        case .endBreak(_, let origin, _, _, _):
             tracker.endBreak(origin: origin)
             overlay.dismissBreak()
             breakEndsAt = nil

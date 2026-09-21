@@ -245,8 +245,14 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     case breakResponse = "break_response"
     /// A candidate break started. `origin` says how it started.
     case breakBegin = "break_begin"
-    /// It ended. `dur_s` is the measured duration; the *reader*, not the writer, decides
-    /// whether that was long enough to qualify.
+    /// It ended. `dur_s` is the measured duration and `plan_s` is the threshold it was
+    /// judged against, so the reader can re-derive the verdict instead of guessing it.
+    ///
+    /// `plan_s` is `min(qualifyingBreak, plannedDuration)`, and both of those come from
+    /// settings that can change under a running app. Without it a reader holding the file
+    /// has `dur_s` and no number to compare it to: answering "why did today say 0 of 17
+    /// kept" meant opening the settings file, deriving the floor by hand and hoping it had
+    /// not moved since. It carries no text and no content, so §4.4 is untouched.
     case breakEnd = "break_end"
     /// A break opportunity ended, with the `CycleOutcome` that ended it.
     ///
@@ -320,6 +326,8 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
     public var deferred: GateReason?
     public var origin: BreakOrigin?
     public var durationSeconds: Int?
+    /// The threshold `dur_s` was judged against, on a `break_end`. See `breakEnd`.
+    public var thresholdSeconds: Int?
     /// The `CycleID` this event belongs to, so counters scope to a cycle.
     public var cycle: Int?
 
@@ -340,6 +348,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         deferred: GateReason? = nil,
         origin: BreakOrigin? = nil,
         durationSeconds: Int? = nil,
+        thresholdSeconds: Int? = nil,
         cycle: Int? = nil
     ) {
         self.v = v
@@ -358,6 +367,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         self.deferred = deferred
         self.origin = origin
         self.durationSeconds = durationSeconds
+        self.thresholdSeconds = thresholdSeconds
         self.cycle = cycle
     }
 
@@ -390,6 +400,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         case deferred
         case origin
         case durationSeconds = "dur_s"
+        case thresholdSeconds = "plan_s"
         case cycle
     }
 
@@ -418,6 +429,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         deferred = try c.decodeIfPresent(GateReason.self, forKey: .deferred)
         origin = try c.decodeIfPresent(BreakOrigin.self, forKey: .origin)
         durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        thresholdSeconds = try c.decodeIfPresent(Int.self, forKey: .thresholdSeconds)
         cycle = try c.decodeIfPresent(Int.self, forKey: .cycle)
     }
 
@@ -439,6 +451,7 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         try c.encodeIfPresent(deferred, forKey: .deferred)
         try c.encodeIfPresent(origin, forKey: .origin)
         try c.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
+        try c.encodeIfPresent(thresholdSeconds, forKey: .thresholdSeconds)
         try c.encodeIfPresent(cycle, forKey: .cycle)
     }
 }
@@ -467,6 +480,7 @@ extension LoggedEvent.CodingKeys {
         case .deferred:        return "why a prompt was withheld"
         case .origin:          return "how a break started"
         case .durationSeconds: return "break length in seconds"
+        case .thresholdSeconds: return "the length it had to reach to count"
         case .cycle:           return "which break opportunity this line belongs to"
         }
     }
@@ -554,11 +568,13 @@ extension LoggedEvent {
     }
 
     public static func breakEnd(
-        at: Date, origin: BreakOrigin, durationSeconds: Int, cycle: CycleID? = nil
+        at: Date, origin: BreakOrigin, durationSeconds: Int,
+        thresholdSeconds: Int? = nil, cycle: CycleID? = nil
     ) -> LoggedEvent {
         LoggedEvent(
             at: at, kind: .breakEnd, origin: origin,
-            durationSeconds: durationSeconds, cycle: cycle?.rawValue
+            durationSeconds: durationSeconds, thresholdSeconds: thresholdSeconds,
+            cycle: cycle?.rawValue
         )
     }
 
