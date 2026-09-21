@@ -724,6 +724,17 @@ final class AppModel {
         }
     }
 
+    /// The only facts anything populates, and the only one derivable from what Tier 2
+    /// actually reads. `hasUncommittedChanges` stays absent on purpose: `.git/HEAD` cannot
+    /// answer it, and a template that needs it must stay unselectable rather than be fed a
+    /// guess (CLAUDE.md §4.1).
+    private static let defaultBranchNames: Set<String> = ["main", "master", "trunk"]
+
+    private static func facts(from context: DeveloperContext) -> [FactKey: FactValue] {
+        guard let branch = context.context.branch, !branch.isEmpty else { return [:] }
+        return [.branchIsDefault: .bool(defaultBranchNames.contains(branch.lowercased()))]
+    }
+
     private func deliver(_ request: PromptRequest, context: DeveloperContext, now: Date) {
         let messageContext = MessageContext(
             developer: context,
@@ -733,7 +744,8 @@ final class AppModel {
                 .skippedToday: tracker.session.skippedBreakCount,
                 .skippedConsecutive: day.consecutiveIgnoredCycles,
                 .takenToday: tracker.session.breakCount,
-            ]
+            ],
+            facts: Self.facts(from: context)
         )
         let message = messages.select(for: messageContext).message
         PromptSound.play(for: request.level, enabled: settings.promptSound)

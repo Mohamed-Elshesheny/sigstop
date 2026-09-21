@@ -466,9 +466,14 @@ enum Ev {
     static func remoteShellProcess(_ tool: ToolToken) -> Evidence {
         make("process.remoteShell", .tier2, 0.9, "\(tool.displayName) is running in this terminal")
     }
-    static func branch(_ name: String) -> Evidence {
-        make("git.branch", .tier2, 0.3, "you are on branch \(name)")
-    }
+    /// There is deliberately no `Ev.branch`.
+    ///
+    /// A branch name says which branch. It says nothing about which activity, and every
+    /// piece of evidence also lifts the tier ceiling: citing the branch raised the cap
+    /// from 0.85 to 0.93 in exchange for 0.3 log-odds, which is confidence bought with a
+    /// signal that did not earn it and exactly the over-claim CLAUDE.md §4.1 names. The
+    /// branch is a slot value, so it goes into `ActivityContext` and is never cited.
+    /// `repoState` stays, because being mid-rebase IS a fact about what you are doing.
     static func repoState(_ state: RepoState) -> Evidence {
         make("git.repoState", .tier2, 0.6, "the repository is mid-\(state.rawValue)")
     }
@@ -536,7 +541,6 @@ enum EditorClassifier {
         if let git = signals.gitIfPermitted {
             context.branch = git.branch
             context.repoState = git.repoState
-            if let branch = git.branch { evidence.append(Ev.branch(branch)) }
             if let state = git.repoState, state != .clean { evidence.append(Ev.repoState(state)) }
         }
 
@@ -711,7 +715,7 @@ public struct TerminalProvider: ActivityProvider {
         if let git = context.gitIfPermitted {
             activityContext.branch = git.branch
             activityContext.repoState = git.repoState
-            if let branch = git.branch { evidence.append(Ev.branch(branch)) }
+            if let state = git.repoState, state != .clean { evidence.append(Ev.repoState(state)) }
         }
 
         guard let processes = context.processesIfPermitted else {

@@ -105,6 +105,13 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     public var accessibilityEnabled: Bool
     /// Tier 2, read branch from `.git/HEAD`. Explicit opt-in, off by default.
     public var gitContextEnabled: Bool
+    /// Absolute paths of the project folders the user added themselves.
+    ///
+    /// The whole of what the git collector may open. It is a list and not a search root
+    /// because the open panel the user picks a folder in is also the grant: a repository
+    /// under `~/Desktop`, `~/Documents` or `~/Downloads` is behind the Files-and-Folders
+    /// TCC service, and a path discovered from a window title carries no such grant.
+    public var projectFolders: [String]
     /// Tier 2, look for a known debugger in the process table. Its OWN opt-in.
     ///
     /// Two switches, not one, because they read different things and the copy on each has
@@ -156,6 +163,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         maxSnoozesPerBreak: Int = 2,
         accessibilityEnabled: Bool = false,
         gitContextEnabled: Bool = false,
+        projectFolders: [String] = [],
         processContextEnabled: Bool = false,
         browserHostEnabled: Bool = false,
         promptSound: Bool = true,
@@ -177,6 +185,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.maxSnoozesPerBreak = maxSnoozesPerBreak
         self.accessibilityEnabled = accessibilityEnabled
         self.gitContextEnabled = gitContextEnabled
+        self.projectFolders = projectFolders
         self.processContextEnabled = processContextEnabled
         self.browserHostEnabled = browserHostEnabled
         self.promptSound = promptSound
@@ -212,6 +221,13 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         accessibilityEnabled = try c.decodeIfPresent(Bool.self, forKey: .accessibilityEnabled) ?? d.accessibilityEnabled
         gitContextEnabled = try c.decodeIfPresent(Bool.self, forKey: .gitContextEnabled) ?? d.gitContextEnabled
         processContextEnabled = try c.decodeIfPresent(Bool.self, forKey: .processContextEnabled) ?? d.processContextEnabled
+        /// Capped rather than trusted, like every other decoded value here: a hand-edited
+        /// file must not be able to hand the collector an unbounded list of paths to stat.
+        projectFolders = Array(
+            (try c.decodeIfPresent([String].self, forKey: .projectFolders) ?? d.projectFolders)
+                .filter { $0.hasPrefix("/") }
+                .prefix(32)
+        )
         browserHostEnabled = try c.decodeIfPresent(Bool.self, forKey: .browserHostEnabled) ?? d.browserHostEnabled
         promptSound = try c.decodeIfPresent(Bool.self, forKey: .promptSound) ?? d.promptSound
         useSystemNotifications = try c.decodeIfPresent(Bool.self, forKey: .useSystemNotifications) ?? d.useSystemNotifications

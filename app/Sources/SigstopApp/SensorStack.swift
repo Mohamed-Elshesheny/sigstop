@@ -27,6 +27,7 @@ struct SensorStack {
     let accessibility: AccessibilityCollector
     let idle: IdleCollector
     let processes: ProcessCollector
+    let git: GitCollector
     let context: ContextEngine
 
     init(settings: SigstopSettings, time: any TimeSource = SystemTimeSource(), workClock: WorkClockBox? = nil) {
@@ -39,6 +40,7 @@ struct SensorStack {
         let accessibility = AccessibilityCollector()
         let idle = IdleCollector()
         let processes = ProcessCollector(permissions: permissions)
+        let git = GitCollector(permissions: permissions)
 
         self.time = time
         self.permissions = permissions
@@ -50,6 +52,7 @@ struct SensorStack {
         self.accessibility = accessibility
         self.idle = idle
         self.processes = processes
+        self.git = git
         self.context = ContextEngine(
             time: time,
             permissions: permissions,
@@ -59,6 +62,8 @@ struct SensorStack {
             accessibility: accessibility,
             idle: idle,
             processes: processes,
+            git: git,
+            settings: settings,
             workClock: { [workClock] in workClock?.read() ?? .zero }
         )
     }

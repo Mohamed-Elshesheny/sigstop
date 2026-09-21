@@ -26,7 +26,11 @@ APP_NAME="sigstop"
 BUNDLE="dist/${APP_NAME}.app"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
 VOLUME="${APP_NAME} ${VERSION}"
+# Two names for one file. The versioned one is what a person keeps; the stable one is
+# what the site links to, because GitHub's /releases/latest/download/<name> redirect
+# needs a filename that does not change between releases.
 OUT="dist/${APP_NAME}-${VERSION}.dmg"
+STABLE="dist/${APP_NAME}.dmg"
 RW="dist/.${APP_NAME}-rw.dmg"
 MOUNT="/Volumes/${VOLUME}"
 
@@ -69,6 +73,10 @@ if osascript <<OSA >/dev/null 2>&1
 tell application "Finder"
   tell disk "${VOLUME}"
     open
+    -- The window has to exist before an item can be positioned in it. Without this
+    -- the position lines fail with -10006 and the whole layout is skipped, which is
+    -- how this shipped once as a plain window that looked like a permission problem.
+    delay 1
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
@@ -90,8 +98,9 @@ OSA
 then
   echo "    laid out"
 else
-  echo "    skipped: Finder would not take the layout, probably no Automation grant."
-  echo "    The image is still valid, it just opens as a plain window."
+  echo "    skipped: Finder refused the layout. The image is still valid, it just"
+  echo "    opens as a plain window. Run the script again before assuming a"
+  echo "    permission problem: the first cause of this was a timing race, not TCC."
 fi
 
 sync
@@ -105,11 +114,14 @@ hdiutil convert "${RW}" -format UDZO -imagekey zlib-level=9 -o "${OUT}" -quiet
 #   xcrun notarytool submit "${OUT}" --keychain-profile "..." --wait
 #   xcrun stapler staple "${OUT}"
 
+cp "${OUT}" "${STABLE}"
+
 SIZE="$(du -h "${OUT}" | cut -f1 | tr -d ' \t')"
 SHA="$(shasum -a 256 "${OUT}" | cut -d' ' -f1)"
 
 echo
 echo "built ${OUT}"
+echo "  also:    ${STABLE}  (upload this one, the site links to it by name)"
 echo "  size:    ${SIZE}"
 echo "  sha256:  ${SHA}"
 if codesign -dv "${BUNDLE}" 2>&1 | grep -q adhoc; then

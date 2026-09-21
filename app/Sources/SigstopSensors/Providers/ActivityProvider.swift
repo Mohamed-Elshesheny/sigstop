@@ -364,7 +364,12 @@ public enum ConfidenceEngine {
             context.documentURL = nil
             context.browserHost = nil
         }
-        if !tiers.contains(.tier2) {
+        /// Gated on what the app was PERMITTED to read, not on which tiers the surviving
+        /// evidence happens to cite. The two questions are different and only look the
+        /// same while every Tier 2 value is also cited as evidence. The branch is not
+        /// cited, on purpose, so deriving this from `tiers` would clear the one field
+        /// Tier 2 exists to fill.
+        if !signals.available.contains(.tier2) {
             context.branch = nil
             context.repoState = nil
         }

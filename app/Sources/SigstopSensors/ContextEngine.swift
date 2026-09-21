@@ -157,6 +157,8 @@ public final class ContextEngine {
     private let accessibilityCollector: AccessibilityCollector
     private let idleCollector: IdleCollector
     private let processCollector: ProcessCollector
+    private let gitCollector: GitCollector
+    private var projectFolders: [String]
     private var registry: ProviderRegistry
     private var workClock: @Sendable () -> WorkClockReading
 
@@ -200,6 +202,8 @@ public final class ContextEngine {
         accessibility: AccessibilityCollector = AccessibilityCollector(),
         idle: IdleCollector = IdleCollector(),
         processes: ProcessCollector? = nil,
+        git: GitCollector? = nil,
+        settings: SigstopSettings = .default,
         workClock: @escaping @Sendable () -> WorkClockReading = { .zero }
     ) {
         self.time = time
@@ -212,6 +216,8 @@ public final class ContextEngine {
         self.accessibilityCollector = accessibility
         self.idleCollector = idle
         self.processCollector = processes ?? ProcessCollector(permissions: permissions)
+        self.gitCollector = git ?? GitCollector(permissions: permissions)
+        self.projectFolders = settings.projectFolders
         self.workClock = workClock
         self.corroboratedAt = time.now
     }
@@ -261,6 +267,7 @@ public final class ContextEngine {
     /// not on the next launch.
     public func reloadSettings(_ settings: SigstopSettings) {
         permissions.apply(settings)
+        projectFolders = settings.projectFolders
         titleDirty = true
         Task { [weak self] in await self?.sampleAndPublish() }
     }
@@ -349,6 +356,17 @@ public final class ContextEngine {
             frontmost: snapshot.frontmost, input: input, power: power, now: now
         )
 
+        /// Awaited rather than read inline for the same reason the title is: a registered
+        /// folder can live on a sleeping external disk or a network mount, where a `stat`
+        /// blocks for as long as the filesystem takes. The read itself is 50 microseconds.
+        let git = await gitCollector.read(
+            frontmost: snapshot.frontmost,
+            folders: projectFolders,
+            documentURL: axInfo.documentURL,
+            windowTitle: axInfo.title,
+            now: now
+        )
+
         let signals = SignalContext(
             now: now,
             available: tiers,
@@ -365,7 +383,7 @@ public final class ContextEngine {
             documentURL: axInfo.documentURL,
             browserHost: nil,
             processes: processes,
-            git: nil
+            git: git
         )
 
         let classified = registry.classify(signals)

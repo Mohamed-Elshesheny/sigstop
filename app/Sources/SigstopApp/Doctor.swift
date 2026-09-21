@@ -179,12 +179,10 @@ enum Doctor {
         for line in toolDetail(sensors) {
             out.append("                              \(line)")
         }
-        row(
-            "2", "git branch",
-            raw.tiers.contains(.tier2)
-                ? "opted in, but the collector is not implemented yet (see UNAVAILABLE)"
-                : "opted out"
-        )
+        row("2", "git branch", gitText(sensors))
+        for line in gitDetail(sensors) {
+            out.append("                              \(line)")
+        }
 
         out.append("")
         return out
@@ -394,6 +392,57 @@ enum Doctor {
         return out
     }
 
+    /// The Tier 2 git row, which prints the branch's LENGTH and never the branch.
+    ///
+    /// `--doctor` is what a sceptic runs and what the bug report form asks people to paste
+    /// whole, and a branch name routinely carries a ticket id, a customer, or a product
+    /// nobody has announced. Settings shows the name, on the machine it came from, where
+    /// it is not going anywhere. docs/PRIVACY.md §8.12 is the argument in full.
+    private static func gitText(_ sensors: SensorStack) -> String {
+        switch sensors.git.lastOutcome {
+        case .optedOut:
+            return "opted out, nothing is read"
+        case .skipped(let reason):
+            return "on, not read this sample: \(reason)"
+        case .noFoldersRegistered:
+            return "on, but you have not added a project folder, so it reads nothing"
+        case .noFolderMatched:
+            return "on, and it could not tell which of your folders you are in"
+        case .notPermitted(let folder):
+            return "on, and macOS refused the read in \(folder)"
+        case .noRepository(let folder):
+            return "on, and there is no repository at the root of \(folder)"
+        case .read(let folder, let length, let detached, _):
+            return detached
+                ? "read from \(folder): detached HEAD, so there is no branch to name"
+                : "read from \(folder): a branch \(length) characters long, not printed here"
+        }
+    }
+
+    private static func gitDetail(_ sensors: SensorStack) -> [String] {
+        switch sensors.git.lastOutcome {
+        case .optedOut, .skipped:
+            return []
+        case .noFoldersRegistered:
+            return ["Settings > Signals has the button. The folder you pick there is", "also the grant: nothing else can be opened."]
+        case .noFolderMatched(let reason):
+            return [reason, "Reported as unknown, never as no branch."]
+        case .notPermitted:
+            return [
+                "Files and Folders. A repository under ~/Desktop, ~/Documents or",
+                "~/Downloads is behind that service. This is NOT the same as there",
+                "being no repository, and the app does not report it as one.",
+            ]
+        case .noRepository:
+            return ["Register the repository root, not a directory inside it."]
+        case .read(_, _, _, let route):
+            return [
+                "Which folder was decided by \(route).",
+                "Settings > Signals shows the name on this machine.",
+            ]
+        }
+    }
+
     /// Rendered from `ToolAllowlist.undetectable` rather than retyped, so the list a user
     /// reads here cannot drift from the list the collector actually skips.
     private static var undetectableTools: [String] {
@@ -424,9 +473,11 @@ enum Doctor {
         ]
             + undetectableTools.map { "                         \($0)" }
             + [
-            "  git branch / state   Tier 2 .git/HEAD collector is not implemented yet, so the opt-in",
-            "                       currently buys nothing. Templates needing {branch} simply cannot",
-            "                       be selected.",
+            "  uncommitted changes  Nothing in .git/HEAD answers it, and answering it properly",
+            "                       means reading the index and the working tree, which is the",
+            "                       repository's contents. The hasUncommittedChanges fact stays",
+            "                       unset, so the templates that need it stay unselectable",
+            "                       rather than being fed a guess.",
             "  calendar             EventKit is declined outright. Reading it would mean every event",
             "                       title, attendee and location to answer one yes/no question.",
             "  screen being shared  No permission-free signal, and this is the weaker claim: I",

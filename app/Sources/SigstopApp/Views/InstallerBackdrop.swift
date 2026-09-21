@@ -33,17 +33,30 @@ struct InstallerBackdrop: View {
                 }
                 .padding(.top, 44)
 
-                Text("Drag it across. That is the whole installer.")
-                    .font(Brand.mono(11))
+                Text("Drag it onto Applications")
+                    .font(Brand.mono(12.5))
                     .foregroundStyle(Brand.Dark.fgMuted)
-                    .padding(.top, 10)
+                    .padding(.top, 12)
 
                 Spacer()
 
-                Text("First launch needs one command. It is in the README.")
-                    .font(Brand.mono(9.5))
-                    .foregroundStyle(Brand.Dark.fgFaint)
-                    .padding(.bottom, 26)
+                /// The only genuinely confusing moment in installing this, answered here
+                /// rather than in a README nobody opens before double clicking.
+                VStack(spacing: 7) {
+                    Text("macOS will refuse to open it the first time.")
+                        .font(Brand.mono(11, weight: .medium))
+                        .foregroundStyle(Brand.Dark.fg)
+                    Text("It is not broken. Apple charges for the signature that would")
+                        .font(Brand.mono(10))
+                        .foregroundStyle(Brand.Dark.fgMuted)
+                    Text("stop it saying that. Open System Settings, Privacy and")
+                        .font(Brand.mono(10))
+                        .foregroundStyle(Brand.Dark.fgMuted)
+                    Text("Security, and press Open Anyway.")
+                        .font(Brand.mono(10))
+                        .foregroundStyle(Brand.Dark.fgMuted)
+                }
+                .padding(.bottom, 30)
             }
 
             Arrow()
