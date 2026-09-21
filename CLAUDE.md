@@ -24,7 +24,7 @@ so the vocabulary below is **normative, not decorative.**
 | Escalation 4 | `SIGSTOP` | Cannot be caught, blocked, or ignored by anyone, ever. |
 | Snooze | `SIGALRM` | Wake me later. |
 | Resume from break | `SIGCONT` | The resume button is never labelled "Dismiss". |
-| Daily summary | `jobs` | Everything you had suspended today. |
+| Daily summary | `uptime` | How long you have been going, and how hard. `jobs` was here first and was wrong: it lists suspended work, and this panel shows active time, the longest unbroken stretch, the breaks kept and the app that took the day. `uptime` is a multi-stat readout of exactly that shape, and no developer has to look it up. |
 | Reload settings | `SIGHUP` | Its honest daemon meaning: re-read the config. |
 
 **Two hard rules, from the naming review:**

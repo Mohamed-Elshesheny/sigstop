@@ -61,7 +61,7 @@ struct MenuBarView: View {
             .padding(.horizontal, Self.gutter)
             .padding(.vertical, 14)
             Rule()
-            jobs
+            uptime
                 .padding(.horizontal, Self.gutter)
                 .padding(.vertical, 12)
                 .background(Brand.chrome)
@@ -422,14 +422,14 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: jobs, today, dense and quiet
+    // MARK: uptime, today, dense and quiet
 
     /// The numbers are rendered here from the rollup, not from the narrator's detail
     /// string, so the top application can be shown by its display name rather than the
     /// last component of its bundle id.
-    private var jobs: some View {
+    private var uptime: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Kicker("jobs · today")
+            Kicker("uptime · today")
 
             if let summary = model.todaySummary, !summary.isEmptyDay {
                 HStack(alignment: .top, spacing: 0) {
