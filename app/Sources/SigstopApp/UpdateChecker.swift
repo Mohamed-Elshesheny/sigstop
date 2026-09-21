@@ -108,6 +108,15 @@ final class UpdateChecker {
     }
 
     private(set) var state: State = .idle
+    /// Sparkle's own "is a check allowed right now", mirrored so SwiftUI can see it move.
+    ///
+    /// `SPUUpdater.canCheckForUpdates` is false for the length of a check session and true
+    /// again once it closes. It is KVO, not `@Observable`, so reading it straight from a
+    /// view worked exactly once: the view rendered when `state` became `.upToDate`, read
+    /// `false` because the session had not quite closed, and then nothing ever asked
+    /// again. The button stayed dead and the only way back was to relaunch the app.
+    private(set) var updaterIsFree = false
+    private var freeObservation: NSKeyValueObservation?
 
     private var updater: SPUUpdater?
     private var driver: UserDriver?
@@ -157,13 +166,20 @@ final class UpdateChecker {
         driver.owner = self
         self.driver = driver
         self.updater = updater
+        /// `initial` so the first render is right, and the observation is what makes the
+        /// button come back after a check that found nothing.
+        updaterIsFree = updater.canCheckForUpdates
+        freeObservation = updater.observe(\.canCheckForUpdates, options: [.initial, .new]) {
+            [weak self] updater, _ in
+            Task { @MainActor in self?.updaterIsFree = updater.canCheckForUpdates }
+        }
     }
 
     // MARK: - What the UI calls
 
     var canCheck: Bool {
-        guard let updater else { return false }
-        return updater.canCheckForUpdates && !state.isBusy
+        guard updater != nil else { return false }
+        return updaterIsFree && !state.isBusy
     }
 
     /// The only entry point that starts a network request. Called from a button and from
