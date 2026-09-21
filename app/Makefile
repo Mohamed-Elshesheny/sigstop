@@ -1,6 +1,6 @@
 # sigstop, build with Command Line Tools only. No Xcode required.
 .DEFAULT_GOAL := help
-.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify badges badges-check
+.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify dmg badges badges-check
 
 APP     := sigstop
 CONFIG  ?= release
@@ -35,6 +35,9 @@ TEST_FLAGS := -Xswiftc -F -Xswiftc $(TESTING_FW) \
 
 test: badges-check ## Run the Core test suite (no GUI session, no Xcode needed)
 	@swift test $(TEST_FLAGS)
+
+dmg: bundle ## Build the disk image people download
+	@./Scripts/dmg.sh
 
 badges: ## Rewrite Exports/badges.json from the Swift catalogue
 	@./Scripts/badges.sh > Exports/badges.json && echo "wrote Exports/badges.json"
