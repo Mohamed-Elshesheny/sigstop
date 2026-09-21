@@ -52,6 +52,12 @@ jobs:
       - name: Corpus lint
         run: python3 .github/scripts/check-corpus.py
 
+      # docs/PRIVACY.md tells a suspicious reader that Accessibility lives in one file.
+      # It named a file that has never existed and a workflow that did not run. Both are
+      # real now, and this is the one that keeps the claim true.
+      - name: Accessibility stays in the two files PRIVACY.md names
+        run: python3 .github/scripts/check-ax-isolation.py
+
       # The privacy claims, asserted against the built binary rather than the source:
       # no networking symbol in the app's own executable, exactly one embedded framework,
       # no analytics SDK, one endpoint, nothing scheduled.
