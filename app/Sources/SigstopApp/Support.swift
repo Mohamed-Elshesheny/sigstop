@@ -47,7 +47,26 @@ enum SettingsStore {
         guard let data = FileManager.default.contents(atPath: AppPaths.settingsFile.path) else {
             return .default
         }
+        tightenPermissions()
         return (try? JSONDecoder().decode(SigstopSettings.self, from: data)) ?? .default
+    }
+
+    /// Repairs a file already on disk at the wrong mode.
+    ///
+    /// Writing new files at 0600 fixes nothing for anyone who already has one: an atomic
+    /// write lands at the umask, so every install that predates that fix has a
+    /// world-readable `settings.json` while `docs/PRIVACY.md` §4.2 says 0600, and would
+    /// keep it until the user happened to change a setting. A promise about a file on
+    /// disk has to be true of the file that is there.
+    private static func tightenPermissions() {
+        let manager = FileManager.default
+        for url in [AppPaths.settingsFile, AppPaths.storageRoot] {
+            guard let mode = (try? manager.attributesOfItem(atPath: url.path))?[.posixPermissions]
+                as? NSNumber else { continue }
+            let wanted = url == AppPaths.storageRoot ? 0o700 : 0o600
+            guard mode.intValue & 0o077 != 0 else { continue }
+            try? manager.setAttributes([.posixPermissions: wanted], ofItemAtPath: url.path)
+        }
     }
 
     @discardableResult
