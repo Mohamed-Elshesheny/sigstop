@@ -518,6 +518,12 @@ struct SettingsView: View {
     /// trusts. The heart is the only non-amber colour anywhere in the app and it is four
     /// millimetres wide, which is about the right amount of sentiment for a utility that
     /// otherwise refuses to be warm at you.
+    ///
+    /// The name is text and not a link on purpose. Linking it needs an account-root URL in
+    /// the binary, and `verify.sh` allowlists only this repository, which is the narrower
+    /// promise `docs/PRIVACY.md` makes: every URL in here goes to one known place.
+    /// Widening that to the whole account so a byline could be clicked would be paying a
+    /// real boundary for a small convenience.
     private var madeBy: some View {
         HStack(spacing: 5) {
             Spacer(minLength: 0)
@@ -525,7 +531,7 @@ struct SettingsView: View {
             Text("\u{1FAF6}")
                 .font(.system(size: 11))
             Text("by")
-            Link("Mohamed Elshesheny", destination: Links.author)
+            Text("Mohamed Elshesheny")
                 .foregroundStyle(Brand.fgMuted)
             Spacer(minLength: 0)
         }
@@ -661,7 +667,6 @@ struct SettingsView: View {
         static let releases = URL(string: "https://github.com/Mohamed-Elshesheny/sigstop/releases")!
         static let privacy = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/PRIVACY.md")!
-        static let author = URL(string: "https://github.com/Mohamed-Elshesheny")!
         static let docs = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs")!
         static let issues = URL(
