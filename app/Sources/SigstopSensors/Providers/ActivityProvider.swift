@@ -362,19 +362,23 @@ public enum ConfidenceEngine {
             confidence = Confidence(min(confidence.value, bound))
         }
 
+        /// Context is gated on what the app was PERMITTED to read, not on which tiers the
+        /// surviving evidence happens to cite. The two questions are different and only
+        /// look the same while every value is also cited as evidence. Two are not, on
+        /// purpose: the branch, which Tier 2 exists to fill, and the browser host, which
+        /// is only cited when it is a known forge. A plain page cites nothing above Tier
+        /// 0, so deriving this from `tiers` threw the host away between the collector and
+        /// the panel: the panel said "Google Chrome" while `--doctor`, one layer down,
+        /// said "theboring.name". `tiersUsed` stays derived from the evidence, because it
+        /// is the confidence ceiling's input and the host is not evidence.
         var context = verdict.context
-        if !tiers.contains(.tier1) {
+        if !signals.available.contains(.tier1) {
             context.projectName = nil
             context.fileName = nil
             context.fileExtension = nil
             context.documentURL = nil
             context.browserHost = nil
         }
-        /// Gated on what the app was PERMITTED to read, not on which tiers the surviving
-        /// evidence happens to cite. The two questions are different and only look the
-        /// same while every Tier 2 value is also cited as evidence. The branch is not
-        /// cited, on purpose, so deriving this from `tiers` would clear the one field
-        /// Tier 2 exists to fill.
         if !signals.available.contains(.tier2) {
             context.branch = nil
             context.repoState = nil

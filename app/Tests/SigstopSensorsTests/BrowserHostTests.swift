@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import SigstopCore
 @testable import SigstopSensors
 
 /// Tier 1b keeps the host and nothing else.
@@ -51,5 +52,68 @@ struct BrowserHostTests {
         let page = "https://github.com/Mohamed-Elshesheny/sigstop"
         #expect(AccessibilityCollector.fileURL(from: page) == nil)
         #expect(AccessibilityCollector.host(from: page) == "github.com")
+    }
+}
+
+// MARK: - The host survives to the published observation
+
+/// The read is only half the feature. What the panel draws is
+/// `ActivityObservation.context.browserHost`, and that is built by
+/// `ConfidenceEngine.observation`, which strips Tier 1 context from any observation whose
+/// evidence happens not to cite Tier 1. Plain browsing cites only "Chrome is frontmost",
+/// a Tier 0 fact, so the host the collector read correctly was thrown away on the way to
+/// the panel, and the panel said "Google Chrome" while `--doctor` said "theboring.name".
+struct BrowserHostPublicationTests {
+
+    private static let chrome = AppIdentity(bundleID: BundleIDs.chrome, localizedName: "Google Chrome", pid: 103)
+
+    private static func signals(host: String?, title: String?, tiers: SignalTierSet) -> SignalContext {
+        SignalContext(
+            now: Date(timeIntervalSince1970: 1_700_000_000),
+            available: tiers,
+            frontmost: chrome,
+            input: InputActivity(idleSeconds: 3, source: .hidSystemState),
+            windowTitle: title,
+            browserHost: host
+        )
+    }
+
+    private static func observe(_ signals: SignalContext) -> ActivityObservation {
+        let classified = ProviderRegistry().classify(signals)
+        return ConfidenceEngine.observation(
+            verdict: classified.verdict,
+            providerID: classified.providerID,
+            signals: signals,
+            concurrent: ConcurrentStates()
+        )
+    }
+
+    @Test("a plain page keeps its host even though nothing about it is evidence")
+    func plainPageKeepsHost() {
+        let observation = Self.observe(
+            Self.signals(host: "theboring.name", title: "The Boring Name", tiers: [.tier0, .tier1])
+        )
+        #expect(observation.activity == .browsing)
+        #expect(observation.context.browserHost == "theboring.name")
+        #expect(observation.evidence.allSatisfy { $0.tier == .tier0 })
+    }
+
+    @Test("a forge keeps its host too, and this one is cited")
+    func forgeKeepsHost() {
+        let observation = Self.observe(
+            Self.signals(host: "github.com", title: "sigstop README", tiers: [.tier0, .tier1])
+        )
+        #expect(observation.activity == .browsing)
+        #expect(observation.context.browserHost == "github.com")
+        #expect(observation.evidence.contains { $0.tier == .tier1 })
+    }
+
+    @Test("with Tier 1 revoked the host is gone, whatever the collector said")
+    func revokedTierDropsHost() {
+        let observation = Self.observe(
+            Self.signals(host: "theboring.name", title: "The Boring Name", tiers: [.tier0])
+        )
+        #expect(observation.activity == .browsing)
+        #expect(observation.context.browserHost == nil)
     }
 }

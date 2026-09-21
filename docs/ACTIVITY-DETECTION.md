@@ -505,7 +505,10 @@ page. `ContextEngine` passes the host only when `permissions.browserHostPermitte
 which is `browserHostEnabled && tier1`. Settings has the switch, under the title switch and
 disabled while titles are off. `BrowserHostTests` asserts that a path, a query, a fragment,
 credentials and a port are all gone, and that `file:` and `https:` never cross into each other's
-parser.
+parser. `ConfidenceEngine.observation` then keeps the host whenever Tier 1 was *available*, not
+only when Tier 1 was *cited*: a plain page cites nothing above Tier 0, and gating on the citation
+threw the host away between the collector and the panel. `BrowserHostPublicationTests` holds that
+line. `tiersUsed` is still derived from the evidence alone, so the host never raises a ceiling.
 
 This paragraph used to say the opposite — that the field was declared, wired for a caller that
 did not exist, and passed `nil` unconditionally. That was true for a long time and the honesty
