@@ -14,6 +14,14 @@ enum SigstopEntryPoint {
         if CommandLine.arguments.contains("--doctor") {
             runDoctorAndExit()
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-installer") {
+            let args = CommandLine.arguments
+            let stem = index + 1 < args.count ? args[index + 1] : "installer-backdrop"
+            MainActor.assumeIsolated {
+                NSApplication.shared.setActivationPolicy(.prohibited)
+                InstallerBackdropRenderer.runAndExit(stem: stem)
+            }
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-panel") {
             let args = CommandLine.arguments
             let stem = index + 1 < args.count ? args[index + 1] : "panel"
