@@ -89,10 +89,13 @@ public final class GitCollector: @unchecked Sendable {
     public static let defaultDeadline: TimeInterval = 1.0
 
     /// One miss is not evidence. A laptop waking its disk, a machine under load or a
-    /// repository large enough to be slow once will all blow a 0.25s deadline without
+    /// repository large enough to be slow once will all blow `defaultDeadline` without
     /// being unreachable, and setting a folder aside on the first one means the branch
     /// silently stops being read for the rest of the session over a hiccup. Two in a row
     /// is a mount that is not coming back.
+    ///
+    /// Named rather than repeated, because this comment said "0.25s" for the length of
+    /// one commit after the deadline moved to a second.
     static let strikesBeforeSettingAside = 2
 
     /// Concurrent on purpose. On a serial queue one blocked `stat` holds every later
