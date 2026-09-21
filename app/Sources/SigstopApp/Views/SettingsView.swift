@@ -221,6 +221,13 @@ struct SettingsView: View {
         }
     }
 
+    /// "Tier 2, tool names: ON…" -> "Tier 2". The tier is the text before the first comma,
+    /// which is the same split `TierRow` makes to draw the label.
+    private static func tier(of line: String) -> String {
+        guard let comma = line.range(of: ", ") else { return line }
+        return String(line[..<comma.lowerBound])
+    }
+
     /// What the number actually buys at the interval that is set, because a cap is
     /// meaningless without one.
     ///
@@ -367,8 +374,20 @@ struct SettingsView: View {
     private var signals: some View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection("visible now") {
-                ForEach(Array(model.permissionStatus.explanation.enumerated()), id: \.offset) { _, line in
-                    TierRow(line: line)
+                /// The tier is printed once per run, not once per line.
+                ///
+                /// Every line carries its own tier, so two Tier 2 signals drew the words
+                /// "Tier 2" twice in a 58pt column and the column became a thing you read
+                /// past. They are separate rows because they are separate signals from
+                /// separate sources with separate switches — `.git/HEAD` is a file read,
+                /// tool names come from the process list — and that is worth a row each.
+                /// It is not worth the label twice.
+                let lines = model.permissionStatus.explanation
+                ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                    TierRow(
+                        line: line,
+                        showsTier: index == 0 || Self.tier(of: lines[index - 1]) != Self.tier(of: line)
+                    )
                 }
             }
 
@@ -1236,15 +1255,18 @@ private struct ToneCard: View {
 /// a line without the dash is shown whole.
 private struct TierRow: View {
     let line: String
+    /// False on a row whose tier is the same as the row above it.
+    var showsTier: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 StateDot(state: line.contains(": ON") ? .running : .off)
-                Text(label)
+                Text(showsTier ? label : "")
                     .font(Brand.mono(11, weight: .medium))
                     .foregroundStyle(Brand.fg)
                     .frame(width: 58, alignment: .leading)
+                    .accessibilityHidden(!showsTier)
                 Text(rest)
                     .font(Brand.sans(12))
                     .foregroundStyle(Brand.fgMuted)
