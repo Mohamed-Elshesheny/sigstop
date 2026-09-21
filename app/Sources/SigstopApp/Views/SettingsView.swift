@@ -40,7 +40,7 @@ struct SettingsView: View {
             case .rhythm: return "When a break is due, how long it lasts, and when the app should keep quiet."
             case .voice: return "How hard the app is allowed to hit. A ceiling you set, never a floor it raises."
             case .badges: return "Ten marks. Every one of them is for taking the break or for not needing it, and none of them is a streak."
-            case .signals: return "What the app can see right now, tier by tier, and the two switches that widen it."
+            case .signals: return "What the app can see right now, tier by tier, and the switches that widen it."
             case .data: return "Everything the app keeps lives in one folder you can read with cat."
             case .about: return ""
             }
@@ -361,9 +361,32 @@ struct SettingsView: View {
                 SettingRow(
                     "Read the branch name from .git/HEAD",
                     detail: "Off by default. The branch name only, read from the file, never a "
-                        + "command, never a diff, never a commit message."
+                        + "command, never a diff, never a commit message. It reads nothing at "
+                        + "all until you add a project folder below: the folder you pick is "
+                        + "also the grant, and nothing outside one can be opened."
                 ) {
                     TerminalSwitch(isOn: settings.gitContextEnabled)
+                }
+                SettingRow(
+                    "Project folders",
+                    detail: model.settings.projectFolders.isEmpty
+                        ? "None yet, so the switch above reads nothing. Add the root of a "
+                            + "repository, not a directory inside it."
+                        : "The complete list of what the branch reader may open."
+                ) {
+                    VStack(alignment: .trailing, spacing: 8) {
+                        ForEach(model.settings.projectFolders, id: \.self) { folder in
+                            HStack(spacing: 8) {
+                                Text((folder as NSString).lastPathComponent)
+                                    .font(Brand.mono(11))
+                                    .foregroundStyle(Brand.fgMuted)
+                                TerminalButton("Remove", style: .quiet) { removeFolder(folder) }
+                                    .fixedSize()
+                            }
+                        }
+                        TerminalButton("Add project folder…") { addFolder() }
+                            .fixedSize()
+                    }
                 }
                 SettingRow(
                     "Notice when a debugger is running",
@@ -432,6 +455,32 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    /// The open panel IS the grant, which is the whole reason the git collector takes a
+    /// list of folders rather than going looking for repositories. A path discovered from
+    /// a window title carries no Files-and-Folders exception, and a repository under
+    /// ~/Desktop, ~/Documents or ~/Downloads is behind that service.
+    private func addFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add"
+        panel.message = "Pick the root of a repository. sigstop reads one line of its .git/HEAD "
+            + "and nothing else in it."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var updated = model.settings
+        let path = url.standardizedFileURL.path
+        guard !updated.projectFolders.contains(path), updated.projectFolders.count < 32 else { return }
+        updated.projectFolders.append(path)
+        model.update(settings: updated)
+    }
+
+    private func removeFolder(_ folder: String) {
+        var updated = model.settings
+        updated.projectFolders.removeAll { $0 == folder }
+        model.update(settings: updated)
     }
 
     private func export() {

@@ -59,7 +59,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 28 | **Seconds the call hold has held a break today**, and the day they count for | Derived from #25, #26 and #27 by the call latch | So the three-hour daily ceiling on holding survives a relaunch instead of resetting to zero | Persisted, `call-hold.json` (a day index and a number of seconds) | Overwritten in place; reset on delete | Follows "Hold my break during calls" |
 | 29 | **The focused window's document path** (`/Users/you/p/a.swift`) | `kAXDocument` on the focused window, read in the same call that reads the title. Tier 1 | Names the file you have open when the title does not, and tells the git collector which registered folder you are in | Memory-only, one sample. Anything that is not a local file URL is discarded before it is parsed, which is what keeps a browser's full page URL out (`AccessibilityCollector.fileURL(from:)`) | Until the next sample | Follows Tier 1 |
 | 30 | **Which of a fixed list of developer tools is running**, as an enum case, never a string, plus one `Bool` for whether anything is under a debugger | One `sysctl(KERN_PROC_ALL)`, then `proc_pidpath` for the pids whose `p_comm` already matched the `ToolToken` allowlist in `app/Sources/SigstopSensors/SignalContext.swift`. **No permission is required and none is requested** | The only signal in this product that can tell `DEBUGGING` from `CODING`. Without it the app degrades to `CODING` rather than guess between siblings (`CLAUDE.md` §4.1) | **Not persisted, and nothing but the match survives.** The path is compared and dropped. A process matching nothing is not recorded, not counted, not reported. No command line, environment or working directory is read at all | Memory-only, one sample | **Yes, and off by default** |
-| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | One read of the first line of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`, plus four `fileExists` checks. No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), and `--doctor` prints its length rather than the name (§8.12) | Until the next sample, or process exit | **Yes, and off by default** |
+| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | One read of the first 512 bytes of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`, plus four `access` checks. No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), and `--doctor` prints its length rather than the name (§8.12) | Until the next sample, or process exit | **Yes, and off by default** |
 
 Rows 25 to 27 are **property reads on device and process objects**. No stream is opened, no capture
 session is created, no frame or sample is ever available to this process, and the capability to do
@@ -78,12 +78,17 @@ canonical example, which is exactly why `KERN_PROCARGS2` is not called. §2.10 g
 and the commands that check it.
 
 **Row 31 reads one line of one file.** Not a diff, not a commit message, not `.git/config`, not an
-object, not the index, and never a file in your working tree. The repository state is four
-`fileExists` calls, on `.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD` and
-`.git/BISECT_LOG`, each of which returns a `Bool` and opens nothing: the app learns a rebase is in
-progress, never what is being rebased. The folder is one you picked in an `NSOpenPanel`. The app
-never guesses a path from a window title or a project name, because guessing a path from a name is
-the kind of invention `CLAUDE.md` §4.1 forbids.
+object, not the index, and never a file in your working tree. The repository state is four `access`
+calls, on `.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD` and `.git/BISECT_LOG`, each of
+which returns a `Bool` and opens nothing: the app learns a rebase is in progress, never what is
+being rebased. The folder is one you picked in an `NSOpenPanel`. The app never guesses a path from a
+window title or a project name, because guessing a path from a name is the kind of invention
+`CLAUDE.md` §4.1 forbids.
+
+What a window title and a `kAXDocument` path **do** decide is *which* of the folders you added is
+the one in front, and only that. Two of your folders answering means the app does not know which
+project you are looking at, so it reports no branch rather than pick one, and `--doctor` says which
+route answered and which abstained so a blank never looks like a bug.
 
 That is the complete list. There is no row for account, device identifier, hardware serial, locale
 beacon, install ID, or first-run ping, because none of those exist in the code.
@@ -496,11 +501,16 @@ Two Tier 2 collectors read things nothing else in the app reads: one file inside
 process table. Both are off by default, each behind its own switch. Both are bounded by what the
 code is *capable* of, not by what it chooses, which is the only kind of bound worth writing down.
 
-**Mechanism, git.** The collector opens exactly one path per registered folder, `<repo>/.git/HEAD`,
-reads its first line, and matches `ref: refs/heads/<name>`. The only other filesystem calls are the
-four `fileExists` checks above. `git` is never spawned: `Process`, `NSTask` and `posix_spawn` remain
-forbidden symbols (§2.9), so shelling out is not something this binary can do, whatever a future
-contributor intends.
+**Mechanism, git.** The collector opens `<folder>/.git/HEAD`, reads **at most 512 bytes**, which is
+one line, and matches `ref: refs/heads/<name>`. Forty hex characters is a detached HEAD and is
+reported as one rather than presented as a branch name. One indirection is followed and only one: in
+a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that line is read and
+`HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
+containing folder for a submodule. Mid-rebase, `HEAD` is a detached sha and the branch you are on is
+in `rebase-merge/head-name`, which is read for the same reason and nothing else in that directory is.
+Every other filesystem call is one of the four `access` checks above, which return a `Bool` and open
+nothing. `git` is never spawned: `Process`, `NSTask` and `posix_spawn` remain forbidden symbols
+(§2.9), so shelling out is not something this binary can do, whatever a future contributor intends.
 
 **Mechanism, processes.** One `sysctl(CTL_KERN, KERN_PROC, KERN_PROC_ALL)` returns the table.
 `p_comm` is compared against the allowlist, `proc_pidpath` confirms the executable's location for
@@ -516,9 +526,12 @@ cases and two booleans.
 grep -rn 'KERN_PROCARGS2\|proc_pidinfo\|PROC_PIDVNODEPATHINFO' app/Sources   # expect no output
 # git is never shelled out to
 grep -rn 'Process(\|NSTask\|posix_spawn' app/Sources                          # expect no output
-# every path the git collector can construct, in one grep
-grep -n 'gitPath\|\.git' app/Sources/SigstopSensors/Collectors/GitCollector.swift
-#   expect only: .git, HEAD, rebase-merge, rebase-apply, MERGE_HEAD, BISECT_LOG
+# every path fragment the git collector can build, in one grep. Eight lines: six are the
+# only names it ever appends, and two are a bare "/" used as a separator
+grep -n '\"/' app/Sources/SigstopSensors/Collectors/GitCollector.swift
+#   names:  /.git  /HEAD  /rebase-merge  /rebase-apply  /MERGE_HEAD  /BISECT_LOG
+# and the bound on how much of HEAD is read, which is 512 bytes
+grep -n 'headReadLimit' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 ```
 
 At runtime: `sudo fs_usage -w -f filesys $(pgrep -x sigstop)` and watch that the only paths outside

@@ -327,6 +327,43 @@ struct MessageEngineGatingTests {
         #expect(filled.contains("fix/retry-loop"))
     }
 
+    /// Both branch lines were unselectable because nothing ever read a branch. One needed
+    /// the slot and the other needed the slot AND the `branchIsDefault` fact, which nothing
+    /// populated either. This asserts the whole path, not just the slot.
+    @Test("Every template that needs a branch is selectable once one is known")
+    func branchTemplatesComeAliveWithABranch() throws {
+        let needBranch = Corpus.bundled.templates.filter { $0.requiredSlots.contains(.branch) }
+        #expect(needBranch.count == 2)
+        let resolver = SlotResolver()
+        let ctx = makeContext(
+            activity: .coding, confidence: 0.9, minutes: 95, hour: 23,
+            branch: "main", facts: [.branchIsDefault: .bool(true)])
+        for template in needBranch {
+            #expect(resolver.canSatisfyRequired(template, in: ctx), "\(template.id)")
+            let filled = try #require(resolver.fill(template, in: ctx))
+            #expect(filled.contains("main"))
+        }
+    }
+
+    /// `hasUncommittedChanges` cannot be answered by `.git/HEAD`, so the templates that
+    /// need it must stay unselectable rather than be fed a guess (CLAUDE.md §4.1).
+    @Test("Facts the collectors cannot answer keep their templates unselectable")
+    func unansweredFactsKeepTheirTemplatesOut() {
+        let engine = makeEngine()
+        for _ in 0..<60 {
+            let ctx = makeContext(
+                activity: .coding, confidence: 0.9, minutes: 95, hour: 14,
+                branch: "main", facts: [.branchIsDefault: .bool(true)])
+            let result = engine.select(for: ctx)
+            let template = Corpus.bundled.template(id: result.message.templateID)
+            let needsUncommitted = template?.when.contains { predicate in
+                if case .fact(.hasUncommittedChanges, _) = predicate { return true }
+                return false
+            }
+            #expect(needsUncommitted != true)
+        }
+    }
+
     @Test("No selection ever names a branch when there is no branch")
     func branchIsNeverInvented() {
         for level in EscalationLevel.allCases {
