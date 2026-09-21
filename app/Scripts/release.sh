@@ -66,7 +66,27 @@ if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
   echo "    committed updater/appcast.xml"
 fi
 
+# What changed, from the log, above the instructions. The install steps are the same on
+# every release and were the ONLY thing these notes said, so the one question a reader has
+# was the one the page did not answer. CLAUDE.md 8 makes every commit a Conventional
+# Commit, so the answer is already written and cannot drift from a hand-kept file.
+# HEAD, not "${TAG}^": the tag does not exist yet at this point in the script, and the
+# newest tag reachable from HEAD is exactly the previous release.
+PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
+CHANGES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD)"
+if [ -n "${PREVIOUS_TAG}" ]; then
+  CHANGES="${CHANGES}
+
+[Every commit since ${PREVIOUS_TAG}](https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${TAG})"
+fi
+
 NOTES="$(cat <<EOF
+${CHANGES}
+
+---
+
+## Install
+
 macOS 14 or later, Apple Silicon and Intel.
 
 Open the disk image and drag sigstop to Applications.

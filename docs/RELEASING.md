@@ -53,6 +53,24 @@ It refuses to run if `Info.plist` and the version disagree, if the tag exists, o
 working tree is dirty, and it runs the tests, `make verify` and the scenario suite before
 it publishes anything. A release that cannot prove its own claims does not go out.
 
+## 0.5 What the notes say
+
+The notes used to be the install instructions and nothing else, identical on every release,
+so the one question somebody opens a release page to answer — what is different — was the
+one thing it did not say.
+
+`Scripts/changelog.py` reads the Conventional Commit subjects between the previous tag and
+`HEAD` and groups them: breaking changes first, then Added, Fixed, Faster, Changed and
+Documentation, each line prefixed with its scope. CI, build, test and chore commits are
+counted in one closing sentence rather than listed, because a reader downloading a build is
+not shopping for a workflow tweak. The appcast commit the release makes for itself is
+dropped outright.
+
+Nothing is hand-maintained. CLAUDE.md §8 already requires every commit to be a Conventional
+Commit, so the changelog is a view of the log rather than a second file that drifts from it.
+A commit with a lazy subject line shows up as a lazy bullet on a page strangers read, which
+is the right pressure to put on it.
+
 ## 1. What makes this safe, in one paragraph
 
 sigstop is distributed outside the App Store and is **ad-hoc signed: no Apple Developer ID, no Team
