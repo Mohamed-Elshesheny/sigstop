@@ -403,9 +403,10 @@ struct SettingsView: View {
 
             SettingsSection("delete") {
                 Note(
-                    "Removes the event log, the summaries, the badges and these settings. There "
-                        + "is no archive, no tombstone and no copy kept anywhere, which is the "
-                        + "point and also means there is no undo."
+                    "Removes the folder above and everything in it: the event log, the summaries, "
+                        + "the badges, the day's counters and these settings. There is no archive, "
+                        + "no tombstone and no copy kept anywhere, which is the point and also means "
+                        + "there is no undo."
                 )
                 /// Boxed, while every other secondary control in this window is not.
                 /// There is no undo behind this one, and a border is cheap next to the
@@ -434,7 +435,8 @@ struct SettingsView: View {
         let alert = NSAlert()
         alert.messageText = "Delete everything sigstop has stored?"
         alert.informativeText =
-            "This removes the event log, the daily summaries and your settings. "
+            "This removes the folder sigstop keeps its data in and everything in it: the event "
+            + "log, the daily summaries, the badges, the day's counters and your settings. "
             + "There is no archive, no tombstone and no copy kept anywhere."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
