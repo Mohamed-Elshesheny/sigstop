@@ -45,7 +45,8 @@ test: badges-check ## Run the Core test suite (no GUI session, no Xcode needed)
 release: ## Cut a release: VERSION=0.2.0 NAME="Wood Frog 🐸"
 	@./Scripts/release.sh
 
-dmg: bundle ## Build the disk image people download
+dmg: ## Build the disk image people download (both architectures)
+	@UNIVERSAL=1 CONFIG=$(CONFIG) ./Scripts/bundle.sh
 	@./Scripts/dmg.sh
 
 badges: ## Rewrite Exports/badges.json from the Swift catalogue

@@ -20,8 +20,36 @@ BIN=".build/${CONFIG}/${APP_NAME}"
 # self-signed identity; set SIGN_IDENTITY to use it.
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 
+# UNIVERSAL=1 builds for both architectures and lipos them together.
+#
+# Off by default because the second slice costs a full extra compile and nobody
+# developing on this machine runs the Intel one. On for anything that ships: the
+# 0.1.0 disk image went out arm64-only under release notes that said "Apple
+# Silicon and Intel", which an Intel user discovers by the app not opening.
+# `dmg.sh` sets it, so the artifact people download cannot be built any other way.
+#
+# A full Xcode is NOT needed. `swift build --arch arm64 --arch x86_64` is, because
+# it goes through xcbuild, but `--triple` does not, and Sparkle's binary artifact
+# is already universal. Measured on Command Line Tools 27.0.
+UNIVERSAL="${UNIVERSAL:-0}"
+
 echo "==> swift build -c ${CONFIG}"
 swift build -c "${CONFIG}"
+
+if [ "${UNIVERSAL}" = "1" ]; then
+  echo "==> swift build -c ${CONFIG} --triple x86_64-apple-macosx14.0"
+  swift build -c "${CONFIG}" --triple x86_64-apple-macosx14.0
+  ARM=".build/arm64-apple-macosx/${CONFIG}/${APP_NAME}"
+  X86=".build/x86_64-apple-macosx/${CONFIG}/${APP_NAME}"
+  [ -f "${ARM}" ] && [ -f "${X86}" ] || {
+    echo "error: expected both slices, found:" >&2
+    ls -la "${ARM}" "${X86}" 2>&1 >&2
+    exit 1
+  }
+  BIN=".build/${APP_NAME}-universal"
+  lipo -create "${ARM}" "${X86}" -output "${BIN}"
+  echo "    universal: $(lipo -archs "${BIN}")"
+fi
 
 [ -f "${BIN}" ] || { echo "error: ${BIN} not found" >&2; exit 1; }
 

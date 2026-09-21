@@ -56,6 +56,23 @@ WINDOW_H=400
 
 [ -d "${BUNDLE}" ] || { echo "error: ${BUNDLE} not found, run make bundle first" >&2; exit 1; }
 
+# The image people download carries both architectures, and this is the check rather
+# than the comment: 0.1.0 shipped arm64-only under release notes promising Intel too.
+# `make dmg` builds with UNIVERSAL=1, so reaching here with one slice means somebody
+# staged a bundle by hand.
+ARCHS="$(lipo -archs "${BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || echo "none")"
+case " ${ARCHS} " in
+  *" arm64 "*) : ;;
+  *) echo "error: ${BUNDLE} has no arm64 slice (${ARCHS})" >&2; exit 1 ;;
+esac
+case " ${ARCHS} " in
+  *" x86_64 "*) : ;;
+  *) echo "error: ${BUNDLE} is ${ARCHS} only. Build it with: UNIVERSAL=1 make bundle" >&2
+     echo "       The release notes promise Intel, so a single-slice image is a lie." >&2
+     exit 1 ;;
+esac
+echo "==> ${ARCHS}"
+
 cleanup() {
   hdiutil detach "${MOUNT}" -quiet 2>/dev/null || true
   rm -f "${RW}"
