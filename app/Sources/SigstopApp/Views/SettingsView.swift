@@ -195,7 +195,7 @@ struct SettingsView: View {
                 }
                 SettingRow(
                     "Hold my break during calls",
-                    detail: "After a microphone or camera stops, hold the prompt for up to 20 minutes in case you only muted. Turning it off also ends an \"I'm in a meeting\" hold, and turning it back on restores the feature. A live microphone or camera still blocks on its own \u{2014} except on a Mac whose audio signal the app cannot trust, where this switch is the only thing holding; --doctor says which one this is."
+                    detail: "After a microphone or camera stops, hold the prompt for up to 20 minutes in case you only muted. Turning it off also ends an \"I'm in a meeting\" hold, and turning it back on restores the feature. A live microphone or camera still blocks on its own, except on a Mac whose audio signal the app cannot trust, where this switch is the only thing holding; --doctor says which one this is."
                 ) {
                     TerminalSwitch(isOn: settings.holdBreaksDuringCalls)
                 }
@@ -305,7 +305,7 @@ struct SettingsView: View {
             Note(
                 "There is no streak. Nothing expires, missing a day costs nothing, and none "
                     + "of these can go down once it has happened. Every one is counted from "
-                    + "the log already on disk — no new tracking was added for them."
+                    + "the log already on disk; no new tracking was added for them."
             )
         }
         .onAppear { model.acknowledgeBadges() }
