@@ -46,6 +46,12 @@ jobs:
       - name: The README's test count is the real one
         run: python3 .github/scripts/check-test-count.py "$RUNNER_TEMP/test.log"
 
+      # The humour rails, which CLAUDE.md §4.5 pointed at a lint that did not exist.
+      # Hard failures are the ones a machine can decide; the rest of the rubric stays
+      # human and the pull request template asks a reviewer to tick it.
+      - name: Corpus lint
+        run: python3 .github/scripts/check-corpus.py
+
       # The privacy claims, asserted against the built binary rather than the source:
       # no networking symbol in the app's own executable, exactly one embedded framework,
       # no analytics SDK, one endpoint, nothing scheduled.

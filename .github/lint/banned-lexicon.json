@@ -1,0 +1,44 @@
+{
+  "_comment": [
+    "The six families CLAUDE.md 4.5 forbids a message from being about, as regexes over",
+    "text and altText. Append-only: an entry is removed only with the argument written",
+    "into the pull request, because the reason a rail exists is not visible from the line",
+    "that trips it.",
+    "",
+    "Each pattern carries a rationale rather than sitting in a bare list, so a contributor",
+    "who trips one is told which rail they hit and can argue with the rail instead of",
+    "guessing at the regex."
+  ],
+  "families": [
+    {
+      "family": "weight and eating",
+      "rationale": "Never about body weight. A break app that comments on what somebody eats is the category of app people uninstall.",
+      "patterns": ["\\bfat\\b", "\\bobes\\w*", "\\bdiet\\b", "\\bcalorie", "\\bskinny\\b", "\\bovereat\\w*", "\\bsnack\\w* too\\b"]
+    },
+    {
+      "family": "appearance",
+      "rationale": "Never about how somebody looks. The app can see a window title. It cannot see a face and must never write as though it can.",
+      "patterns": ["\\bugly\\b", "\\bhaggard\\b", "\\byou look\\b(?!\\s+(away|at|up|down|back|into|through|around|over|for|here|there))", "\\bpale\\b", "\\bdishevel\\w*", "\\bgreasy\\b"]
+    },
+    {
+      "family": "medical",
+      "rationale": "CLAUDE.md 4.5: no medical claims, at all. The app says 'your posture', never 'your health'. It is not a health product and has no business behaving like one.",
+      "patterns": ["\\bhealth(y|ier)?\\b", "\\beye ?strain\\b", "\\bcarpal\\b", "\\bRSI\\b", "\\binjur\\w*", "\\btendon\\w*", "\\bchronic\\b", "\\bdiagnos\\w*", "\\bprevents?\\b.{0,20}\\b(pain|injury|damage)\\b"]
+    },
+    {
+      "family": "mental health",
+      "rationale": "Never about mental health. A joke that borrows the vocabulary of distress is still pointing that vocabulary at the reader, and the reader may be having the week the rubric's bad-day test asks about.",
+      "patterns": ["\\bdepress\\w*", "\\banxi\\w*", "\\bdespair\\b", "\\bcry for help\\b", "\\bbreakdown\\b", "\\bburn(ed|t)? ?out\\b", "\\baddict\\w*", "\\bsanity\\b", "\\bunwell\\b", "\\bspiral(ling|ing)\\b"]
+    },
+    {
+      "family": "competence",
+      "rationale": "The joke is never 'you are bad at this'. Behaviour is fair game; ability is not.",
+      "patterns": ["\\bstupid\\b", "\\bidiot\\w*", "\\bincompeten\\w*", "\\buseless\\b", "\\bclueless\\b", "\\bamateur\\b", "\\byou'?re bad\\b", "\\bcan'?t code\\b", "\\bdon'?t know what you'?re doing\\b"]
+    },
+    {
+      "family": "employment",
+      "rationale": "Never about job security. A bare 'fired' is allowed because an event fires; the patterns here are the ones that can only be about a person losing work.",
+      "patterns": ["\\b(get|got|be|been|you'?re)\\s+fired\\b", "\\blaid off\\b", "\\bredundan\\w*", "\\bperformance review\\b", "\\bPIP\\b", "\\bunemploy\\w*", "\\bquit your job\\b"]
+    }
+  ]
+}

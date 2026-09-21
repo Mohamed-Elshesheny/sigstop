@@ -19,3 +19,16 @@ needs in front of them.
 - [ ] No invariant in `CLAUDE.md` §4 is weakened. If one has to change, that is its own
       PR with the argument written out, landing before the code.
 - [ ] Commit messages are Conventional Commits, imperative, and short.
+
+## If this touches the message corpus
+
+CI runs the structural checks. These four are the ones only a person can answer, and
+`docs/MESSAGE-ENGINE.md` §4.3 is where they come from. Delete this section if it does not
+apply.
+
+- [ ] **Target.** Name what the joke is about in one word. If the answer is a person or a
+      trait rather than a behaviour or a tool, it does not ship.
+- [ ] **Standup.** You could say this out loud to a colleague and have them laugh.
+- [ ] **Bad day.** Read as somebody having the worst week of their career, it still reads
+      as being on their side.
+- [ ] **Specificity.** It could not be about any app, any activity, any hour.

@@ -601,36 +601,61 @@ Apply all seven to every submitted line. Any single failure is a rejection.
 
 ### 4.4 Lint / CI enforcement
 
-`corpus-lint` is a SwiftPM command plugin (`swift package corpus-lint`) run on every PR
-touching `docs/corpus-*.json` or `Resources/packs/**`. It enforces the *structural* parts of
-the rubric — the parts a machine can decide. Rubric items 1–3 and 6 stay human, and the PR
-template requires a reviewer to tick them.
+`.github/scripts/check-corpus.py` runs on every push and pull request, as a step in
+`.github/workflows/ci.yml`. It reads `app/Sources/SigstopCore/Message/corpus.json` and
+`.github/lint/banned-lexicon.json`. Hard failures exit non-zero and fail the build;
+warnings print and do not, because each has a false-positive mode a person has to judge.
+
+**This section used to describe something else, and that is worth stating plainly**
+because `CLAUDE.md` §4.5 points here as the thing enforcing the humour rails. It described
+a `swift package corpus-lint` command plugin with twelve checks, four warnings, a JSON
+Schema and a `Lint/banned-lexicon.json`, run on pull requests touching `docs/corpus-*.json`
+or `Resources/packs/**`. None of it existed: no plugin, no schema, no lexicon, no packs
+directory, no CI step, and the corpus is at neither of those paths. The rail that can
+actually hurt somebody was enforced by a paragraph. What is below is what runs.
 
 **Hard failures:**
 
 | # | Check |
 |---|---|
-| L1 | JSON Schema validation against `message-pack-1.json`. |
-| L2 | `id` unique within and across enabled packs; matches `^[a-z0-9]+(\.[a-z0-9-]+){2,}$`. |
-| L3 | Slot invariant: every `{slot}` in `text`/`altText` is declared; every declared slot is used. |
+| L2 | `id` unique, and matches `^[a-z0-9]+(\.[a-z0-9-]+){2,}$`, which is the `<context>.<subject>.<slug>` convention every line already follows. |
+| L3 | Slot invariant: every `{slot}` in `text`/`altText` is declared, and every declared slot is used. |
 | L4 | `escalation.min <= escalation.max`, both in `1...4`. |
-| L5 | Tone/escalation matrix: `nuclear` requires `escalation.min >= 3`; `friendly` at level 4 only if `isFallback`. |
+| L5 | Tone and escalation agree: `nuclear` requires `escalation.min >= 3`; `friendly` reaches rung 4 only if `isFallback`. |
 | L6 | `minConfidence` in `0...1`. If `claimsActivity` is true, `minConfidence >= 0.75` **and** at least one `app` or `activity` predicate is present. |
-| L7 | **Banned lexicon.** Case-insensitive regex over `text`+`altText` across six families: weight/eating, appearance, medical, mental-health, competence, employment. Stems include `\bfat\b`, `\bugly\b`, `\beye ?strain\b`, `\bcarpal\b`, `\bposture\b`, `\bburn(ed|t)? ?out\b`, `\bdepress\w*`, `\banxi\w*`, `\baddict\w*`, `\bincompetent\b`, `\bstupid\b`, `\bidiot\b`, `\byou('re| are) bad\b`, `\b(?:get|got|be|been|you're)\s+fired\b` (context-qualified: a bare `fired` legitimately describes an event firing), `\bperformance review\b`, `\bPIP\b`. The list lives in `Lint/banned-lexicon.json`, is append-only, and each entry carries a rationale string. |
-| L8 | **Product-name denylist:** the app's own name tokens must not appear in any pack. |
-| L9 | Length: `text` ≤ 240 chars; `title` ≤ 48 chars. |
-| L10 | **Coverage floor.** For each (`appFamily` × escalation level) bucket, ≥ 6 eligible messages. For the generic low-confidence bucket, ≥ 12 at every level. Prevents a pack from starving a context into stage-5 fallback. |
-| L11 | Emergency pool non-empty at all four levels (asserted against the compiled-in pool). |
-| L12 | `weight` in `0.1...5.0`; `authorPriority` in `-10...10`. |
+| L7 | **Banned lexicon.** Case-insensitive regexes over `text`+`altText` across the six families §4.2 forbids. Each family carries a rationale that is printed with the failure, so a contributor is told which rail they hit rather than which regex. `.github/lint/banned-lexicon.json`, append-only. |
+| L9 | `text` at most 240 characters. |
 
-**Warnings (require an explicit reviewer ack in the PR body):**
+**Warnings:**
 
 | # | Check |
 |---|---|
-| W1 | **Trait detector.** `/\byou(?:'re\| are)\s+(?:a\|an\|so\|such\|just)\b/i` — this grammar usually attaches a *label to the person*, which is rail #7. Most hits are genuine violations. |
-| W2 | **NUCLEAR absurdity marker.** A `nuclear` line must contain an impossibility marker (a regex set over geological/cosmic/anthropomorphic hyperbole) **or** a shouted run of ≥ 2 consecutive ALL-CAPS words **or** `"theatrical": true` with a named reviewer. Without one of these it is probably just mean. |
-| W3 | Near-duplicate detection: token-level Jaccard ≥ 0.6 against any existing line. |
-| W4 | Filler detector: flags lines whose non-stopword content is a subset of {time, break, take, now, stand, up, rest}. This is the "limp filler" check. |
+| W1 | **Trait detector.** `/\byou(?:'re\| are)\s+(?:a\|an\|so\|such\|just)\b/i`. That grammar usually attaches a label to the *person*, which is rail 7. |
+| W2 | **NUCLEAR absurdity.** A `nuclear` line must contain a shouted run of two or more consecutive all-caps words. Without one it is probably just mean. |
+| W3 | Near-duplicate detection: token Jaccard at or above 0.6 against any other line. |
+
+**What is not checked, and why**, rather than implied:
+
+- **Schema validation (was L1).** There is no `message-pack-1.json` to validate against.
+  The `$schema` key in the corpus points at a file that does not exist.
+- **Product-name denylist (L8), coverage floor (L10), emergency pool (L11), weight and
+  author priority ranges (L12).** These assume a multi-pack format with `appFamily`,
+  `weight` and `authorPriority` fields. The shipped corpus is one pack and has none of
+  them. When packs land, these come with them.
+- **`theatrical` is no longer an exemption for W2.** The old text let a line skip the
+  absurdity check by setting `"theatrical": true` "with a named reviewer", and the format
+  has no reviewer field, so the flag was a free opt-out. All eleven nuclear lines set it,
+  which means the check could not fire on anything. It is the shouted run or nothing now,
+  and all eleven still pass.
+
+**Every check above has been run against a deliberately broken copy of the corpus and
+seen to fail.** A lint nobody has watched fail is a lint nobody should trust, and this one
+started life as two regexes that were too broad: an earlier `\byou look\b` flagged
+"the cursor keeps blinking in your peripheral vision after you look away", which is gaze
+and not appearance. The script takes a path argument for exactly this reason.
+
+The rubric items a machine cannot decide, §4.3's target, standup, bad-day and specificity
+tests, stay human. `.github/PULL_REQUEST_TEMPLATE.md` asks for them.
 
 **Golden tests** (`MessageEngineTests`) run alongside the lint over a fixture matrix of 500
 synthetic contexts spanning every app × activity × band × level × confidence tier:
