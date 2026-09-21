@@ -457,11 +457,27 @@ enum Ev {
     static func childOfFrontmost() -> Evidence {
         make("process.childOfFrontmost", .tier2, 0.8, "that process was started by the app you are in")
     }
-    static func terminalEditorProcess(_ tool: ToolToken) -> Evidence {
-        make("process.terminalEditor", .tier2, 1.8, "\(tool.displayName) is running in this terminal")
+    /// "In this terminal" is a claim about ancestry, so it is only made when ancestry was
+    /// checked. The machine-wide form says what was actually observed and carries almost
+    /// no weight: `claude` is marked `verifiedHere` in the allowlist and is very nearly
+    /// always running on a developer's Mac, so a detector that fired on the bare name
+    /// would read AI_CODING in every terminal window permanently, which is the
+    /// always-on-detector failure this codebase already names about Krisp and OBS.
+    static func terminalEditorProcess(_ tool: ToolToken, childOfFrontmost: Bool) -> Evidence {
+        childOfFrontmost
+            ? make("process.terminalEditor", .tier2, 1.8, "\(tool.displayName) is running in this terminal")
+            : make(
+                "process.terminalEditorElsewhere", .tier2, 0.3,
+                "\(tool.displayName) is running, but not in this terminal"
+            )
     }
-    static func aiCLIProcess(_ tool: ToolToken) -> Evidence {
-        make("process.aiCLI", .tier2, 3.0, "\(tool.displayName) is running in this terminal")
+    static func aiCLIProcess(_ tool: ToolToken, childOfFrontmost: Bool) -> Evidence {
+        childOfFrontmost
+            ? make("process.aiCLI", .tier2, 3.0, "\(tool.displayName) is running in this terminal")
+            : make(
+                "process.aiCLIElsewhere", .tier2, 0.4,
+                "\(tool.displayName) is running, but not in this terminal"
+            )
     }
     static func remoteShellProcess(_ tool: ToolToken) -> Evidence {
         make("process.remoteShell", .tier2, 0.9, "\(tool.displayName) is running in this terminal")
@@ -682,7 +698,7 @@ public struct CursorProvider: ActivityProvider {
         if let processes = context.processesIfPermitted,
            let tool = processes.firstChildMatch(in: ToolToken.aiCLIs) {
             var evidence = verdict.evidence
-            evidence.append(Ev.aiCLIProcess(tool))
+            evidence.append(Ev.aiCLIProcess(tool, childOfFrontmost: true))
             verdict = ProviderVerdict(
                 activity: .aiCoding, evidence: evidence, context: verdict.context
             )
@@ -765,8 +781,10 @@ public struct TerminalProvider: ActivityProvider {
             return ProviderVerdict(activity: .terminalWork, evidence: evidence, context: activityContext)
         }
 
-        if let tool = processes.firstChildMatch(in: ToolToken.aiCLIs) ?? processes.firstMatch(in: ToolToken.aiCLIs) {
-            evidence.append(Ev.aiCLIProcess(tool))
+        /// Child-only, the way `remoteShells` below already is. A `claude` in VS Code's
+        /// integrated terminal is not a `claude` in the window you are looking at.
+        if let tool = processes.firstChildMatch(in: ToolToken.aiCLIs) {
+            evidence.append(Ev.aiCLIProcess(tool, childOfFrontmost: true))
             return ProviderVerdict(activity: .aiCoding, evidence: evidence, context: activityContext)
         }
         if processes.tracedUnderFrontmost {
@@ -803,16 +821,23 @@ public struct TerminalProvider: ActivityProvider {
             evidence.append(Ev.testRunnerProcess(tool, childOfFrontmost: isChild))
             return ProviderVerdict(activity: .testing, evidence: evidence, context: activityContext)
         }
-        if let tool = processes.firstChildMatch(in: ToolToken.terminalEditors)
-            ?? processes.firstMatch(in: ToolToken.terminalEditors) {
-            evidence.append(Ev.terminalEditorProcess(tool))
+        if let tool = processes.firstChildMatch(in: ToolToken.terminalEditors) {
+            evidence.append(Ev.terminalEditorProcess(tool, childOfFrontmost: true))
             return ProviderVerdict(activity: .coding, evidence: evidence, context: activityContext)
         }
         if let tool = processes.firstChildMatch(in: ToolToken.remoteShells) {
             evidence.append(Ev.remoteShellProcess(tool))
         }
+        /// Cited, not decisive. A sceptic reading "why do you think that?" should see
+        /// every tool the scan matched, including the ones that did not decide anything.
         if let tool = processes.firstMatch(in: ToolToken.debuggers) {
             evidence.append(Ev.debuggerElsewhere(tool))
+        }
+        if let tool = processes.firstMatch(in: ToolToken.aiCLIs) {
+            evidence.append(Ev.aiCLIProcess(tool, childOfFrontmost: false))
+        }
+        if let tool = processes.firstMatch(in: ToolToken.terminalEditors) {
+            evidence.append(Ev.terminalEditorProcess(tool, childOfFrontmost: false))
         }
         return ProviderVerdict(activity: .terminalWork, evidence: evidence, context: activityContext)
     }

@@ -1109,6 +1109,13 @@ treats them differently.
 **Reliable (Tier 2):** an AI CLI (`claude`, `aider`, `codex`, `goose`) running as a child of the
 frontmost terminal → **+3.0**, confidence up to 0.93. This is as solid as `debugserver`.
 
+*Child of* is the whole of it. The same process anywhere else on the machine is **+0.4**, cited as
+"running, but not in this terminal", and decides nothing. The code read the bare name for a while
+and this paragraph did not, which is the disagreement CLAUDE.md asks to be resolved in one direction
+or the other: `claude` is running on the maintainer's Mac nearly all the time, so the bare name made
+every terminal window read `AI_CODING` at the ceiling, permanently. The same rule applies to `vim`,
+`nvim`, `helix`, `emacs` and `nano`.
+
 **Unreliable (Tier 0):** a desktop AI assistant app is frontmost. This tells us nothing about
 *whether it is about code*. The user could be asking about a recipe.
 

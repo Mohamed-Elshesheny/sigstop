@@ -303,6 +303,43 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(debugging.activity == .debugging)
 }
 
+/// `claude` is marked `verifiedHere` in the allowlist and is very nearly always running
+/// on the machine this was written on. Matching it by name alone meant every Terminal and
+/// iTerm window read AI_CODING at the tier 2 ceiling, permanently, with the reasoning line
+/// "claude is running in this terminal" while it was running in VS Code's integrated one.
+/// A detector that is always on is worse than no detector, which is the argument this
+/// codebase already makes about Krisp and OBS.
+@Test func anAICLIInSomeOtherTerminalIsNotThisTerminalsWork() {
+    let elsewhere = classify(context(
+        app: terminal, processes: snapshot(matched: [.claudeCLI]), title: "zsh"
+    ))
+    #expect(elsewhere.activity == .terminalWork)
+    #expect(elsewhere.evidence.contains { $0.id.rawValue == "process.aiCLIElsewhere" })
+    #expect(!elsewhere.evidence.contains { $0.summary == "claude is running in this terminal" })
+
+    let here = classify(context(
+        app: terminal,
+        processes: snapshot(matched: [.claudeCLI], children: [.claudeCLI]),
+        title: "zsh"
+    ))
+    #expect(here.activity == .aiCoding)
+    #expect(here.evidence.contains { $0.summary == "claude is running in this terminal" })
+}
+
+/// The same for a terminal editor: `vim` open in another window is not this window.
+@Test func aTerminalEditorSomewhereElseDoesNotMakeThisWindowCoding() {
+    let elsewhere = classify(context(
+        app: terminal, processes: snapshot(matched: [.vim]), title: "zsh"
+    ))
+    #expect(elsewhere.activity == .terminalWork)
+    #expect(elsewhere.evidence.contains { $0.id.rawValue == "process.terminalEditorElsewhere" })
+
+    let here = classify(context(
+        app: terminal, processes: snapshot(matched: [.vim], children: [.vim]), title: "zsh"
+    ))
+    #expect(here.activity == .coding)
+}
+
 @Test func anEditorWithNoDebuggerRunningIsStillCoding() {
     let observation = classify(context(processes: snapshot(matched: [.ssh])))
     #expect(observation.activity == .coding)
