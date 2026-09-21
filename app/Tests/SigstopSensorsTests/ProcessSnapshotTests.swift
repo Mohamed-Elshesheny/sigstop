@@ -269,16 +269,13 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
 /// names by hand: a README open in the editor, `lldb` alive in some other project, and the
 /// app announcing fifty minutes of chasing one bug.
 @Test func aDebuggerElsewhereDoesNotOverrideWhatTheTitleSays() {
-    /// The separator is a comma, not the dash VS Code puts there, because
-    /// `TitleParsing.separators` does not carry an em dash and this test is about the
-    /// debugger, not about that.
     let docs = classify(context(
-        processes: snapshot(matched: [.lldb]), title: "README.md, sigstop"
+        processes: snapshot(matched: [.lldb]), title: "README.md — sigstop"
     ))
     #expect(docs.activity == .documentation)
 
     let tests = classify(context(
-        processes: snapshot(matched: [.lldb]), title: "foo.test.ts, sigstop"
+        processes: snapshot(matched: [.lldb]), title: "foo.test.ts — sigstop"
     ))
     #expect(tests.activity == .testing)
 }
