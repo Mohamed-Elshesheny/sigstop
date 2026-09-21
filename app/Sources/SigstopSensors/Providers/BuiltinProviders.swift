@@ -161,7 +161,14 @@ public struct ParsedTitle: Sendable, Hashable {
 public enum TitleParsing {
     /// Editors use every dash on the keyboard, and users reconfigure the format freely.
     /// Parsers must be defensive and must be allowed to return nothing.
-    static let separators = [", ", " – ", " - ", " | "]
+    /// The em dash is first because it is what the editors this app claims actually use:
+    /// `window.titleSeparator` in VS Code, Cursor and every VS Code fork defaults to
+    /// `" \u2014 "` on macOS, which is U+2014, not the U+2013 that used to be the only dash
+    /// here. Without it a real title never split, so `fileName`, `fileExtension` and
+    /// `projectName` were nil for the most common editor on the platform, and with them
+    /// the DOCUMENTATION and test-file branches and the `{project}` slot. Checked against
+    /// the constant inside the shipped app, not remembered.
+    static let separators = [", ", " — ", " – ", " - ", " | "]  // em dash is data
 
     /// VS Code prefixes an unsaved buffer with `●`; JetBrains uses `*`.
     static let dirtyMarkers: Set<Character> = ["●", "*", "•"]
