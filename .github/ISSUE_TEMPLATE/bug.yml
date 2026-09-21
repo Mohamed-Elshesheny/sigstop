@@ -76,9 +76,11 @@ body:
     attributes:
       label: sigstop --doctor
       description: >-
-        Paste the whole thing. Read it before you post it: at Tier 1 it includes redacted window
-        titles, and at Tier 2 a branch name. Redact anything further that you would not put in a
-        public issue.
+        Paste the whole thing, and read it first. It contains no window title and no branch
+        name: a title is parsed and dropped, and Tier 2 prints how many characters long your
+        branch is rather than what it is called. It does name the apps you have open, your
+        camera devices, and the project folders you added. Redact anything there you would
+        not put in a public issue.
       render: shell
     validations:
       required: true
