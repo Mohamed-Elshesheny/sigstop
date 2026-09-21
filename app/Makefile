@@ -27,7 +27,13 @@ run: bundle ## Build, bundle, and launch
 #   -F / -Xlinker -F   find Testing.framework at compile and link time
 #   -rpath             let the built test bundle dlopen it (DYLD_* is stripped by SIP)
 #   -disable-cross-import-overlay-search   skip the broken _Testing_Foundation overlay
-TESTING_FW := /Library/Developer/CommandLineTools/Library/Developer/Frameworks
+# swift-testing ships inside the toolchain but is not on any default search path.
+# Command Line Tools puts it here; a machine with full Xcode selected puts it under the
+# developer directory instead, which is what a GitHub runner has. Ask, then fall back,
+# so the same `make test` works on a laptop and in CI.
+TESTING_FW := $(shell test -d "$$(xcode-select -p 2>/dev/null)/Library/Developer/Frameworks" \
+                && echo "$$(xcode-select -p)/Library/Developer/Frameworks" \
+                || echo /Library/Developer/CommandLineTools/Library/Developer/Frameworks)
 TEST_FLAGS := -Xswiftc -F -Xswiftc $(TESTING_FW) \
               -Xlinker -F -Xlinker $(TESTING_FW) \
               -Xlinker -rpath -Xlinker $(TESTING_FW) \

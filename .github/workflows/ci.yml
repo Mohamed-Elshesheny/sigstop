@@ -1,0 +1,63 @@
+name: CI
+
+# Everything this repository claims about itself is already checked by a command. The
+# only thing missing was something that runs them without being asked.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# A second push cancels the first. Nothing here is worth finishing for a commit that has
+# already been replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Build, test, and prove the claims
+    runs-on: macos-15
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Show the toolchain
+        run: swift --version && xcode-select -p
+
+      - name: Build
+        working-directory: app
+        run: swift build -c release
+
+      # Runs badges-check first as a prerequisite, so a badge renamed here without the
+      # site being told fails the build rather than drifting quietly.
+      - name: Test
+        working-directory: app
+        run: make test
+
+      # The privacy claims, asserted against the built binary rather than the source:
+      # no networking symbol in the app's own executable, exactly one embedded framework,
+      # no analytics SDK, one endpoint, nothing scheduled.
+      - name: Verify the privacy properties
+        working-directory: app
+        run: make verify
+
+      # Fourteen scripted days against the real engine. The unit tests answer "does this
+      # branch do what it says"; this answers "does a whole day ever go quiet".
+      - name: Run the scenarios
+        working-directory: app
+        run: swift run -c release Scenarios
+
+      - name: Check the disk image still builds
+        working-directory: app
+        run: make dmg
+
+      # The rule is about what a user reads, not about the source. A doc comment may
+      # contain one; a string literal and the message corpus may not.
+      - name: Look for em dashes in user-visible strings
+        run: python3 .github/scripts/check-em-dashes.py

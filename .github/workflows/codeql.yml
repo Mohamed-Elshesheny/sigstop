@@ -1,0 +1,47 @@
+name: CodeQL
+
+# Free static analysis for Swift. Worth having on an app that is unsandboxed, runs at
+# login, and holds an Accessibility grant when the user turns Tier 1 on.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    # Monday morning. New queries land in CodeQL between our commits, so a scan of
+    # unchanged code is not a wasted one.
+    - cron: "17 6 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze Swift
+    runs-on: macos-15
+    timeout-minutes: 40
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@4e94bd11f71e507f7f87df81788dff88d1dacbfb # v3.30.5
+        with:
+          languages: swift
+          build-mode: manual
+
+      - name: Build
+        working-directory: app
+        run: swift build -c release
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@4e94bd11f71e507f7f87df81788dff88d1dacbfb # v3.30.5
+        with:
+          category: "/language:swift"
