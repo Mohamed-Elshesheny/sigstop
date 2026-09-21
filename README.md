@@ -14,8 +14,6 @@ moment instead of on a timer.
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 [![281 tests](https://img.shields.io/badge/tests-281%20passing-3fb950?style=flat-square)](#building)
 
-<img src="docs/images/panel.png" width="356" alt="The sigstop menu bar panel">
-
 </div>
 
 ---

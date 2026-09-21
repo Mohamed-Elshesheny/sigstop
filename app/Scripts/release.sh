@@ -23,10 +23,17 @@ cd "$(dirname "$0")/.."
 REPO="Mohamed-Elshesheny/sigstop"
 TAG="v${VERSION}"
 PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
+PLIST_NAME="$(/usr/libexec/PlistBuddy -c 'Print SGReleaseName' Resources/Info.plist 2>/dev/null || true)"
 
 if [ "${PLIST_VERSION}" != "${VERSION}" ]; then
   echo "error: Info.plist says ${PLIST_VERSION}, you asked for ${VERSION}." >&2
   echo "       Bump CFBundleShortVersionString first so the app and the tag agree." >&2
+  exit 1
+fi
+
+if [ "${PLIST_NAME}" != "${NAME}" ]; then
+  echo "error: Info.plist says \"${PLIST_NAME}\", you asked for \"${NAME}\"." >&2
+  echo "       The app shows the codename in About, so the two have to agree." >&2
   exit 1
 fi
 
@@ -84,7 +91,7 @@ git tag -a "${TAG}" -m "${TAG} ${NAME}"
 git push -q origin "${TAG}"
 
 echo "==> publishing"
-gh release create "${TAG}" dist/sigstop.dmg \
+gh release create "${TAG}" dist/sigstop.dmg dist/sigstop-${VERSION}*.dmg \
   -R "${REPO}" \
   --title "${TAG} ${NAME}" \
   --notes "${NOTES}"

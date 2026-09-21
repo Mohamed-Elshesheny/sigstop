@@ -25,11 +25,23 @@ cd "$(dirname "$0")/.."
 APP_NAME="sigstop"
 BUNDLE="dist/${APP_NAME}.app"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
+RELEASE_NAME="$(/usr/libexec/PlistBuddy -c 'Print SGReleaseName' Resources/Info.plist 2>/dev/null || true)"
+# "Sleeping Dormouse 🐿️" becomes "sleeping-dormouse": lower case, no emoji, no spaces,
+# because a filename with an emoji in it is a filename somebody has to quote forever.
+SLUG="$(printf '%s' "${RELEASE_NAME}" | LC_ALL=C tr -cd 'A-Za-z0-9 ' | tr '[:upper:]' '[:lower:]' | xargs | tr ' ' '-')"
+# HFS+ caps a volume name at 27 characters, so the codename does not go here: with it
+# hdiutil fails with "Operation not permitted", which reads like a permissions problem
+# and is a length problem. The codename is in the filename instead, where it is read.
 VOLUME="${APP_NAME} ${VERSION}"
-# Two names for one file. The versioned one is what a person keeps; the stable one is
-# what the site links to, because GitHub's /releases/latest/download/<name> redirect
-# needs a filename that does not change between releases.
-OUT="dist/${APP_NAME}-${VERSION}.dmg"
+# Two names for one file, and the duplication is deliberate.
+#
+# The site's download button uses GitHub's /releases/latest/download/<name> redirect,
+# which needs a filename that is identical in every release, so one asset has to be
+# plain `sigstop.dmg`. But a file called that sitting in someone's Downloads folder says
+# nothing about which build it is, so the other carries the version and the codename.
+# Upload both: the button takes the stable one, a person browsing the release takes the
+# one whose name they can read a year from now.
+OUT="dist/${APP_NAME}-${VERSION}${SLUG:+-${SLUG}}.dmg"
 STABLE="dist/${APP_NAME}.dmg"
 RW="dist/.${APP_NAME}-rw.dmg"
 MOUNT="/Volumes/${VOLUME}"
