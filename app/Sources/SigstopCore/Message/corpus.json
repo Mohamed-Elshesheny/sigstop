@@ -404,7 +404,7 @@
     },
     {
       "id": "vscode.ext.more-deps-than-project",
-      "text": "Sixty-one extensions installed, four of them used. Take a break — your editor is carrying more dependencies than {project}.",
+      "text": "Sixty-one extensions installed, four of them used. Take a break. Your editor is carrying more dependencies than {project}.",
       "tone": "sarcastic",
       "category": "editor_generic",
       "escalation": {
@@ -424,7 +424,7 @@
           ]
         }
       ],
-      "altText": "Sixty-one extensions installed, four of them used. Take a break — your editor is carrying more dependencies than your project."
+      "altText": "Sixty-one extensions installed, four of them used. Take a break. Your editor is carrying more dependencies than your project."
     },
     {
       "id": "vscode.theme.honest-move",
@@ -710,7 +710,7 @@
     },
     {
       "id": "xcode.preview.whole-personality",
-      "text": "The preview crashed again. Take the break — it will still be broken when you get back, that's its whole personality.",
+      "text": "The preview crashed again. Take the break. It will still be broken when you get back, that's its whole personality.",
       "tone": "sarcastic",
       "category": "xcode",
       "escalation": {
@@ -1686,7 +1686,7 @@
     },
     {
       "id": "test.generic.break-shaped-window",
-      "text": "Suite's running. That's a break-shaped window — use it.",
+      "text": "Suite's running. That's a break-shaped window. Use it.",
       "tone": "friendly",
       "category": "testing",
       "escalation": {
@@ -1791,7 +1791,7 @@
     },
     {
       "id": "review.ci.forty-two-refreshes",
-      "text": "Fourteen minutes waiting on CI, refreshing every twenty seconds. That's forty-two refreshes. Go away and come back to a green check or a red X — both read better with coffee.",
+      "text": "Fourteen minutes waiting on CI, refreshing every twenty seconds. That's forty-two refreshes. Go away and come back to a green check or a red X. Both read better with coffee.",
       "tone": "roast",
       "category": "code_review",
       "escalation": {
@@ -2242,7 +2242,7 @@
     },
     {
       "id": "figma.commit.only-a-hex-code",
-      "text": "Ninety minutes in this file and the only thing you've committed to is a hex code. Go get some perspective — literally.",
+      "text": "Ninety minutes in this file and the only thing you've committed to is a hex code. Go get some perspective. Literally.",
       "tone": "roast",
       "category": "design_canvas",
       "escalation": {
