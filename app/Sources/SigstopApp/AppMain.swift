@@ -357,6 +357,30 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
     // MARK: Settings
 
+    /// Where the settings window opens.
+    ///
+    /// `NSWindow.center()` measures against `NSScreen.main`, which is the screen with the
+    /// key window. This app is an accessory with no key window when the menu item is
+    /// clicked, so that answer was whatever macOS felt like and the window arrived in the
+    /// top right corner. Centring on the screen the pointer is actually on puts it where
+    /// the person is looking, and falls back to the main screen when the pointer is
+    /// somewhere with no screen under it.
+    ///
+    /// Slightly above centre on purpose: a window placed on the exact vertical middle
+    /// reads as low, which is why `center()` does the same thing.
+    private static func centredOrigin(for window: NSWindow) -> NSPoint {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
+        guard let visible = screen?.visibleFrame else { return window.frame.origin }
+        let size = window.frame.size
+        return NSPoint(
+            x: visible.midX - size.width / 2,
+            y: visible.midY - size.height / 2 + visible.height * 0.08
+        )
+    }
+
     func openSettings() {
         dismiss()
 
@@ -375,7 +399,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         window.title = "sigstop Settings"
         window.contentViewController = NSHostingController(rootView: SettingsView(model: model))
         window.isReleasedWhenClosed = false
-        window.center()
+        window.setFrameOrigin(Self.centredOrigin(for: window))
         settingsWindow = window
 
         NSApp.activate(ignoringOtherApps: true)
