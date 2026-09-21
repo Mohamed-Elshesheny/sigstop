@@ -521,18 +521,36 @@ cases and two booleans.
 
 **Check.**
 
+Each of these was run as written, and the output pasted under it is the real one. Two of them used
+to be written in a way that returned hits on their own prose and then told you to expect none, which
+is worse than not offering a check at all: the reader's first move is to run it, and the first thing
+it does is look like the claim is false.
+
 ```sh
-# argv, environment and working directories are never read
-grep -rn 'KERN_PROCARGS2\|proc_pidinfo\|PROC_PIDVNODEPATHINFO' app/Sources   # expect no output
-# git is never shelled out to
-grep -rn 'Process(\|NSTask\|posix_spawn' app/Sources                          # expect no output
-# every path fragment the git collector can build, in one grep. Eight lines: six are the
-# only names it ever appends, and two are a bare "/" used as a separator
+# argv, environment and working directories are never read. The names appear in doc
+# comments explaining that they are never called, so the comment lines are excluded:
+# a line of Swift cannot contain /// outside a string literal.
+grep -rn 'KERN_PROCARGS2\|proc_pidinfo\|PROC_PIDVNODEPATHINFO' app/Sources | grep -v '///'
+#   (no output)
+
+# git is never shelled out to. `Process(` on its own also matches methods NAMED
+# ...Process( -- Ev.debuggerProcess(, Ev.testRunnerProcess(, Ev.aiCLIProcess( and
+# friends -- so the pattern requires that nothing identifier-shaped precedes it.
+grep -rnE '(^|[^A-Za-z0-9_.])Process\(|NSTask|posix_spawn' app/Sources | grep -v '///'
+#   (no output)
+
+# every path fragment the git collector can build, in one grep. Eight lines: six carry
+# the only names it ever appends, and two are a bare "/" used as a separator
 grep -n '\"/' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 #   names:  /.git  /HEAD  /rebase-merge  /rebase-apply  /MERGE_HEAD  /BISECT_LOG
+#           /rebase-merge/head-name  /rebase-apply/head-name
 # and the bound on how much of HEAD is read, which is 512 bytes
 grep -n 'headReadLimit' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 ```
+
+If you would rather not take the source's word for it, the same two claims hold against the built
+binary, which is what `make verify` checks for the networking ones: `nm -u dist/sigstop.app/Contents/MacOS/sigstop`
+lists no `_posix_spawn`, no `_proc_pidinfo` and no `_NSTask`.
 
 At runtime: `sudo fs_usage -w -f filesys $(pgrep -x sigstop)` and watch that the only paths outside
 the bundle and the storage directory are `HEAD` files in folders you registered.
