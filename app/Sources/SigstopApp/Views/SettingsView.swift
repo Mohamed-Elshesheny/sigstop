@@ -737,7 +737,6 @@ private struct NavRow: View {
 
 // MARK: - Page structure
 
-/// A kicker, a rule, and rows. Sections are separated by air, not by cards.
 /// One row in the About pane's link list: a label, a line saying what is on the other
 /// side, and an arrow. The whole row is the target, not just the text.
 private struct LinkRow: View {
@@ -835,6 +834,7 @@ private struct FileRow: View {
     }
 }
 
+/// A kicker, a rule, and rows. Sections are separated by air, not by cards.
 private struct SettingsSection<Content: View>: View {
     let kicker: String
     let content: Content
