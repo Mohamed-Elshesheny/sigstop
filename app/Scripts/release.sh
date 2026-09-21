@@ -49,7 +49,7 @@ fi
 
 echo "==> proving the claims before publishing them"
 make test >/dev/null
-make verify >/dev/null
+make verify-shipped >/dev/null
 swift run -c release Scenarios >/dev/null
 echo "    tests, verify and scenarios all pass"
 

@@ -1,6 +1,6 @@
 # sigstop, build with Command Line Tools only. No Xcode required.
 .DEFAULT_GOAL := help
-.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify dmg release badges badges-check
+.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify verify-shipped dmg release badges badges-check
 
 APP     := sigstop
 CONFIG  ?= release
@@ -68,6 +68,12 @@ lint: ## Lint sources
 	@swift-format lint -r Sources Tests
 
 verify: bundle ## Prove the privacy claims against the built binary
+	@BUNDLE=$(BUNDLE) ./Scripts/verify.sh
+
+# What `verify` checks is whatever `bundle` last built, which for a developer is one
+# architecture. The image people download is two. This is the one a release runs.
+verify-shipped: ## Same checks, against the universal bundle that actually ships
+	@UNIVERSAL=1 CONFIG=$(CONFIG) ./Scripts/bundle.sh
 	@BUNDLE=$(BUNDLE) ./Scripts/verify.sh
 
 dev-cert: ## One-time: create a stable self-signed identity so TCC grants survive rebuilds

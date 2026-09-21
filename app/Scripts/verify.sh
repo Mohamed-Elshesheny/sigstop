@@ -45,14 +45,39 @@ head2() { printf '\n== %s ==\n' "$1"; }
 [ -x "${BIN}" ] || { echo "error: ${BIN} not found, run 'make bundle' first" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
+# Every binary-level check below runs once per architecture, and this is new.
+#
+# It did not matter while the binary was arm64 only. The shipped image is universal
+# now, and `nm` and `otool` read the NATIVE slice by default: on this machine a
+# networking symbol present only in the Intel half returned nothing and the check
+# said ok. That is a check that passes precisely when it should not, which is worse
+# than not having it. `all_slices nm -u` runs the tool against each slice in turn.
+ARCHS="$(lipo -archs "${BIN}" 2>/dev/null || echo "")"
+SLICES=()
+if [ "$(printf '%s ' ${ARCHS} | wc -w | tr -d ' ')" -gt 1 ]; then
+  SLICE_DIR="$(mktemp -d)"
+  trap 'rm -rf "${SLICE_DIR}"' EXIT
+  for a in ${ARCHS}; do
+    lipo -thin "${a}" "${BIN}" -output "${SLICE_DIR}/${a}" 2>/dev/null \
+      || { echo "error: could not split ${a} out of ${BIN}" >&2; exit 1; }
+    SLICES+=("${SLICE_DIR}/${a}")
+  done
+  echo "  note  universal binary, every check below runs on: ${ARCHS}"
+else
+  SLICES=("${BIN}")
+fi
+
+all_slices() { for s in "${SLICES[@]}"; do "$@" "${s}"; done; }
+
+# ---------------------------------------------------------------------------
 head2 "1. the app's own binary does no networking"
 
 # Frameworks. CFNetwork and Network are the two that matter; Foundation is
 # always linked and is where NSURLSession lives, which is why the symbol check
 # below exists and this one is not sufficient on its own.
-if otool -L "${BIN}" | grep -Ei '(CFNetwork|/Network\.framework|libnetwork)' >/dev/null; then
+if all_slices otool -L | grep -Ei '(CFNetwork|/Network\.framework|libnetwork)' >/dev/null; then
   fail "a networking framework is linked into the app binary"
-  otool -L "${BIN}" | grep -Ei '(CFNetwork|/Network\.framework|libnetwork)' | sed 's/^/        /'
+  all_slices otool -L | grep -Ei '(CFNetwork|/Network\.framework|libnetwork)' | sed 's/^/        /'
 else
   pass "no networking framework linked into the app binary"
 fi
@@ -60,10 +85,10 @@ fi
 # Symbols. This is the check that actually bites: it catches NSURLSession reached
 # through Foundation, BSD sockets reached through libSystem, and the DNS and
 # reachability paths that are the classic way to smuggle data into a hostname.
-NET_SYMS=$(nm -u "${BIN}" 2>/dev/null \
+NET_SYMS=$(all_slices nm -u 2>/dev/null \
   | grep -E '(NSURLSession|NSURLConnection|NSURLDownload|NWConnection|NWBrowser|NWListener|CFHost|CFSocket|SCNetworkReachability|CFStream.*Socket)' \
   || true)
-BSD_SYMS=$(nm -u "${BIN}" 2>/dev/null \
+BSD_SYMS=$(all_slices nm -u 2>/dev/null \
   | grep -E '^ *_(socket|connect|bind|listen|accept|send|sendto|recvfrom|getaddrinfo|gethostbyname|res_9_init)$' \
   || true)
 if [ -n "${NET_SYMS}${BSD_SYMS}" ]; then
@@ -110,7 +135,7 @@ head2 "3. no analytics or telemetry SDK"
 # somebody added for one convenience function. Checked against the whole bundle,
 # not just the executable, so a vendored copy inside a framework is caught too.
 TELEMETRY='Firebase|GoogleAnalytics|GoogleAppMeasurement|Crashlytics|Fabric|Mixpanel|Amplitude|Segment|Analytics\.framework|Sentry|Bugsnag|AppCenter|Instabug|Countly|Matomo|Plausible|PostHog|Datadog|NewRelic|TelemetryDeck|Aptabase|Adjust|AppsFlyer|Branch|Intercom|Smartlook|Heap'
-HITS=$( { otool -L "${BIN}" 2>/dev/null; find "${BUNDLE}" -maxdepth 6 \( -name '*.framework' -o -name '*.dylib' -o -name '*.a' \) 2>/dev/null; } \
+HITS=$( { all_slices otool -L 2>/dev/null; find "${BUNDLE}" -maxdepth 6 \( -name '*.framework' -o -name '*.dylib' -o -name '*.a' \) 2>/dev/null; } \
   | grep -Ei "${TELEMETRY}" || true)
 if [ -n "${HITS}" ]; then
   fail "something that looks like an analytics SDK is in the bundle"
@@ -186,7 +211,7 @@ esac
 # which docs/PRIVACY.md §2.8 allowlists by call site. If a URL shows up here that
 # is not on this list, someone added an endpoint.
 ALLOWED='^https://github\.com/Mohamed-Elshesheny/sigstop'
-UNEXPECTED=$(strings -a "${BIN}" \
+UNEXPECTED=$(all_slices strings -a \
   | grep -oE 'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+' \
   | sort -u \
   | grep -Ev "${ALLOWED}" || true)
