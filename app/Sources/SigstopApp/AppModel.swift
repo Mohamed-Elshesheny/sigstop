@@ -1059,16 +1059,9 @@ final class AppModel {
         continuousWork = context.continuousWork
         continuousWorkMeasuredAt = time.monotonicSeconds
         timeSinceLastBreak = context.timeSinceLastBreak
-        /// The site, when it knows one; the app otherwise.
-        ///
-        /// "Google Chrome · browsing" names the window manager and not the thing you are
-        /// looking at, and a browser is the one app where the name tells you nothing:
-        /// every tab is the same app. The host is not an inference — it is the single
-        /// fact Tier 1b reads — so putting it here says more without claiming more. The
-        /// activity beside it is untouched and stays `browsing`, because being on
-        /// github.com is not evidence that you are writing code; you might be reading the
-        /// README, and guessing between those is what §4.1 forbids.
-        applicationName = context.context.browserHost ?? context.application.localizedName
+        /// The site when Tier 1b knows one, the app otherwise; the reasoning is on the
+        /// property. `--doctor` prints the same one, so it can prove what this line draws.
+        applicationName = context.siteOrAppName
         activityLabel = sample.honestLabel ?? context.claimableActivity.displayName
         confidence = context.confidence.value
         evidenceLines = context.evidence

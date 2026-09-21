@@ -58,6 +58,21 @@ public struct DeveloperContext: Sendable, Codable, Hashable {
         confidence.isConfidentEnoughForSpecificClaim ? activity : (activity.parent ?? activity)
     }
 
+    /// The name to print beside the activity: the site when Tier 1b knows one, the app
+    /// otherwise.
+    ///
+    /// "Google Chrome · browsing" names the window manager and not the thing you are
+    /// looking at, and a browser is the one app where the name tells you nothing: every
+    /// tab is the same app. The host is not an inference, it is the single fact Tier 1b
+    /// reads, so putting it here says more without claiming more. The activity beside it
+    /// is untouched and stays `browsing`, because being on github.com is not evidence
+    /// that you are writing code; you might be reading the README, and guessing between
+    /// those is what §4.1 forbids. The panel and `--doctor` both print this property,
+    /// so they cannot disagree.
+    public var siteOrAppName: String {
+        context.browserHost ?? application.localizedName
+    }
+
     /// The app's own explanation of itself, printed by `sigstop --doctor`.
     public var reasoning: [String] {
         evidence.sorted { abs($0.logOdds) > abs($1.logOdds) }.map(\.summary)

@@ -323,6 +323,10 @@ enum Doctor {
         var out = ["INFERENCE"]
 
         let label = sample.honestLabel ?? context.claimableActivity.displayName
+        /// The same property the panel prints beside the activity, so this row and the
+        /// panel cannot disagree. The 1b row above is the collector's reading; this is
+        /// what survived the engine.
+        out.append("  named as         \(context.siteOrAppName)")
         out.append("  activity         \(label)")
         if context.claimableActivity != context.activity {
             out.append(
