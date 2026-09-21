@@ -54,7 +54,6 @@ struct SettingsView: View {
                 Rectangle().fill(Brand.line).frame(width: 1)
                 content
             }
-            if pane == .about { madeBy }
         }
         .frame(width: Self.size.width, height: Self.size.height)
         .background(Brand.bg)
@@ -548,6 +547,7 @@ struct SettingsView: View {
                     .foregroundStyle(Brand.fgMuted)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 4)
+                madeBy
             }
             Spacer(minLength: 0)
         }
@@ -604,13 +604,16 @@ struct SettingsView: View {
 
     /// The one piece of the interface that is not about the user.
     ///
-    /// A bar across the bottom of the window, shown on About and nowhere else. It is
-    /// outside the scroll view so it cannot drift up the page, and outside the pane so it
-    /// spans the sidebar too rather than starting at the content margin. It sits on the raised
-    /// surface under a hairline, which is the separation the sidebar already uses, so it
-    /// reads as part of the window's chrome rather than as content. The heart is the only
-    /// non-amber colour in the app and it is four millimetres wide, which is about the
-    /// right amount of sentiment for a utility that otherwise refuses to be warm at you.
+    /// It was a bar pinned across the bottom of the window, drawn only on About. That
+    /// meant it appeared the instant that pane was selected and vanished again on the way
+    /// out, so a byline announced itself by shoving the window's contents around. A credit
+    /// that interrupts is worse than no credit.
+    ///
+    /// It lives under the tagline instead, in the block that is already the app introducing
+    /// itself. Nothing moves when it appears, because it is only ever on the page that is
+    /// about the app. The heart is the only non-amber colour in the interface and it is
+    /// four millimetres wide, which is about the right amount of sentiment for a utility
+    /// that otherwise refuses to be warm at you.
     ///
     /// The name is text and not a link on purpose. Linking it needs an account-root URL in
     /// the binary, and `verify.sh` allowlists only this repository, which is the narrower
@@ -618,22 +621,17 @@ struct SettingsView: View {
     /// Widening that to the whole account so a byline could be clicked would be paying a
     /// real boundary for a small convenience.
     private var madeBy: some View {
-        VStack(spacing: 0) {
-            Rectangle().fill(Brand.line).frame(height: 1)
-            HStack(spacing: 6) {
-                Text("Made with")
-                Text("\u{1FAF6}")
-                    .font(.system(size: 12))
-                Text("by")
-                Text("Mohamed Elshesheny")
-                    .foregroundStyle(Brand.fgMuted)
-            }
-            .font(Brand.mono(11))
-            .foregroundStyle(Brand.fgFaint)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
+        HStack(spacing: 5) {
+            Text("Made with")
+            Text("\u{1FAF6}")
+                .font(.system(size: 11))
+            Text("by")
+            Text("Mohamed Elshesheny")
+                .foregroundStyle(Brand.fgMuted)
         }
-        .background(Brand.surface)
+        .font(Brand.mono(10.5))
+        .foregroundStyle(Brand.fgFaint)
+        .padding(.top, 10)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Made with love by Mohamed Elshesheny")
     }
