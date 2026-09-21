@@ -1158,8 +1158,19 @@ private struct SettingRow<Control: View>: View {
                     }
                 }
                 Spacer(minLength: 16)
+                /// The row's title names the control, for anyone who cannot see that they
+                /// are on the same line.
+                ///
+                /// `TerminalSwitch` represents itself as `Toggle("", isOn:)` — an empty
+                /// label — so a screen reader announced five identical "switch, on" down
+                /// this page with nothing to tell them apart. Sighted readers get the
+                /// association from the layout; this is the same association, said out
+                /// loud. Applied here rather than inside the switch because the row is
+                /// what knows the name, and it fixes every control the row can hold, not
+                /// just the toggles.
                 control
                     .padding(.top, 1)
+                    .accessibilityLabel(title)
             }
             .padding(.vertical, 13)
             Rule()

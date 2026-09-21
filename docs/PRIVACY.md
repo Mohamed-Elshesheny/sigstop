@@ -42,7 +42,6 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 11 | **Fast user switch** | `NSWorkspace.sessionDidResignActiveNotification` / `sessionDidBecomeActiveNotification` | Another user's session is not your work | Persisted as events | Same as #1 | No |
 | 12 | **Focused window title** | `AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute)` then `kAXTitleAttribute` — **requires Accessibility permission** | Only to answer one question: does this window look like a live meeting, a terminal, an editor, a browser, or a document? A meeting is the one thing worth never interrupting | **The string itself is never persisted by default.** It is classified into a five-value enum inside one function and released. Only the enum is persisted | Enum: same as #1. String: memory-only, lifetime of one function call | **Yes, and off by default** |
 | 13 | **Title classification result** (`meeting`/`terminal`/`editor`/`browser`/`document`/`none`) | Derived from #12 | see #12 | Persisted | Same as #1 | Follows #12 |
-| 14 | **Raw title debug ring** (last 20 titles) | Derived from #12 | Lets you see exactly what the app is reading, so you can audit the permission you granted | Memory-only, capacity 20, cleared on quit | Process lifetime | Yes — **off by default**, and the UI switch is labelled as such |
 | 15 | **Break engine state**: streak start, last break end, snooze count, next fire time | Derived from #1/#5/#7 | The actual product | Memory-only; nothing writes it to disk. The day's budgets that have to survive a relaunch are in `counters.json` (§4.2) | Gone when the process exits | No |
 | 16 | **Break interaction events**: prompted, taken, skipped, snoozed | UI callbacks | "You skipped 6 of 8 breaks today" and nothing more | Persisted as events | Same as #1 | Yes |
 | 17 | **Daily aggregates**: minutes per category, breaks taken/skipped, longest streak | Derived from the event log nightly | Weekly view without keeping raw events | Persisted, `summaries/YYYY-MM.json` | Default 90 days | Yes |
@@ -185,100 +184,72 @@ or Accessibility, and is never called — see the CI guard in §6.4.
 
 ### 1.5 The window-title redaction boundary
 
-This is the most sensitive path in the app, so it is the most tightly bounded. Titles enter exactly
-one function and a small enum comes out.
+This is the most sensitive path in the app, so it is the most tightly bounded. Two attributes are
+read through one private function, and a CI job fails the build if Accessibility code appears
+anywhere else.
+
+**This section used to be a fabrication, and that is worth saying rather than quietly deleting.**
+It printed ninety lines of Swift under the paths `app/Sources/Observation/WindowTitleReader.swift`,
+`TitleClassifier.swift` and `ActivitySampler.swift`, invited the reader to "read `TitleClassifier`
+and you know the total vocabulary", and cited `scripts/verify-ax-isolation.sh` as the thing that
+enforced the boundary. None of those files has ever existed. In a document whose entire argument is
+*do not trust us, read the source*, a listing the reader cannot `cat` is the worst possible defect,
+and it survived because nothing checked the prose against the tree. What follows is the real code,
+with real paths, and the check that now runs in CI.
+
+**Where Accessibility lives.** Two files, and `.github/scripts/check-ax-isolation.py` fails the
+build if a third appears:
+
+    app/Sources/SigstopSensors/Collectors/AccessibilityCollector.swift   the reads
+    app/Sources/SigstopSensors/PermissionBroker.swift                    the trust check
+
+**The one reader.** `AccessibilityCollector.read(pid:)` (:133) fetches the focused window and asks
+it for exactly two attributes:
 
 ```swift
-// app/Sources/Observation/WindowTitleReader.swift
-import ApplicationServices
-
-/// The ONLY file in this repository permitted to reference AXUIElement.
-/// scripts/verify-ax-isolation.sh fails the build if `AXUIElement` appears
-/// in any other source file.
-enum WindowTitleReader {
-
-    static var isTrusted: Bool { AXIsProcessTrusted() }
-
-    /// Shows the system prompt. Called only from the settings toggle, never at launch.
-    static func requestTrust() {
-        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
-    }
-
-    /// Title of the focused window of `pid`, or nil.
-    /// Callers MUST classify and discard; they must not store the return value.
-    static func focusedWindowTitle(pid: pid_t) -> String? {
-        guard AXIsProcessTrusted() else { return nil }
-
-        let app = AXUIElementCreateApplication(pid)
-        // Never block the main thread on a wedged application.
-        AXUIElementSetMessagingTimeout(app, 0.25)
-
-        var windowRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
-              let raw = windowRef,
-              CFGetTypeID(raw) == AXUIElementGetTypeID()
-        else { return nil }
-        let window = raw as! AXUIElement
-
-        var titleRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRef) == .success,
-              let title = titleRef as? String, !title.isEmpty
-        else { return nil }
-
-        return title
-    }
-}
+let title = copyString(window, kAXTitleAttribute)
+let document = copyString(window, kAXDocumentAttribute)
+return AXWindowInfo(
+    title: title,
+    documentURL: document.flatMap(Self.fileURL(from:)),
+    browserHost: document.flatMap(Self.host(from:))
+)
 ```
+
+`copyString` (:185) carries its own boundary in a comment that is enforced by the access modifier:
 
 ```swift
-// app/Sources/Observation/TitleClassifier.swift
-
-/// The only thing that survives a window title.
-enum TitleSignal: String, Codable {
-    case meeting, terminal, editor, browser, document, none
-}
-
-enum TitleClassifier {
-    /// Substring rules, all lowercase, all shipped in the binary and readable here.
-    private static let rules: [(TitleSignal, [String])] = [
-        (.meeting,  ["zoom meeting", "google meet", "meet -", "webex", "teams meeting", "huddle"]),
-        (.terminal, ["— zsh", "— bash", "— fish", "ssh "]),
-        (.editor,   [".swift", ".ts", ".tsx", ".py", ".rs", ".go", ".java", ".kt"]),
-        (.browser,  ["— google chrome", "— safari", "— firefox", "— arc"]),
-        (.document, [".pdf", ".docx", "— pages", "— notes"]),
-    ]
-
-    static func classify(_ title: String) -> TitleSignal {
-        let lower = title.lowercased()
-        for (signal, needles) in rules where needles.contains(where: { lower.contains($0) }) {
-            return signal
-        }
-        return .none
-    }
-}
+/// The ONLY attribute reader in this type, and it is used exclusively for `kAXTitle`
+/// and `kAXDocument`. It is deliberately `private`: there is no public path that could
+/// be pointed at `kAXValue`.
+private func copyString(_ element: AXUIElement, _ attribute: String) -> String? { … }
 ```
 
-```swift
-// app/Sources/Observation/ActivitySampler.swift  (the call site)
+`kAXValue` is the attribute that would return a text field's contents. Nothing can reach it: the
+function is private, the two call sites are three lines above, and the CI check means a second
+reader cannot be added in another file without the build failing.
 
-func titleSignal(for pid: pid_t) -> TitleSignal {
-    guard settings.windowTitleFidelityEnabled else { return .none }
-    // `title` is local. It is not returned, not logged, not encoded,
-    // and not captured by any escaping closure.
-    guard let title = WindowTitleReader.focusedWindowTitle(pid: pid) else { return .none }
-    if settings.showRawTitlesInDebugPanel {          // default false
-        debugRing.append(title)                      // memory-only, capacity 20
-    }
-    return TitleClassifier.classify(title)
-}
-```
+**There is no `TitleClassifier` and no `TitleSignal` enum.** The old listing described a six-value
+vocabulary produced by one classifier. The real design is per-provider: each provider matches the
+title against its own patterns and returns an `Activity`, and `BrowserTitlePatterns`
+(`app/Sources/SigstopSensors/Providers/BuiltinProviders.swift`:298) holds the regexes for the
+browser case. `docs/ACTIVITY-DETECTION.md` §5 explains why there is no universal format to classify
+against. The consequence for this section is the same either way and is the part that matters: a
+title is matched and dropped inside `observe`, and the string itself is never returned upward.
 
-Read `TitleClassifier` and you know the total vocabulary the app extracts from a window title:
-six values, five bits of information per sample. A file path in a title, a pull-request name, a
-customer's name in a document title — none of it leaves that function. §8.3 states the limitation
-honestly: the string does exist in process memory for the duration of the call, and the code, not
-the operating system, is what stops it from going further.
+**Nothing title-derived reaches the disk.** `AppModel.swift`:1034 writes `titleSignal: nil` on every
+focus event, so the log's `sig` field — which exists and is documented in §4.3 — is never populated
+by the shipping app. Not "a redacted class of the title": nothing.
+
+**And there is no raw-title debug ring.** Row 14 of the inventory promised "last 20 titles, memory
+only, off by default, and the UI switch is labelled as such". There is no ring, no switch and no
+setting. The row is struck from the table rather than kept as an aspiration, for the same reason
+this section was rewritten.
+
+A file path in a title, a pull-request name, a customer's name in a document title: none of it
+leaves the provider that matched it. §8.3 states the limitation honestly — the string does exist in
+process memory for the duration of the call, and the code, not the operating system, is what stops
+it going further.
 
 ---
 
@@ -647,18 +618,23 @@ are trusting the code, not the operating system.
 What this app actually does with it, in full:
 
 1. Calls `AXUIElementCreateApplication(pid)` for the frontmost app only.
-2. Reads exactly two attributes: `kAXFocusedWindowAttribute`, then `kAXTitleAttribute` on the
-   resulting window.
-3. Passes the string to `TitleClassifier.classify`, which returns one of six enum values.
-4. Lets the string go out of scope. It is not written to disk, not logged, not sent anywhere,
-   not retained beyond that function — unless you explicitly turn on the debug ring (row 14), which
-   keeps the last 20 in memory so that you can see exactly what is being read.
+2. Reads `kAXFocusedWindowAttribute`, then exactly two attributes on the resulting window:
+   `kAXTitleAttribute` and `kAXDocumentAttribute`. Both go through one `private` function
+   (`AccessibilityCollector.copyString`, :185) which exists so there is no public path that could
+   be pointed at `kAXValue`.
+3. Hands them to the provider that claims the frontmost app, which matches the title against its
+   own patterns and returns an `Activity`. The document is reduced to a file URL, or — only with
+   the separate Tier 1b opt-in — to a bare host.
+4. Lets the strings go out of scope. Not written to disk, not logged, not sent anywhere, not
+   retained. `AppModel.swift`:1034 writes `titleSignal: nil` on every focus event, so the log's
+   `sig` field is never populated at all.
 
 What it never does with it: no `AXUIElementSetAttributeValue` (never writes), no
 `AXObserverCreate` on other processes, no traversal into `kAXChildrenAttribute`, no
-`kAXValueAttribute`, no `AXUIElementPostKeyboardEvent`. `scripts/verify-ax-isolation.sh` fails the
-build if any AX symbol appears outside `WindowTitleReader.swift`, or if that file references any AX
-attribute constant other than the three listed above.
+`kAXValueAttribute`, no `AXUIElementPostKeyboardEvent`. `.github/scripts/check-ax-isolation.py`
+fails the build if Accessibility code appears outside `AccessibilityCollector.swift` and the trust
+check in `PermissionBroker.swift`. It runs on every push; it is the check the old text claimed for a
+shell script that did not exist.
 
 Settings → Access says this in plain language, above the grant, before anyone presses anything:
 "macOS cannot limit this permission to window titles. Granting it means trusting this code, not
@@ -1352,7 +1328,7 @@ toolchain, and physical access to an unlocked machine.
 | 3 | Code is loaded at runtime that was never reviewed | Attacker with write access to the bundle | `disable-library-validation` and `allow-unsigned-executable-memory` are absent and `make verify` fails if they appear. No `dlopen`, no plugin directory, no bundle loading, no JavaScriptCore | **Weakened.** Hardened Runtime is no longer enabled in the default ad-hoc build, because Library Validation cannot coexist with an embedded framework when neither has a Team ID (§2.9). `HARDENED=1 make bundle` restores it for anyone with a Developer ID. An attacker who can rewrite `/Applications` could inject a library — though they could equally replace the binary outright |
 | 3b | A malicious update is served to users | Attacker who compromises GitHub, the CDN, or the network path | **EdDSA signature verification (§2.8).** The private key is in the maintainer's login keychain only; the public key is compiled into the app; Sparkle refuses an archive whose signature does not verify | Theft of the private key. Rotation does not reach installs that already hold the old public key. `docs/RELEASING.md` §6 |
 | 4 | A malicious **message pack** exfiltrates or executes | Contributor, or a user installing a third-party pack | Packs are data, not code: strict JSON, schema-validated on load, string fields only, length-capped. No URLs, no format specifiers, no templating engine, no HTML — text is rendered into `NSAttributedString` with attributes disabled. A pack cannot cause a network call: the app's own binary has no networking code at all, and the only URL the bundle can fetch is the compile-time feed constant | A pack could still contain hostile or manipulative *text*. Defense is review: packs ship only in-tree, every pack change requires a human review, and third-party packs are not loadable from disk in the default build |
-| 5 | The Accessibility grant is abused to read message/document contents | Malicious future version of the app | `verify-ax-isolation.sh` in CI; the AX code is one file and ~30 lines; the debug ring lets a user see exactly what is being read; the permission is off by default | **Real and unavoidable.** If you grant Accessibility, a future build could read anything. Defenses are social (review, reproducible hashes) not technical. See §8.2 |
+| 5 | The Accessibility grant is abused to read message/document contents | Malicious future version of the app | `.github/scripts/check-ax-isolation.py` in CI; the AX code is two files and one `private` reader that touches two attribute constants; the permission is off by default | **Real and unavoidable.** If you grant Accessibility, a future build could read anything. Defenses are social (review, reproducible hashes) not technical. Two of the mitigations this row used to claim — a shell script and a raw-title debug ring — did not exist. See §8.2 |
 | 6 | Exfiltration without a socket (open a URL, spawn `curl`, AppleScript another app) | Contributor | Forbidden-symbol guard covers `NSWorkspace.open` call sites, `Process`, `NSTask`, `posix_spawn`, `NSAppleScript`; the URL-literal allowlist in `make verify` catches a smuggled collector endpoint | A URL assembled at runtime from string fragments could evade the literal check. Partially mitigated: `NSWorkspace.open` may only be called with values from the `Links` enum, enforced by the URL allowlist |
 | 6b | Exfiltration *through* the update request | Contributor | The feed URL is a plist constant with no query string; `SUEnableSystemProfiling` is off and asserted by `make verify`; the user agent is overridden to a constant carrying no version; there is no second endpoint and the allowlist check fails if one appears | A contributor could add a delegate that appends feed parameters. That would be a visible code change to one file, and would have to survive review against this row |
 | 7 | Another local process reads the event log | Malware running as the user | Files are `0600` in a `0700` directory; the sandboxed flavor's container is additionally protected by the sandbox and by TCC's "app data" protections on recent macOS | Any process running as you can read your files. App-level encryption would not help, because the key would have to be available to the app as the same user. FileVault is the real defense. See §8.5 |

@@ -75,7 +75,13 @@ final class AppModel {
     private(set) var caveats: [String] = []
     /// The last successful branch read, or nil with `gitStatusLine` saying why not.
     private(set) var gitReading: GitReading?
-    private(set) var gitStatusLine: String = "off, nothing is read"
+    /// "not sampled yet" until the first tick, which is about five seconds after launch.
+    ///
+    /// It started at "off, nothing is read", which is a claim rather than an absence, and
+    /// the Access pane draws it under a row whose state says *on*. Anyone who opened
+    /// Settings in the first few seconds read the app contradicting itself. The sentinel
+    /// now says what is actually true at that moment: nothing has been measured.
+    private(set) var gitStatusLine: String = "not sampled yet"
     /// The one line the panel always shows: what the app is waiting for, and when.
     ///
     /// Total over the engine's state space, because silence by design and silence by
@@ -181,7 +187,7 @@ final class AppModel {
     /// no-op in the engine, so the menu does not offer it.
     private(set) var canSnooze = false
 
-    /// What Tier 2 read from `.git/HEAD` last time, in full, for Settings → Signals.
+    /// What Tier 2 read from `.git/HEAD` last time, in full, for Settings → Access.
     ///
     /// `--doctor` prints the branch as a length rather than a name, because the bug form
     /// asks people to paste `--doctor` into public issues (docs/PRIVACY.md §8.12). That
@@ -1091,7 +1097,7 @@ final class AppModel {
         refreshRollup(force: false)
     }
 
-    /// Settings → Signals answers "what did you read?" with the answer, not with a
+    /// Settings → Access answers "what did you read?" with the answer, not with a
     /// description of the answer. Every branch that produces no reading says why, because
     /// "blank" and "off" and "the folder did not answer" look identical otherwise.
     private func publishGitReading(context: DeveloperContext) {
