@@ -583,7 +583,20 @@ public struct BreakDecisionEngine: Sendable {
         day: inout DailyCounters,
         effects: inout [Effect]
     ) -> EngineState {
-        let honored = elapsed >= policy.qualifyingBreak
+        /// A break that ran the length the app itself asked for is honoured, full stop.
+        ///
+        /// `qualifyingBreak` exists to judge breaks nobody scheduled: a gap in the input
+        /// stream long enough to have been a real one. Judging a deliberate break by it
+        /// too meant the app set the duration, watched the user sit through all of it,
+        /// and then recorded it as skipped, because the two numbers come from different
+        /// settings and nothing tied them together. At the defaults they are both 300
+        /// seconds and the comparison is on the boundary, so a tick landing a hair early
+        /// lost the break; with any break shorter than `idleCountsAsBreakMinutes` no
+        /// break could ever count, the day read "0 of N kept" forever, and no badge for
+        /// taking breaks could unlock.
+        ///
+        /// Ending one early still has to clear the bar, which is the case the bar is for.
+        let honored = elapsed >= min(policy.qualifyingBreak, active.plannedDuration)
         effects.append(
             .endBreak(cycle: active.cycle, origin: active.origin, honored: honored, elapsed: elapsed)
         )
