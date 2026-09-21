@@ -242,7 +242,9 @@ final class AppModel {
     @ObservationIgnored private var decision: BreakDecisionEngine
     /// The thresholds in force, kept so the view layer can say when the engine is waiting
     /// for something other than the user's interval.
-    @ObservationIgnored private var policy: BreakPolicy
+    /// Readable by the settings pane, which has to show what the daily cap came out to
+    /// after `BreakPolicy` scaled it against the interval.
+    @ObservationIgnored private(set) var policy: BreakPolicy
     @ObservationIgnored private var store: FileEventStore?
 
     // MARK: - Loop state (never observed)
@@ -1123,6 +1125,15 @@ final class AppModel {
         } else {
             workTarget = policy.targetContinuousWork
         }
+        /// Quiet means no threshold is in force, whichever of the four causes it is.
+        ///
+        /// The flag was cleared only for the post-exhaustion cooldown, so in `quiet` the
+        /// header kept drawing the clock against `/ 5:00` and `markFill` fell through to
+        /// `min(1, continuousWork / workTarget)` and pinned the mark full. A screenshot of
+        /// this read `DAILY CAP` and `12:22 / 5:00` at once: a denominator nothing was
+        /// waiting for, under a heading saying nothing was coming. The wait is carried by
+        /// the `waiting` line instead, which names the real reason.
+        if case .quiet = engineState { workTargetInForce = false }
 
         waiting = WaitingLine.read(
             WaitingLine.Reading(
@@ -1135,7 +1146,8 @@ final class AppModel {
                 monotonic: monotonic,
                 policy: policy,
                 settings: settings,
-                calendar: .current
+                calendar: .current,
+                notificationsDelivered: day.notificationsDelivered
             )
         )
         /// A hold the user asserted by hand outranks whatever the clock was going to say.

@@ -52,13 +52,27 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
 
     public var promptTimeout: TimeInterval = 90
     public var snoozeDurations: [TimeInterval] = [5 * 60, 10 * 60, 15 * 60]
-    public var maxSnoozesPerCycle: Int = 3
+    /// Equal to `SigstopSettings.maxSnoozesPerBreak`'s default on purpose. `init(settings:)`
+    /// overwrites it, so the literal is only what a bare `BreakPolicy()` hands out, and a
+    /// literal that disagrees with the settings default means tests and previews run a
+    /// policy the app never uses. This one said 3 while the app ran 2.
+    public var maxSnoozesPerCycle: Int = 2
     public var maxSnoozeTotalPerCycle: TimeInterval = 30 * 60
     public var minNotificationSpacing: TimeInterval = 5 * 60
     public var maxNotificationsPerCycle: Int = 4
-    public var dailyNotificationCap: Int = 12
+    /// As with `maxSnoozesPerCycle`: equal to the settings default, which is 14. This
+    /// said 12, and `docs/BREAK-DECISION.md` did its cap arithmetic against the 12, so the
+    /// one number a reader could check was the one number nothing used.
+    public var dailyNotificationCap: Int = 14
 
-    /// L1 SIGTSTP, passive, silent, costs no notification budget.
+    /// L1 SIGTSTP. **Not** free and **not** passive, whatever this comment used to say.
+    ///
+    /// It is delivered as an ordinary notification by `handleBreakDue` and it spends one
+    /// unit of both the cycle budget and the day's. `ladderLevel1 = 0` is the rung's timing
+    /// offset and nothing more. The old wording ("passive, silent, costs no notification
+    /// budget") described `channelFor`'s `.passiveIndicator` arm, which the deliver path
+    /// never calls, so three places in the source agreed with each other and disagreed with
+    /// what the app does.
     public var ladderLevel1: TimeInterval = 0
     /// L2 SIGINT, quiet repeat.
     public var ladderLevel2: TimeInterval = 5 * 60
@@ -137,6 +151,21 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
         maxSnoozesPerCycle = settings.maxSnoozesPerBreak
         let unit = TimeInterval(settings.snoozeMinutes * 60)
         snoozeDurations = [unit, unit * 2, unit * 3]
+        /// The cap has to know how long an interval is, or it is not a cap on a day.
+        ///
+        /// Every other constant in this block is derived against its neighbours; this one
+        /// was a raw assignment, and it was the only one. 14 is tuned for a 45 to 90 minute
+        /// interval, where it is more prompts than a day can produce. At the 5 minute
+        /// minimum the app offers, a cycle plus its break is ten minutes, so 14 is spent
+        /// after about two hours and the app then says nothing for the rest of the day —
+        /// which is a setting one screen away silently switching the product off.
+        ///
+        /// So the user's number is a floor, not a ceiling: it is raised to whatever a
+        /// sixteen hour waking day would actually ask for at the interval they chose.
+        /// Someone who wants fewer interruptions turns the interval up, which is the
+        /// control that means that; nobody sets a daily cap intending the app to stop.
+        let cyclesInAWakingDay = Int((16 * 3600) / max(60, targetContinuousWork + breakDurationTarget))
+        dailyNotificationCap = max(settings.maxNotificationsPerDay, cyclesInAWakingDay)
         absoluteMaxWork = max(absoluteMaxWork, targetContinuousWork * 2)
         qualifyingBreak = max(qualifyingBreak, microIdleGrace + 30)
         sessionGap = max(sessionGap, qualifyingBreak * 2)

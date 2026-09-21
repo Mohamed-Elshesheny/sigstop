@@ -56,7 +56,12 @@ public enum SigstopSignal {
 /// Nothing in the app is ever modal, ever blocks input, ever takes keyboard focus, or ever
 /// covers the whole screen.
 public enum PromptChannel: String, Sendable, Codable, Hashable {
-    /// Always allowed, including quiet hours, DND, daily cap and hard blocks.
+    /// The menu bar mark: ambient, always allowed, including quiet hours, DND, daily cap
+    /// and hard blocks.
+    ///
+    /// No escalation rung selects this. It is the channel the mark itself is on, which is
+    /// why it is always live, and for a while `channelFor` handed it to rung one, which
+    /// would have meant "deliver a prompt that cannot interrupt" had anything called it.
     case passiveIndicator
     case notification
     /// Escalation level 3 only, and never twice in a cycle.
@@ -174,10 +179,19 @@ public enum QuietCause: String, Sendable, Codable, CaseIterable, Hashable {
     /// The state as the menu bar names it, the way `ps` names a state.
     ///
     /// The panel used to draw every one of these as the literal words "quiet hours".
-    /// Three of the four are not quiet hours, and `dailyCapReached` is terminal until the
-    /// day boundary, so the app could go silent for the rest of the day and explain it
-    /// with a lie to a user who has quiet hours switched off. The words live in `Core`
-    /// because `SigstopApp` has no test target and a vocabulary kept there is unchecked.
+    /// Three of the four are not quiet hours, so the app could go silent for the rest of
+    /// the day and explain it with a lie to a user who has quiet hours switched off. The
+    /// words live in `Core` because `SigstopApp` has no test target and a vocabulary kept
+    /// there is unchecked.
+    ///
+    /// `dailyCapReached` used to be described here as "terminal until the day boundary",
+    /// which was not what the engine did. Three paths in `step` leave quiet before its own
+    /// switch is reached: a user action, a relaunch (engine state is not persisted), and a
+    /// qualifying break. What is true, and now enforced in `handleWorking`, is narrower and
+    /// worth stating exactly: the *state* is re-entered rather than latched, and a break
+    /// still resets the session clock and the ignore counter because those are real, but a
+    /// break cannot un-spend the budget, so no prompt is delivered until the day rolls
+    /// over. It is the silence that is terminal, not the state.
     public var title: String {
         switch self {
         case .scheduledQuietHours: return "quiet hours"
@@ -197,7 +211,10 @@ public enum QuietCause: String, Sendable, Codable, CaseIterable, Hashable {
         case .sustainedFocusMode:
             return "a Focus mode has been on long enough to read as deliberate"
         case .dailyCapReached:
-            return "today's notification budget is spent, so nothing more until the day rolls over"
+            /// Says *when*. "until the day rolls over" reads as midnight to everybody,
+            /// and `BreakPolicy.dayBoundaryHour` is 4, so the honest gap is up to four
+            /// hours longer than the sentence implied.
+            return "today's notification budget is spent, so nothing more until 4am"
         }
     }
 }

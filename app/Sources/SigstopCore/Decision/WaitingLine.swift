@@ -80,6 +80,11 @@ public extension WaitingLine {
         public var policy: BreakPolicy
         public var settings: SigstopSettings
         public var calendar: Calendar
+        /// Notifications already spent today. The line could not see this, so while the
+        /// budget was gone and the engine was between re-arms it still said "the next one
+        /// is 5m of work away" — counting down to a prompt that was never going to be
+        /// sent.
+        public var notificationsDelivered: Int
 
         public init(
             state: EngineState,
@@ -91,8 +96,10 @@ public extension WaitingLine {
             monotonic: Double = 0,
             policy: BreakPolicy = .default,
             settings: SigstopSettings = .default,
-            calendar: Calendar = .current
+            calendar: Calendar = .current,
+            notificationsDelivered: Int = 0
         ) {
+            self.notificationsDelivered = notificationsDelivered
             self.state = state
             self.gate = gate
             self.continuousWork = continuousWork
@@ -148,8 +155,14 @@ public extension WaitingLine {
         case .scheduledQuietHours:
             let ends = minuteOfDay(r.settings.quietHours.endMinute)
             return WaitingLine(.notAskingYet, "you are inside your quiet hours until \(ends)")
+        /// `holdingOff`, per this file's own definition twenty lines up: "holding off"
+        /// means something is blocking or rate-limiting a prompt *right now*, and "not
+        /// asking yet" means nothing is. The daily cap is the rate limit. The rendered
+        /// sentence was "not asking yet, today's notification budget is spent, so nothing
+        /// more until the day rolls over", which denies and asserts the same fact in one
+        /// line. A Focus mode long enough to read as deliberate is a hold too.
         case .dailyCapReached, .sustainedFocusMode:
-            return WaitingLine(.notAskingYet, q.cause.summary)
+            return WaitingLine(.holdingOff, q.cause.summary)
         }
     }
 
@@ -180,6 +193,13 @@ public extension WaitingLine {
         /// gate's answer anyway: on a Mac with a stuck input device it therefore asserted
         /// "you may be on a call" for an hour, with the app's own process table in the
         /// same process saying nobody had the microphone.
+        /// Above the countdown, because a countdown to a prompt that cannot be sent is
+        /// the most confident wrong thing the panel can say. `handleWorking` now returns
+        /// straight to quiet when the budget is gone, so this covers the tick in between
+        /// and any state that reaches here with the day already spent.
+        if r.notificationsDelivered >= r.policy.dailyNotificationCap {
+            return WaitingLine(.holdingOff, QuietCause.dailyCapReached.summary)
+        }
         let remaining = max(0, w.armThreshold - r.continuousWork)
         guard remaining >= 60 else { return WaitingLine(.notAskingYet, "the next one is due any moment") }
         return WaitingLine(.notAskingYet, "the next one is \(DurationText.short(remaining)) of work away")

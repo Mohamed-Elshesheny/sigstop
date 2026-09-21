@@ -248,6 +248,19 @@ public struct BreakDecisionEngine: Sendable {
             return .working(w)
         }
 
+        /// An opportunity the day cannot pay for is not an opportunity.
+        ///
+        /// The budget was only ever discovered one tick later, inside `handleBreakDue`,
+        /// which meant every re-arm after the cap took a cycle id, logged a `break_open`,
+        /// hit the rate limit and logged a `cycle_close` in the same second. The owner's
+        /// log has two of those (cycles 15 and 16) and `nextCycle` had reached 17 for 14
+        /// real opportunities. They also reach the rollup, where the denominator counts
+        /// opens, so a break nobody was offered was being scored.
+        if input.day.notificationsDelivered >= policy.dailyNotificationCap {
+            effects.append(.setIndicator(.quiet))
+            return .quiet(QuietState(cause: .dailyCapReached))
+        }
+
         let cycle = day.takeCycle()
         day.breakOpportunities += 1
         effects.append(.openCycle(cycle))
@@ -330,12 +343,24 @@ public struct BreakDecisionEngine: Sendable {
 
         case .rateLimited(let limit):
             switch limit {
+            /// Both of these close a cycle, so both have to withdraw a prompt that is
+            /// still on the screen, the way every other exit from `breakDue` does: idle,
+            /// the stale ceiling and a hard block all check `promptedAt` and withdraw
+            /// first. These two did not, which left a panel up for a cycle the engine had
+            /// already closed, answerable to nothing. `WithdrawReason.dailyCapReached` was
+            /// declared for exactly this and had never been constructed anywhere.
             case .quietHours:
+                if d.promptedAt != nil {
+                    effects.append(.withdrawPrompt(cycle: d.cycle, reason: .quietHoursStarted))
+                }
                 effects.append(.closeCycle(d.cycle, .quietSuppressed))
                 day.excludedOpportunities += 1
                 effects.append(.setIndicator(.quiet))
                 return (.quiet(QuietState(cause: .scheduledQuietHours)), verdict)
             case .dailyCapReached:
+                if d.promptedAt != nil {
+                    effects.append(.withdrawPrompt(cycle: d.cycle, reason: .dailyCapReached))
+                }
                 effects.append(.closeCycle(d.cycle, .dailyCapReached))
                 day.excludedOpportunities += 1
                 effects.append(.setIndicator(.quiet))
@@ -357,7 +382,11 @@ public struct BreakDecisionEngine: Sendable {
                 let prompt = PromptRequest(
                     cycle: d.cycle,
                     level: .first,
-                    channel: .notification,
+                    /// `channelFor`, not a hardcoded `.notification`, so one function
+                    /// decides the channel for all four rungs. Hardcoding it here is how
+                    /// the `.first` arm of `channelFor` became unreachable and how three
+                    /// comments came to describe a passive rung the engine never sends.
+                    channel: channelFor(level: .first, signals: input.signals),
                     at: input.now,
                     continuousWork: input.context.continuousWork,
                     snoozeOffered: interruption.offeredSnoozes(used: d.snoozesUsed, total: d.snoozeTotal)
@@ -528,7 +557,14 @@ public struct BreakDecisionEngine: Sendable {
     private func channelFor(level: EscalationLevel, signals: SystemSignals) -> PromptChannel {
         let quiet = signals.isPowerConstrained || signals.audioInputRunning || signals.cameraRunning
         switch level {
-        case .first:    return .passiveIndicator
+        /// `.notification`, which is what the engine has always actually sent for rung
+        /// one, and now what this function says it sends. It returned `.passiveIndicator`,
+        /// whose `interrupts` is false, and got away with it only because the deliver path
+        /// hardcoded its own channel and never called here. Routing rung one through this
+        /// function without also correcting the arm would have shipped a first prompt that
+        /// never appears. The passive indicator is the menu bar mark, which is ambient and
+        /// always live; it is not a rung's channel.
+        case .first:    return .notification
         case .second:   return .notification
         case .third:    return quiet ? .notification : .notificationWithSound
         case .incident: return signals.isPowerConstrained ? .notification : .panel

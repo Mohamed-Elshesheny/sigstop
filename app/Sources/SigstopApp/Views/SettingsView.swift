@@ -180,6 +180,12 @@ struct SettingsView: View {
                 }
             }
 
+            SettingsSection("budget") {
+                SettingRow("Most prompts in a day", detail: capDetail) {
+                    TerminalStepper(value: settings.maxNotificationsPerDay, range: 1...60, unit: "max")
+                }
+            }
+
             SettingsSection("break") {
                 SettingRow("Show the full-screen overlay", detail: "Dimmed, not opaque. The work is still there.") {
                     TerminalSwitch(isOn: settings.showBreakOverlay)
@@ -213,6 +219,27 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    /// What the number actually buys at the interval that is set, because a cap is
+    /// meaningless without one.
+    ///
+    /// It is a floor rather than a ceiling, and saying so here is the point: at a five
+    /// minute interval a flat 14 is spent in about two hours, which is a setting one
+    /// screen away quietly switching the app off for the day. `BreakPolicy` raises it to
+    /// what the interval would really ask for, and this line says what that came to.
+    private var capDetail: String {
+        let effective = model.policy.dailyNotificationCap
+        let chosen = model.settings.maxNotificationsPerDay
+        let each = model.settings.workIntervalMinutes + model.settings.breakDurationMinutes
+        let hours = Double(effective * each) / 60
+        let covers = String(format: hours >= 10 ? "%.0f" : "%.1f", hours)
+        if effective > chosen {
+            return "You set \(chosen). At a \(model.settings.workIntervalMinutes)-minute interval "
+                + "that is spent before lunch, so it is raised to \(effective), about \(covers) hours of work. "
+                + "To be interrupted less, raise the interval."
+        }
+        return "About \(covers) hours of work at the current interval. After that the app goes quiet until 4am."
     }
 
     /// Writing it goes through `model.update`, like every other setting, so the change is

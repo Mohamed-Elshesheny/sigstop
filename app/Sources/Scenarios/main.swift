@@ -201,7 +201,8 @@ struct World {
                 now: now,
                 monotonic: monotonic,
                 policy: engine.policy,
-                settings: settings
+                settings: settings,
+                notificationsDelivered: outcome.day.notificationsDelivered
             )
         ).text
         says.append((monotonic, line))
