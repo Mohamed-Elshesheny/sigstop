@@ -574,10 +574,10 @@ every permission provider stubbed to "denied" and asserts reminders still fire c
 | Permission | TCC service | When asked | What it buys | If denied |
 |---|---|---|---|---|
 | **Notifications** | `UNUserNotificationCenter` | At the first break, not at launch | Reminders appear as system notifications, respect Focus modes and Notification Center | Fallback: a borderless `NSWindow` at `.statusBar` level that the app draws itself. Needs no permission. Slightly more intrusive, does not respect Do Not Disturb — so the app's own quiet hours setting becomes the only mute |
-| **Accessibility** | `kTCCServiceAccessibility` | Never automatically. Only when you flip "Detect meetings and terminals from window titles" in settings, with the explanation text shown first | Window-title fidelity (inventory rows 12–14): the app can avoid interrupting a live meeting and can tell a terminal from a browser inside the same app | Everything still works from app identity alone. The app may propose a break during a Zoom call, because it can see you are in Zoom but not that a meeting is in progress |
+| **Accessibility** | `kTCCServiceAccessibility` | Never automatically. Only when you turn on "Window titles" in Settings → Access, under the sentence that says what the grant really is | Window-title fidelity (inventory rows 12–14): the app can avoid interrupting a live meeting and can tell a terminal from a browser inside the same app | Everything still works from app identity alone. The app may propose a break during a Zoom call, because it can see you are in Zoom but not that a meeting is in progress |
 | **Login item** | `SMAppService` (not TCC) | Only from the settings toggle | Starts at login | Start it yourself |
-| **Git context (Tier 2)** | None. Not a TCC service. What you grant is a folder | Never automatically. Only when you add a project folder in Settings → Signals | The branch name, and whether a rebase, merge or bisect is in progress, for the folders you added | Nothing degrades. `branch` is `nil`, the templates that need `{branch}` become unselectable by construction (`docs/MESSAGE-ENGINE.md` §5), every other line still fires |
-| **Process context (Tier 2)** | None. `sysctl(KERN_PROC_ALL)` needs no grant and produces no prompt | Never automatically. Only from its own switch in Settings → Signals | `DEBUGGING` becomes reachable instead of collapsing into `CODING` | `CODING`, and the UI says it cannot tell whether you are debugging |
+| **Git context (Tier 2)** | None. Not a TCC service. What you grant is a folder | Never automatically. Only when you add a project folder in Settings → Access | The branch name, and whether a rebase, merge or bisect is in progress, for the folders you added | Nothing degrades. `branch` is `nil`, the templates that need `{branch}` become unselectable by construction (`docs/MESSAGE-ENGINE.md` §5), every other line still fires |
+| **Process context (Tier 2)** | None. `sysctl(KERN_PROC_ALL)` needs no grant and produces no prompt | Never automatically. Only from its own switch in Settings → Access | `DEBUGGING` becomes reachable instead of collapsing into `CODING` | `CODING`, and the UI says it cannot tell whether you are debugging |
 
 Neither Tier 2 row is in §3.3's list of permissions never requested, because neither is a
 permission. Both are things macOS lets any process do without asking. They are behind switches for
@@ -660,9 +660,10 @@ What it never does with it: no `AXUIElementSetAttributeValue` (never writes), no
 build if any AX symbol appears outside `WindowTitleReader.swift`, or if that file references any AX
 attribute constant other than the three listed above.
 
-The app's settings screen says this in plain language before showing the prompt, including the
-sentence: "macOS cannot limit this permission to window titles. You are trusting our code. Here is
-where to read it." — with a link to `WindowTitleReader.swift`.
+Settings → Access says this in plain language, above the grant, before anyone presses anything:
+"macOS cannot limit this permission to window titles. Granting it means trusting this code, not
+the operating system." The same pane links to the one file that reads a window,
+`app/Sources/SigstopSensors/Collectors/AccessibilityCollector.swift`, under "check it".
 
 **If you are not comfortable with that, leave it off.** The app is designed to be good without it.
 
@@ -1452,8 +1453,9 @@ withholding, the switch would have quietly written a branch name to somebody els
 
 **8.12 `--doctor` knows your branch, and you are asked to paste `--doctor` into public issues.** That
 combination is the one place Tier 2 could leak something you did not mean to publish, so `--doctor`
-prints the *length* of the branch name and not the name. Settings → Signals shows the name itself,
-under "What it read", along with the folder it came from and which of the two routes matched it:
+prints the *length* of the branch name and not the name. Settings → Access shows the name itself,
+on the line marked READ under the branch-name row, along with the folder it came from and which
+of the two routes matched it:
 that is the only place in the app the branch is displayed in full, it is on your own machine, and it
 is not going anywhere. The redaction leans on that row existing, so the row is part of the claim
 rather than a nicety. This is not a claim that the redaction is airtight: a length

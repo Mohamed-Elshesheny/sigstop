@@ -1,6 +1,7 @@
 import AppKit
 import ServiceManagement
 import SigstopCore
+import SigstopSensors
 import SwiftUI
 
 /// Settings, as a sidebar and a page rather than a `TabView` of `Form`s.
@@ -221,32 +222,6 @@ struct SettingsView: View {
         }
     }
 
-    /// "Needs Accessibility, window titles: ON…" splits into the cost and the signal.
-    ///
-    /// `PermissionBroker.explanation` stays `[String]` because `--doctor` prints the same
-    /// lines verbatim and a terminal has no groups. The shape is made here, where there
-    /// is a layout to make it for.
-    struct SignalGroup: Hashable {
-        let label: String
-        var items: [String]
-    }
-
-    static func groups(_ lines: [String]) -> [SignalGroup] {
-        var out: [SignalGroup] = []
-        for line in lines {
-            let (label, rest): (String, String) = {
-                guard let comma = line.range(of: ", ") else { return (line, line) }
-                return (String(line[..<comma.lowerBound]), String(line[comma.upperBound...]))
-            }()
-            if out.last?.label == label {
-                out[out.count - 1].items.append(rest)
-            } else {
-                out.append(SignalGroup(label: label, items: [rest]))
-            }
-        }
-        return out
-    }
-
     /// What the number actually buys at the interval that is set, because a cap is
     /// meaningless without one.
     ///
@@ -388,163 +363,234 @@ struct SettingsView: View {
         "\(model.badges.count) of \(Badge.all.count) earned"
     }
 
-    // MARK: Signals
+    // MARK: Access
 
+    /// One ledger, not a status list followed by a settings list.
+    ///
+    /// The previous pane said every signal twice: once as a sentence under "visible now"
+    /// and again as a switch with three sentences of reasoning under it, with the same
+    /// three cost headings printed in both halves. To learn whether titles were being
+    /// read you looked in one place; to change it you scrolled to another. Here each
+    /// signal is one row: its name, what it reads in a sentence, whether it is being read
+    /// right now, and the control that changes that, all on one line. The rows come from
+    /// `PermissionStatus.signals`, which `--doctor` prints too, so the words are the same
+    /// in a terminal and here.
+    ///
+    /// The state word sits above the switch on purpose. A switch is what you asked for
+    /// and the word is what you got, and the page exists for the cases where those differ:
+    /// titles switched on and still not read because the grant is missing, a branch
+    /// switched on with no folder to read it from. Printing that as "off" would hide the
+    /// one thing the reader has to do next.
+    ///
+    /// The reasoning that used to fill each row is in `docs/PRIVACY.md`, linked at the
+    /// foot. A settings row states what is true; it does not argue.
     private var access: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsSection("visible now") {
-                /// Grouped by what it costs, because that is the only axis a reader cares
-                /// about and the rows within a group are the same answer to it.
-                ///
-                /// The first attempt printed the label once per run and left the rest of
-                /// the group as a bare dot in an empty column with a rule above it, which
-                /// reads as a broken row rather than a continuation. A label is not a
-                /// column here, it is a heading: the group says what it costs once, and
-                /// its signals sit under it with their own on/off dot, because a group can
-                /// be half on — a branch name read while tool names are not.
-                ForEach(Self.groups(model.permissionStatus.explanation), id: \.label) { group in
-                    VStack(alignment: .leading, spacing: 0) {
-                        Kicker(group.label)
-                            .padding(.top, 14)
-                            .padding(.bottom, 2)
-                        ForEach(group.items, id: \.self) { item in
-                            SignalLine(text: item)
-                        }
-                    }
-                }
-                Rule().padding(.top, 14)
+        let status = model.permissionStatus
+        return VStack(alignment: .leading, spacing: 0) {
+            SettingsSection(PermissionStatus.Cost.alwaysOn.label) {
+                signalRow(status[.osFacts]) { EmptyView() }
             }
 
-            SettingsSection("needs accessibility") {
-                SettingRow(
-                    "Use window titles to tell a meeting from a terminal",
-                    detail: "Titles are parsed inside one function and the raw string is discarded. "
-                        + "Nothing about a title is ever written to disk, only whether one was "
-                        + "legible at all."
-                ) {
-                    TerminalSwitch(isOn: settings.accessibilityEnabled)
-                }
-                /// Tier 1b. Separate from the title switch because the spec says so and
-                /// the reason is good: a title is what an app chose to display, a host is
-                /// where you actually are.
-                SettingRow(
-                    "Read the site name from a browser",
-                    detail: "Off by default, and separate on purpose. The host only — "
-                        + "\"github.com\" — taken from the same attribute the file reader "
-                        + "already uses. The path and the query are dropped in the function "
-                        + "that parses them and never reach the rest of the app. It is what "
-                        + "separates a call on meet.google.com from a pull request."
-                ) {
-                    TerminalSwitch(isOn: settings.browserHostEnabled)
-                        .disabled(!model.settings.accessibilityEnabled)
-                        .opacity(model.settings.accessibilityEnabled ? 1 : 0.4)
-                }
-                SettingRow(
+            SettingsSection(PermissionStatus.Cost.needsAccessibility.label) {
+                /// docs/PRIVACY.md §3.4 promises this sentence is on screen before anyone
+                /// grants. It is the one thing an adversarial reader is scanning for.
+                Note(
+                    "macOS cannot limit this permission to window titles. Granting it means "
+                        + "trusting this code, not the operating system. The app works without "
+                        + "it; only the two rows below want it."
+                )
+                SignalRow(
                     "Accessibility",
-                    detail: "The button takes you to the switch. The app never raises the macOS "
-                        + "permission alert on its own, not at launch, not from a timer, not when "
-                        + "it decides you would get more out of it."
+                    reads: "The grant. The app never shows the macOS alert itself; "
+                        + "the button opens the switch.",
+                    state: StateLabel(granted: status.accessibilityTrusted)
                 ) {
-                    VStack(alignment: .trailing, spacing: 8) {
-                        HStack(spacing: 6) {
-                            StateDot(state: model.permissionStatus.accessibilityTrusted ? .running : .off)
-                            Text(model.permissionStatus.accessibilityTrusted ? "granted" : "not granted")
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fgMuted)
-                        }
-                        HStack(spacing: 6) {
-                            TerminalButton("Re-check") { model.refreshPermissions() }
-                                .fixedSize()
-                            TerminalButton("Open System Settings") { model.openAccessibilitySettings() }
-                                .fixedSize()
-                        }
-                    }
-                }
-            }
-
-            SettingsSection("off by default · local context") {
-                SettingRow(
-                    "Read the branch name from .git/HEAD",
-                    detail: "Off by default. The branch name only, read from the file, never a "
-                        + "command, never a diff, never a commit message. It reads nothing at "
-                        + "all until you add a project folder below: the folder you pick is "
-                        + "also the grant, and nothing outside one can be opened."
-                ) {
-                    TerminalSwitch(isOn: settings.gitContextEnabled)
-                }
-                SettingRow(
-                    "Project folders",
-                    detail: model.settings.projectFolders.isEmpty
-                        ? "None yet, so the switch above reads nothing. Add the root of a "
-                            + "repository, not a directory inside it."
-                        : "The complete list of what the branch reader may open."
-                ) {
-                    VStack(alignment: .trailing, spacing: 8) {
-                        ForEach(model.settings.projectFolders, id: \.self) { folder in
-                            HStack(spacing: 8) {
-                                Text((folder as NSString).lastPathComponent)
-                                    .font(Brand.mono(11))
-                                    .foregroundStyle(Brand.fgMuted)
-                                TerminalButton("Remove", style: .quiet) { removeFolder(folder) }
-                                    .fixedSize()
-                            }
-                        }
-                        TerminalButton("Add project folder…") { addFolder() }
+                    HStack(spacing: 6) {
+                        TerminalButton("Re-check") { model.refreshPermissions() }
+                            .fixedSize()
+                        TerminalButton("Open System Settings") { model.openAccessibilitySettings() }
                             .fixedSize()
                     }
                 }
-                SettingRow(
-                    "What it read",
-                    detail: "The whole of it, on your own machine. The --doctor output "
-                        + "prints the length of the branch name and not the name, because "
-                        + "the bug report form asks you to paste --doctor into a public "
-                        + "issue. That redaction is only honest if there is somewhere you "
-                        + "can check what was actually read. This is it."
-                ) {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        if !model.settings.gitContextEnabled {
-                            Text("off, nothing is read")
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fgMuted)
-                        } else if let reading = model.gitReading {
-                            Text(reading.branchText)
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fg)
-                                .textSelection(.enabled)
-                            if let state = reading.stateText {
-                                Text(state)
-                                    .font(Brand.mono(11))
-                                    .foregroundStyle(Brand.fgMuted)
-                            }
-                            Text("in \(reading.folder)")
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fgMuted)
-                            Text("matched by \(reading.route)")
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fgMuted)
-                        } else {
-                            Text(model.gitStatusLine)
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fgMuted)
-                                .multilineTextAlignment(.trailing)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: 260, alignment: .trailing)
-                        }
-                    }
+                signalRow(status[.windowTitles]) {
+                    TerminalSwitch(isOn: settings.accessibilityEnabled)
                 }
-                SettingRow(
-                    "Notice when a debugger is running",
-                    detail: "Off by default, and a separate switch because it reads something "
-                        + "different. Executable names against a fixed list in the source, plus "
-                        + "the kernel flag that says a process is under a debugger. No command "
-                        + "line is ever read, which is where passwords are. Without it the app "
-                        + "says coding rather than guess whether you are debugging."
+                signalRow(status[.browserHost]) {
+                    TerminalSwitch(
+                        isOn: settings.browserHostEnabled,
+                        enabled: model.settings.accessibilityEnabled
+                    )
+                }
+            }
+
+            SettingsSection(PermissionStatus.Cost.offByDefault.label) {
+                Note(
+                    "No permission is involved. Two switches, because they read different "
+                        + "things and agreeing to one is not agreeing to the other."
+                )
+                signalRow(status[.branchName], extra: { branchReading }) {
+                    TerminalSwitch(isOn: settings.gitContextEnabled)
+                }
+                SignalRow(
+                    "Project folders",
+                    reads: "The whole of what the branch reader may open. Pick the root of a "
+                        + "repository; the folder you choose is the grant.",
+                    state: StateLabel(count: model.settings.projectFolders.count),
+                    extra: { folderList }
                 ) {
+                    TerminalButton("Add project folder…") { addFolder() }
+                        .fixedSize()
+                }
+                signalRow(status[.toolNames]) {
                     TerminalSwitch(isOn: settings.processContextEnabled)
                 }
             }
+
+            /// Requirement one is "including what it cannot see". `--doctor` has always
+            /// said this; the pane never did.
+            SettingsSection("cannot see") {
+                SignalRow(
+                    "Screen sharing",
+                    reads: "No permission-free signal exists, so it is reported as unknown, "
+                        + "never as no. When presenting, use \u{201C}I'm in a meeting\u{201D} in the menu.",
+                    state: StateLabel(dot: .off, text: "unknown")
+                ) {
+                    EmptyView()
+                }
+                Note(
+                    "Never requested: Screen Recording, Input Monitoring, Full Disk Access, "
+                        + "Automation, Calendar, Contacts, Microphone, Camera, Location. Their "
+                        + "usage strings are absent from Info.plist, so an attempt would crash "
+                        + "the app rather than prompt you."
+                )
+            }
+
+            SettingsSection("check it") {
+                (Text("sigstop --doctor").font(Brand.mono(11))
+                    + Text(" prints every row on this page with the macOS call behind it.")
+                        .font(Brand.sans(11)))
+                    .foregroundStyle(Brand.fgMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 12)
+                VStack(alignment: .leading, spacing: 0) {
+                    LinkRow(
+                        "The full inventory",
+                        "docs/PRIVACY.md: every datum, the API that produces it, where it goes and for how long",
+                        Links.privacy
+                    )
+                    LinkRow(
+                        "The one file that reads a window",
+                        "two attributes, one private reader, and the function that keeps only the host",
+                        Links.collector
+                    )
+                }
+                .padding(.top, 8)
+            }
         }
         .onAppear { model.refreshPermissions() }
+    }
+
+    /// A row for one of the five signals, titled and worded by the sensors layer.
+    private func signalRow<Control: View, Extra: View>(
+        _ signal: PermissionStatus.Signal,
+        @ViewBuilder extra: () -> Extra,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        SignalRow(
+            Self.title(for: signal),
+            reads: signal.reads,
+            state: StateLabel(signal.state),
+            extra: extra,
+            control: control
+        )
+    }
+
+    private func signalRow<Control: View>(
+        _ signal: PermissionStatus.Signal,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        signalRow(signal, extra: { EmptyView() }, control: control)
+    }
+
+    /// `--doctor` prints the name in lower case mid-line; a row title starts a line.
+    private static func title(for signal: PermissionStatus.Signal) -> String {
+        signal.name.prefix(1).uppercased() + signal.name.dropFirst()
+    }
+
+    /// The branch, in full, under the row that read it.
+    ///
+    /// `--doctor` prints the length of the branch name and not the name, because the bug
+    /// form asks people to paste `--doctor` into public issues (docs/PRIVACY.md §8.12).
+    /// That redaction is only honest if there is somewhere the user can see what was
+    /// actually read, on their own machine. This line is that place, and the doc names it,
+    /// so it is part of the claim rather than a nicety. Every branch that produces no
+    /// reading says why, because "blank" and "off" look identical otherwise.
+    @ViewBuilder
+    private var branchReading: some View {
+        if model.settings.gitContextEnabled {
+            if let reading = model.gitReading {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Kicker("read")
+                        Text(reading.branchText)
+                            .font(Brand.mono(11))
+                            .foregroundStyle(Brand.fg)
+                            .textSelection(.enabled)
+                        if let state = reading.stateText {
+                            Text(state)
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fgMuted)
+                        }
+                    }
+                    Text("in \(reading.folder), matched by \(reading.route)")
+                        .font(Brand.mono(10.5))
+                        .foregroundStyle(Brand.fgMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 6)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Kicker("read")
+                    Text(Self.gitOutcome(model.gitStatusLine))
+                        .font(Brand.mono(10.5))
+                        .foregroundStyle(Brand.fgMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 6)
+            }
+        }
+    }
+
+    /// `AppModel.gitStatusLine` starts life as "off, nothing is read" and is replaced by
+    /// the first sample, about five seconds after launch. Until then this branch of the
+    /// row is only reached with the switch on, so that sentence would sit under a state
+    /// that says "on" and contradict it on screen. The sentinel is matched here rather
+    /// than fixed at its source because `AppModel` is being edited elsewhere; the honest
+    /// initial value is "not sampled yet", and it belongs there.
+    private static func gitOutcome(_ line: String) -> String {
+        line == "off, nothing is read" ? "not sampled yet" : line
+    }
+
+    /// Each folder by its last path component, with its own Remove. Boxed rather than
+    /// quiet: `Brand` says a quiet control outside the panel is caption text standing next
+    /// to a real button, and this one sits next to a real button.
+    @ViewBuilder
+    private var folderList: some View {
+        if !model.settings.projectFolders.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(model.settings.projectFolders, id: \.self) { folder in
+                    HStack(spacing: 10) {
+                        Text((folder as NSString).lastPathComponent)
+                            .font(Brand.mono(11))
+                            .foregroundStyle(Brand.fg)
+                            .help(folder)
+                        TerminalButton("Remove") { removeFolder(folder) }
+                            .fixedSize()
+                    }
+                }
+            }
+            .padding(.top, 8)
+        }
     }
 
     // MARK: Data
@@ -914,6 +960,12 @@ struct SettingsView: View {
             string: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs")!
         static let issues = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/issues/new/choose")!
+        /// The only file that reads a window. docs/PRIVACY.md §3.4 promises the Access
+        /// pane says "here is where to read it" and points at the file; this is the
+        /// pointer. Inside the repository, so `verify.sh`'s allowlist admits it.
+        static let collector = URL(
+            string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/app/Sources/"
+                + "SigstopSensors/Collectors/AccessibilityCollector.swift")!
     }
 }
 
@@ -1288,23 +1340,118 @@ private struct ToneCard: View {
     }
 }
 
-/// One line of `PermissionStatus.explanation`, which the sensors layer writes as
-/// `Tier N, what: ON/OFF, and why`. The tier is set in mono, the rest in the sans, and
-/// the dot is green only when the line says the tier is on. The split is presentational:
-/// a line without the dash is shown whole.
-private struct SignalLine: View {
-    let text: String
+/// One row of the Access ledger: a name and one sentence of what it reads on the left,
+/// the state word over its control on the right, a rule underneath.
+///
+/// It is `SettingRow` with a state column, and a separate type rather than a parameter
+/// because the state is the point of this pane and an optional slot on every other
+/// pane's rows would invite the About pane to grow one. `extra` is a third line under
+/// the sentence, full width, for the folder list and the branch that was read.
+private struct SignalRow<Control: View, Extra: View>: View {
+    let title: String
+    let reads: String
+    let state: StateLabel
+    let extra: Extra
+    let control: Control
+
+    init(
+        _ title: String,
+        reads: String,
+        state: StateLabel,
+        @ViewBuilder extra: () -> Extra,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.title = title
+        self.reads = reads
+        self.state = state
+        self.extra = extra()
+        self.control = control()
+    }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            StateDot(state: text.contains(": ON") ? .running : .off)
-            Text(text)
-                .font(Brand.sans(12))
-                .foregroundStyle(Brand.fgMuted)
-                .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 20) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(Brand.sans(13))
+                        .foregroundStyle(Brand.fg)
+                    Text(reads)
+                        .font(Brand.sans(11))
+                        .foregroundStyle(Brand.fgMuted)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    extra
+                }
+                Spacer(minLength: 16)
+                VStack(alignment: .trailing, spacing: 8) {
+                    state
+                        .padding(.top, 2)
+                    control
+                }
+            }
+            .padding(.vertical, 13)
+            Rule()
         }
-        .padding(.vertical, 5)
+    }
+}
+
+extension SignalRow where Extra == EmptyView {
+    init(
+        _ title: String,
+        reads: String,
+        state: StateLabel,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.init(title, reads: reads, state: state, extra: { EmptyView() }, control: control)
+    }
+}
+
+/// The state word with its dot: `on`, `off`, `on · not granted`, `granted`.
+///
+/// "On" and not "reading", because the column describes permission, not outcome: the
+/// switch is on and nothing stands in its way. Whether a read then produced anything is
+/// a different fact, and where it matters the row prints it underneath, on the READ line.
+/// Green only for that unobstructed state. A held signal gets the off dot, because
+/// nothing is being read; the word says why. Amber is not spent here: it means a break
+/// is owed, and a missing grant is not that. The dot is hidden from VoiceOver and the
+/// word carries the meaning, as `StateDot` requires.
+private struct StateLabel: View {
+    let dot: StateDot.State?
+    let text: String
+
+    init(dot: StateDot.State?, text: String) {
+        self.dot = dot
+        self.text = text
+    }
+
+    init(_ state: PermissionStatus.SignalState) {
+        switch state {
+        case .reading: self.init(dot: .running, text: "on")
+        case .off: self.init(dot: .off, text: "off")
+        case .held(let reason): self.init(dot: .off, text: "on \u{00B7} \(reason)")
+        }
+    }
+
+    init(granted: Bool) {
+        self.init(dot: granted ? .running : .off, text: granted ? "granted" : "not granted")
+    }
+
+    /// A count rather than a state, for the folder list: it is the grant, not a signal.
+    init(count: Int) {
+        self.init(dot: nil, text: count == 0 ? "none yet" : "\(count) added")
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let dot {
+                StateDot(state: dot)
+            }
+            Text(text)
+                .font(Brand.mono(10.5))
+                .foregroundStyle(Brand.fgMuted)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("state: \(text)")
     }
 }
 

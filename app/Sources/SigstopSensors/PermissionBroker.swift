@@ -40,8 +40,9 @@ public struct UserGesture: Sendable, Hashable {
 
 // MARK: - Status
 
-/// What the app can observe right now, and why. Rendered verbatim by `--doctor` and by
-/// the Settings pane, so every string here is user-facing.
+/// What the app can observe right now, and why. The Settings pane draws `signals` and
+/// `--doctor` prints them, from the same rows, so the two cannot disagree. Every string
+/// here is user-facing.
 public struct PermissionStatus: Sendable, Hashable {
     /// `AXIsProcessTrusted()`, the non-prompting check.
     public let accessibilityTrusted: Bool
@@ -53,59 +54,162 @@ public struct PermissionStatus: Sendable, Hashable {
     public let gitContextEnabled: Bool
     /// Tier 2, allowlisted process names. A SEPARATE explicit opt-in.
     public let processContextEnabled: Bool
+    /// How many folders the branch reader has been handed. Zero with the switch on is a
+    /// different fact from the switch being off, and the row says which.
+    public let projectFoldersRegistered: Int
     public let tiers: SignalTierSet
 
     public var tier1Active: Bool { tiers.contains(.tier1) }
     public var tier2Active: Bool { tiers.contains(.tier2) }
 
-    /// One line per tier, in the order a skeptic would ask about them.
+    /// What a row costs you, which is the only axis a settings reader cares about.
     ///
-    /// The labels are what it costs you, not what we call it internally. "Tier 0" is the
-    /// vocabulary of `docs/ACTIVITY-DETECTION.md` and it is the right word there, where the
-    /// reader is deciding how to add a provider. In a settings pane the only question is
+    /// "Tier 0" is the vocabulary of `docs/ACTIVITY-DETECTION.md` and it is the right word
+    /// there, where the reader is deciding how to add a provider. Here the question is
     /// "what did I pay for this", so the answer is the label: nothing, an Accessibility
     /// grant, or a switch you found and turned on.
+    public enum Cost: Sendable, Hashable, CaseIterable {
+        case alwaysOn, needsAccessibility, offByDefault
+
+        public var label: String {
+            switch self {
+            case .alwaysOn: return "Always on"
+            case .needsAccessibility: return "Needs Accessibility"
+            case .offByDefault: return "Off by default"
+            }
+        }
+    }
+
+    /// The five things the app can read, in the order a skeptic asks about them.
+    public enum Kind: String, Sendable, Hashable, CaseIterable {
+        case osFacts, windowTitles, browserHost, branchName, toolNames
+    }
+
+    /// Whether a signal is being read right now, and if not, whose choice that was.
+    ///
+    /// `held` is the state the old one-line-per-tier list could not draw: the switch is
+    /// on and nothing is read, because a grant is missing or a folder was never added.
+    /// Printing that as "off" hides the one thing the user has to do next.
+    public enum SignalState: Sendable, Hashable {
+        case reading
+        case off
+        /// Switched on here and still not read, and the one thing standing in the way.
+        case held(String)
+    }
+
+    /// One row of the Access pane and one line of `--doctor`.
+    ///
+    /// `reads` is the whole claim the row makes, in one sentence or two, and it is kept
+    /// here rather than in the view so a terminal and a window print the same words.
+    /// The reasoning behind each claim is in `docs/PRIVACY.md`, which the pane links to;
+    /// a settings row is not the place to argue, only to say what is true.
+    public struct Signal: Sendable, Hashable, Identifiable {
+        public let kind: Kind
+        public let cost: Cost
+        public let name: String
+        public let state: SignalState
+        public let reads: String
+
+        public var id: Kind { kind }
+
+        /// The `--doctor` form: `Cost, name: ON. What it reads.` A terminal has no
+        /// columns, so the state is spelled out in the line.
+        public var line: String {
+            let word: String
+            switch state {
+            case .reading: word = "ON"
+            case .off: word = "OFF"
+            case .held(let reason): word = "OFF, switched on here but \(reason)"
+            }
+            return "\(cost.label), \(name): \(word). \(reads)"
+        }
+    }
+
+    /// Every row, every time, in one order. A row never appears or disappears with its
+    /// state: the previous list dropped the browser host while it was off, so a reader
+    /// who had never turned it on could not learn from this pane that it existed.
+    public var signals: [Signal] {
+        Kind.allCases.map(signal)
+    }
+
+    public subscript(kind: Kind) -> Signal {
+        signal(kind)
+    }
+
+    /// Printed verbatim by `--doctor` under PERMISSIONS.
     public var explanation: [String] {
-        var lines = [
-            "Always on, frontmost app, idle time, microphone-in-use, screen lock, thermal: "
-                + "ON, and it needs no permission. This is most of the product.",
-        ]
-        switch (accessibilityEnabledInSettings, accessibilityTrusted) {
-        case (false, _):
-            lines.append("Needs Accessibility, window titles: OFF, you have not turned it on.")
-        case (true, false):
-            lines.append(
-                "Needs Accessibility, window titles: OFF. You turned it on here, but macOS has "
-                    + "not granted Accessibility to this app yet."
+        signals.map(\.line)
+    }
+
+    private func signal(_ kind: Kind) -> Signal {
+        switch kind {
+        case .osFacts:
+            return Signal(
+                kind: kind,
+                cost: .alwaysOn,
+                name: "front app, idle time, screen lock, mic and camera, power",
+                state: .reading,
+                reads: "No permission and no prompt. Which app and for how long, whether you "
+                    + "are at the keyboard, whether a mic or camera is live and which app "
+                    + "holds the mic. Never what is in the window."
             )
-        case (true, true):
-            lines.append(
-                "Needs Accessibility, window titles: ON. Titles are parsed and the raw title "
-                    + "is discarded."
+        case .windowTitles:
+            let state: SignalState
+            switch (accessibilityEnabledInSettings, accessibilityTrusted) {
+            case (false, _): state = .off
+            case (true, false): state = .held("not granted")
+            case (true, true): state = .reading
+            }
+            return Signal(
+                kind: kind,
+                cost: .needsAccessibility,
+                name: "window titles",
+                state: state,
+                reads: "Two attributes of the front window, its title and its document path. "
+                    + "Held for one sample; nothing from either reaches the disk."
+            )
+        case .browserHost:
+            let state: SignalState
+            switch (browserHostEnabled, tier1Active) {
+            case (false, _): state = .off
+            case (true, false): state = .held("needs window titles")
+            case (true, true): state = .reading
+            }
+            return Signal(
+                kind: kind,
+                cost: .needsAccessibility,
+                name: "browser host",
+                state: state,
+                reads: "The host of the page in front, github.com, from the same document "
+                    + "attribute. The path and the query are dropped in the function that "
+                    + "parses them."
+            )
+        case .branchName:
+            let state: SignalState
+            switch (gitContextEnabled, projectFoldersRegistered > 0) {
+            case (false, _): state = .off
+            case (true, false): state = .held("no project folder added")
+            case (true, true): state = .reading
+            }
+            return Signal(
+                kind: kind,
+                cost: .offByDefault,
+                name: "branch name",
+                state: state,
+                reads: "One line of .git/HEAD in the folders you added, and whether a rebase, "
+                    + "merge or bisect is under way. Never a diff, a commit or a git command."
+            )
+        case .toolNames:
+            return Signal(
+                kind: kind,
+                cost: .offByDefault,
+                name: "tool names",
+                state: processContextEnabled ? .reading : .off,
+                reads: "Executable names against a fixed list in the source, plus the kernel's "
+                    + "under-a-debugger flag. Never a command line. Without it the app says "
+                    + "coding rather than guess at debugging."
             )
         }
-        if tier1Active && browserHostEnabled {
-            lines.append(
-                "Needs Accessibility, browser host: ON. The host only, never a path or a "
-                    + "query string."
-            )
-        }
-        /// Two lines, because there are two switches and each has to describe only what
-        /// it does. One line covering both was true while both collectors were missing
-        /// and became a lie the moment either one landed.
-        lines.append(
-            gitContextEnabled
-                ? "Off by default, branch name: ON. One line of .git/HEAD, in folders you added yourself."
-                : "Off by default, branch name: OFF."
-        )
-        lines.append(
-            processContextEnabled
-                ? "Off by default, tool names: ON. Executable names against a fixed list, and "
-                    + "whether anything is under a debugger. No command line is ever read."
-                : "Off by default, tool names: OFF, so DEBUGGING stays unreachable and the app says "
-                    + "coding rather than guess between them."
-        )
-        return lines
     }
 }
 
@@ -164,6 +268,7 @@ public final class PermissionBroker: @unchecked Sendable {
             browserHostEnabled: settings.browserHostEnabled,
             gitContextEnabled: settings.gitContextEnabled,
             processContextEnabled: settings.processContextEnabled,
+            projectFoldersRegistered: settings.projectFolders.count,
             tiers: lastPublished
         )
     }
