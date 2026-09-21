@@ -50,7 +50,7 @@ MOUNT="/Volumes/${VOLUME}"
 # between these exact points, so the two files have to agree and there is a check below.
 ICON_X_APP=165
 ICON_X_APPLICATIONS=435
-ICON_Y=205
+ICON_Y=148
 WINDOW_W=600
 WINDOW_H=400
 
@@ -91,6 +91,7 @@ echo "==> staging"
 STAGE="$(mktemp -d)"
 cp -R "${BUNDLE}" "${STAGE}/"
 ln -s /Applications "${STAGE}/Applications"
+
 mkdir -p "${STAGE}/.background"
 # 1200x800 pixels stamped at 144 dpi is 600x400 points, which is the window, drawn at
 # retina density. Without the stamp Finder reads it as a 1200 point image and scales it.
@@ -121,7 +122,7 @@ tell application "Finder"
     set the bounds of container window to {200, 140, ${WINDOW_W} + 200, ${WINDOW_H} + 140 + 28}
     set theOptions to the icon view options of container window
     set arrangement of theOptions to not arranged
-    set icon size of theOptions to 92
+    set icon size of theOptions to 76
     set background picture of theOptions to file ".background:backdrop.png"
     set position of item "${APP_NAME}.app" of container window to {${ICON_X_APP}, ${ICON_Y}}
     set position of item "Applications" of container window to {${ICON_X_APPLICATIONS}, ${ICON_Y}}

@@ -20,8 +20,8 @@ struct InstallerBackdrop: View {
 
     /// Where Finder is told to put the two icons, in the window's own coordinates. The
     /// arrow is drawn between them, so the two have to agree.
-    static let appIcon = CGPoint(x: 165, y: 205)
-    static let applicationsIcon = CGPoint(x: 435, y: 205)
+    static let appIcon = CGPoint(x: 165, y: 148)
+    static let applicationsIcon = CGPoint(x: 435, y: 148)
     static let size = CGSize(width: 600, height: 400)
 
     /// The light palette, fixed rather than resolved.
@@ -55,6 +55,48 @@ struct InstallerBackdrop: View {
                     .padding(.top, 12)
 
                 Spacer()
+
+                /// The sentence that decides whether this install succeeds, and the
+                /// command that ends it.
+                ///
+                /// Here, on the window somebody is looking at while they drag, and not
+                /// only in a README they reached the app without reading. A real
+                /// downloader followed every documented step, including Open Anyway, and
+                /// still got nothing: an ad-hoc signed bundle carrying the quarantine
+                /// attribute is sent SIGKILL before `main()`, so there is no dialog and
+                /// nothing appears anywhere.
+                ///
+                /// Everything below the icon row, with the row and its Finder-drawn
+                /// labels given a reserved band above. Finder paints those labels on top
+                /// of this image and does not know it is here, so the space has to be
+                /// left rather than negotiated.
+                VStack(spacing: 8) {
+                    Text("It will not open the first time")
+                        .font(Brand.mono(13, weight: .semibold))
+                        .foregroundStyle(Self.accent)
+
+                    Text("Not broken, and not a virus. macOS blocks apps that are not signed by\na paid Apple account. Paste this in Terminal once, then open it normally.")
+                        .font(Brand.mono(10.5))
+                        .foregroundStyle(Self.inkMuted)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+
+                    Text("xattr -dr com.apple.quarantine /Applications/sigstop.app")
+                        .font(Brand.mono(11, weight: .medium))
+                        .foregroundStyle(Self.ink)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.black.opacity(0.045))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .strokeBorder(Color.black.opacity(0.10), lineWidth: 1)
+                        )
+                        .padding(.top, 4)
+                }
+                .padding(.bottom, 34)
             }
 
             Arrow()
