@@ -49,6 +49,13 @@ final class BreakOverlayController {
     /// The virtual key code for Escape.
     private static let escapeKeyCode: UInt16 = 53
 
+    /// Both overlays draw on a dimmed screen and already take their text from the fixed
+    /// `Brand.Dark` values for that reason. Their controls did not: `TerminalButton`
+    /// resolves per appearance, so a user running light mode got light-mode ink on black
+    /// for "Ignore it". Pinning the hosting view puts the whole surface in one
+    /// appearance rather than leaving half of it to ask the system.
+    private static let overlayAppearance = NSAppearance(named: .darkAqua)
+
     // MARK: Break overlay
 
     /// Shows the overlay on every screen and installs a *local* Escape monitor.
@@ -117,6 +124,7 @@ final class BreakOverlayController {
             ]
             panel.setFrame(screen.frame, display: true)
             let hosting = NSHostingView(rootView: BreakOverlayView(model: model))
+            hosting.appearance = Self.overlayAppearance
             hosting.sizingOptions = []
             panel.contentView = hosting
             panel.orderFrontRegardless()
@@ -202,6 +210,7 @@ final class BreakOverlayController {
                     onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
                 )
             )
+            hosting.appearance = Self.overlayAppearance
             hosting.sizingOptions = []
             panel.contentView = hosting
             panel.orderFrontRegardless()
