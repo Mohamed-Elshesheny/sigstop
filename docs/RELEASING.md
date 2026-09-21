@@ -152,9 +152,12 @@ To restore it on a new machine:
 
 ```sh
 cd app
-swift package resolve
-export SPARKLE_BIN="$PWD/.build/artifacts/sparkle/Sparkle/bin"
+swift package resolve   # fetches Sparkle's binary artifact, which carries the signing tools
 ```
+
+Nothing else. `Scripts/appcast.sh` locates `generate_appcast` inside `.build/artifacts` itself,
+because the path carries Sparkle's version in it and an exported variable goes stale the first time
+the pin moves.
 
 ### 3.1 Bump the version
 
@@ -178,17 +181,23 @@ Commit this on its own, as a `chore` or `build` commit, before anything is built
 
 ```sh
 cd app
-make test      # 231 tests, Core only, no GUI session needed
-make bundle    # assembles and signs dist/sigstop.app, embedding Sparkle.framework
-make verify    # asserts the privacy claims against the bundle you just built
+make test             # the Core and Sensors suites. No GUI session, no Xcode
+make verify-shipped   # builds the UNIVERSAL bundle and asserts the claims against it
+swift run -c release Scenarios
 ```
 
-**`make verify` must pass before anything is published.** It is the thing standing between a bad
-merge and a release that makes the website lie. Read `app/Scripts/verify.sh` for what each assertion
-is and why.
+Counts are deliberately not written down here. Two of them used to be, they disagreed with each
+other and with the suite, and a number in a document is a number nobody updates. `make test` prints
+the real one, and CI checks the one on the README against the run.
+
+**`make verify-shipped`, not `make verify`.** They run the same assertions; the difference is what
+they run them against. `make verify` checks whatever `make bundle` last produced, which on a
+developer's machine is one architecture. The image people download carries two, and `nm` and
+`otool` read the native slice by default, so a symbol present only in the Intel half used to come
+back clean. `verify-shipped` builds both and the script splits them and checks each.
 
 A note on `make bundle`: it signs **without** Hardened Runtime by default. That is not laziness, and
-`docs/PRIVACY.md` §2.9 has the full explanation — Library Validation refuses a framework whose Team
+`docs/PRIVACY.md` §2.9 has the full explanation. Library Validation refuses a framework whose Team
 ID differs from the executable's, ad-hoc signatures have no Team ID, and so an ad-hoc-signed app with
 an embedded framework builds, verifies, and then dies at launch. If you ever obtain a Developer ID:
 
@@ -196,107 +205,112 @@ an embedded framework builds, verifies, and then dies at launch. If you ever obt
 SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" HARDENED=1 make bundle
 ```
 
-### 3.3 Archive it
+### 3.3 Cut it
 
-Sparkle installs from a zip or a dmg. Use `ditto`, not `zip`: `ditto --keepParent` preserves the
-symlinks and extended attributes inside `Sparkle.framework`, and a plain `zip` flattens the
-`Versions/B` symlink farm into something macOS will refuse to load.
+One command, and the order inside it matters more than the command does.
 
 ```sh
 cd app
-VERSION=$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)
-mkdir -p dist/releases
-ditto -c -k --sequesterRsrc --keepParent dist/sigstop.app "dist/releases/sigstop-${VERSION}.zip"
+make release VERSION=0.2.0 NAME="Wood Frog 🐸"
 ```
 
-Optionally write release notes next to it, with a matching basename, and `generate_appcast` will
-pick them up:
+In order, it:
+
+1. runs `make test`, `make verify-shipped` and the `Scenarios` harness, and stops on any failure;
+2. builds the disk image with `UNIVERSAL=1`, and `dmg.sh` **refuses a single-slice bundle** — 0.1.0
+   went out arm64 only under release notes promising Intel, and this is the check that replaced the
+   good intentions;
+3. runs `Scripts/appcast.sh`, which signs the image just built and writes `updater/appcast.xml`,
+   then commits it. **This happens before the tag**, so a release whose feed cannot be signed fails
+   with nothing published rather than after the announcement;
+4. tags, pushes the tag, and creates the GitHub release with both disk image names — the stable
+   `sigstop.dmg` the site links to, and the versioned one a human can read a year later.
+
+Then push `main`, which is what publishes the feed:
 
 ```sh
-$EDITOR "dist/releases/sigstop-${VERSION}.md"
+git push
 ```
 
-### 3.4 Sign the archive and generate the appcast
+`.github/workflows/pages.yml` deploys `updater/` to
+`https://mohamed-elshesheny.github.io/sigstop/`, which is `SUFeedURL`. It refuses to deploy a feed
+whose enclosure carries no `sparkle:edSignature`.
 
-`generate_appcast` signs every archive in the directory with the keychain key and writes
-`appcast.xml` beside them. It is the same tool that produces the signature and the feed, which is
-why they cannot drift apart.
+**This is the step 0.1.0 shipped without.** The feed URL was compiled into every copy of the app,
+GitHub Pages was never enabled, and the address returned 404, so *Check for updates* failed for
+everyone. Nothing upstream noticed, because nothing upstream can: the feed lives outside the build.
+
+### 3.4 Signing by hand, if you ever have to
+
+`Scripts/appcast.sh` is the supported path. These are the same commands, for when something has gone
+wrong and you need to see it happen.
 
 ```sh
 cd app
+export SPARKLE_BIN="$(find .build/artifacts -type d -name bin -path '*Sparkle*' | head -1)"
+
 "$SPARKLE_BIN"/generate_appcast \
   --account sigstop \
   --download-url-prefix "https://github.com/Mohamed-Elshesheny/sigstop/releases/download/v${VERSION}/" \
   --link "https://github.com/Mohamed-Elshesheny/sigstop" \
-  dist/releases
+  -o ../updater/appcast.xml <directory holding the .dmg>
 ```
 
-Check the output before you publish anything. The `<enclosure>` for the new version must carry an
-`sparkle:edSignature` attribute:
+`--account sigstop` is not optional. The private key is in the login keychain under the account
+`sigstop`, and Sparkle's tools default to `ed25519`. Without the flag they print *"Private key for
+account ed25519 not found in the Keychain"* and stop, which reads like the key is gone when it is
+only named something else.
+
+The `<enclosure>` must carry `sparkle:edSignature`:
 
 ```sh
-grep -A4 "${VERSION}" dist/releases/appcast.xml
+grep -o 'sparkle:edSignature="[^"]*"' ../updater/appcast.xml
 ```
 
 **No `edSignature` means no signature, which means no user will ever be able to install it.** That is
-Sparkle failing safe, and it is the correct behaviour, but it is also the one mistake in this
-document that is easy to make and silent until somebody reports "the update never installs."
+Sparkle failing safe, and it is the correct behaviour, but it is silent until somebody reports "the
+update never installs." `appcast.sh` refuses to write a feed without one for exactly this reason.
 
-If you ever need to sign an archive by hand, or check a signature:
+To sign or check a single file:
 
 ```sh
-"$SPARKLE_BIN"/sign_update --account sigstop "dist/releases/sigstop-${VERSION}.zip"
+"$SPARKLE_BIN"/sign_update --account sigstop "dist/sigstop-${VERSION}-<codename>.dmg"
 ```
 
-### 3.5 Publish
+**The signature is over the bytes of the file that is published.** Sign the image you upload, not a
+rebuild of it: two builds of the same commit are not byte-identical, and a feed signed over the
+wrong copy fails verification on every machine while looking perfectly well-formed here.
 
-Two things get published, to two different places, and both have to land.
+### 3.5 Verify it end to end, as a user would
 
-**The archive, as a GitHub release asset.** The tag must match the `--download-url-prefix` you used
-above, or the URLs in the appcast point at nothing.
-
-```sh
-cd app
-gh release create "v${VERSION}" \
-  "dist/releases/sigstop-${VERSION}.zip" \
-  --title "v${VERSION}" \
-  --notes-file "dist/releases/sigstop-${VERSION}.md"
-```
-
-**The appcast, at the feed URL.** `SUFeedURL` in `Info.plist` is
-`https://mohamed-elshesheny.github.io/sigstop/appcast.xml`, which is GitHub Pages serving the
-repository. Put `appcast.xml` where Pages publishes from (the `gh-pages` branch, or `/docs` on
-`main`, depending on how the repository is configured) and push:
+Do not skip this. The feed is the one artifact no local command can prove.
 
 ```sh
-cp app/dist/releases/appcast.xml <pages-publish-dir>/appcast.xml
-git add <pages-publish-dir>/appcast.xml
-git commit -m "build: publish appcast for v${VERSION}"
-git push
-```
-
-### 3.6 Verify it end to end, as a user would
-
-Do not skip this. The appcast is the one artifact nothing in CI checks.
-
-```sh
-# 1. The feed is actually reachable and is XML
+# 1. The feed is reachable and is XML
 curl -sSI https://mohamed-elshesheny.github.io/sigstop/appcast.xml | head -3
 
-# 2. The download URL in the feed resolves
-curl -sSI "$(curl -s https://mohamed-elshesheny.github.io/sigstop/appcast.xml \
-  | grep -o 'url="[^"]*\.zip"' | head -1 | cut -d'"' -f2)" | head -3
+# 2. The download URL in the feed resolves, and is the size the feed claims
+URL=$(curl -s https://mohamed-elshesheny.github.io/sigstop/appcast.xml \
+  | grep -o 'url="[^"]*\.dmg"' | head -1 | cut -d'"' -f2)
+curl -sSIL "$URL" | grep -iE '^(HTTP|content-length)'
 
-# 3. An older build actually offers, downloads, verifies and installs the update
+# 3. The published image really does carry both architectures
+curl -sSL "$URL" -o /tmp/check.dmg
+hdiutil attach /tmp/check.dmg -nobrowse -quiet -mountpoint /tmp/checkmnt
+lipo -archs /tmp/checkmnt/sigstop.app/Contents/MacOS/sigstop   # expect: x86_64 arm64
+hdiutil detach /tmp/checkmnt -quiet
+
+# 4. An older build actually offers, downloads, verifies and installs the update
 ```
 
-For (3), keep a copy of the previous release, run it, and press **Check for updates** in
+For (4), keep a copy of the previous release, run it, and press **Check for updates** in
 Settings → About. Watch it go: *Asking the feed… → n.n.n is available → Downloading… → Signature
 verified. Unpacking… → verified and ready*. If it stops at an error, the message in the About pane is
 Sparkle's own and names the reason.
 
 There is no substitute for this test. Everything upstream of it can be green while the feed is a 404,
 the tag is misspelled, or the signature was generated against a key the shipped build does not carry.
+All three of those have happened here.
 
 ---
 
@@ -306,13 +320,11 @@ Copy this into the release PR.
 
 - [ ] `CFBundleShortVersionString` bumped
 - [ ] `CFBundleVersion` bumped, and higher than the last release
-- [ ] `make test` — 83 passing
-- [ ] `make bundle`
-- [ ] `make verify` — every assertion ok
-- [ ] Archive created with `ditto --keepParent`
-- [ ] `generate_appcast` run; `sparkle:edSignature` present on the new enclosure
-- [ ] GitHub release created, tag matches `--download-url-prefix`
-- [ ] `appcast.xml` published to the Pages path and reachable over HTTPS
+- [ ] `SGReleaseName` set to the codename, because the About pane reads it and `release.sh` checks it
+- [ ] `make release VERSION=… NAME=…` ran clean, with no step skipped
+- [ ] The published image is `x86_64 arm64`, checked against the uploaded file, not the local one
+- [ ] `sparkle:edSignature` present on the new enclosure in `updater/appcast.xml`
+- [ ] `main` pushed, Pages deployed, and the feed URL returns 200
 - [ ] Previous build updates itself successfully, end to end
 - [ ] `docs/PRIVACY.md` reviewed if anything about the network behaviour changed (§9 requires it)
 
@@ -320,8 +332,19 @@ Copy this into the release PR.
 
 ## 5. Things that will bite you
 
-**A plain `zip` instead of `ditto`.** Flattens the framework's version symlinks; the update installs
-and the app then will not launch. Always `ditto -c -k --sequesterRsrc --keepParent`.
+**Archiving with a plain `zip`.** This pipeline ships a disk image and `hdiutil` gets this right,
+but if you ever archive by hand, `zip` flattens `Sparkle.framework`'s version symlinks: the update
+installs and the app then will not launch. `ditto -c -k --sequesterRsrc --keepParent`, never `zip`.
+
+**Signing a rebuild instead of the file you upload.** The EdDSA signature is over the bytes. Two
+builds of the same commit are not byte-identical, so a feed signed over a local rebuild fails
+verification on every machine while looking perfectly well-formed on yours. `release.sh` signs and
+uploads the same file; keep it that way.
+
+**Shipping one architecture.** 0.1.0 went out arm64 only under release notes that promise Intel,
+and an Intel user finds out by the app refusing to open. `dmg.sh` now refuses a single-slice bundle,
+and step 3.5 checks the *published* file rather than the local one, because those are different
+questions.
 
 **Forgetting `CFBundleVersion`.** Sparkle orders updates by it. Two releases with the same build
 number produce a feed it cannot order, and the symptom is an update that is never offered.
