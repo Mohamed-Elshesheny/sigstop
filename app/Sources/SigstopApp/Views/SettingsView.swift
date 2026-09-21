@@ -518,6 +518,15 @@ struct SettingsView: View {
         }
     }
 
+    /// The release codename, from `SGReleaseName` in Info.plist.
+    ///
+    /// A number tells you whether you are behind. A name tells you which release people
+    /// are talking about, which is the thing you actually need when you are reading an
+    /// issue or a changelog. Both are shown, because they answer different questions.
+    private var releaseName: String? {
+        Bundle.main.infoDictionary?["SGReleaseName"] as? String
+    }
+
     /// The mark, the wordmark and one dense machine-shaped line instead of four labelled
     /// rows. Selectable, because the first thing anyone does with a version string is
     /// paste it into an issue.
@@ -529,7 +538,13 @@ struct SettingsView: View {
                     .font(Brand.mono(22, weight: .bold))
                     .tracking(-0.6)
                     .foregroundStyle(Brand.fg)
-                Text("\(version) · Apache-2.0 · macOS 14+ · swift 6")
+                if releaseName != nil {
+                    Text(version)
+                        .font(Brand.mono(10.5))
+                        .foregroundStyle(Brand.fgFaint)
+                        .textSelection(.enabled)
+                }
+                Text("\(releaseName ?? version) · GPL-3.0 · macOS 14+ · swift 6")
                     .font(Brand.mono(10.5))
                     .foregroundStyle(Brand.fgMuted)
                     .textSelection(.enabled)

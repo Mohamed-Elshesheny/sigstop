@@ -1,9 +1,20 @@
 sigstop
-Copyright 2026 The sigstop Authors
+Copyright 2026 Mohamed Elshesheny
 
-This product includes software developed by the sigstop Authors
-(https://github.com/Mohamed-Elshesheny/sigstop).
+This program is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later version.
 
-"sigstop" and the sigstop logo (two filling terminal bars) are trademarks of
-the sigstop Authors. The Apache License, Version 2.0 does NOT grant permission
-to use them. See TRADEMARK.md for what is and is not permitted.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this
+program. If not, see <https://www.gnu.org/licenses/>.
+
+The name "sigstop" and the mark are not licensed with the code. See TRADEMARK.md.
+
+Third-party code shipped in the binary:
+
+  Sparkle 2.10.0, MIT License, https://github.com/sparkle-project/Sparkle
+  Compatible with the GPL and linked into the app target only.

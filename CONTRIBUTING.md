@@ -1,92 +1,71 @@
 # Contributing to sigstop
 
-Thanks for looking. This file is short on ceremony and long on the two or three things that
-will actually cost you an afternoon if nobody tells you.
+## Read this first, it will save you an afternoon
 
-## Read this one first, it will save you an afternoon
+**macOS keys the Accessibility grant to the binary's cdhash, and `swift build` ad-hoc signs,
+so the cdhash changes on every compile.** The grant you just gave can vanish the next time
+you build, System Settings fills with stale `sigstop` entries, and you will be certain the
+permission code is broken.
 
-**macOS ties the Accessibility grant to the binary's cdhash.** `swift build` ad-hoc signs,
-and the cdhash changes on every single build. So the grant you just gave silently evaporates
-the next time you compile, System Settings fills up with stale `sigstop` entries, and you
-will convince yourself the permission code is broken.
-
-It is not. Create one stable self-signed identity and sign with it:
+Create one stable identity and sign with it:
 
 ```sh
 cd app
 make dev-cert                      # prints the one-time Keychain Access steps
-SIGN_IDENTITY=sigstop-dev make run # from then on the grant survives rebuilds
+SIGN_IDENTITY=sigstop-dev make run
 ```
 
-Never debug this by re-granting the permission. You are fighting TCC, and TCC wins.
+Never debug this by re-granting the permission. Check with `make doctor`, which reports the
+window title as `readable` only when the process is genuinely trusted.
 
-## Getting set up
+## Setup
 
 ```sh
 git clone https://github.com/Mohamed-Elshesheny/sigstop
 cd sigstop/app
-make run     # build, bundle, launch
-make test    # 231 tests, no GUI session required
-make doctor  # print exactly what the app can observe right now
-make verify  # assert the privacy properties against the built binary
+make run      # build, bundle, launch
+make test     # 281 tests, no GUI session required
+make doctor   # exactly what the app can observe right now
+make verify   # assert the privacy properties against the built binary
 ```
 
-There is **no Xcode project and no Xcode requirement**; Command Line Tools are enough.
-`open app/Package.swift` if you want the Xcode editor. **Do not add a `.xcodeproj`**: it
-breaks the CI assumption and produces a generated XML file that conflicts on every
-concurrent PR.
+There is **no Xcode project and no Xcode requirement**. `open app/Package.swift` if you want
+the editor. Do not add a `.xcodeproj`.
 
-**The landing site is not in this repository.** It lives in
-[`sigstop-web`](https://github.com/Mohamed-Elshesheny/sigstop-web), because the two share a name
-and nothing else. Nothing here builds or serves it, and a change to the page belongs in a pull
-request there. One thing crosses the line, and it has its own section below.
+The landing site is a separate repository,
+[`sigstop-web`](https://github.com/Mohamed-Elshesheny/sigstop-web).
 
-## The rules that are not negotiable
+## The rules a PR cannot break
 
-These are in [`CLAUDE.md`](CLAUDE.md) in full. The short version, because a PR that breaks
-one of them cannot be merged no matter how good it is:
+All of these are in [`CLAUDE.md`](CLAUDE.md) with the reasoning. The short version:
 
-**Layering is one way.** `App → Sensors → Core`. `SigstopCore` must never import AppKit.
-That is what lets the engines be tested without a window server, which matters because
-there is no Xcode here and therefore no UI test harness.
-
-**Core never reads the clock.** It takes an injected `TimeSource`. "45 minutes of
-continuous work triggers a break" is a microsecond unit test, not a hope.
-
-**Never claim more confidence than the signals support.** When two activities cannot be
-told apart, degrade to their shared parent. Never pick between siblings by guessing.
-Telling someone they have been debugging for 61 minutes when they were writing docs
-destroys the only thing this product has.
-
-**The app works with zero permissions.** Accessibility and git context are upgrades. A
-feature that hard-requires a permission is a design error.
-
-**Never read content.** Window titles only, at Tier 1, redacted. Never document bodies,
-keystrokes, clipboard, screen contents, or message text.
-
-**One network call, and it is the update check.** No telemetry, no crash reporting, no
-analytics, no font CDN. `make verify` enforces this against the built binary; adding a
-second network call means changing `CLAUDE.md` first, in its own PR, with the argument
-written out.
+| | |
+|---|---|
+| **Layering is one way** | `App -> Sensors -> Core`. `SigstopCore` never imports AppKit. |
+| **Core never reads the clock** | It takes an injected `TimeSource`. That is why the engine is testable without a window server. |
+| **Never overclaim** | When two activities cannot be told apart, degrade to their shared parent. Never guess between siblings. |
+| **Zero permissions works** | Accessibility and git context are upgrades. A feature that requires a permission is a design error. |
+| **Never read content** | Window titles only, redacted. Never bodies, keystrokes, clipboard, screen or messages. |
+| **One network call** | The update check. `make verify` enforces it. A second one changes `CLAUDE.md` first, in its own PR. |
 
 ## Adding support for an app
 
-This is the easiest useful contribution and it needs **zero changes to core code**. If it
-does not, the extension point is wrong, and fixing the extension point is the better PR.
+The easiest useful contribution, and it needs **zero changes to core code**. If it does, the
+extension point is wrong and fixing that is the better PR.
 
 A provider is a pure function from signals to an observation: no state, no I/O, `Sendable`.
 To test one, construct a `SignalContext` literal.
 
-1. Add a provider in `app/Sources/SigstopSensors/Providers/`.
-2. Declare its `AppClaim`s. Resolution ranks exact bundle id > prefix > executable name >
-   regex, so `com.jetbrains.` as a prefix covers the whole family.
-3. If you are not certain of a bundle id, mark it `// UNVERIFIED` rather than inventing one.
-   Confirm with: `osascript -e 'id of app "Zed"'`
+1. Add it in `app/Sources/SigstopSensors/Providers/`.
+2. Declare its `AppClaim`s. Resolution ranks exact bundle id > prefix > executable name, so
+   `com.jetbrains.` covers the family.
+3. Confirm the bundle id rather than inventing it: `osascript -e 'id of app "Zed"'`. If you
+   cannot, mark it `// UNVERIFIED`.
 
 ## Writing a joke
 
-The 149 lines live in `app/Sources/SigstopCore/Message/corpus.json`, with structured
-preconditions, so a line can be written to fire only in a specific situation:
+The 155 lines live in `app/Sources/SigstopCore/Message/corpus.json` with structured
+preconditions, so a line can fire only in the situation it is about:
 
 ```json
 {
@@ -99,92 +78,55 @@ preconditions, so a line can be written to fire only in a specific situation:
 }
 ```
 
-Packs ship in-tree only and that is deliberate, not a missing feature. A pack is data and
-cannot execute anything, but it can carry hostile or manipulative *text*, and no schema
-catches that. A human reading it before it ships does. The reasoning is in
-[`docs/MESSAGE-ENGINE.md`](docs/MESSAGE-ENGINE.md) §7.3.
+**The rails, at every tone including NUCLEAR:** never about body weight, appearance, medical
+conditions, mental health, competence, or job security. Nuclear is absurd, never cruel.
 
-**The rails, and they apply at every tone including NUCLEAR:** never about body weight,
-appearance, medical conditions, mental health, competence, or job security. Nuclear is
-absurd and theatrical, never cruel.
+**No medical claims.** "Your posture", never "your health". An attention or performance claim
+needs a citation with a resolvable DOI, and if a paper disputes it, cite that one too.
+Inventing a citation is the fastest way to destroy everything else on the page.
 
-**No medical claims anywhere.** Say "your posture", never "your health". An attention or
-performance claim needs a citation with a resolvable DOI, and if a paper disputes it, cite that
-one too. If you cannot find a real source, the claim does not ship. Inventing a citation is the
-fastest way to destroy everything else on the page.
+**Set `claimsActivity` honestly.** A line that names what someone is doing must declare it, so
+the engine can refuse it when confidence is low.
 
-**Set `claimsActivity` honestly.** If a line names what the developer is doing, it must
-declare that, so the engine can refuse to select it when confidence is low. A line that
-requires `{branch}` is never selected when the branch is unknown.
+Packs ship in-tree deliberately. A pack cannot execute anything, but it can carry manipulative
+*text*, and no schema catches that. A human reading it does.
 
-## Renaming a badge, and everything else the site repeats
+## Renaming a badge
 
-The split left exactly one piece of data in two repositories. The ten badges are defined in
-`app/Sources/SigstopCore/Badges/Badge.swift` and advertised, by the same names and the same motif
-ids, on the badge wall in `sigstop-web`. A page naming a badge the app does not have is the kind of
-small lie this whole project is organised against, so neither side is trusted to remember.
+The ten names exist in this repository and in the site's `copy.ts`. `make test` runs
+`make badges-check` first and fails if `app/Exports/badges.json` has drifted from the Swift
+catalogue, so a rename shows up as a one-line diff that tells you the site is affected.
 
-`app/Exports/badges.json` is the committed export of the Swift catalogue, and `make test` runs
-`make badges-check` before it compiles anything. Rename a badge without regenerating and the suite
-stops here, in the repository where the rename happened. The site runs the check from its side too,
-comparing its copy against `Badge.swift` when the app is checked out beside it.
-
-In order:
-
-1. Change `Badge.swift`.
-2. `make badges`, and commit `Exports/badges.json` in the same commit. The diff is what tells a
-   reviewer the site is affected.
-3. `make test`.
-4. Open the matching pull request on `sigstop-web` and land it before, or with, the app release
-   that ships the new name. `npm run build` there fails if it is checked out beside this
-   repository and the two disagree.
-
-Only three fields are exported: the id, the name and the motif. Each badge's prose is written
-twice on purpose, in each surface's own voice, and is not a drift bug.
-
-**Everything else the site says about the app is a claim with no machine check behind it**: the
-bundle size, the number of tests, the permission list, the update behaviour. There is no
-mechanism for those and inventing one would cost more than it saves. What there is instead: if
-your change moves one of those numbers, say so in the pull request body, in one line, so it can be
-carried across by hand.
+Rename in `Badge.swift`, run `make badges`, commit the export, and open the matching PR on
+the site. The check cannot force the other repository to follow; it makes sure nobody misses
+that it has to.
 
 ## Commits and PRs
 
-Every commit is a [Conventional Commit](https://www.conventionalcommits.org):
+[Conventional Commits](https://www.conventionalcommits.org). Types: `feat` `fix` `refactor`
+`perf` `docs` `test` `build` `ci` `chore`. Scopes: `core` `sensors` `app` `docs`.
 
-```
-type(scope): subject
-```
+**Keep them short.** Most commits are a subject line. A body is for the one thing the diff
+cannot say, two or three lines.
 
-Short. Most commits are a subject line and nothing else. Add a body only for the one thing the
-diff cannot tell you, and keep it to two or three lines. Longer reasoning goes in `docs/` or in
-a doc comment, where it will be found.
+**One fix, one commit, straight onto `main`.** No merge commits: a branch cut before a fix
+landed carries the old file, and merging it reverts that fix silently.
 
-Types: `feat` `fix` `refactor` `perf` `docs` `test` `build` `ci` `chore`.
-Scopes: `core` `sensors` `app` `docs`.
+**No AI attribution.** No `Co-Authored-By` for an assistant, no generated-with footers. The
+commit log is a record of intent, and intent belongs to a person.
 
-**No AI attribution.** No `Co-Authored-By` for an assistant, no "generated with" footers,
-no tool names in the message or the author field. The commit log is a record of intent, and
-intent belongs to a person.
-
-Before you open a PR:
-
-```sh
-cd app && make test && make verify
-```
-
-Keep `docs/` in sync in the same PR as the behaviour change. The design documents are
-normative: if the code and a document disagree, one of them is a bug, and the PR should say
-which and fix it.
+Before opening a PR: `make test && make verify`. Keep `docs/` in sync in the same PR as the
+behaviour change; the design documents are normative.
 
 ## Reporting a bug
 
-Run `sigstop --doctor` and paste the output. It exists for exactly this: it prints every
-signal the app can see, which tier it came from, the inferred activity, the confidence, and
-the evidence behind it, and it is honest about what is unavailable and why. It sends
-nothing anywhere.
+Run `make doctor` and paste the output. It prints every signal the app can see, its tier, the
+inferred activity, the confidence and the evidence, and it is honest about what is
+unavailable and why. It sends nothing anywhere. Read it before you post it.
+
+Anything with a security consequence goes to [`SECURITY.md`](SECURITY.md) instead, privately.
 
 ## Licence
 
-Contributions are under [Apache 2.0](LICENSE). The name and the logo are not part of that
-grant: see [`TRADEMARK.md`](TRADEMARK.md). Fork freely; a modified build needs its own name.
+Contributions are under [GPL-3.0](LICENSE). The name and the logo are not part of that grant:
+see [`TRADEMARK.md`](TRADEMARK.md). Fork freely; a modified build needs its own name.

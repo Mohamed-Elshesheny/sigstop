@@ -7,25 +7,25 @@ company. That is all explicitly fine and we would rather you did than asked.
 What you cannot do is ship your modified version still calling itself
 `sigstop`, or still wearing the sigstop logo.
 
-## Why the project is Apache-2.0 and not MIT
+## Why the project is GPL-3.0
 
-MIT is a fine license and it is shorter. We chose
-[Apache License 2.0](LICENSE) for two clauses MIT does not have:
+The licence answers one question the owner asked directly: **nobody takes this, closes it,
+and sells the closed version.** Under the [GNU General Public License v3](LICENSE) anyone
+may use it, change it, and charge money for it, and anyone who distributes a changed copy
+has to hand over the source on the same terms. Selling is fine. Selling a locked box is
+not.
 
-**Section 6, Trademarks.** Apache-2.0 states in the license itself that it
-grants no permission to use the licensor's names or marks. MIT is silent on
-the subject. Trademark law applies either way, but a reader should not have to
-know trademark law to understand the rules of a project. Putting it in the
-license means the answer is in the file everyone already reads.
+That is a deliberate trade and it costs two things worth naming rather than discovering:
 
-**Section 3, Patents.** Apache-2.0 includes an express patent grant from
-contributors, and terminates that grant for anyone who starts patent
-litigation over the software. MIT grants no patent rights explicitly at all.
-For anything a company might install on developer machines, that matters.
+**The Mac App Store is closed to this.** Its terms conflict with GPLv3's requirements, which
+is why VLC was pulled from it in 2011. If this ever wants to be there, the licence has to
+change first, and changing it needs every contributor's agreement.
 
-The trade-off, stated honestly: Apache-2.0 is 201 lines where MIT is 21, and
-it requires you to keep the `NOTICE` file and state your changes. If that is
-genuinely a problem for your use case, open an issue and make the argument.
+**The licence itself says nothing about the name.** Apache-2.0 has a trademark clause and
+the GPL does not, so the protection below rests on trademark law rather than on a line in
+the licence. That is weaker on paper and unchanged in practice: a licence has never been
+what stops someone shipping a fork called sigstop, and the reason it must not happen is in
+the next section.
 
 ## What you may do without asking
 
@@ -72,7 +72,7 @@ Keep the `NOTICE` file and the `LICENSE`. Attribution stays; identity changes.
 
 The wordmark is not in this repository. It is drawn by the landing site, which lives in
 [`sigstop-web`](https://github.com/Mohamed-Elshesheny/sigstop-web) and is under exactly these
-terms: the code there is Apache-2.0, the name and the mark it draws are not.
+terms: the code there is GPL-3.0, the name and the mark it draws are not.
 
 ## Questions
 

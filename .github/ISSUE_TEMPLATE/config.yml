@@ -15,6 +15,11 @@ contact_links:
     about: >-
       The site is a separate repository with its own tracker. Copy, layout, a broken link, the
       download button: all of it belongs there, none of it is built from this repository.
+  - name: Found a security problem
+    url: https://github.com/Mohamed-Elshesheny/sigstop/security/advisories/new
+    about: >-
+      Report it privately, not here. The tracker is public and so is the exploit.
+      SECURITY.md says what is worth reporting and what is already known.
   - name: Naming, logo, and forks
     url: https://github.com/Mohamed-Elshesheny/sigstop/blob/main/TRADEMARK.md
-    about: The code is Apache 2.0. The name and the mark are not part of that grant.
+    about: The code is GPL-3.0. The name and the mark are not part of that grant.

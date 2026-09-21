@@ -9,6 +9,11 @@
 	<key>CFBundleDisplayName</key><string>sigstop</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
 	<key>CFBundleShortVersionString</key><string>0.1.0</string>
+	<!-- The release codename, shown beside the version wherever the version is shown.
+	     One source of truth: Scripts/release.sh refuses to publish if this and the name
+	     it was given disagree, the same way it refuses if the version disagrees.
+	     The convention, and why it is animals, is in docs/RELEASING.md. -->
+	<key>SGReleaseName</key><string>Sleeping Dormouse 🐿️</string>
 	<key>CFBundleVersion</key><string>1</string>
 	<key>LSMinimumSystemVersion</key><string>14.0</string>
 	<!-- Menu bar only: no Dock icon, no main window. -->
