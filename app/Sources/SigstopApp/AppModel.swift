@@ -475,8 +475,12 @@ final class AppModel {
         settings = newValue
         SettingsStore.save(newValue)
         onSettingsChanged?()
+        let previousTarget = policy.targetContinuousWork
         policy = Self.policy(for: newValue)
         decision = BreakDecisionEngine(policy: policy)
+        /// The running state holds its own copy of the threshold; move it too, or the
+        /// panel keeps counting to the interval you just changed away from.
+        engineState = engineState.retargeted(from: previousTarget, to: policy.targetContinuousWork)
         sensors.context.reloadSettings(newValue)
         permissionStatus = sensors.permissions.status()
         if !newValue.showBreakOverlay { overlay.dismissBreak() }

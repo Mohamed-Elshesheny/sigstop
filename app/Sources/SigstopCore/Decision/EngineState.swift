@@ -445,6 +445,30 @@ public struct IdleState: Sendable, Codable, Hashable {
     }
 }
 
+public extension EngineState {
+    /// Move a live `working` state onto a new work interval.
+    ///
+    /// `armThreshold` is baked into `WorkingState` when it is built, from whatever the
+    /// policy said at that moment. Rebuilding the policy on a settings change — which is
+    /// what `AppModel.update(settings:)` does — leaves the running state holding the old
+    /// number, so setting the interval to 45 left the panel counting to 5:00 until
+    /// something happened to rebuild the state. Same shape as the daily cap: the policy
+    /// was replaced and the state was not.
+    ///
+    /// Shifted by the difference rather than overwritten, because the threshold is not
+    /// always the plain target: a skip adds twenty minutes and an expired cycle ten, and
+    /// overwriting would hand back silence the user had already been promised. A stand-down
+    /// of twenty minutes stays twenty minutes on either side of the change.
+    ///
+    /// Only `working` carries a threshold. Every other state rebuilds one from the current
+    /// policy on the way out, so there is nothing stale to move.
+    func retargeted(from old: TimeInterval, to new: TimeInterval) -> EngineState {
+        guard case .working(var w) = self, old != new else { return self }
+        w.armThreshold = max(0, w.armThreshold + (new - old))
+        return .working(w)
+    }
+}
+
 public struct QuietState: Sendable, Codable, Hashable {
     public var until: Date?
     public var untilMono: Double?
