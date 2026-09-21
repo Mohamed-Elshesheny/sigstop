@@ -381,6 +381,9 @@ public final class ContextEngine {
             windowGeometry: geometry,
             windowTitle: axInfo.title,
             documentURL: axInfo.documentURL,
+            // Tier 1b is specified in docs/ACTIVITY-DETECTION.md 4.2 and is not built. This
+            // nil is the whole of it: no collector reads an omnibox, so the separate
+            // opt-in gates nothing and no Settings switch offers it.
             browserHost: nil,
             processes: processes,
             git: git

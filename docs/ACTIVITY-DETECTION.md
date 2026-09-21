@@ -484,11 +484,20 @@ extension — see §7.
 - A title says nothing about *mode*. A VS Code window mid-debug-session looks identical to one that
   is idle. This is the core reason `DEBUGGING` is hard (§7.2).
 
-**Tier 1b (separately opt-in): browser URL host.** Chrome-family browsers expose the omnibox as an
-AX text field and a web area with `kAXURL`; Safari similarly. This is technically Tier 1 but is a
-real privacy escalation, so it is a **separate toggle**, and even when enabled the app extracts and
-retains **only the host** (`github.com`), never the path or query. The raw URL never leaves the
-`AccessibilityActor`.
+**Tier 1b (separately opt-in): browser URL host. Specified here, and not built.** Chrome-family
+browsers expose the omnibox as an AX text field and a web area with `kAXURL`; Safari similarly.
+This is technically Tier 1 but is a real privacy escalation, so it would be a **separate toggle**,
+and even when enabled the app would extract and retain **only the host** (`github.com`), never the
+path or query.
+
+**What is actually in the code today**, because this section read like a description of shipped
+behaviour and was not one. `SigstopSettings.browserHostEnabled` exists, `PermissionBroker`
+answers `browserHostPermitted()`, and `SignalContext.browserHost` is declared. No collector ever
+sets it: `ContextEngine` passes `browserHost: nil` unconditionally, so the permission question is
+answered for a caller that does not exist and the field is nil on every sample. There is no switch
+for it in Settings, so nothing is offered to a user that the app cannot do. It stays because the
+shape is right and the privacy argument above is the one a collector would have to satisfy; the
+moment something sets that field, this paragraph is what it has to make true.
 
 ### 4.3 Tier 2 — explicit opt-in local context
 
