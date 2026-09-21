@@ -1,4 +1,5 @@
 import AppKit
+import SigstopCore
 import SwiftUI
 
 /// The app's share of the design language it shares with the landing site, whose tokens live
@@ -115,6 +116,48 @@ enum Brand {
     }
 
     // MARK: Resolution
+
+    // MARK: Appearance
+
+    /// Applies the user's choice to the app, and pins the menu bar mark out of it.
+    ///
+    /// `NSApp.appearance` is the whole mechanism: every window, every `dynamic` colour and
+    /// every stock control resolves against it, so one assignment re-themes the panel, the
+    /// settings window and the badge sheet at once. `nil` restores inheritance from the
+    /// system, which is what `.system` means and is byte-identical to the behaviour before
+    /// this setting existed.
+    ///
+    /// The status item button is the exception and has to be pinned by hand. It belongs to
+    /// the app, so it inherits `NSApp.appearance` like everything else, and `renderIcon`
+    /// reads `effectiveAppearance` off it to decide whether the mark is drawn in the light
+    /// amber or the dark one. Left alone, choosing Light on a dark Mac would resolve the
+    /// mark's ink for a white background and then draw it onto the dark menu bar, which is
+    /// the muddy-brown bug the comment in `renderIcon` describes, reintroduced on purpose
+    /// by a setting. Pinning the button to the *system* appearance keeps the mark matched
+    /// to the strip it sits on, which is the only thing it has to match.
+    ///
+    /// `AppleInterfaceStyle` rather than `NSApp.effectiveAppearance`: the latter is what we
+    /// have just overridden, so it can no longer answer what the system is doing.
+    @MainActor
+    static func apply(_ preference: AppearancePreference, pinning statusButton: NSStatusBarButton?) {
+        switch preference {
+        case .system:
+            NSApp.appearance = nil
+            statusButton?.appearance = nil
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+            statusButton?.appearance = systemAppearance()
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+            statusButton?.appearance = systemAppearance()
+        }
+    }
+
+    /// What the system is set to, read independently of anything the app has overridden.
+    static func systemAppearance() -> NSAppearance? {
+        let dark = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+        return NSAppearance(named: dark ? .darkAqua : .aqua)
+    }
 
     private static func dynamic(light: UInt32, dark: UInt32) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -593,6 +636,50 @@ struct TerminalStepper: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+    }
+}
+
+/// One of a few short choices, in the same frame `TerminalStepper` draws.
+///
+/// Not `Picker(.segmented)`. Every other control in this window is drawn by hand, and a
+/// stock segmented control arrives with the system's own corner radius, its own blue
+/// selection and its own font, which is three disagreements with the pane around it. The
+/// selected cell is filled with `surfaceHi` rather than amber: amber is the single accent
+/// and it means a break is owed, so spending it on "which palette do you prefer" is
+/// exactly the inflation the palette note in `Brand` warns about.
+struct TerminalSegmented<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(value: Value, label: String)]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                if index > 0 {
+                    Rectangle().fill(Brand.lineHi).frame(width: 1, height: 24)
+                }
+                cell(option.value, option.label)
+            }
+        }
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .strokeBorder(Brand.lineHi, lineWidth: 1)
+        )
+    }
+
+    private func cell(_ value: Value, _ label: String) -> some View {
+        let on = value == selection
+        return Button { selection = value } label: {
+            Text(label)
+                .font(Brand.mono(12, weight: on ? .semibold : .regular))
+                .foregroundStyle(on ? Brand.fg : Brand.fgMuted)
+                .frame(minWidth: 58)
+                .frame(height: 24)
+                .background(on ? Brand.surfaceHi : Color.clear)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
     }
 }
 

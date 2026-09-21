@@ -169,6 +169,17 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         item.autosaveName = Self.autosaveName
         item.behavior = .removalAllowed
 
+        /// Ahead of the first `renderIcon` below, so the mark is drawn against the
+        /// appearance it is going to keep instead of being re-resolved a frame later.
+        Brand.apply(model.settings.appearance, pinning: item.button)
+        model.onAppearanceChanged = { [weak self] preference in
+            guard let self else { return }
+            Brand.apply(preference, pinning: self.item.button)
+            /// The mark's ink comes from a bool captured at render time, so moving the
+            /// button's appearance has to redraw it rather than merely invalidate it.
+            self.renderIcon()
+        }
+
         if let button = item.button {
             button.action = #selector(toggle)
             button.target = self

@@ -132,6 +132,9 @@ final class AppModel {
 
     /// Set by the status item controller so it can re-apply the Dock policy.
     var onSettingsChanged: (() -> Void)?
+    /// Separate from `onSettingsChanged` because only the owner of the status item can
+    /// pin its button out of the app-wide appearance, and `AppModel` does not hold it.
+    var onAppearanceChanged: ((AppearancePreference) -> Void)?
     private(set) var isRunning = false
 
     /// 0…1, how full the menu bar bars are drawn. The fraction of the target interval
@@ -450,6 +453,7 @@ final class AppModel {
         sensors.context.reloadSettings(newValue)
         permissionStatus = sensors.permissions.status()
         if !newValue.showBreakOverlay { overlay.dismissBreak() }
+        onAppearanceChanged?(newValue.appearance)
     }
 
     // MARK: - The tick

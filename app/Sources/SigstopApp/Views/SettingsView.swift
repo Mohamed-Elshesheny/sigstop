@@ -196,6 +196,15 @@ struct SettingsView: View {
             }
 
             SettingsSection("system") {
+                SettingRow(
+                    "Appearance",
+                    detail: "The app's own windows. The menu bar mark always matches the menu bar."
+                ) {
+                    TerminalSegmented(
+                        selection: appearance,
+                        options: AppearancePreference.allCases.map { ($0, $0.displayName) }
+                    )
+                }
                 SettingRow("Show in the Dock", detail: "Menu bar only by default; some people want the app where they look for apps.") {
                     TerminalSwitch(isOn: settings.showInDock)
                 }
@@ -204,6 +213,19 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    /// Writing it goes through `model.update`, like every other setting, so the change is
+    /// persisted and applied by the same path rather than by the view reaching for AppKit.
+    private var appearance: Binding<AppearancePreference> {
+        Binding(
+            get: { model.settings.appearance },
+            set: { choice in
+                var updated = model.settings
+                updated.appearance = choice
+                model.update(settings: updated)
+            }
+        )
     }
 
     /// `SMAppService.mainApp`, which needs a real `.app` bundle. Run as a bare executable

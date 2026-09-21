@@ -43,6 +43,29 @@ public enum Tone: String, Sendable, Codable, CaseIterable, Hashable, Comparable 
     }
 }
 
+/// Which palette the app's own windows draw in.
+///
+/// `Brand` has had a full light and dark ramp from the start; what it did not have was a
+/// way to disagree with the system. `.system` is the default and keeps the old behaviour
+/// exactly, which matters because it is the behaviour every screenshot was taken in.
+///
+/// This is deliberately about *the app's windows*. The menu bar mark is not one of them:
+/// it is drawn into the system menu bar and has to match that bar, not this preference,
+/// or choosing Light on a dark Mac paints a dark-ink mark onto a dark strip.
+public enum AppearancePreference: String, Sendable, Codable, CaseIterable, Hashable {
+    case system
+    case light
+    case dark
+
+    public var displayName: String {
+        switch self {
+        case .system: return "System"
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        }
+    }
+}
+
 // MARK: - Escalation
 
 /// How many times the developer has ignored the current break prompt.
@@ -140,6 +163,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     /// have already ignored one still carries information.
     public var promptSound: Bool
     public var useSystemNotifications: Bool
+    public var appearance: AppearancePreference
     public var showInDock: Bool
     public var launchAtLogin: Bool
     public var showBreakOverlay: Bool
@@ -168,6 +192,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         browserHostEnabled: Bool = false,
         promptSound: Bool = true,
         useSystemNotifications: Bool = false,
+        appearance: AppearancePreference = .system,
         showInDock: Bool = true,
         launchAtLogin: Bool = false,
         showBreakOverlay: Bool = true,
@@ -190,6 +215,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.browserHostEnabled = browserHostEnabled
         self.promptSound = promptSound
         self.useSystemNotifications = useSystemNotifications
+        self.appearance = appearance
         self.showInDock = showInDock
         self.launchAtLogin = launchAtLogin
         self.showBreakOverlay = showBreakOverlay
@@ -231,6 +257,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         browserHostEnabled = try c.decodeIfPresent(Bool.self, forKey: .browserHostEnabled) ?? d.browserHostEnabled
         promptSound = try c.decodeIfPresent(Bool.self, forKey: .promptSound) ?? d.promptSound
         useSystemNotifications = try c.decodeIfPresent(Bool.self, forKey: .useSystemNotifications) ?? d.useSystemNotifications
+        appearance = try c.decodeIfPresent(AppearancePreference.self, forKey: .appearance) ?? d.appearance
         showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? d.showInDock
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         showBreakOverlay = try c.decodeIfPresent(Bool.self, forKey: .showBreakOverlay) ?? d.showBreakOverlay
