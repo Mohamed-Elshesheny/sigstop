@@ -376,9 +376,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection("where it lives") {
                 Note(
-                    "One JSON object per line, in four files you can open with cat. Raw events "
-                        + "are kept for \(Retention.defaultEventDays) days; daily summaries outlive "
-                        + "them because they are a hundredth of the data."
+                    "Plain JSON, nothing encoded. Raw events are kept for "
+                        + "\(Retention.defaultEventDays) days; daily summaries outlive them because "
+                        + "they are a hundredth of the data."
                 )
                 CodeBlock(AppPaths.storageRoot.path)
                     .padding(.top, 10)
@@ -386,6 +386,8 @@ struct SettingsView: View {
                     FileRow("events/", "one file per day, appended, never rewritten")
                     FileRow("summaries/", "one object per day, kept after the events age out")
                     FileRow("badges.json", "which of the ten unlocked, and when")
+                    FileRow("counters.json", "today's budgets: prompts delivered, cycles unanswered, the compliance tally")
+                    FileRow("call-hold.json", "seconds a call has held a break today; exists once one has")
                     FileRow("settings.json", "exactly what the panes above set")
                 }
                 .padding(.top, 12)
@@ -393,8 +395,8 @@ struct SettingsView: View {
 
             SettingsSection("export") {
                 Note(
-                    "A copy, not a report. Nothing is filtered or transformed, so what you audit "
-                        + "is what the app has."
+                    "The event log as one text file, a copy rather than a report. Nothing is "
+                        + "filtered or transformed, so what you audit is what the app recorded."
                 )
                 TerminalButton("Export…") { export() }
                     .fixedSize()
