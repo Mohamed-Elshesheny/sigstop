@@ -366,6 +366,7 @@ final class AppModel {
         sensors.startExtraCollectors()
         subscribeToSystemEvents()
         subscribeToWorkspaceEvents()
+        subscribeToWindowChanges()
         subscribeToPermissionChanges()
         subscribeToTermination()
 
@@ -1445,6 +1446,34 @@ final class AppModel {
         }
 
         Task { [weak self] in await self?.tick() }
+    }
+
+    /// Resample the moment the focused window or its title changes.
+    ///
+    /// `AccessibilityCollector` has always run an `AXObserver` for
+    /// `kAXFocusedWindowChanged` and `kAXTitleChanged` and published them on `events`, and
+    /// nothing consumed the stream. So switching tab was invisible until the next scheduled
+    /// tick and the panel lagged by up to the full five seconds — which is most of a glance.
+    /// One `await tick()` per event, which is the same work the loop was going to do
+    /// anyway, moved to when there is something new to see.
+    ///
+    /// `observationFailed` is deliberately not a trigger: a failing observer would
+    /// otherwise spin the loop on its own failures.
+    private func subscribeToWindowChanges() {
+        let stream = sensors.accessibility.events
+        observerTasks.append(
+            Task { [weak self] in
+                for await event in stream {
+                    guard let self else { return }
+                    switch event {
+                    case .focusedWindowChanged, .titleChanged:
+                        await self.tick()
+                    case .observationFailed:
+                        break
+                    }
+                }
+            }
+        )
     }
 
     private func subscribeToWorkspaceEvents() {

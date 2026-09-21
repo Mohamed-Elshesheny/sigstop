@@ -43,7 +43,11 @@ enum Doctor {
         var out: [String] = []
         out.append(contentsOf: headerSection(settings: settings))
         out.append(contentsOf: permissionSection(sensors.permissions.status()))
-        out.append(contentsOf: signalSection(raw, sensors: sensors))
+        /// Read here, in the one async context, so the row stays a plain function.
+        let browserHost = sensors.permissions.browserHostPermitted()
+            ? await sensors.accessibility.read(pid: raw.frontmost.frontmost.pid).browserHost
+            : nil
+        out.append(contentsOf: signalSection(raw, sensors: sensors, browserHost: browserHost))
         out.append(contentsOf: callHoldSection(raw, settings: settings))
         out.append(contentsOf: inferenceSection(sample, raw: raw, settings: settings))
         out.append(contentsOf: unavailableSection(raw))
@@ -91,7 +95,9 @@ enum Doctor {
         return out
     }
 
-    private static func signalSection(_ raw: RawSignals, sensors: SensorStack) -> [String] {
+    private static func signalSection(
+        _ raw: RawSignals, sensors: SensorStack, browserHost: String?
+    ) -> [String] {
         var out = [
             "SIGNALS",
             "  tier  signal                value",
@@ -171,6 +177,16 @@ enum Doctor {
             tier1
                 ? "readable, parsed, then discarded; never written to disk"
                 : "not readable, see PERMISSIONS above"
+        )
+        /// Tier 1b, printed whether it is on or off. CLAUDE.md 4.1: the app must always be
+        /// able to answer "why do you think that?", and a signal that cannot be checked from
+        /// a terminal is one the reader has to take on trust.
+        row(
+            "1b", "browser host",
+            browserHost.map { "\($0) — the host only, the path and query are dropped" }
+                ?? (sensors.permissions.browserHostPermitted()
+                    ? "on, nothing to read: the app in front is not a browser, or it exposes no URL"
+                    : "off, you have not turned it on")
         )
         if let failure = sensors.accessibility.lastFailure {
             out.append("        last Accessibility error: \(failure.userFacingSummary)")
