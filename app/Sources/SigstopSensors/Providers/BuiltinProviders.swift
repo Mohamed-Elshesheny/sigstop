@@ -466,6 +466,18 @@ enum Ev {
     static func remoteShellProcess(_ tool: ToolToken) -> Evidence {
         make("process.remoteShell", .tier2, 0.9, "\(tool.displayName) is running in this terminal")
     }
+    /// A debugger whose ancestry does not reach the app in front, with nothing under
+    /// `ptrace` to corroborate it.
+    ///
+    /// It is a real observation, so it is cited and a sceptic can read it. It is close to
+    /// weightless, because on a developer's Mac a debugger left alive somewhere is very
+    /// nearly a constant, and a permanently-true signal is not a signal.
+    static func debuggerElsewhere(_ tool: ToolToken) -> Evidence {
+        make(
+            "process.debuggerElsewhere", .tier2, 0.3,
+            "\(tool.displayName) is running, but not under the app you are in"
+        )
+    }
     /// There is deliberately no `Ev.branch`.
     ///
     /// A branch name says which branch. It says nothing about which activity, and every
@@ -556,14 +568,19 @@ enum EditorClassifier {
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: context)
         }
 
-        if let tool = processes?.firstChildMatch(in: ToolToken.debuggers)
-            ?? processes?.firstMatch(in: ToolToken.debuggers) {
-            let isChild = processes?.childrenOfFrontmost.contains(tool) ?? false
-            evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: isChild))
-            if isChild { evidence.append(Ev.childOfFrontmost()) }
+        /// Ancestry is what makes a debugger *yours*. A name alone is not, which is why
+        /// the machine-wide fallback that used to sit on this line has moved below the
+        /// title branches and lost its right to be a verdict on its own.
+        if let tool = processes?.firstChildMatch(in: ToolToken.debuggers) {
+            evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: true))
+            evidence.append(Ev.childOfFrontmost())
             if processes?.tracedElsewhere == true { evidence.append(Ev.tracedElsewhere()) }
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: context)
         }
+
+        /// A named debugger with no ancestry link to the app in front, kept for the two
+        /// branches below to be consulted after the title has had its say.
+        let looseDebugger = processes?.firstMatch(in: ToolToken.debuggers)
 
         if let tool = processes?.firstChildMatch(in: ToolToken.testRunners)
             ?? processes?.firstMatch(in: ToolToken.testRunners) {
@@ -587,6 +604,32 @@ enum EditorClassifier {
             return ProviderVerdict(
                 activity: .testing, evidence: evidence, context: context, maximumConfidence: 0.72
             )
+        }
+
+        /// The machine-wide debugger match, last rather than first.
+        ///
+        /// It used to short-circuit everything above: one `dlv dap` left alive by a Go
+        /// extension, or a `debugserver` still attached to yesterday's project, and the
+        /// app said DEBUGGING at the 0.90 ceiling while you were editing a README. That
+        /// is verbatim the failure CLAUDE.md §4.1 names, so a bare name now decides
+        /// nothing that the window in front has already answered.
+        ///
+        /// `P_TRACED` somewhere on this Mac is the one thing that separates a debugger
+        /// sitting at a prompt from one actually attached, so it, and only it, still
+        /// reaches DEBUGGING from here. At a lower cap than the ancestry route, because
+        /// what it is attached to is by definition not under the app you are in.
+        if let tool = looseDebugger {
+            if processes?.tracedElsewhere == true {
+                evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: false))
+                evidence.append(Ev.tracedElsewhere())
+                return ProviderVerdict(
+                    activity: .debugging,
+                    evidence: evidence,
+                    context: context,
+                    maximumConfidence: ConfidenceEngine.debuggerElsewhereCeiling
+                )
+            }
+            evidence.append(Ev.debuggerElsewhere(tool))
         }
 
         let switches = signals.switchCount(within: 60)
@@ -735,12 +778,24 @@ public struct TerminalProvider: ActivityProvider {
             }
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: activityContext)
         }
-        if let tool = processes.firstChildMatch(in: ToolToken.debuggers)
-            ?? processes.firstMatch(in: ToolToken.debuggers) {
-            let isChild = processes.childrenOfFrontmost.contains(tool)
-            evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: isChild))
+        if let tool = processes.firstChildMatch(in: ToolToken.debuggers) {
+            evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: true))
+            evidence.append(Ev.childOfFrontmost())
             if processes.tracedElsewhere { evidence.append(Ev.tracedElsewhere()) }
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: activityContext)
+        }
+        /// The same rule as the editor classifier, for the same reason: a debugger that
+        /// is not a descendant of this terminal is somebody else's session until
+        /// `P_TRACED` says otherwise.
+        if let tool = processes.firstMatch(in: ToolToken.debuggers), processes.tracedElsewhere {
+            evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: false))
+            evidence.append(Ev.tracedElsewhere())
+            return ProviderVerdict(
+                activity: .debugging,
+                evidence: evidence,
+                context: activityContext,
+                maximumConfidence: ConfidenceEngine.debuggerElsewhereCeiling
+            )
         }
         if let tool = processes.firstChildMatch(in: ToolToken.testRunners)
             ?? processes.firstMatch(in: ToolToken.testRunners) {
@@ -755,6 +810,9 @@ public struct TerminalProvider: ActivityProvider {
         }
         if let tool = processes.firstChildMatch(in: ToolToken.remoteShells) {
             evidence.append(Ev.remoteShellProcess(tool))
+        }
+        if let tool = processes.firstMatch(in: ToolToken.debuggers) {
+            evidence.append(Ev.debuggerElsewhere(tool))
         }
         return ProviderVerdict(activity: .terminalWork, evidence: evidence, context: activityContext)
     }

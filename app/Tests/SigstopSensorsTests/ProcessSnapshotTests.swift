@@ -241,21 +241,56 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
 
 /// A debugger sitting at a prompt with no target looks exactly like one attached, which is
 /// the failure docs/ACTIVITY-DETECTION.md §7.2 names. `P_TRACED` elsewhere is the thing
-/// that tells them apart, so it must add confidence rather than replace the verdict.
-@Test func tracingElsewhereCorroboratesANamedDebuggerWithoutBeingAVerdict() {
+/// that tells them apart, so it decides between CODING and DEBUGGING rather than being
+/// cited under a verdict a bare name already made.
+///
+/// This test used to assert the opposite: that `snapshot(matched: [.lldb])` alone reached
+/// DEBUGGING at the ceiling. It pinned the bug. A debugger left running anywhere on the
+/// machine is not evidence about the window in front of you.
+@Test func tracingElsewhereDecidesWhetherANamedDebuggerIsAVerdict() {
     let bare = classify(context(processes: snapshot(matched: [.lldb])))
     let attached = classify(context(processes: snapshot(matched: [.lldb], tracedElsewhere: true)))
-    #expect(bare.activity == .debugging)
+    #expect(bare.activity == .coding)
     #expect(attached.activity == .debugging)
+    #expect(bare.evidence.contains { $0.id.rawValue == "process.debuggerElsewhere" })
     #expect(!bare.evidence.contains { $0.id.rawValue == "process.tracedElsewhere" })
     #expect(attached.evidence.contains { $0.id.rawValue == "process.tracedElsewhere" })
-    /// Both land on the 0.90 activity ceiling, which is the point: corroboration is cited
-    /// in the reasoning a user can read, and it does not buy a number the ceiling forbids.
-    #expect(attached.confidence.value == ConfidenceEngine.debuggingCeiling)
-    #expect(bare.confidence.value == ConfidenceEngine.debuggingCeiling)
+    /// And the corroboration now changes a number somebody can read, which is the whole
+    /// reason to cite it. It stays below the ancestry route: what that debugger is
+    /// attached to is, by definition, not under the app you are in.
+    #expect(attached.confidence.value <= ConfidenceEngine.debuggerElsewhereCeiling)
+    #expect(ConfidenceEngine.debuggerElsewhereCeiling < ConfidenceEngine.debuggingCeiling)
 
     let nothingNamed = classify(context(processes: snapshot(tracedElsewhere: true)))
     #expect(nothingNamed.activity == .coding)
+}
+
+/// The measured case from the review, kept as a test because it is the one CLAUDE.md §4.1
+/// names by hand: a README open in the editor, `lldb` alive in some other project, and the
+/// app announcing fifty minutes of chasing one bug.
+@Test func aDebuggerElsewhereDoesNotOverrideWhatTheTitleSays() {
+    /// The separator is a comma, not the dash VS Code puts there, because
+    /// `TitleParsing.separators` does not carry an em dash and this test is about the
+    /// debugger, not about that.
+    let docs = classify(context(
+        processes: snapshot(matched: [.lldb]), title: "README.md, sigstop"
+    ))
+    #expect(docs.activity == .documentation)
+
+    let tests = classify(context(
+        processes: snapshot(matched: [.lldb]), title: "foo.test.ts, sigstop"
+    ))
+    #expect(tests.activity == .testing)
+}
+
+/// Ancestry, not a name, is what makes a debugger yours, and it is worth more than
+/// `P_TRACED` on a process the app in front did not start.
+@Test func aDebuggerDescendingFromTheAppInFrontOutranksOneThatDoesNot() {
+    let mine = classify(context(processes: snapshot(matched: [.lldb], children: [.lldb])))
+    let theirs = classify(context(processes: snapshot(matched: [.lldb], tracedElsewhere: true)))
+    #expect(mine.activity == .debugging)
+    #expect(theirs.activity == .debugging)
+    #expect(mine.confidence.value > theirs.confidence.value)
 }
 
 @Test func aTerminalWithADebuggerInItIsDebuggingNotTerminalWork() {

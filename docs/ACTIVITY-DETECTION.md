@@ -1024,10 +1024,20 @@ What *is* detectable, and how:
 | A process is under `ptrace` (`P_TRACED`) and descends from the frontmost app | 2 | **+3.0** | Unambiguous, and it is a kernel flag rather than a name. Something has that process under a debugger, and it is yours. |
 | A process is under `ptrace` anywhere on the machine | 2 | +1.8 | Real, but it may be another project's debugger. Honest at this weight. |
 | `debugserver` running as a descendant of Xcode | 2 | **+3.0** | Unambiguous. `debugserver` exists for exactly one reason. Verified live on this machine. |
-| `lldb` / `gdb` / `delve` process | 2 | +2.2 | Strong. |
+| `lldb` / `gdb` / `delve` descending from the app in front | 2 | +2.2 | Strong. Ancestry is what makes it yours. |
+| `lldb` / `gdb` / `delve` running anywhere else | 2 | +0.3 | Cited, and close to weightless. A debugger left alive in another project is very nearly a constant on a developer's Mac. |
 | `node --inspect` / `--inspect-brk` / `debugpy` | — | — | **Not detected.** Both are named only by their arguments and argv is not read (§4.3b). |
 | A debug-tool process is a **child of the frontmost app** | 2 | +0.8 (additive) | Distinguishes "I am debugging" from "a debugger is running in another project". |
 | Rapid alternation between editor and a browser/simulator, < 5 s dwell each, ≥ 4 cycles/min | 0 | +0.5 | Weak, real, and honest about being weak. Do not let this alone produce DEBUGGING. |
+
+**Rule:** a name is never enough. `DEBUGGING` requires a debugger that **descends from the app in
+front**, or `P_TRACED` — under the frontmost app, or elsewhere while a debugger this app can also
+name is running. A bare machine-wide name match decides nothing: it is cited as evidence and the
+window in front answers first, because one `dlv dap` left alive by a Go extension used to mean the
+app said "you have been chasing one bug for fifty minutes" at 0.90 while you were editing a README,
+which is the failure CLAUDE.md §4.1 names by hand. The `P_TRACED`-elsewhere route is capped at
+**0.80** rather than 0.90, so the corroboration changes a number somebody can see instead of being
+decorative: what that debugger is attached to is, by definition, not under the app you are in.
 
 **Rule:** `DEBUGGING` requires **Tier 2**. With Tier 0 or Tier 0+1 only, the app emits `CODING` with
 `degradedFromAmbiguity = true` (ceiling 0.60) and, in the UI, the phrase "coding — can't tell if

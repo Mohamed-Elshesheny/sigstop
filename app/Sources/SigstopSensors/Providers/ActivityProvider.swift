@@ -257,6 +257,12 @@ public enum ConfidenceEngine {
     public static let degradedCeiling = 0.60
     /// Even with every tier, a debugger can be attached and idle.
     public static let debuggingCeiling = 0.90
+    /// A debugger this app can name but cannot tie to the app in front, corroborated only
+    /// by something under `ptrace` elsewhere. It is DEBUGGING, and it is a weaker claim
+    /// than a debugger descending from the app you are actually looking at, so it is
+    /// capped lower. Without this the corroboration was decorative: both routes landed on
+    /// 0.90 and `tracedElsewhere` changed no number anyone could see.
+    public static let debuggerElsewhereCeiling = 0.80
     /// A waiting room, a lingering device hold and a dictation session all look identical
     /// to the best signal we have.
     public static let meetingCeiling = 0.90
