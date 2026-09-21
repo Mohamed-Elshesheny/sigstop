@@ -348,7 +348,7 @@ struct SettingsView: View {
                                 .foregroundStyle(Brand.fgMuted)
                         }
                         HStack(spacing: 6) {
-                            TerminalButton("Re-check", style: .quiet) { model.refreshPermissions() }
+                            TerminalButton("Re-check") { model.refreshPermissions() }
                                 .fixedSize()
                             TerminalButton("Open System Settings") { model.openAccessibilitySettings() }
                                 .fixedSize()
@@ -596,10 +596,10 @@ struct SettingsView: View {
                     switch updater.state {
                     case .available:
                         TerminalButton("Download", style: .filled) { updater.proceed() }.fixedSize()
-                        TerminalButton("Not now", style: .quiet) { updater.dismiss() }.fixedSize()
+                        TerminalButton("Not now") { updater.dismiss() }.fixedSize()
                     case .readyToInstall:
                         TerminalButton("Install and restart", style: .filled) { updater.proceed() }.fixedSize()
-                        TerminalButton("Later", style: .quiet) { updater.dismiss() }.fixedSize()
+                        TerminalButton("Later") { updater.dismiss() }.fixedSize()
                     case .downloading, .checking:
                         TerminalButton("Cancel") { updater.dismiss() }.fixedSize()
                     case .extracting, .installing:

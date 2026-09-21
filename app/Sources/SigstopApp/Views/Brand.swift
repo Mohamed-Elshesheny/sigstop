@@ -258,6 +258,13 @@ struct Rule: View {
 /// line is pressable rather than printed. Settings never sets it, because nothing there
 /// is an answer to a question the app just asked.
 ///
+/// **Which is why `.quiet` is for the panel.** It is legible without a box in exactly two
+/// places: a marked line, where the glyph carries it, and the chrome row under the panel's
+/// rule, where the rule and the company it keeps carry it. Nowhere else can set a mark and
+/// nowhere else has that rule, so a lone quiet control elsewhere is grey caption text
+/// standing next to a real button — which is what the second half of a two-option prompt
+/// must never look like. Outside the panel, use `.outlined`.
+///
 /// A quiet control is still a real `Button`, so VoiceOver announces it as a button and
 /// Full Keyboard Access reaches it; the focus ring is drawn here rather than by the
 /// system, because the system's is the one blue in an otherwise amber product.
@@ -400,6 +407,12 @@ private struct TerminalButtonStyle: ButtonStyle {
                         .font(Brand.mono(11, weight: .medium))
                         .foregroundStyle(markInk)
                         .frame(width: TerminalButton.markGutter, alignment: .leading)
+                        // SwiftUI builds a Button's accessibility label out of the Text
+                        // in its rendered content, and a ButtonStyle's body *is* that
+                        // content — so an unhidden glyph gets read out in front of every
+                        // label in the column. The arrow/chevron distinction is drawn for
+                        // the eye; the title already says what the control does.
+                        .accessibilityHidden(true)
                     configuration.label
                     Spacer(minLength: 0)
                 }
