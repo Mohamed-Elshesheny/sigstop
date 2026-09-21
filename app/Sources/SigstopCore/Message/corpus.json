@@ -2171,7 +2171,7 @@
     },
     {
       "id": "browse.tabs.grey-smear",
-      "text": "You have opened so many tabs that the browser now renders them as A SINGLE GREY SMEAR OF DESPAIR. THE SMEAR IS A CRY FOR HELP. GO OUTSIDE.",
+      "text": "You have opened so many tabs the browser has stopped drawing titles and is now rendering ONE UNBROKEN GREY SMEAR. NOBODY CAN READ THAT. NOT YOU. NOT THE BROWSER. Stand up.",
       "tone": "nuclear",
       "category": "research_browsing",
       "escalation": {
@@ -3542,7 +3542,7 @@
       "isFallback": true
     },
     {
-      "id": "hydration.glass",
+      "id": "hydration.water.glass",
       "text": "💧 Break time. Take a glass of water with you.",
       "tone": "friendly",
       "category": "hydration",
@@ -3557,7 +3557,7 @@
       "claimsActivity": false
     },
     {
-      "id": "hydration.desk-check",
+      "id": "hydration.water.desk-check",
       "text": "💧 Quick check: is there anything in the glass on your desk?",
       "tone": "friendly",
       "category": "hydration",
@@ -3572,7 +3572,7 @@
       "claimsActivity": false
     },
     {
-      "id": "hydration.coffee-not-water",
+      "id": "hydration.water.coffee-is-not-water",
       "text": "💧 Coffee is not water. It is lovely, and it is not water.",
       "tone": "sarcastic",
       "category": "hydration",
@@ -3587,7 +3587,7 @@
       "claimsActivity": false
     },
     {
-      "id": "hydration.refill",
+      "id": "hydration.water.refill",
       "text": "💧 Five minutes away from the screen. The kitchen is on the way.",
       "tone": "friendly",
       "category": "hydration",
@@ -3602,7 +3602,7 @@
       "claimsActivity": false
     },
     {
-      "id": "medication.if-you-take-one",
+      "id": "medication.dose.if-you-take-one",
       "text": "💊 If you take anything around now, this is a good moment for it.",
       "tone": "friendly",
       "category": "medication",
@@ -3617,7 +3617,7 @@
       "claimsActivity": false
     },
     {
-      "id": "medication.moment",
+      "id": "medication.dose.moment",
       "text": "💊 Break time. A good moment if something is due.",
       "tone": "friendly",
       "category": "medication",
