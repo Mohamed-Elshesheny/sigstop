@@ -124,7 +124,13 @@ enum SettingsPaneRenderer {
 
     @MainActor
     static func runAndExit(pane: String, stem: String) -> Never {
-        let chosen = SettingsView.Pane(rawValue: pane) ?? .about
+        /// A typo used to render About, and a reviewer who asked for "signal" then
+        /// reviewed the wrong pane without being told.
+        guard let chosen = SettingsView.Pane(rawValue: pane) else {
+            let names = SettingsView.Pane.allCases.map(\.rawValue).joined(separator: ", ")
+            FileHandle.standardError.write(Data("no pane named '\(pane)'; one of: \(names)\n".utf8))
+            exit(2)
+        }
         let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
         for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
