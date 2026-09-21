@@ -27,7 +27,6 @@ struct MenuBarView: View {
     var openSettings: () -> Void = {}
 
     @State private var showEvidence: Bool
-    @State private var showNarration = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let width: CGFloat = 356
@@ -427,19 +426,10 @@ struct MenuBarView: View {
 
     /// The numbers are rendered here from the rollup, not from the narrator's detail
     /// string, so the top application can be shown by its display name rather than the
-    /// last component of its bundle id. The narrator's sentence is behind a disclosure:
-    /// it is the product's voice, but nobody opens the panel to read prose.
+    /// last component of its bundle id.
     private var jobs: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Kicker("jobs · today")
-                Spacer()
-                if !model.todayLine.isEmpty {
-                    DisclosureLine(open: showNarration, title: "in words") {
-                        showNarration.toggle()
-                    }
-                }
-            }
+            Kicker("jobs · today")
 
             if let summary = model.todaySummary, !summary.isEmptyDay {
                 HStack(alignment: .top, spacing: 0) {
@@ -462,15 +452,6 @@ struct MenuBarView: View {
                 Text("Nothing recorded yet today.")
                     .font(Brand.mono(10.5))
                     .foregroundStyle(Brand.fgMuted)
-            }
-
-            if showNarration, !model.todayLine.isEmpty {
-                Text(model.todayLine)
-                    .font(Brand.sans(11.5))
-                    .foregroundStyle(Brand.fgMuted)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
             }
 
             footnotes
