@@ -400,6 +400,21 @@ struct SettingsView: View {
                 ) {
                     TerminalSwitch(isOn: settings.accessibilityEnabled)
                 }
+                /// Tier 1b had no switch at all, which is the same defect the daily cap had:
+                /// a setting that changes what the app can tell about you, reachable only by
+                /// hand-editing `settings.json`. Nested under the title switch because it is
+                /// read out of the title and does nothing without it.
+                SettingRow(
+                    "Read the site name from a browser title",
+                    detail: "Off by default. The host only — \"github.com\", never the path and "
+                        + "never the query string. It is what separates a call on meet.google.com "
+                        + "from a pull request, so the app can hold a break for one and not the "
+                        + "other. Without it a browser is just \"browsing\"."
+                ) {
+                    TerminalSwitch(isOn: settings.browserHostEnabled)
+                        .disabled(!model.settings.accessibilityEnabled)
+                        .opacity(model.settings.accessibilityEnabled ? 1 : 0.4)
+                }
                 SettingRow(
                     "Accessibility",
                     detail: "The button takes you to the switch. The app never raises the macOS "

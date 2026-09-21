@@ -875,6 +875,13 @@ from rows 16 and 17 of the inventory in §1.2, which were already being kept.
 If a line in the event log does not parse, the reader skips it and counts it; a corrupt file never
 crashes the app and never silently changes your history.
 
+**On ordering.** `t` is when the event happened, not when the line was written, and the
+file is in write order. A session end is discovered after the fact and carries the timestamp
+of the gap it describes, so a line stamped `04:23` can appear after one stamped `04:33`. That
+is the contract, not a bug: the app never rewrites a line and never holds one back to make the
+file look tidier, because either would mean buffering in front of a log you are invited to
+`cat`. Everything that reads these files sorts by `t` first, and so should you.
+
 ### 4.4 The writer
 
 ```swift
@@ -1235,81 +1242,79 @@ bundle identifiers and timestamps, which is the deal.
 
 ### 6.4 Read the source, in this order
 
+**This section used to describe a different repository.** It printed a source tree with an
+`Observation/` folder, a `Storage/` folder, a top-level `Links.swift`, a `scripts/`
+directory holding four `verify-*.sh` guards, and a `.github/workflows/privacy-guard.yml`
+described as a required check. Two of the four scripts were printed here in full, "so you
+can run it before you trust CI". None of it existed, at any point. A reader who did the
+thing this section asks them to do found four hundred lines of fiction, which costs more
+than the section was ever worth. What is below is the tree that is there.
+
 ```
 app/Sources/
-├── Observation/
-│   ├── FrontmostAppObserver.swift   ← the primary signal; no permissions involved
-│   ├── IdleMonitor.swift            ← 12 lines; the entire idle story
-│   ├── PowerAndLockObserver.swift   ← sleep/lock/session notifications
-│   ├── WindowTitleReader.swift      ← the ONLY AX code in the project. Start here if suspicious
-│   ├── TitleClassifier.swift        ← the complete vocabulary extracted from a title
-│   └── ActivitySampler.swift        ← the call site showing the title is discarded
-├── Storage/
-│   ├── EventStore.swift             ← the only code that writes event data
-│   ├── SettingsStore.swift
-│   ├── Retention.swift              ← deletion policy
-│   └── ExportService.swift          ← export and delete-everything
-├── Break/BreakEngine.swift          ← pure state machine, no I/O, unit-tested
-├── UI/                              ← menu bar, settings, fallback overlay window
-├── Links.swift                      ← every URL constant in the app, in one file
-└── Resources/
-    ├── categories.json
-    └── MessagePacks/*.json
-scripts/
-├── verify-no-network.sh
-├── verify-entitlements.sh
-├── verify-ax-isolation.sh
-└── verify-forbidden-apis.sh
-.github/workflows/privacy-guard.yml  ← runs all four on every PR; required check
+├── SigstopCore/                      pure domain. Imports no macOS UI framework at all
+│   ├── Model/                        Activity, Confidence, Evidence, Settings
+│   ├── Session/                      the work clock, and the gap classifier
+│   ├── Decision/                     the engine: when a break is due and when it is not
+│   ├── Message/                      template selection, and corpus.json
+│   ├── Badges/                       the ten, and the ledger
+│   ├── Storage/                      EventLog, the daily summaries, retention
+│   └── Summary/                      the rollup behind the uptime panel
+├── SigstopSensors/                   the ONLY layer that touches a macOS API
+│   ├── Collectors/
+│   │   ├── AccessibilityCollector.swift   ← the only AX reading in the project
+│   │   ├── GitCollector.swift             ← one open+read of .git/HEAD, Tier 2
+│   │   └── ProcessCollector.swift         ← one sysctl, allowlisted names, Tier 2
+│   ├── PermissionBroker.swift        asks whether the grant exists. Asks, never reads
+│   ├── ContextEngine.swift           builds one sample and publishes it
+│   └── Providers/                    pure functions: a SignalContext in, a verdict out
+├── SigstopApp/                       menu bar, break overlay, settings, updates
+│   ├── UpdateChecker.swift           the one place Sparkle is spoken to
+│   ├── Doctor.swift                  what `--doctor` prints
+│   └── Views/                        SettingsView carries every URL the app can open
+└── Scenarios/                        scripted days run against the real engine
+
+app/Scripts/verify.sh                 the guard. Runs in CI on every push
+.github/scripts/check-ax-isolation.py keeps Accessibility in the two files named above
+.github/scripts/check-corpus.py       the humour rails, HANDBOOK.md §4.5
+.github/scripts/check-em-dashes.py    no em dash reaches a user
+.github/workflows/ci.yml              runs all of the above, plus the test suite
 ```
 
-`scripts/verify-no-network.sh`, in full, so you can run it before you trust CI:
+**Start with `AccessibilityCollector.swift` if you are suspicious.** It is the only file in
+the repository that reads anything through the Accessibility API, and that is a property
+somebody checks rather than a sentence somebody wrote:
 
-```bash
-#!/usr/bin/env bash
-# Fails if the built binary references any networking or exfiltration primitive.
-set -euo pipefail
-BIN="${1:?usage: verify-no-network.sh /path/to/App.app/Contents/MacOS/App}"
-
-fail() { echo "PRIVACY GUARD FAILED: $1" >&2; exit 1; }
-
-UNDEF_FORBIDDEN='^_(socket|connect|bind|listen|accept|sendto|sendmsg|recvfrom|recvmsg|getaddrinfo|gethostbyname|res_9_init|CFHostStartInfoResolution|CFSocketCreate|SCNetworkReachabilityCreateWithName)$'
-CLASS_FORBIDDEN='OBJC_CLASS_\$_(NSURLSession|NSURLConnection|NSURLRequest|NWConnection|NWBrowser|NWListener|NWPathMonitor|NSNetService|NSXPCConnection|NSAppleScript|NSTask|NSPasteboard)'
-API_FORBIDDEN='(CGEventTapCreate|CGWindowListCreateImage|CGWindowListCopyWindowInfo|CGDisplayStreamCreate|SCStreamConfiguration|SecItemCopyMatching|SecItemAdd|dlopen)'
-
-nm -u "$BIN" | awk '{print $NF}' | grep -Eq "$UNDEF_FORBIDDEN" && fail "networking syscall referenced"
-nm    "$BIN" | grep -Eq "$CLASS_FORBIDDEN"                      && fail "forbidden class referenced"
-nm -u "$BIN" | grep -Eq "$API_FORBIDDEN"                        && fail "forbidden API referenced"
-
-# Every URL literal in the binary must be on the allowlist.
-ALLOWED='^https://github\.com/(ORG)/(REPO)(/releases)?/?$'
-while read -r url; do
-  [[ "$url" =~ $ALLOWED ]] || fail "unexpected URL literal in binary: $url"
-done < <(strings -a "$BIN" | grep -Eo 'https?://[^[:space:]"]+' | sort -u)
-
-echo "privacy guard: OK"
+```sh
+python3 .github/scripts/check-ax-isolation.py
 ```
 
-`scripts/verify-ax-isolation.sh` is the same idea at source level:
+It fails if an AX symbol appears in any other file, if `PermissionBroker.swift` does
+anything beyond asking whether the grant exists, or if the collector asks an element for
+an attribute that is not on its allowlist. That last one is the point: adding an attribute
+widens what the app can see, so it has to be argued for in §1.5 and allowlisted in the
+same pull request. All four of those failure modes were tested by breaking the tree on
+purpose and watching the check catch them.
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-SRC=app/Sources
-ALLOWED_FILE="$SRC/Observation/WindowTitleReader.swift"
+**The guard that runs against the built binary** is `app/Scripts/verify.sh`, and it is not
+printed here, for the same reason the old scripts should not have been: a copy of a script
+in a document is a copy that goes stale. Read it, or run it:
 
-# 1. No AX usage outside the one permitted file.
-if grep -rln 'AXUIElement\|AXIsProcessTrusted\|AXObserver' "$SRC" | grep -v "^$ALLOWED_FILE$"; then
-  echo "PRIVACY GUARD FAILED: Accessibility API used outside WindowTitleReader.swift" >&2; exit 1
-fi
-
-# 2. That file may reference only these AX attribute constants.
-UNEXPECTED=$(grep -o 'kAX[A-Za-z]*' "$ALLOWED_FILE" | sort -u \
-  | grep -v -E '^kAX(FocusedWindowAttribute|TitleAttribute|TrustedCheckOptionPrompt)$' || true)
-[ -z "$UNEXPECTED" ] || { echo "PRIVACY GUARD FAILED: new AX attributes: $UNEXPECTED" >&2; exit 1; }
-
-echo "ax isolation: OK"
+```sh
+cd app && make verify-shipped
 ```
+
+It asserts, against the bundle rather than the source: no networking framework linked into
+the app's own binary, no networking symbol referenced, exactly one embedded framework, no
+analytics SDK, no network-server entitlement, that `SUPublicEDKey` is a real Ed25519 key,
+that no private key is anywhere in the repository, that the feed URL is HTTPS, that every
+URL string in the binary is an allowlisted link to this repository, and that nothing
+schedules an update check on its own.
+
+`verify-shipped` rather than `verify` on purpose. The shipped image carries two
+architectures, and `nm` and `otool` read only the native one by default, so a symbol
+present in the Intel half alone used to come back clean. The script splits the binary and
+runs every assertion against each slice.
 
 ### 6.5 Reproducible builds
 

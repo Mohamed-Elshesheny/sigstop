@@ -61,6 +61,20 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         try append(contentsOf: [event])
     }
 
+    /// `t` is when the event happened, not when the line was written, and the file is in
+    /// write order. Those two sentences are the whole contract, and not writing them down
+    /// is what made a real log look corrupt.
+    ///
+    /// A session end is discovered after the fact and carries the timestamp of the gap it
+    /// describes, so a line stamped 04:23 can be appended after a line stamped 04:33 and
+    /// the file genuinely runs backwards at that point. The owner's log does, once.
+    ///
+    /// The sort below orders one batch and nothing more. The single-event `append` above
+    /// hands it an array of one, where sorting is a no-op, so it is not and cannot be a
+    /// guarantee about the file. Every reader sorts for itself — `DailyRollup` at :222 and
+    /// :570 — and must keep doing so. Making the file itself monotonic would mean holding
+    /// events back to see whether something older turns up, which is a buffer in front of
+    /// an append-only log people are invited to `cat`, and a worse trade than one sentence.
     public func append(contentsOf events: [LoggedEvent]) throws {
         guard !events.isEmpty else { return }
         lock.lock()
