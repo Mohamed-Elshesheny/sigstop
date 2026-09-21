@@ -357,24 +357,29 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
     // MARK: Settings
 
-    /// Where the settings window opens.
+    /// Where the settings window opens, and why it is computed rather than asked for.
     ///
-    /// `NSWindow.center()` measures against `NSScreen.main`, which is the screen with the
-    /// key window. This app is an accessory with no key window when the menu item is
-    /// clicked, so that answer was whatever macOS felt like and the window arrived in the
-    /// top right corner. Centring on the screen the pointer is actually on puts it where
-    /// the person is looking, and falls back to the main screen when the pointer is
-    /// somewhere with no screen under it.
+    /// `NSWindow.center()` measures against `NSScreen.main`, which is the screen holding
+    /// the key window. This app is an accessory with no key window when the menu item is
+    /// clicked, so that answer was whatever macOS felt like. Centring on the screen the
+    /// pointer is actually on puts the window where the person is looking.
     ///
-    /// Slightly above centre on purpose: a window placed on the exact vertical middle
-    /// reads as low, which is why `center()` does the same thing.
-    private static func centredOrigin(for window: NSWindow) -> NSPoint {
+    /// The size is passed in, and that is the entire bug this function was rewritten for.
+    /// Reading `window.frame.size` after assigning a `NSHostingController` returns
+    /// 0 x 32: SwiftUI has not laid out yet, so the window has collapsed and does not get
+    /// its real size until a later pass. Centring a zero-width window puts its left edge
+    /// on the middle of the screen, and AppKit anchors the top left corner when it
+    /// resizes, so the window then grew right and down from there and arrived in the top
+    /// right corner. Measured, not guessed. Use `frameRect(forContentRect:)` for the size
+    /// instead, which is known before any layout happens.
+    ///
+    /// Slightly above centre on purpose: a window on the exact vertical middle reads low.
+    private static func centredOrigin(for size: NSSize) -> NSPoint {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
             ?? NSScreen.main
             ?? NSScreen.screens.first
-        guard let visible = screen?.visibleFrame else { return window.frame.origin }
-        let size = window.frame.size
+        guard let visible = screen?.visibleFrame else { return .zero }
         return NSPoint(
             x: visible.midX - size.width / 2,
             y: visible.midY - size.height / 2 + visible.height * 0.08
@@ -390,8 +395,9 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             return
         }
 
+        let content = NSRect(x: 0, y: 0, width: 800, height: 620)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 620),
+            contentRect: content,
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -399,7 +405,11 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         window.title = "sigstop Settings"
         window.contentViewController = NSHostingController(rootView: SettingsView(model: model))
         window.isReleasedWhenClosed = false
-        window.setFrameOrigin(Self.centredOrigin(for: window))
+        // Both at once, and the size from the content rect rather than from the window,
+        // for the reason written out above `centredOrigin`.
+        var frame = window.frameRect(forContentRect: content)
+        frame.origin = Self.centredOrigin(for: frame.size)
+        window.setFrame(frame, display: false)
         settingsWindow = window
 
         NSApp.activate(ignoringOtherApps: true)
