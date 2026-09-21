@@ -55,8 +55,11 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 24 | **Unified log lines** | `os.Logger` | Debugging | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
 | 25 | **Audio input device in use** (one `Bool` per device, OR'd) | `kAudioDevicePropertyDeviceIsRunningSomewhere` on each device with input channels. **No Microphone permission; none is requested** | Do not interrupt a live call. This is the signal a hard block rests on | Not persisted. Only the derived verdict reaches the log, as a `reason` string | n/a | No — it is what stops a prompt landing in a meeting |
 | 26 | **Camera device in use** (one `Bool` per device, OR'd) and the **device names** | `kCMIODevicePropertyDeviceIsRunningSomewhere` over `kCMIOHardwarePropertyDevices`. **No Camera permission; none is requested, and a probe generated no `tccd` activity** | Same, for the camera-on / microphone-muted posture, which is the normal one on Teams and Meet | Not persisted. Device names are printed by `--doctor` on request and held in memory only | Process lifetime | No |
-| 27 | **Bundle identifiers of processes running audio input** | `kAudioHardwarePropertyProcessObjectList`, then `kAudioProcessPropertyBundleID` and `kAudioProcessPropertyIsRunningInput` per process object. **No permission; none is requested** | Say *which* app has the microphone, so the call hold names a fact rather than guessing, and so Siri, dictation and a permanently-open virtual device can be discounted instead of disabling the signal | Not persisted. Each identifier is matched against a fixed list and dropped. Nothing else about the process, not the pid, not the name, not the path, is read | Memory-only, one sample | No |
+| 27 | **Bundle identifiers of processes running audio input** | `kAudioHardwarePropertyProcessObjectList`, then `kAudioProcessPropertyBundleID` and `kAudioProcessPropertyIsRunningInput` per process object. **No permission; none is requested** | Say *which* app has the microphone, so the call hold names a fact rather than guessing, and so Siri, dictation and a permanently-open virtual device can be discounted instead of disabling the signal | Not persisted. Each identifier is matched against a fixed list and dropped. Nothing else about the process is read **on this path**: this row is CoreAudio's process object list and it yields a bundle identifier, nothing more. The one place the app reads an executable path is row 30, which is Tier 2, off by default, and bounded there | Memory-only, one sample | No |
 | 28 | **Seconds the call hold has held a break today**, and the day they count for | Derived from #25, #26 and #27 by the call latch | So the three-hour daily ceiling on holding survives a relaunch instead of resetting to zero | Persisted, `call-hold.json` (a day index and a number of seconds) | Overwritten in place; reset on delete | Follows "Hold my break during calls" |
+| 29 | **The focused window's document path** (`/Users/you/p/a.swift`) | `kAXDocument` on the focused window, read in the same call that reads the title. Tier 1 | Names the file you have open when the title does not, and tells the git collector which registered folder you are in | Memory-only, one sample. Anything that is not a local file URL is discarded before it is parsed, which is what keeps a browser's full page URL out (`AccessibilityCollector.fileURL(from:)`) | Until the next sample | Follows Tier 1 |
+| 30 | **Which of a fixed list of developer tools is running**, as an enum case, never a string, plus one `Bool` for whether anything is under a debugger | One `sysctl(KERN_PROC_ALL)`, then `proc_pidpath` for the pids whose `p_comm` already matched the `ToolToken` allowlist in `app/Sources/SigstopSensors/SignalContext.swift`. **No permission is required and none is requested** | The only signal in this product that can tell `DEBUGGING` from `CODING`. Without it the app degrades to `CODING` rather than guess between siblings (`CLAUDE.md` §4.1) | **Not persisted, and nothing but the match survives.** The path is compared and dropped. A process matching nothing is not recorded, not counted, not reported. No command line, environment or working directory is read at all | Memory-only, one sample | **Yes, and off by default** |
+| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | One read of the first line of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`, plus four `fileExists` checks. No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), and `--doctor` prints its length rather than the name (§8.12) | Until the next sample, or process exit | **Yes, and off by default** |
 
 Rows 25 to 27 are **property reads on device and process objects**. No stream is opened, no capture
 session is created, no frame or sample is ever available to this process, and the capability to do
@@ -64,6 +67,23 @@ so is absent rather than merely unused. The difference matters and is the reason
 the inventory rather than under §3.3: reading "is some process using the camera" is a different
 operation from using the camera, in the same way that `ps` is a different operation from debugging.
 macOS agrees, which is why neither read produces a prompt.
+
+Rows 30 and 31 touch the process table and the filesystem, which nothing else here does, so the
+boundaries belong next to the rows rather than three sections away.
+
+**Row 30 reads an executable path and nothing else.** Not the command line, not the environment, not
+the working directory, not memory. A command line is the one place on a developer's machine where a
+password is routinely written in plain text, `psql "postgres://user:hunter2@host/db"` being the
+canonical example, which is exactly why `KERN_PROCARGS2` is not called. §2.10 gives the mechanism
+and the commands that check it.
+
+**Row 31 reads one line of one file.** Not a diff, not a commit message, not `.git/config`, not an
+object, not the index, and never a file in your working tree. The repository state is four
+`fileExists` calls, on `.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD` and
+`.git/BISECT_LOG`, each of which returns a `Bool` and opens nothing: the app learns a rebase is in
+progress, never what is being rebased. The folder is one you picked in an `NSOpenPanel`. The app
+never guesses a path from a window title or a project name, because guessing a path from a name is
+the kind of invention `CLAUDE.md` §4.1 forbids.
 
 That is the complete list. There is no row for account, device identifier, hardware serial, locale
 beacon, install ID, or first-run ping, because none of those exist in the code.
@@ -470,6 +490,42 @@ That attacker could also simply replace the binary, so the practical loss is sma
 
 ---
 
+### 2.10 No repository contents, and no command lines
+
+Two Tier 2 collectors read things nothing else in the app reads: one file inside `.git/`, and the
+process table. Both are off by default, each behind its own switch. Both are bounded by what the
+code is *capable* of, not by what it chooses, which is the only kind of bound worth writing down.
+
+**Mechanism, git.** The collector opens exactly one path per registered folder, `<repo>/.git/HEAD`,
+reads its first line, and matches `ref: refs/heads/<name>`. The only other filesystem calls are the
+four `fileExists` checks above. `git` is never spawned: `Process`, `NSTask` and `posix_spawn` remain
+forbidden symbols (§2.9), so shelling out is not something this binary can do, whatever a future
+contributor intends.
+
+**Mechanism, processes.** One `sysctl(CTL_KERN, KERN_PROC, KERN_PROC_ALL)` returns the table.
+`p_comm` is compared against the allowlist, `proc_pidpath` confirms the executable's location for
+the few that matched, and the path is dropped. `KERN_PROCARGS2` is not called, so no command line,
+no argument and no environment variable is ever in this process's memory. `proc_pidinfo` is not
+called either, so no process's working directory is read. What survives one scan is a set of enum
+cases and two booleans.
+
+**Check.**
+
+```sh
+# argv, environment and working directories are never read
+grep -rn 'KERN_PROCARGS2\|proc_pidinfo\|PROC_PIDVNODEPATHINFO' app/Sources   # expect no output
+# git is never shelled out to
+grep -rn 'Process(\|NSTask\|posix_spawn' app/Sources                          # expect no output
+# every path the git collector can construct, in one grep
+grep -n 'gitPath\|\.git' app/Sources/SigstopSensors/Collectors/GitCollector.swift
+#   expect only: .git, HEAD, rebase-merge, rebase-apply, MERGE_HEAD, BISECT_LOG
+```
+
+At runtime: `sudo fs_usage -w -f filesys $(pgrep -x sigstop)` and watch that the only paths outside
+the bundle and the storage directory are `HEAD` files in folders you registered.
+
+---
+
 ## 3. Permissions
 
 ### 3.1 Design principle
@@ -489,6 +545,12 @@ every permission provider stubbed to "denied" and asserts reminders still fire c
 | **Notifications** | `UNUserNotificationCenter` | At the first break, not at launch | Reminders appear as system notifications, respect Focus modes and Notification Center | Fallback: a borderless `NSWindow` at `.statusBar` level that the app draws itself. Needs no permission. Slightly more intrusive, does not respect Do Not Disturb — so the app's own quiet hours setting becomes the only mute |
 | **Accessibility** | `kTCCServiceAccessibility` | Never automatically. Only when you flip "Detect meetings and terminals from window titles" in settings, with the explanation text shown first | Window-title fidelity (inventory rows 12–14): the app can avoid interrupting a live meeting and can tell a terminal from a browser inside the same app | Everything still works from app identity alone. The app may propose a break during a Zoom call, because it can see you are in Zoom but not that a meeting is in progress |
 | **Login item** | `SMAppService` (not TCC) | Only from the settings toggle | Starts at login | Start it yourself |
+| **Git context (Tier 2)** | None. Not a TCC service. What you grant is a folder | Never automatically. Only when you add a project folder in Settings → Signals | The branch name, and whether a rebase, merge or bisect is in progress, for the folders you added | Nothing degrades. `branch` is `nil`, the templates that need `{branch}` become unselectable by construction (`docs/MESSAGE-ENGINE.md` §5), every other line still fires |
+| **Process context (Tier 2)** | None. `sysctl(KERN_PROC_ALL)` needs no grant and produces no prompt | Never automatically. Only from its own switch in Settings → Signals | `DEBUGGING` becomes reachable instead of collapsing into `CODING` | `CODING`, and the UI says it cannot tell whether you are debugging |
+
+Neither Tier 2 row is in §3.3's list of permissions never requested, because neither is a
+permission. Both are things macOS lets any process do without asking. They are behind switches for
+privacy reasons, not permission reasons, and that distinction is the whole design of Tier 2.
 
 ### 3.3 What is never requested
 
@@ -518,6 +580,21 @@ words, and the only real mitigation is the manual "I'm in a meeting" hold in the
 A note on Calendar: reading EventKit would be the most accurate way to know you are in a meeting.
 It was considered and rejected. It would mean access to every event title, attendee, and location on
 your calendar to answer a yes/no question that a window title answers at a fraction of the exposure.
+
+**Files and Folders stays on this list, and the git collector is not an exception to it.** The app
+never asks for that service. A folder you choose in an open panel is a grant you hand over for that
+folder, one at a time, and nothing else is ever opened. If macOS refuses the read anyway, which is
+what a repository under `~/Desktop`, `~/Documents` or `~/Downloads` can do, the collector reports
+*not allowed to look* rather than *no repository*, and `--doctor` prints which of those it was. This
+has not been exercised against a live TCC prompt here, and that is said in §8.12 rather than implied
+away.
+
+**A process's working directory was considered and refused.** `proc_pidinfo` with
+`PROC_PIDVNODEPATHINFO` returns the working directory of every process running as you, with no
+permission, and would have removed the need to register folders at all. It was refused for the same
+reason EventKit was: it answers a small question by taking a large amount. The working directory of
+every process you are running is every directory you have anything open in, which is far more than
+"what branch is this repo on". You pick the folders.
 
 ### 3.4 The honest account of the Accessibility permission
 
@@ -564,7 +641,11 @@ where to read it." — with a link to `WindowTitleReader.swift`.
 |---|---|---|
 | Nothing | App switches, idle time, lock/sleep, time | Good. Correct break timing, correct pausing when you leave |
 | Notifications | Same + reminders integrate with the system | Good, less intrusive |
-| Notifications + Accessibility | Same + meeting/terminal/editor detection | Best. Will not interrupt a call |
+| Notifications + Accessibility | Same + meeting/terminal/editor detection | Very good. Will not interrupt a call |
+| Notifications + Accessibility + the two Tier 2 switches | Same + the branch you are on, and whether a debugger is attached | Best. `DEBUGGING` stops being a guess and becomes an observation |
+
+The last row is the only one that is not a permission. Tier 2 is two switches, not a grant, and the
+ladder includes it because fidelity is what it changes, not because macOS is involved.
 
 ### 3.6 Two build flavors, and why
 
@@ -690,6 +771,15 @@ hold a window title, and that this is enforced by the type rather than by review
 convention. `reason` and `deferred` were `String?` and quietly were that field. They are
 `SignalName?` and `GateReason?` now, with the same words on disk, so old logs still parse
 and the claim is true again.
+
+**Tier 2 adds no field here, and is not allowed to.** A branch name is free text by definition, so it
+has nowhere to go: the paragraph above is a property of `LoggedEvent`'s type and a branch would have
+to break it. A tool name is *not* free text — `ToolToken` is a closed enum exactly like
+`GateReason` — and it is still refused, which takes the extra sentence this deserves. The log
+already gains everything Tier 2 buys, through a field it has always had: `activity` can now say
+`debugging` where it used to say `coding`. A `tool` column would add something different, an
+inventory of which debuggers you run, day by day, for seven days. That is a new kind of fact about
+you, not a new encoding of one already here.
 
 Two of those kinds were added because their absence was itself a privacy-adjacent problem,
 in the sense that matters here: an app that cannot show its working cannot be audited.
@@ -1305,6 +1395,26 @@ timestamps, is meaningful data about you. It is less than a screen recorder coll
 magnitude, but it is not nothing, and calling it "anonymous" would be false — it is on your machine,
 about you, tied to you.
 
+**8.11 A branch name and a tool name exist in the app's memory while Tier 2 is on.** The same caveat
+as §8.3 and for the same reason: the claim is that neither is persisted, logged or transmitted, not
+that neither existed. A branch name may carry a ticket id, a customer, or an unreleased product. It
+may appear in a memory dump, in swap, or in a crash report if a crash happens inside the collector.
+If that matters to you, leave Tier 2 off, which is where it ships.
+
+**8.12 `--doctor` knows your branch, and you are asked to paste `--doctor` into public issues.** That
+combination is the one place Tier 2 could leak something you did not mean to publish, so `--doctor`
+prints the *length* of the branch name and not the name. Settings → Signals shows it on your own
+machine, where it is not going anywhere. This is not a claim that the redaction is airtight: a length
+is a fact about the string, and the surrounding lines still name your apps and the folders you
+registered. Read what you paste.
+
+**8.13 The Files-and-Folders behaviour of the git collector has not been exercised here.** Whether
+macOS prompts, or silently refuses, when a registered folder sits under `~/Desktop`, `~/Documents` or
+`~/Downloads` was reasoned about and not tested, because testing it means putting a modal on
+somebody's screen and leaving a permanent entry in their privacy settings. The collector is written
+to report *not allowed to look* separately from *no repository* precisely so that, when somebody does
+hit it, the app says which one happened instead of looking broken.
+
 **8.10 Idle detection is session-wide.** `CGEventSourceSecondsSinceLastEventType` reflects input to
 every application, not only this one. It reveals no content, but it does mean the app knows whether
 you were typing *somewhere* — including in apps you have excluded from tracking.
@@ -1327,6 +1437,8 @@ out any such change in the first line, not in a footnote.
 | Dependencies | Zero third-party runtime dependencies | Exactly one: Sparkle, pinned with `exact:`, linked into the app target only. §7 row 2 |
 | Hardened Runtime | On, with Library Validation | Off in the default ad-hoc build, because it cannot coexist with an embedded framework without a Team ID. §2.9, §8.1d |
 | Update integrity | Notarized Developer ID signing | EdDSA signing with a key held only by the maintainer, verified before install. §2.8, §8.1c |
+| Tier 2 | Two switches that read nothing, and a `--doctor` that said so | Two collectors: executable basenames against a fixed allowlist, and one line of `.git/HEAD` in folders you register. Inventory rows 29 to 31, §2.10, §3.5, §8.11 to §8.13 |
+| Tier 2 command lines | `docs/ACTIVITY-DETECTION.md` mandated `KERN_PROCARGS2` for the full argv | argv is never read. The justification for reading it (a 16-character `p_comm` limit) was measurably wrong, and `proc_pidpath` answers the same question with no permission. The cost, six tool tokens that become undetectable, is named in §4.3(b) of that file |
 
 Nothing in the earlier positions was deleted to make room for these. The arguments that were
 replaced are quoted where they were replaced, because a privacy document that silently rewrites its

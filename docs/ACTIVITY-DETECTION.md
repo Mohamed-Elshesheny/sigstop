@@ -111,7 +111,7 @@ permission people assume.
 | On AC vs battery | `IOPSGetTimeRemainingEstimate()` == `kIOPSTimeRemainingUnlimited` | Cheapest correct check; no permission. |
 | **Mic in use** (meeting proxy) | CoreAudio `kAudioDevicePropertyDeviceIsRunningSomewhere` | **No microphone permission required** — we read a device property, we never open a stream. See §2.3 for the substantial caveats. |
 | Window *geometry* (not titles) | `CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)` | Returns `kCGWindowOwnerPID`, `kCGWindowBounds`, `kCGWindowLayer`, `kCGWindowNumber` **without permission**. `kCGWindowName` is *omitted* unless Screen Recording is granted. See §2.4. |
-| Same-user process list | `sysctl(CTL_KERN, KERN_PROC, KERN_PROC_ALL)` | Public, no permission. `p_comm` is truncated to 16 chars (`MAXCOMLEN`). Promoted to Tier 2 in this design for *privacy* reasons, not permission reasons (§4.3). |
+| Same-user process list | `sysctl(CTL_KERN, KERN_PROC, KERN_PROC_ALL)`, plus `proc_pidpath` | Public, no permission, and it returns other users' and SIP-protected processes too. `p_comm` is truncated to 16 chars (`MAXCOMLEN`); `proc_pidpath` returns the **full, untruncated** executable path, which is why argv is not needed (§4.3b). `kp_proc.p_flag & P_TRACED` comes in the same buffer and says a process is under a debugger right now. Promoted to Tier 2 in this design for *privacy* reasons, not permission reasons (§4.3). |
 
 ### 2.2 Tier 1 — Accessibility (`AXUIElement`), optional, user-granted
 
@@ -500,27 +500,84 @@ grants the folder explicitly):
 - Read `.git/HEAD` → branch, or detached HEAD. One tiny file read.
 - Presence of `.git/rebase-merge/`, `.git/rebase-apply/`, `.git/MERGE_HEAD`, `.git/BISECT_LOG` →
   `RepoState`.
-- Watch `.git/HEAD` with `DispatchSource.makeFileSystemObjectSource` — **event-driven, zero polling**.
 - **We never shell out to `git`.** Spawning a process on a timer is the classic way these apps
   become a measurable battery cost, and `git status` in a large repo can take seconds.
 - TCC gotcha: repos under `~/Documents`, `~/Desktop`, `~/Downloads` are protected by the "Files and
   Folders" TCC service and will prompt. Repos under `~/code`, `~/Developer`, `~/src` are not.
-  Surface this so the user understands why one folder prompted and another did not.
+  Surface this so the user understands why one folder prompted and another did not, and make the
+  collector distinguish *no repository here* from *not allowed to look*: an `EPERM` or `EACCES` on
+  the read is a different fact from a missing `.git`, and reporting the second when it was the first
+  is the kind of quiet wrong answer §4.1 of `CLAUDE.md` exists to stop.
 
-**(b) Process introspection.** `sysctl(CTL_KERN, KERN_PROC, KERN_PROC_ALL)` plus, for same-uid
-processes, `sysctl(CTL_KERN, KERN_PROCARGS2, pid)` for the full argv.
+**Where the path comes from, and where it does not.** A registered folder is the only thing the
+collector may open. Nothing infers a path from a name, because inventing a path from a project name
+is exactly the guess `CLAUDE.md` §4.1 forbids. What the other tiers supply is not a path but an
+*answer to which registered folder you are in*, and there are two of them, both Tier 1:
 
-This needs **no permission** — it is placed in Tier 2 for *privacy*, because argv can contain
-secrets (`psql "postgres://user:password@..."`). The rules are absolute:
+- a `kAXDocument` file URL that lies inside a registered folder. Measured on this machine, that
+  arrives for Terminal.app (where it is the focused tab's working directory, kept current by
+  `update_terminal_cwd` in `/etc/zshrc_Apple_Terminal`), for TextEdit, and for native `NSDocument`
+  apps including Xcode. It does **not** arrive for the Electron editors: VS Code and Cursor both
+  return `kAXDocument` with status `.success` and an **empty string**, so code that branches on the
+  `AXError` alone will believe it got a document. Chrome returns a full page URL including the path,
+  which `AccessibilityCollector.fileURL(from:)` already discards because it is not a file URL.
+- the project name parsed out of the window title, matched against the last path component of a
+  registered folder. This is what covers VS Code, Cursor, Zed and JetBrains. It is a match against a
+  closed set the user typed in themselves, not a path conjured from a string.
 
-- argv is matched against a **static allowlist of tool names** and then **immediately discarded**.
-- Only the matched token (`pytest`, `lldb`, `debugserver`) is ever stored or displayed.
-- Full argv never enters a log, a database, a crash report, or the UI.
-- `KERN_PROCARGS2` fails for platform/SIP-protected binaries and for other users' processes. Treat
-  every failure as "no information", never as "not running".
-- `p_comm` alone is truncated to 16 characters, which is why `KERN_PROCARGS2` is needed at all.
+Two registered folders that both match means the app cannot tell which one you are in, and it
+reports no branch rather than picking. So does zero matches.
 
-This is the signal that makes `DEBUGGING` and `TESTING` genuinely detectable rather than guessed.
+**The consequence, stated rather than hidden:** with Accessibility off there is no way to tell which
+of several registered folders is in front, so the branch is not read. Tier 2 git is an upgrade on an
+upgrade. `--doctor` says which route answered and which abstained, so this never looks like a bug.
+
+**Do not use a `DispatchSource` file watch on `.git/HEAD`.** An earlier version of this section
+prescribed one and called it "event-driven, zero polling". Measured: git replaces `HEAD` by renaming
+a lockfile over it, so the watched inode is orphaned and the source fires **once**, on the first
+checkout, and then stays silent forever. Watching the containing `.git` directory instead does
+survive, at twelve events per checkout from index and lockfile churn. Neither is worth it: the whole
+walk-and-parse costs about 50 microseconds warm (measured, 2000 iterations, four directory levels),
+so the collector reads on demand behind a short memo instead. The real cost of this read is not CPU,
+it is that a `stat` on a sleeping or network volume can block for seconds, which is an argument for
+keeping it off the main actor, not for a watcher.
+
+**(b) Process introspection.** One `sysctl(CTL_KERN, KERN_PROC, KERN_PROC_ALL)` for the table, which
+carries `p_comm`, `e_ppid` and `kp_proc.p_flag`, and `proc_pidpath` for the handful of pids that
+matched, to confirm the executable is where that tool actually lives.
+
+This needs **no permission** — it is placed in Tier 2 for *privacy*, because knowing what somebody
+runs is knowing something about them. The rules are absolute:
+
+- Only the **basename** of the executable is examined, and only against a static allowlist that
+  lives in the source where anyone can read and correct it. Anything unmatched is not recorded, not
+  counted, not reported. There is no inventory.
+- `kp_proc.p_flag & P_TRACED` is read from the same buffer. It is set on the process being debugged,
+  so it says *something has this process under `ptrace` right now* rather than *a binary with this
+  name exists*, which is nearer an OS fact than any name match can be. Measured baseline on a
+  developer machine: 0 of 1003 processes, and exactly 1 the instant a real `debugserver` attached.
+- **`KERN_PROCARGS2` is not called.** This section used to mandate it, on the grounds that "`p_comm`
+  alone is truncated to 16 characters, which is why `KERN_PROCARGS2` is needed at all." That
+  reasoning was wrong, and the measurement is one-sided: `proc_pidpath` returns the complete,
+  untruncated path with no permission at all, for every process on the machine including root-owned
+  and SIP-protected ones. No name on the allowlist exceeds 15 characters, so `p_comm` holds them
+  whole anyway. Since the only thing argv bought was a name available another way, and argv is the
+  one field on a developer's machine where a password is routinely in plain text, it is not read.
+  Reading it also costs about 43x more and copies half a megabyte of argv **and environment**, which
+  is where `AWS_SECRET_ACCESS_KEY` lives.
+- The cost of refusing argv, stated rather than hidden: a tool that is a shebang script is named by
+  its arguments, not by its executable. A `#!/usr/bin/env node` script called `jest` is `node` to the
+  kernel and a `#!/usr/bin/env python3` script called `pytest` is `Python`. So `nodeInspect`,
+  `debugpy`, `goTest`, `cargoTest`, `swiftTesting`, `swiftBuild`, `pytest`, `jest`, `vitest`,
+  `playwright`, `rspec` and `phpunit` are **not detected**, and `--doctor` says so in those words
+  instead of reporting them absent. Bare `node` is not matched either: eleven were running on this
+  machine, every one of them an editor helper.
+- What survives is every tool that is its own Mach-O binary carrying its own name, which includes
+  the whole debugger set: `debugserver`, `lldb`, `gdb`, `delve`. That is the trade. `DEBUGGING`
+  becomes genuinely reachable; `TESTING` keeps only `xctest` and stays mostly where it was.
+- A read failure is "no information", never "not running". A zero-length table is a failure, not an
+  empty machine: under a sandbox profile without `sysctl-read` the call returns nothing and sets no
+  errno a caller would notice, so the snapshot must be `nil` rather than an empty set of matches.
 
 ### 4.4 Tier availability is a runtime value
 
@@ -963,9 +1020,11 @@ What *is* detectable, and how:
 
 | Evidence | Tier | log-odds | Notes |
 |---|---|---|---|
-| `debugserver` running as a descendant of Xcode | 2 | **+3.0** | Unambiguous. `debugserver` exists for exactly one reason. |
-| `lldb` / `gdb` / `delve` / `debugpy` process | 2 | +2.2 | Strong. |
-| `node --inspect` / `--inspect-brk` in argv | 2 | +2.2 | Strong. |
+| A process is under `ptrace` (`P_TRACED`) and descends from the frontmost app | 2 | **+3.0** | Unambiguous, and it is a kernel flag rather than a name. Something has that process under a debugger, and it is yours. |
+| A process is under `ptrace` anywhere on the machine | 2 | +1.8 | Real, but it may be another project's debugger. Honest at this weight. |
+| `debugserver` running as a descendant of Xcode | 2 | **+3.0** | Unambiguous. `debugserver` exists for exactly one reason. Verified live on this machine. |
+| `lldb` / `gdb` / `delve` process | 2 | +2.2 | Strong. |
+| `node --inspect` / `--inspect-brk` / `debugpy` | — | — | **Not detected.** Both are named only by their arguments and argv is not read (§4.3b). |
 | A debug-tool process is a **child of the frontmost app** | 2 | +0.8 (additive) | Distinguishes "I am debugging" from "a debugger is running in another project". |
 | Rapid alternation between editor and a browser/simulator, < 5 s dwell each, ≥ 4 cycles/min | 0 | +0.5 | Weak, real, and honest about being weak. Do not let this alone produce DEBUGGING. |
 
@@ -984,6 +1043,12 @@ Ceiling for `DEBUGGING` even with all tiers: **0.90**. A debugger process can be
 | That process is a child of the frontmost editor or terminal | 2 | +0.8 |
 | Window title contains a test-file pattern (`*.test.*`, `*_test.go`, `test_*.py`, `*Tests.swift`, `*.spec.*`) | 1 | +1.5 |
 | Terminal frontmost while a test process is alive | 0+2 | +0.6 |
+
+**With Tier 2, honestly:** only `xctest` in that first row is its own executable. `pytest`, `jest`,
+`vitest`, `playwright`, `rspec` and `phpunit` are shebang scripts that the kernel calls `Python` or
+`node`, and `go test` / `cargo test` / `swift test` are subcommands. Naming them would mean reading
+argv, which §4.3(b) refuses. So Tier 2 makes `DEBUGGING` reachable and leaves `TESTING` roughly
+where Tier 1 left it. That asymmetry is printed in `--doctor` rather than left to be discovered.
 
 **Without Tier 2:** a title match alone gives `TESTING` at ≤ 0.72 (Tier-1 ceiling applies, and we
 deduct for the fact that *editing* a test file is not *running* tests — an important distinction the
@@ -1165,7 +1230,7 @@ release.
 | Screen lock / unlock | `DistributedNotificationCenter` | only on real changes |
 | Display & system sleep/wake, session switch | `NSWorkspace` notifications | rare |
 | Thermal / power state | `ProcessInfo` notifications | rare |
-| Branch change | `DispatchSource` file watch on `.git/HEAD` (Tier 2) | only on real changes |
+| Branch change | read on demand, memoized on the resolved git dir (Tier 2) | one `open`+`read` of one line, ~50 us, at most once per memo window. A file watch was tried and does not work: see §4.3(a) |
 
 On a machine where the user is heads-down in one editor, this subsystem does **approximately zero
 work** — no timer fires, nothing is polled.
@@ -1175,7 +1240,7 @@ work** — no timer fires, nothing is polled.
 | What | Interval | Gated on | Cost |
 |---|---|---|---|
 | Idle-threshold crossing | **self-scheduling**, not periodic | always | ~2 wakeups per idle transition |
-| Process snapshot (Tier 2) | 5 s active / 30 s otherwise | Tier 2 on **AND** frontmost is editor/terminal **AND** `idleSeconds < 120` **AND** thermal `.nominal`/`.fair` **AND** not (on battery AND Low Power Mode) | 1–4 ms per scan |
+| Process snapshot (Tier 2) | not polled at all: taken inside the sample the engine was already going to build | the process opt-in on **AND** frontmost is editor/terminal **AND** `idleSeconds < 120` **AND** thermal `.nominal`/`.fair` **AND** not (on battery AND Low Power Mode), then memoized for a few seconds | 0.24 ms per scan, measured over 200 scans of 1003 processes |
 | Window geometry | **on demand only** | on app-activation events | sub-ms |
 | AX title reconciliation | 60 s, leeway 30 s | Tier 1 on and not idle | guards against a missed `AXObserver` notification |
 
