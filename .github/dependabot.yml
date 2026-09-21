@@ -1,0 +1,22 @@
+# The actions in .github/workflows are pinned to commit SHAs, which is the right default
+# and also the reason they never move: a pin cannot notice its own security release. This
+# is the part that notices.
+#
+# Swift is here too, for the one dependency the app has. A bump to Sparkle is a security
+# question, not a chore, and CLAUDE.md §5 says an exact pin: a pull request that proposes
+# the new one and is read by a person is exactly the shape that argument wants.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: "swift"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
