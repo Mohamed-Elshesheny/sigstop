@@ -141,6 +141,29 @@ public struct BadgeEvidence: Sendable, Hashable {
     }
 }
 
+// MARK: - How far along
+
+/// How far a locked badge is from unlocking.
+///
+/// Only some badges have one, and the rule is the same distinction `BadgeDay` already
+/// draws. Six of the ten are arithmetic over stored `DailySummary` values, which survive
+/// the seven-day prune, so their counts only ever rise. The other four need the raw event
+/// log, so what the app can still *see* shrinks as the log ages: showing "4 of 5" one
+/// week and "1 of 5" the next would be a number going backwards, and the badge set exists
+/// partly to have none of those. Those four say what they take and nothing more.
+public struct BadgeProgress: Sendable, Hashable {
+    /// Never above `need`, so a finished bar cannot read "12 of 10".
+    public let have: Int
+    public let need: Int
+
+    public init(have: Int, need: Int) {
+        self.have = have
+        self.need = need
+    }
+
+    public var fraction: Double { need > 0 ? Double(have) / Double(need) : 0 }
+}
+
 // MARK: - The badge
 
 /// One mark: what it is called, what it looks like, what it says, and the only question
@@ -162,8 +185,15 @@ public struct Badge: Sendable, Identifiable {
     /// What it takes, said plainly. Shown while it is locked, so it must read as a
     /// description of a thing that has not happened yet, never as a failure.
     public let lockedHint: String
-    /// The whole condition.
-    public let isEarned: @Sendable (BadgeEvidence) -> Bool
+    /// How many it takes.
+    public let needs: Int
+    /// Whether `counting` reads a number that survives the seven-day prune. See
+    /// `BadgeProgress`.
+    public let durable: Bool
+    /// The number this badge counts. The condition is not written separately: it is
+    /// `counting >= needs`, so a row cannot show "9 of 10" beside a badge that has
+    /// already unlocked, and changing a threshold cannot leave a counter behind.
+    let counting: @Sendable (BadgeEvidence) -> Int
 
     public init(
         id: BadgeID,
@@ -171,14 +201,31 @@ public struct Badge: Sendable, Identifiable {
         motif: BadgeMotif,
         blurb: String,
         lockedHint: String,
-        isEarned: @escaping @Sendable (BadgeEvidence) -> Bool
+        needs: Int,
+        durable: Bool,
+        counting: @escaping @Sendable (BadgeEvidence) -> Int
     ) {
         self.id = id
         self.title = title
         self.motif = motif
         self.blurb = blurb
         self.lockedHint = lockedHint
-        self.isEarned = isEarned
+        self.needs = needs
+        self.durable = durable
+        self.counting = counting
+    }
+
+    /// The whole condition.
+    public func isEarned(_ evidence: BadgeEvidence) -> Bool {
+        counting(evidence) >= needs
+    }
+
+    /// What to draw under a locked row, or nothing when a count would be noise or a lie:
+    /// `needs == 1` has nothing to report between zero and done, and a badge whose
+    /// evidence is pruned would report a number that goes down.
+    public func progress(_ evidence: BadgeEvidence) -> BadgeProgress? {
+        guard durable, needs > 1 else { return nil }
+        return BadgeProgress(have: min(counting(evidence), needs), need: needs)
     }
 }
 
@@ -203,8 +250,10 @@ extension Badge {
             motif: .jobLine,
             blurb: "Your first break. It is what the shell prints when a job is suspended, "
                 + "and the job is fine: registers, memory, all of it still there.",
-            lockedHint: "Take one break."
-        ) { $0.breaksTaken >= BadgeThreshold.firstBreak },
+            lockedHint: "Take one break.",
+            needs: BadgeThreshold.firstBreak,
+            durable: true
+        ) { $0.breaksTaken },
 
         Badge(
             id: .niceN10,
@@ -212,8 +261,10 @@ extension Badge {
             motif: .descent,
             blurb: "Ten breaks. Ten times you took your own priority down a step, and nobody "
                 + "else had to do it for you.",
-            lockedHint: "Ten breaks in total. The count is in the name."
-        ) { $0.breaksTaken >= BadgeThreshold.tenBreaks },
+            lockedHint: "Ten breaks in total. The count is in the name.",
+            needs: BadgeThreshold.tenBreaks,
+            durable: true
+        ) { $0.breaksTaken },
 
         Badge(
             id: .unmasked,
@@ -221,8 +272,10 @@ extension Badge {
             motif: .liftedGate,
             blurb: "A day where every break the app actually asked for happened. Nothing "
                 + "deferred, nothing pending, nothing in the way.",
-            lockedHint: "One day where every break offered was taken."
-        ) { $0.cleanDays >= 1 },
+            lockedHint: "One day where every break offered was taken.",
+            needs: 1,
+            durable: true
+        ) { $0.cleanDays },
 
         Badge(
             id: .provablyHalts,
@@ -230,8 +283,10 @@ extension Badge {
             motif: .tombstone,
             blurb: "Ten of those days. Whether an arbitrary program halts is undecidable. "
                 + "You are not an arbitrary program, and this is ten days of evidence.",
-            lockedHint: "Ten days where every break offered was taken."
-        ) { $0.cleanDays >= BadgeThreshold.haltingDays },
+            lockedHint: "Ten days where every break offered was taken.",
+            needs: BadgeThreshold.haltingDays,
+            durable: true
+        ) { $0.cleanDays },
 
         Badge(
             id: .sigDFL,
@@ -239,8 +294,10 @@ extension Badge {
             motif: .straightThrough,
             blurb: "Five prompts accepted inside fifteen seconds. Nothing caught them, "
                 + "nothing thought about them, the default just ran.",
-            lockedHint: "Accept five prompts within fifteen seconds of being asked."
-        ) { $0.reflexAccepts >= BadgeThreshold.reflexAccepts },
+            lockedHint: "Accept five prompts within fifteen seconds of being asked.",
+            needs: BadgeThreshold.reflexAccepts,
+            durable: false
+        ) { $0.reflexAccepts },
 
         Badge(
             id: .einval,
@@ -249,8 +306,10 @@ extension Badge {
             blurb: "You let one prompt climb all four rungs. The top one cannot be caught, "
                 + "blocked or ignored by anybody, ever, and the kernel will not even let "
                 + "you try to install a handler for it.",
-            lockedHint: "Let one prompt reach the fourth rung, SIGSTOP."
-        ) { $0.reachedSigstop },
+            lockedHint: "Let one prompt reach the fourth rung, SIGSTOP.",
+            needs: 1,
+            durable: false
+        ) { $0.reachedSigstop ? 1 : 0 },
 
         Badge(
             id: .schedYield,
@@ -258,10 +317,10 @@ extension Badge {
             motif: .handoff,
             blurb: "Four hours of work and not one stretch past the hour. You handed the "
                 + "slot back before anything had to take it from you.",
-            lockedHint: "A day of at least four hours where no single stretch passed an hour."
-        ) {
-            $0.yieldDays >= 1
-        },
+            lockedHint: "A day of at least four hours where no single stretch passed an hour.",
+            needs: 1,
+            durable: true
+        ) { $0.yieldDays },
 
         Badge(
             id: .earlyReturn,
@@ -269,8 +328,10 @@ extension Badge {
             motif: .earlyExit,
             blurb: "Five days with a break before ten in the morning. Out before the "
                 + "branching got complicated.",
-            lockedHint: "Take a break before 10:00 on five separate days."
-        ) { $0.earlyDays >= BadgeThreshold.clockDays },
+            lockedHint: "Take a break before 10:00 on five separate days.",
+            needs: BadgeThreshold.clockDays,
+            durable: false
+        ) { $0.earlyDays },
 
         Badge(
             id: .nohup,
@@ -279,8 +340,10 @@ extension Badge {
             blurb: "Five nights with a break after one in the morning. The terminal is "
                 + "closed and the link to it is cut: the job is the thing still running, "
                 + "and you are the part that stopped.",
-            lockedHint: "Take a break after 01:00 on five separate days."
-        ) { $0.lateDays >= BadgeThreshold.clockDays },
+            lockedHint: "Take a break after 01:00 on five separate days.",
+            needs: BadgeThreshold.clockDays,
+            durable: false
+        ) { $0.lateDays },
 
         Badge(
             id: .stoppedHundred,
@@ -288,8 +351,10 @@ extension Badge {
             motif: .jobLineFull,
             blurb: "A hundred breaks. The shell prints the same line it printed the first "
                 + "time. Only the number in the brackets moved.",
-            lockedHint: "A hundred breaks in total."
-        ) { $0.breaksTaken >= BadgeThreshold.hundredBreaks },
+            lockedHint: "A hundred breaks in total.",
+            needs: BadgeThreshold.hundredBreaks,
+            durable: true
+        ) { $0.breaksTaken },
     ]
 
     public static func badge(_ id: BadgeID) -> Badge {

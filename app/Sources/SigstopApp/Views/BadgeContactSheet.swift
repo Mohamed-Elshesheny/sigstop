@@ -28,7 +28,16 @@ struct BadgeContactSheet: View {
         (Badge.badge(.sigDFL), true),
         (Badge.badge(.provablyHalts), false),
         (Badge.badge(.stoppedHundred), false),
+        /// Locked and countable towards nothing the app can still see, so this row is
+        /// here to prove the counter's absence looks deliberate rather than broken.
+        (Badge.badge(.earlyReturn), false),
     ]
+
+    /// A plausible mid-way tally, so the locked rows render their counters instead of
+    /// their empty case. Three clean days and thirty-seven breaks is a fortnight in.
+    private static let sampleEvidence = BadgeEvidence(
+        breaksTaken: 37, cleanDays: 3, reflexAccepts: 2, earlyDays: 2
+    )
 
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
@@ -49,7 +58,8 @@ struct BadgeContactSheet: View {
                     ForEach(Array(Self.rowSamples.enumerated()), id: \.offset) { _, sample in
                         BadgeRow(
                             badge: sample.0,
-                            earned: sample.1 ? CalendarDay(year: 2026, month: 9, day: 20) : nil
+                            earned: sample.1 ? CalendarDay(year: 2026, month: 9, day: 20) : nil,
+                            progress: sample.0.progress(Self.sampleEvidence)
                         )
                     }
                 }

@@ -109,6 +109,10 @@ final class AppModel {
     private(set) var todayDetail: String = ""
     /// Which of the ten badges have unlocked, and when. Read by Settings → Badges.
     private(set) var badges: BadgeLedger = .empty
+    /// The tally behind the ten, so a locked row can say how far along it is. Kept
+    /// beside the ledger rather than recomputed in the view: it is the same arithmetic
+    /// the evaluator already does, and doing it twice is how the two come to disagree.
+    private(set) var badgeEvidence: BadgeEvidence = BadgeEvidence()
     /// One line for the panel footer when something unlocked while the app was running,
     /// cleared once the user has been to look. Deliberately not a panel and not a sound:
     /// this app interrupts for exactly one thing, and a badge is not it.
@@ -1186,6 +1190,11 @@ final class AppModel {
 
         let days = badgeDays(store: store)
         guard !days.isEmpty else { return }
+        // Before the guard below, deliberately. Most refreshes unlock nothing, and a
+        // counter that only moved when a badge unlocked would sit at the number it had
+        // when the last one did.
+        badgeEvidence = BadgeEvaluator.evidence(for: days, calendar: .current, policy: .default)
+
         let updated = BadgeEvaluator.evaluate(
             days: days,
             calendar: .current,
@@ -1270,6 +1279,7 @@ final class AppModel {
             todayDetail = ""
             lastWrittenSummary = nil
             badges = .empty
+            badgeEvidence = BadgeEvidence()
             badgeNote = nil
             day = DailyCounters()
             persistedDay = nil

@@ -286,7 +286,11 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection(earnedKicker) {
                 ForEach(Badge.all) { badge in
-                    BadgeRow(badge: badge, earned: model.badges.date(for: badge.id))
+                    BadgeRow(
+                        badge: badge,
+                        earned: model.badges.date(for: badge.id),
+                        progress: badge.progress(model.badgeEvidence)
+                    )
                 }
             }
 
@@ -1052,8 +1056,17 @@ private struct CodeBlock: View {
 struct BadgeRow: View {
     let badge: Badge
     let earned: CalendarDay?
+    /// Nil for a badge that has nothing countable to report. See `BadgeProgress`.
+    let progress: BadgeProgress?
 
     private var unlocked: Bool { earned != nil }
+
+    /// The right-hand column: the day it happened, else how far along, else "not yet".
+    private var trailing: String {
+        if let earned { return earned.description }
+        if let progress { return "\(progress.have) / \(progress.need)" }
+        return "not yet"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1068,9 +1081,13 @@ struct BadgeRow: View {
                         .foregroundStyle(Brand.fgMuted)
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
+                    if !unlocked, let progress, progress.have > 0 {
+                        ProgressTrack(fraction: progress.fraction)
+                            .padding(.top, 3)
+                    }
                 }
                 Spacer(minLength: 16)
-                Text(earned.map(\.description) ?? "not yet")
+                Text(trailing)
                     .font(Brand.mono(10))
                     .foregroundStyle(unlocked ? Brand.fgMuted : Brand.fgFaint)
                     .monospacedDigit()
@@ -1081,10 +1098,36 @@ struct BadgeRow: View {
             .accessibilityLabel(
                 unlocked
                     ? "\(badge.title), earned \(earned?.description ?? ""). \(badge.blurb)"
-                    : "\(badge.title), not earned yet. \(badge.lockedHint)"
+                    : progress.map {
+                        "\(badge.title), \($0.have) of \($0.need). \(badge.lockedHint)"
+                    } ?? "\(badge.title), not earned yet. \(badge.lockedHint)"
             )
             Rule()
         }
+    }
+}
+
+/// The thin line under a locked badge that is counting towards something.
+///
+/// Drawn only once there is something to show: a bar sitting at zero on every unstarted
+/// badge turns the pane into a wall of empty troughs, which reads as a list of things you
+/// have failed to do rather than a list of things that can happen. It is two points tall
+/// and the same amber as the rest of the app, at the weight the hairlines use, because it
+/// is a detail of the row and not the point of it.
+private struct ProgressTrack: View {
+    let fraction: Double
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Brand.line)
+                Capsule()
+                    .fill(Brand.amber.opacity(0.55))
+                    .frame(width: max(2, geo.size.width * min(1, max(0, fraction))))
+            }
+        }
+        .frame(height: 2)
+        .frame(maxWidth: 190, alignment: .leading)
     }
 }
 
