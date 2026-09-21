@@ -96,6 +96,31 @@ The one network request is the update check, it runs only when you press the but
 sends no identifier, and every update is EdDSA signed and verified before it can install.
 Full inventory: [`docs/PRIVACY.md`](docs/PRIVACY.md).
 
+## Installing
+
+Download the `.dmg` from [Releases](https://github.com/Mohamed-Elshesheny/sigstop/releases),
+open it, drag sigstop to Applications. That is the whole installer.
+
+**The first launch will say the app is damaged and cannot be opened.** It is not damaged.
+macOS says that about any app it cannot trace to a paid Apple Developer account, and this
+one is signed with a certificate that belongs to nobody. Downloading it attaches a
+quarantine flag, and Gatekeeper kills the process before it starts, with `SIGKILL`, which
+is a joke this project did not ask for. Clear the flag once:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/sigstop.app
+```
+
+Then open it normally. Nothing else is needed and you never have to do it again.
+
+Two things worth saying rather than leaving you to wonder. Running that command means you
+are choosing to trust a binary a stranger built, so check the `sha256` printed beside the
+download against your own copy, or skip all of this and build from source below, which is
+four commands and needs no trust at all. And the reason there is no signature is money:
+Apple charges ninety nine dollars a year for the certificate that would make this
+paragraph unnecessary, and until this is worth that to somebody it stays here, written
+out, instead of being hidden behind a scarier dialog.
+
 ## Building
 
 Command Line Tools are enough. **There is no Xcode requirement and no `.xcodeproj`**, which
