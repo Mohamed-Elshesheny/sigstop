@@ -11,7 +11,10 @@ cd "$(dirname "$0")/.."
 CONFIG="${CONFIG:-release}"
 APP_NAME="sigstop"
 BUNDLE="dist/${APP_NAME}.app"
-BIN=".build/${CONFIG}/${APP_NAME}"
+# Explicit, not `.build/${CONFIG}/`, which is a symlink to the last triple built and
+# can therefore be the Intel one.
+BIN=".build/$(uname -m)-apple-macosx/${CONFIG}/${APP_NAME}"
+[ -f "${BIN}" ] || BIN=".build/${CONFIG}/${APP_NAME}"
 
 # A STABLE signing identity matters more than it looks. macOS keys the
 # Accessibility (TCC) grant to the binary's cdhash. Ad-hoc signing produces a new
@@ -33,13 +36,23 @@ SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 # is already universal. Measured on Command Line Tools 27.0.
 UNIVERSAL="${UNIVERSAL:-0}"
 
+# The cross build runs FIRST and the native one last, and the order is the fix for a
+# real bug rather than a preference. SwiftPM repoints `.build/release` at whichever
+# triple it built most recently, so building x86_64 last leaves that path holding an
+# Intel binary. Anything that then RUNS it on this machine dies with "Bad CPU type in
+# executable", which is how `make dmg` failed: it renders its backdrop by running the
+# app. Explicit per-triple paths below, native last, so the convenience symlink is
+# never the Intel one.
+if [ "${UNIVERSAL}" = "1" ]; then
+  echo "==> swift build -c ${CONFIG} --triple x86_64-apple-macosx14.0"
+  swift build -c "${CONFIG}" --triple x86_64-apple-macosx14.0
+fi
+
 echo "==> swift build -c ${CONFIG}"
 swift build -c "${CONFIG}"
 
 if [ "${UNIVERSAL}" = "1" ]; then
-  echo "==> swift build -c ${CONFIG} --triple x86_64-apple-macosx14.0"
-  swift build -c "${CONFIG}" --triple x86_64-apple-macosx14.0
-  ARM=".build/arm64-apple-macosx/${CONFIG}/${APP_NAME}"
+  ARM=".build/$(uname -m)-apple-macosx/${CONFIG}/${APP_NAME}"
   X86=".build/x86_64-apple-macosx/${CONFIG}/${APP_NAME}"
   [ -f "${ARM}" ] && [ -f "${X86}" ] || {
     echo "error: expected both slices, found:" >&2

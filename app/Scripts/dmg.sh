@@ -81,7 +81,11 @@ trap cleanup EXIT
 
 echo "==> backdrop"
 mkdir -p dist/.dmg-background
-./.build/release/${APP_NAME} --render-installer dist/.dmg-background/backdrop >/dev/null
+# The bundle's own binary, not `.build/release`, which is a symlink to the last triple
+# SwiftPM built and is the Intel one after a universal build. Running that here failed
+# with "Bad CPU type in executable" and took the whole release with it. This one is
+# universal, so it runs, and it is also the binary that actually ships.
+"${BUNDLE}/Contents/MacOS/${APP_NAME}" --render-installer dist/.dmg-background/backdrop >/dev/null
 
 echo "==> staging"
 STAGE="$(mktemp -d)"
