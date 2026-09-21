@@ -240,6 +240,52 @@ check_plist_false SUAutomaticallyUpdate   "nothing downloads or installs without
 check_plist_false SUEnableSystemProfiling "no system profile is appended to the request"
 
 # ---------------------------------------------------------------------------
+# 8. it runs on a machine that is not this one
+# ---------------------------------------------------------------------------
+#
+# The check that would have caught the worst bug this project has shipped.
+#
+# SwiftPM's generated `Bundle.module` resolves a resource bundle from exactly two places:
+# the top level of the app, where macOS does not allow one, and the absolute build
+# directory of the machine that compiled it. So the corpus resolved through the
+# maintainer's own `.build` and every published build died before `main()` on every other
+# computer: no window, no Dock icon, no menu bar item, nothing to report. It cannot be
+# caught by running the app on the machine that built it, which is the only machine it was
+# ever run on.
+#
+# So run it with `.build` moved aside, which is the closest this machine can get to being
+# somebody else's. A fresh HOME as well, so a launch here cannot touch real data.
+head2 "8. it starts on a machine with no build directory"
+
+BUILD_DIR="$(cd "$(dirname "$0")/.." && pwd)/.build"
+PROBE_HOME="$(mktemp -d)"
+PROBE_LOG="$(mktemp)"
+HIDDEN=0
+if [ -d "${BUILD_DIR}" ]; then mv "${BUILD_DIR}" "${BUILD_DIR}-verify-hidden"; HIDDEN=1; fi
+
+CFFIXED_USER_HOME="${PROBE_HOME}" HOME="${PROBE_HOME}" \
+  "${BUNDLE}/Contents/MacOS/sigstop" --doctor >"${PROBE_LOG}" 2>&1
+PROBE_STATUS=$?
+
+[ "${HIDDEN}" -eq 1 ] && mv "${BUILD_DIR}-verify-hidden" "${BUILD_DIR}"
+
+# The probe has to READ something, not merely start. The first version of this check
+# asked `--doctor` for its output and passed while the bug was live, because `--doctor`
+# did not touch the corpus. It prints the message count now, so a zero or a missing line
+# is the failure.
+CORPUS_LINE="$(grep -oE '[0-9]+ messages loaded from the bundled corpus' "${PROBE_LOG}" || true)"
+CORPUS_N="${CORPUS_LINE%% *}"
+if [ "${PROBE_STATUS}" -eq 0 ] \
+   && ! grep -qi "could not load resource bundle\|Fatal error" "${PROBE_LOG}" \
+   && [ -n "${CORPUS_N}" ] && [ "${CORPUS_N}" -gt 0 ] 2>/dev/null; then
+  pass "starts and reads its own resources with the build directory gone (${CORPUS_N} messages)"
+else
+  fail "dies without the build directory, so it would die on every machine but this one"
+  sed -n '1,6p' "${PROBE_LOG}" | sed 's/^/        /'
+fi
+rm -rf "${PROBE_HOME}" "${PROBE_LOG}"
+
+# ---------------------------------------------------------------------------
 printf '\n'
 if [ "${FAILURES}" -eq 0 ]; then
   echo "verify: all checks passed"

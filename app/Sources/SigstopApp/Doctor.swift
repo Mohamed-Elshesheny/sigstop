@@ -47,6 +47,23 @@ enum Doctor {
         let browserHost = sensors.permissions.browserHostPermitted()
             ? await sensors.accessibility.read(pid: raw.frontmost.frontmost.pid).browserHost
             : nil
+        /// The corpus, counted, because a `--doctor` that never touches it cannot prove
+        /// the app can read its own resources.
+        ///
+        /// That is not a hypothetical: the first version of the "starts without a build
+        /// directory" check in verify.sh probed with `--doctor` and passed while the bug
+        /// was present, for exactly this reason. The number is also the honest answer to
+        /// "how many different things can it say", which a reader of this output wants.
+        let corpusCount = Corpus.bundled.packs.reduce(0) { $0 + $1.messages.count }
+        out.append("")
+        out.append("CORPUS")
+        out.append(
+            corpusCount > 0
+                ? "  \(corpusCount) messages loaded from the bundled corpus."
+                : "  0 messages: the bundled corpus did not load, so only the emergency pool is left."
+        )
+        out.append("")
+
         out.append(contentsOf: signalSection(raw, sensors: sensors, browserHost: browserHost))
         out.append(contentsOf: callHoldSection(raw, settings: settings))
         out.append(contentsOf: inferenceSection(sample, raw: raw, settings: settings))

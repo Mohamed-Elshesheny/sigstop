@@ -453,14 +453,71 @@ public struct Corpus: Sendable, Hashable {
         (try? loadBundled()) ?? Corpus(packs: [])
     }()
 
-    public static func loadBundled() throws -> Corpus {
-        let candidates = [
-            Bundle.module.url(forResource: "corpus", withExtension: "json"),
-            Bundle.module.url(forResource: "corpus", withExtension: "json", subdirectory: "Message"),
-        ]
-        guard let url = candidates.compactMap({ $0 }).first else {
-            throw CorpusError.resourceMissing
+    /// Anchors `Bundle(for:)` on this module. A class, because that API takes one.
+    private final class BundleAnchor {}
+
+    /// Every place the corpus can honestly be, looked for by hand.
+    ///
+    /// **`Bundle.module` is deliberately not used, and this is the reason.** SwiftPM
+    /// generates it as exactly two paths: `Bundle.main.bundleURL` plus the bundle name,
+    /// and the absolute build directory of the machine that compiled it. The first is the
+    /// *top level* of the `.app`, where nothing may live on macOS because everything has
+    /// to be under `Contents`, and the second exists only on the build machine. So a
+    /// packaged app resolved the corpus through the developer's own `.build` directory and
+    /// died on every other computer on earth, before `main()`, with no window and no icon
+    /// and nothing in the Dock. Measured by hiding `.build` and launching the shipped
+    /// bundle: `Fatal error: could not load resource bundle`.
+    ///
+    /// It also cannot be caught. `bundled` wraps this in `try?` so a missing corpus
+    /// degrades to the emergency pool, but `Bundle.module` is a `fatalError`, and `try?`
+    /// does not catch those. Touching it at all put a crash the app could not survive in
+    /// front of a fallback written specifically to survive it.
+    ///
+    /// The order is the real one: `Contents/Resources` first, because that is where a
+    /// macOS app keeps resources and where `bundle.sh` puts it.
+    static var corpusCandidates: [URL] {
+        let name = "sigstop_SigstopCore.bundle"
+        let main = Bundle.main
+        var roots: [URL] = []
+
+        // Where a macOS app actually keeps its resources.
+        if let resources = main.resourceURL { roots.append(resources.appendingPathComponent(name)) }
+        // Where SwiftPM's own accessor looks, for a layout that puts it there.
+        roots.append(main.bundleURL.appendingPathComponent(name))
+        // A command line tool: the bundle sits beside the executable.
+        roots.append(main.bundleURL.deletingLastPathComponent().appendingPathComponent(name))
+        // Linked as a framework rather than statically.
+        if let owner = Bundle(for: BundleAnchor.self).resourceURL {
+            roots.append(owner.appendingPathComponent(name))
         }
+        // Under `swift test` the resource bundle sits beside the build products, and
+        // `Bundle.main` is the xctest RUNNER, somewhere else entirely. The bundle that
+        // holds this class is the .xctest itself, whose parent is the directory wanted.
+        // Walk up from both anchors rather than hardcode a depth that differs between a
+        // test run, an app and a bare executable.
+        for anchor in [Bundle(for: BundleAnchor.self).bundleURL, main.bundleURL] {
+            var ancestor = anchor
+            for _ in 0..<4 {
+                ancestor = ancestor.deletingLastPathComponent()
+                roots.append(ancestor.appendingPathComponent(name))
+            }
+        }
+
+        var urls: [URL] = []
+        for root in roots {
+            guard let bundle = Bundle(url: root) else { continue }
+            if let u = bundle.url(forResource: "corpus", withExtension: "json") { urls.append(u) }
+            if let u = bundle.url(forResource: "corpus", withExtension: "json", subdirectory: "Message") {
+                urls.append(u)
+            }
+        }
+        // Loose in the app's own resources, with no wrapper bundle at all.
+        if let u = main.url(forResource: "corpus", withExtension: "json") { urls.append(u) }
+        return urls
+    }
+
+    public static func loadBundled() throws -> Corpus {
+        guard let url = corpusCandidates.first else { throw CorpusError.resourceMissing }
         return try decode(try Data(contentsOf: url))
     }
 
