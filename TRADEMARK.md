@@ -65,10 +65,14 @@ Pick your own name and replace these:
 | Bundle identifier | `dev.sigstop.app` |
 | Executable / product | `sigstop` |
 | Swift modules | `SigstopCore`, `SigstopSensors`, `SigstopApp` |
-| Menu bar icon | `app/Resources/` |
-| Wordmark | `web/src/components/ui/MenuBarIcon.tsx` |
+| App icon | `app/Resources/sigstop.icns` |
+| Menu bar mark | `app/Sources/SigstopApp/Views/MenuBarIcon.swift` |
 
 Keep the `NOTICE` file and the `LICENSE`. Attribution stays; identity changes.
+
+The wordmark is not in this repository. It is drawn by the landing site, which lives in
+[`sigstop-web`](https://github.com/Mohamed-Elshesheny/sigstop-web) and is under exactly these
+terms: the code there is Apache-2.0, the name and the mark it draws are not.
 
 ## Questions
 

@@ -10,6 +10,11 @@ contact_links:
     about: >-
       Both need zero core changes. A provider is a pure function and a joke is a line of JSON.
       Open a pull request rather than an issue.
+  - name: Something about the landing page
+    url: https://github.com/Mohamed-Elshesheny/sigstop-web/issues
+    about: >-
+      The site is a separate repository with its own tracker. Copy, layout, a broken link, the
+      download button: all of it belongs there, none of it is built from this repository.
   - name: Naming, logo, and forks
     url: https://github.com/Mohamed-Elshesheny/sigstop/blob/main/TRADEMARK.md
     about: The code is Apache 2.0. The name and the mark are not part of that grant.

@@ -19,6 +19,9 @@ body:
         [CONTRIBUTING.md](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md) and sign with a stable identity before
         filing.
 
+        **This tracker is the macOS app.** Anything about the landing page belongs in
+        [sigstop-web](https://github.com/Mohamed-Elshesheny/sigstop-web/issues).
+
   - type: textarea
     id: what-happened
     attributes:
@@ -64,7 +67,6 @@ body:
         - The menu bar item, the popup, or the break overlay
         - Settings, badges, or the daily summary
         - Updates, permissions, or launch at login
-        - The website
         - Something else, or I cannot tell
     validations:
       required: true

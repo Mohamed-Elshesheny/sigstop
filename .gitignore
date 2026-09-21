@@ -10,14 +10,6 @@ app/dist/
 *.xcworkspace
 DerivedData/
 
-# ---- Node / Next.js ----
-web/node_modules/
-web/.next/
-web/out/
-web/.vercel/
-web/next-env.d.ts
-web/*.tsbuildinfo
-
 # ---- Env / secrets ----
 .env
 .env.*

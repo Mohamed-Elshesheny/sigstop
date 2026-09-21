@@ -1,13 +1,17 @@
 import AppKit
 import SwiftUI
 
-/// The app's share of the design language the website defines in `web/src/app/globals.css`.
+/// The app's share of the design language it shares with the landing site, whose tokens live
+/// in `src/app/globals.css` in the `sigstop-web` repository.
 ///
-/// Every colour here is a token from that file, resolved per appearance rather than baked
-/// in, so the panel, the settings window and the site are one system and not three
-/// approximations of one. The palette is derived from the metaphor: a process is either
-/// RUNNING (green) or in state T, suspended (amber). Amber is the single accent. Red is
-/// reserved for escalation level 4 and nothing else, if everything is amber, nothing is.
+/// Every colour here is one of those tokens, resolved per appearance rather than baked in, so
+/// the panel, the settings window and the site are one system and not three approximations of
+/// one. Nothing reads across at build time: the two are kept in step by hand, and the site is
+/// the place the palette is decided.
+///
+/// The palette is derived from the metaphor: a process is either RUNNING (green) or in state
+/// T, suspended (amber). Amber is the single accent. Red is reserved for escalation level 4
+/// and nothing else, if everything is amber, nothing is.
 enum Brand {
 
     // MARK: Surfaces and text
