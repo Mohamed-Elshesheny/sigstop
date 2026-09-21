@@ -76,10 +76,17 @@ public final class GitCollector: @unchecked Sendable {
     /// a file's contents" a property of the code rather than a promise.
     private static let headReadLimit = 512
 
-    /// The same 0.25s the Accessibility collector gives an app to answer. The read is 50
-    /// microseconds warm, so anything near this is a filesystem that is not going to
-    /// answer at all.
-    public static let defaultDeadline: TimeInterval = 0.25
+    /// One second, and deliberately not the 0.25s the Accessibility collector uses.
+    ///
+    /// That one is a messaging timeout inside an IPC that either answers or does not.
+    /// This one races a real syscall against the scheduler, and a deadline tight enough
+    /// to be tripped by a busy machine costs a sample of a folder that was never broken.
+    /// Measured here: the read is 18 microseconds warm over 2000 iterations, and at
+    /// 0.25s a local repository that answers in microseconds still timed out in about
+    /// one test run in eight, with one other thread in the process parked. The tick is
+    /// every five seconds and the caller is bounded either way, so the four extra
+    /// tenths buy correctness for nothing.
+    public static let defaultDeadline: TimeInterval = 1.0
 
     /// One miss is not evidence. A laptop waking its disk, a machine under load or a
     /// repository large enough to be slow once will all blow a 0.25s deadline without
