@@ -142,9 +142,15 @@ final class BreakOverlayController {
     ///   * the notification fallback of docs/PRIVACY.md §3.2, when there is no bundle or
     ///     the user declined notifications.
     ///
-    /// It needs no permission, and it does **not** respect Do Not Disturb, which is
-    /// exactly why it is reserved for those two cases, and why below escalation 4 it is
-    /// deliberately small, corner-anchored, dismissible and never fullscreen.
+    /// It needs no permission and it does **not** respect Do Not Disturb.
+    ///
+    /// **Every rung is full screen, on every display, and that is the owner's decision
+    /// rather than a consequence of the code.** It was made once, reverted by someone
+    /// reading the old version of this comment as though it were the specification, and
+    /// made again. A corner card is the thing that gets waved off without being read,
+    /// which is the failure this whole product exists to avoid: the prompt has to cost a
+    /// glance. If you are about to shrink it back, that is a question for the owner and
+    /// not for this file.
     ///
     /// That sentence used to be a lie. Every rung was drawn as a 78% black panel across
     /// every display, because `deliver()` routes all four channels here whenever system
@@ -163,12 +169,11 @@ final class BreakOverlayController {
     @discardableResult
     func presentPromptPanel(_ request: PromptRequest, message: RenderedMessage, model: AppModel) -> Bool {
         dismissPromptPanel()
-        let fullscreen = request.level == .incident
-        let screens = fullscreen ? NSScreen.screens : [Self.promptScreen()].compactMap { $0 }
+        let screens = NSScreen.screens
         guard !screens.isEmpty else { return false }
 
         for screen in screens {
-            let frame = fullscreen ? screen.frame : Self.cornerFrame(on: screen)
+            let frame = screen.frame
             let panel = NonActivatingPanel(
                 contentRect: frame,
                 styleMask: [.borderless, .nonactivatingPanel],
@@ -192,7 +197,6 @@ final class BreakOverlayController {
                 rootView: FallbackPromptView(
                     request: request,
                     message: message,
-                    compact: !fullscreen,
                     onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
                     onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
                     onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
@@ -397,18 +401,19 @@ struct BreakOverlayView: View {
 /// `compact` is the ordinary case: a card in the corner of one screen. Only `SIGSTOP`
 /// gets the full screen, on every display.
 ///
-/// This used to be two choices, "Take it" and "Ignore it", and the second one was a lie:
-/// it called `skip()`, which is the most expensive response the state machine has. It
-/// ends the opportunity and re-arms twenty minutes late. Escape did the same, with no
-/// confirmation, no undo and, until recently, no log line. A prompt reflexively waved off
-/// inside one tick therefore bought twenty minutes of silence the user never asked for
-/// and could not see.
+/// Two choices, and the second one is now honest rather than merely short.
 ///
-/// So there are three now, and the extra one is the difference between "later" and "no",
-/// which is exactly the distinction that was erased. `Not now` is free: the prompt stands
-/// in the engine, times out after ninety seconds and escalates, which is what CLAUDE.md
-/// §0 means by a rung you are allowed to ignore. `Skip it` is the deliberate no, and it
-/// says so.
+/// "Ignore it" used to call `skip()`, the most expensive response the state machine has:
+/// it ends the opportunity and re-arms twenty minutes late. Escape did the same. So a
+/// prompt waved off inside a second bought twenty minutes of silence nobody asked for,
+/// and the owner reported exactly that, as the app appearing to be broken.
+///
+/// A third button labelled with the cost was tried and removed. The cheaper fix is that
+/// the expensive answer is not on this screen at all: "Ignore it" leaves the prompt
+/// standing in the engine, where it times out after ninety seconds and climbs a rung,
+/// which is precisely what CLAUDE.md §0 means by a signal you are allowed to ignore.
+/// Someone who genuinely wants quiet has `Pause` in the menu, which says how long it is
+/// for. Nothing here can cost twenty minutes by accident.
 struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage
@@ -480,14 +485,12 @@ struct FallbackPromptView: View {
                 HStack(spacing: compact ? 8 : 14) {
                     TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
                         .fixedSize()
-                    TerminalButton("Not now", action: onIgnore)
-                        .fixedSize()
-                    TerminalButton("Skip it · 20m", style: .quiet, action: onSkip)
+                    TerminalButton("Ignore it", action: onIgnore)
                         .fixedSize()
                 }
                 .padding(.top, compact ? 0 : 44)
 
-                Text("esc for not now, it comes back in 90 seconds")
+                Text("esc to ignore, it comes back in 90 seconds")
                     .font(Brand.mono(compact ? 9.5 : 11))
                     .foregroundStyle(Brand.Dark.fgFaint)
                     .padding(.top, compact ? 10 : 18)

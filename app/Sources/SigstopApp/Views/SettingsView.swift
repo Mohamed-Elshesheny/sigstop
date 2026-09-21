@@ -464,7 +464,34 @@ struct SettingsView: View {
     private var about: some View {
         VStack(alignment: .leading, spacing: 0) {
             updates
+            madeBy
         }
+    }
+
+    /// The one piece of the interface that is not about the user.
+    ///
+    /// Kept to a single line at the bottom of the last pane, in the faintest ink the
+    /// palette has, because a byline that competes with the product is a byline nobody
+    /// trusts. The heart is the only non-amber colour anywhere in the app and it is four
+    /// millimetres wide, which is about the right amount of sentiment for a utility that
+    /// otherwise refuses to be warm at you.
+    private var madeBy: some View {
+        HStack(spacing: 5) {
+            Spacer(minLength: 0)
+            Text("Made with")
+            Text("\u{1FAF6}")
+                .font(.system(size: 11))
+            Text("by")
+            Link("Mohamed Elshesheny", destination: Links.author)
+                .foregroundStyle(Brand.fgMuted)
+            Spacer(minLength: 0)
+        }
+        .font(Brand.mono(10))
+        .foregroundStyle(Brand.fgFaint)
+        .padding(.top, 28)
+        .padding(.bottom, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Made with love by Mohamed Elshesheny")
     }
 
     /// One line that always says what is true right now, a bar underneath it only while
@@ -591,6 +618,7 @@ struct SettingsView: View {
         static let releases = URL(string: "https://github.com/Mohamed-Elshesheny/sigstop/releases")!
         static let privacy = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/PRIVACY.md")!
+        static let author = URL(string: "https://github.com/Mohamed-Elshesheny")!
     }
 }
 

@@ -26,7 +26,7 @@ Never debug this by re-granting the permission. You are fighting TCC, and TCC wi
 git clone https://github.com/Mohamed-Elshesheny/sigstop
 cd sigstop/app
 make run     # build, bundle, launch
-make test    # 83 tests, no GUI session required
+make test    # 231 tests, no GUI session required
 make doctor  # print exactly what the app can observe right now
 make verify  # assert the privacy properties against the built binary
 ```
@@ -36,7 +36,10 @@ There is **no Xcode project and no Xcode requirement**; Command Line Tools are e
 breaks the CI assumption and produces a generated XML file that conflicts on every
 concurrent PR.
 
-For the website: `cd web && npm run dev`.
+**The landing site is not in this repository.** It lives in
+[`sigstop-web`](https://github.com/Mohamed-Elshesheny/sigstop-web), because the two share a name
+and nothing else. Nothing here builds or serves it, and a change to the page belongs in a pull
+request there. One thing crosses the line, and it has its own section below.
 
 ## The rules that are not negotiable
 
@@ -105,14 +108,45 @@ catches that. A human reading it before it ships does. The reasoning is in
 appearance, medical conditions, mental health, competence, or job security. Nuclear is
 absurd and theatrical, never cruel.
 
-**No medical claims anywhere**, in the app or on the site. Say "your posture", never "your
-health". An attention or performance claim needs a citation with a resolvable DOI, and if a
-paper disputes it, cite that one too. If you cannot find a real source, the claim does not
-ship. Inventing a citation is the fastest way to destroy everything else on the page.
+**No medical claims anywhere.** Say "your posture", never "your health". An attention or
+performance claim needs a citation with a resolvable DOI, and if a paper disputes it, cite that
+one too. If you cannot find a real source, the claim does not ship. Inventing a citation is the
+fastest way to destroy everything else on the page.
 
 **Set `claimsActivity` honestly.** If a line names what the developer is doing, it must
 declare that, so the engine can refuse to select it when confidence is low. A line that
 requires `{branch}` is never selected when the branch is unknown.
+
+## Renaming a badge, and everything else the site repeats
+
+The split left exactly one piece of data in two repositories. The ten badges are defined in
+`app/Sources/SigstopCore/Badges/Badge.swift` and advertised, by the same names and the same motif
+ids, on the badge wall in `sigstop-web`. A page naming a badge the app does not have is the kind of
+small lie this whole project is organised against, so neither side is trusted to remember.
+
+`app/Exports/badges.json` is the committed export of the Swift catalogue, and `make test` runs
+`make badges-check` before it compiles anything. Rename a badge without regenerating and the suite
+stops here, in the repository where the rename happened. The site runs the check from its side too,
+comparing its copy against `Badge.swift` when the app is checked out beside it.
+
+In order:
+
+1. Change `Badge.swift`.
+2. `make badges`, and commit `Exports/badges.json` in the same commit. The diff is what tells a
+   reviewer the site is affected.
+3. `make test`.
+4. Open the matching pull request on `sigstop-web` and land it before, or with, the app release
+   that ships the new name. `npm run build` there fails if it is checked out beside this
+   repository and the two disagree.
+
+Only three fields are exported: the id, the name and the motif. Each badge's prose is written
+twice on purpose, in each surface's own voice, and is not a drift bug.
+
+**Everything else the site says about the app is a claim with no machine check behind it**: the
+bundle size, the number of tests, the permission list, the update behaviour. There is no
+mechanism for those and inventing one would cost more than it saves. What there is instead: if
+your change moves one of those numbers, say so in the pull request body, in one line, so it can be
+carried across by hand.
 
 ## Commits and PRs
 
@@ -127,7 +161,7 @@ diff cannot tell you, and keep it to two or three lines. Longer reasoning goes i
 a doc comment, where it will be found.
 
 Types: `feat` `fix` `refactor` `perf` `docs` `test` `build` `ci` `chore`.
-Scopes: `core` `sensors` `app` `web` `docs`.
+Scopes: `core` `sensors` `app` `docs`.
 
 **No AI attribution.** No `Co-Authored-By` for an assistant, no "generated with" footers,
 no tool names in the message or the author field. The commit log is a record of intent, and
@@ -137,7 +171,6 @@ Before you open a PR:
 
 ```sh
 cd app && make test && make verify
-cd ../web && npm run build
 ```
 
 Keep `docs/` in sync in the same PR as the behaviour change. The design documents are

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "source": "app/Sources/SigstopCore/Badges/Badge.swift",
+  "badges": [
+    { "id": "stopped-1", "name": "[1]+ Stopped", "motif": "job-line" },
+    { "id": "nice-n-10", "name": "ten down", "motif": "descent" },
+    { "id": "unmasked", "name": "nothing blocked", "motif": "lifted-gate" },
+    { "id": "provably-halts", "name": "always halts", "motif": "tombstone" },
+    { "id": "sig-dfl", "name": "no handler", "motif": "straight-through" },
+    { "id": "einval", "name": "uncatchable", "motif": "escalation" },
+    { "id": "sched-yield", "name": "yielded", "motif": "handoff" },
+    { "id": "early-return", "name": "early return", "motif": "early-exit" },
+    { "id": "nohup", "name": "still running", "motif": "detached" },
+    { "id": "stopped-100", "name": "[100]+ Stopped", "motif": "job-line-full" }
+  ]
+}

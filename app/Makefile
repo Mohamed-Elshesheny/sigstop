@@ -1,6 +1,6 @@
 # sigstop, build with Command Line Tools only. No Xcode required.
 .DEFAULT_GOAL := help
-.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify
+.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify badges badges-check
 
 APP     := sigstop
 CONFIG  ?= release
@@ -33,8 +33,17 @@ TEST_FLAGS := -Xswiftc -F -Xswiftc $(TESTING_FW) \
               -Xlinker -rpath -Xlinker $(TESTING_FW) \
               -Xswiftc -Xfrontend -Xswiftc -disable-cross-import-overlay-search
 
-test: ## Run the Core test suite (no GUI session, no Xcode needed)
+test: badges-check ## Run the Core test suite (no GUI session, no Xcode needed)
 	@swift test $(TEST_FLAGS)
+
+badges: ## Rewrite Exports/badges.json from the Swift catalogue
+	@./Scripts/badges.sh > Exports/badges.json && echo "wrote Exports/badges.json"
+
+# A prerequisite of `test` on purpose. The landing site is a separate repository
+# that prints the same ten names, and this is the only gate standing on the side
+# where a rename actually happens.
+badges-check: ## Fail if Exports/badges.json has drifted from the Swift catalogue
+	@./Scripts/badges.sh --check
 
 doctor: ## Print exactly what the app can observe right now
 	@swift run -c $(CONFIG) $(APP) --doctor
