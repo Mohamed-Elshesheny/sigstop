@@ -1428,8 +1428,11 @@ withholding, the switch would have quietly written a branch name to somebody els
 
 **8.12 `--doctor` knows your branch, and you are asked to paste `--doctor` into public issues.** That
 combination is the one place Tier 2 could leak something you did not mean to publish, so `--doctor`
-prints the *length* of the branch name and not the name. Settings → Signals shows it on your own
-machine, where it is not going anywhere. This is not a claim that the redaction is airtight: a length
+prints the *length* of the branch name and not the name. Settings → Signals shows the name itself,
+under "What it read", along with the folder it came from and which of the two routes matched it:
+that is the only place in the app the branch is displayed in full, it is on your own machine, and it
+is not going anywhere. The redaction leans on that row existing, so the row is part of the claim
+rather than a nicety. This is not a claim that the redaction is airtight: a length
 is a fact about the string, and the surrounding lines still name your apps and the folders you
 registered. Read what you paste.
 

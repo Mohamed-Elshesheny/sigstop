@@ -73,6 +73,9 @@ final class AppModel {
     private(set) var confidence: Double = 0
     private(set) var evidenceLines: [EvidenceLine] = []
     private(set) var caveats: [String] = []
+    /// The last successful branch read, or nil with `gitStatusLine` saying why not.
+    private(set) var gitReading: GitReading?
+    private(set) var gitStatusLine: String = "off, nothing is read"
     /// The one line the panel always shows: what the app is waiting for, and when.
     ///
     /// Total over the engine's state space, because silence by design and silence by
@@ -170,6 +173,28 @@ final class AppModel {
     /// True only while a cycle is actually open. Snoozing with nothing pending is a
     /// no-op in the engine, so the menu does not offer it.
     private(set) var canSnooze = false
+
+    /// What Tier 2 read from `.git/HEAD` last time, in full, for Settings → Signals.
+    ///
+    /// `--doctor` prints the branch as a length rather than a name, because the bug form
+    /// asks people to paste `--doctor` into public issues (docs/PRIVACY.md §8.12). That
+    /// redaction is only defensible if there is somewhere the user can see what was
+    /// actually read, on their own machine, where it is not going anywhere. This is that
+    /// place. It existed as a sentence in `--doctor` and in PRIVACY §8.12 for a while
+    /// before it existed as a pane, which made both of them false.
+    struct GitReading: Hashable, Sendable {
+        let folder: String
+        /// `nil` is a detached HEAD, which is not a branch and is not shown as one.
+        let branch: String?
+        let repoState: RepoState?
+        let route: String
+
+        var branchText: String { branch ?? "detached HEAD, no branch to name" }
+        var stateText: String? {
+            guard let repoState, repoState != .clean else { return nil }
+            return "mid-\(repoState.rawValue)"
+        }
+    }
 
     struct EvidenceLine: Identifiable, Hashable, Sendable {
         let id: String
@@ -1012,6 +1037,7 @@ final class AppModel {
             .sorted { abs($0.logOdds) > abs($1.logOdds) }
             .map { EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds, tier: $0.tier) }
         caveats = sample.caveats
+        publishGitReading(context: context)
         engineStateName = engineState.name
         permissionStatus = sensors.permissions.status()
 
@@ -1032,6 +1058,44 @@ final class AppModel {
         }
 
         refreshRollup(force: false)
+    }
+
+    /// Settings → Signals answers "what did you read?" with the answer, not with a
+    /// description of the answer. Every branch that produces no reading says why, because
+    /// "blank" and "off" and "the folder did not answer" look identical otherwise.
+    private func publishGitReading(context: DeveloperContext) {
+        switch sensors.git.lastOutcome {
+        case .optedOut:
+            gitReading = nil
+            gitStatusLine = "off, nothing is read"
+        case .skipped(let reason):
+            gitReading = nil
+            gitStatusLine = "on, not read this sample: \(reason)"
+        case .noFoldersRegistered:
+            gitReading = nil
+            gitStatusLine = "on, but no project folder has been added, so it reads nothing"
+        case .noFolderMatched(let reason):
+            gitReading = nil
+            gitStatusLine = reason
+        case .notPermitted(let folder):
+            gitReading = nil
+            gitStatusLine = "macOS refused the read in \(folder). Files and Folders, not a bug"
+        case .noRepository(let folder):
+            gitReading = nil
+            gitStatusLine = "there is no repository at the root of \(folder)"
+        case .timedOut(let folder):
+            gitReading = nil
+            gitStatusLine = "\(folder) did not answer in time and is being left alone until "
+                + "you change the folders below"
+        case .read(let folder, _, _, let route):
+            gitReading = GitReading(
+                folder: folder,
+                branch: context.context.branch,
+                repoState: context.context.repoState,
+                route: route
+            )
+            gitStatusLine = ""
+        }
     }
 
     /// The target the engine is really waiting for, and the one line that says what it is

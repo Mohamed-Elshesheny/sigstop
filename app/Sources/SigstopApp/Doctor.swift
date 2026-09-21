@@ -447,7 +447,8 @@ enum Doctor {
         case .read(_, _, _, let route):
             return [
                 "Which folder was decided by \(route).",
-                "Settings > Signals shows the name on this machine.",
+                "Settings > Signals, under What it read, shows the name itself on this",
+                "machine. That row is why the length is enough here.",
             ]
         }
     }

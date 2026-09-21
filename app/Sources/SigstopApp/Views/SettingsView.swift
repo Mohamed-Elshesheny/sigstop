@@ -383,6 +383,45 @@ struct SettingsView: View {
                     }
                 }
                 SettingRow(
+                    "What it read",
+                    detail: "The whole of it, on your own machine. The --doctor output "
+                        + "prints the length of the branch name and not the name, because "
+                        + "the bug report form asks you to paste --doctor into a public "
+                        + "issue. That redaction is only honest if there is somewhere you "
+                        + "can check what was actually read. This is it."
+                ) {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if !model.settings.gitContextEnabled {
+                            Text("off, nothing is read")
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fgMuted)
+                        } else if let reading = model.gitReading {
+                            Text(reading.branchText)
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fg)
+                                .textSelection(.enabled)
+                            if let state = reading.stateText {
+                                Text(state)
+                                    .font(Brand.mono(11))
+                                    .foregroundStyle(Brand.fgMuted)
+                            }
+                            Text("in \(reading.folder)")
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fgMuted)
+                            Text("matched by \(reading.route)")
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fgMuted)
+                        } else {
+                            Text(model.gitStatusLine)
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fgMuted)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: 260, alignment: .trailing)
+                        }
+                    }
+                }
+                SettingRow(
                     "Notice when a debugger is running",
                     detail: "Off by default, and a separate switch because it reads something "
                         + "different. Executable names against a fixed list in the source, plus "
