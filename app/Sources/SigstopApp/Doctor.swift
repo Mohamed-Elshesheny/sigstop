@@ -183,7 +183,7 @@ enum Doctor {
         /// a terminal is one the reader has to take on trust.
         row(
             "1b", "browser host",
-            browserHost.map { "\($0) — the host only, the path and query are dropped" }
+            browserHost.map { "\($0), the host only, the path and query are dropped" }
                 ?? (sensors.permissions.browserHostPermitted()
                     ? "on, nothing to read: the app in front is not a browser, or it exposes no URL"
                     : "off, you have not turned it on")
