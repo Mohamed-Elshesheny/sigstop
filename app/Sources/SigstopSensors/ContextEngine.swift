@@ -374,7 +374,16 @@ public final class ContextEngine {
 
         let developerContext = DeveloperContext(
             timestamp: now,
-            application: snapshot.frontmost,
+            /// The app that goes with the activity, not the one in front right now.
+            ///
+            /// While the dwell gate holds the previous class, taking the live frontmost
+            /// here paired the new app's name with the old app's activity and published
+            /// "Google Chrome, coding", which is a specific claim about Chrome that no
+            /// signal ever made. The gate already returns the app the held activity
+            /// belongs to; this line was overwriting it. Naming both honestly means the
+            /// panel says it is still counting the previous session, which is true, for
+            /// the few seconds before the new app settles.
+            application: gated.wasGated ? gated.observation.app : snapshot.frontmost,
             activity: gated.observation.activity,
             confidence: gated.observation.confidence,
             evidence: gated.observation.evidence,
