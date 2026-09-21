@@ -12,14 +12,24 @@ import SigstopCore
 public struct AXWindowInfo: Sendable, Hashable {
     public let title: String?
     public let documentURL: URL?
+    /// The host of a remote `kAXDocument`, and only ever the host: `github.com`.
+    ///
+    /// Tier 1b. It costs no new read — `kAXDocument` was already being fetched for file
+    /// URLs and a browser answers it with the page URL, measured on Chrome 2026-09-21 as
+    /// `https://github.com/Mohamed-Elshesheny/sigstop`. What used to happen to that string
+    /// is that `fileURL(from:)` returned nil and it fell on the floor. The path and query
+    /// still do: they are dropped inside `host(from:)` and never reach this type, so there
+    /// is no field here that could hold them and nothing downstream to redact.
+    public let browserHost: String?
 
-    public init(title: String? = nil, documentURL: URL? = nil) {
+    public init(title: String? = nil, documentURL: URL? = nil, browserHost: String? = nil) {
         self.title = title
         self.documentURL = documentURL
+        self.browserHost = browserHost
     }
 
     public static let empty = AXWindowInfo()
-    public var isEmpty: Bool { title == nil && documentURL == nil }
+    public var isEmpty: Bool { title == nil && documentURL == nil && browserHost == nil }
 }
 
 /// Why a Tier 1 read produced nothing. Kept so `--doctor` can explain a blank instead of
@@ -159,8 +169,14 @@ public final class AccessibilityCollector: @unchecked Sendable {
         AXUIElementSetMessagingTimeout(window, Self.messagingTimeout)
 
         let title = copyString(window, kAXTitleAttribute)
-        let document = copyString(window, kAXDocumentAttribute).flatMap(Self.fileURL(from:))
-        return AXWindowInfo(title: title, documentURL: document)
+        /// One read, two readings. A local editor answers `kAXDocument` with a file, a
+        /// browser answers it with the page URL; the second used to be discarded entirely.
+        let document = copyString(window, kAXDocumentAttribute)
+        return AXWindowInfo(
+            title: title,
+            documentURL: document.flatMap(Self.fileURL(from:)),
+            browserHost: document.flatMap(Self.host(from:))
+        )
     }
 
     /// The ONLY attribute reader in this type, and it is used exclusively for `kAXTitle`
@@ -306,6 +322,25 @@ public final class AccessibilityCollector: @unchecked Sendable {
     /// `kAXDocument` is documented as a URL string but real apps hand back both
     /// `file:///…` and bare POSIX paths. Anything that is not a local file is discarded:
     /// we are not in the business of collecting remote URLs.
+    /// The host of an `http`/`https` URL, lowercased, with a leading `www.` removed.
+    ///
+    /// Everything else about the URL is dropped here, in the one function that ever sees
+    /// it: no path, no query, no fragment, no credentials, no port. `URL` is a local and
+    /// only `host` escapes, so the rest is not "redacted later", it never has a later.
+    ///
+    /// Schemes other than http and https return nil, which keeps `file:` on the
+    /// `documentURL` path where it belongs and refuses anything exotic outright rather
+    /// than trying to understand it.
+    static func host(from raw: String) -> String? {
+        guard let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host?.lowercased(),
+              !host.isEmpty
+        else { return nil }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
     static func fileURL(from raw: String) -> URL? {
         if let url = URL(string: raw), url.isFileURL { return url }
         guard raw.hasPrefix("/") || raw.hasPrefix("~") else { return nil }

@@ -287,7 +287,8 @@ public struct BreakDecisionEngine: Sendable {
             return (.idle(IdleState(
                 since: input.now.addingTimeInterval(-input.context.idleSeconds),
                 cause: .microIdleExceeded,
-                suspendedCycle: d.cycle
+                suspendedCycle: d.cycle,
+                suspendedBreakDue: d
             )), nil)
         }
 
@@ -464,9 +465,17 @@ public struct BreakDecisionEngine: Sendable {
         e.withdrawnForBlock = false
         e.ladderElapsed += dt
 
-        let ceiling: EscalationLevel = day.consecutiveIgnoredCycles >= policy.ignoreBackoffThreshold ? .second : .incident
+        /// `ladderIsSpent` is the single statement of the backoff rule.
+        ///
+        /// There used to be a second one here, capping the rung at `.second` under backoff.
+        /// It never ran: under backoff `ladderIsSpent` is already true on the first
+        /// `.ignored` tick, because `consecutiveIgnoredCycles >= 2` and
+        /// `notificationsThisCycle >= 1` both hold on entry, so the cycle is closed
+        /// exhausted before `ladderElapsed` can reach `ladderLevel2` at all. The rung never
+        /// left `.first`, which means the truncation the gate summary and the docs both
+        /// describe as "levels 1-2" is really "level 1". Two statements of one rule drift,
+        /// and this pair already had.
         var target = ladderLevel(for: e, input: input)
-        if target > ceiling { target = ceiling }
         if target > e.level { e.level = target }
 
         if e.level != .first, !e.deliveredLevels.contains(e.level), verdict.isDeliverable {
@@ -691,6 +700,29 @@ public struct BreakDecisionEngine: Sendable {
             e.lastStepMono = input.monotonic
             effects.append(.setIndicator(.escalating))
             return .ignored(e)
+        }
+        /// A cycle suspended out of `.breakDue` keeps its age too.
+        ///
+        /// This rebuilt the opportunity with `dueSince: input.now` and `totalElapsed = 0`,
+        /// which restarted the one clock the stale ceiling measures. A user who crosses the
+        /// 90 second idle grace more often than once an hour could therefore hold an
+        /// opportunity open forever: it could never reach `staleBreakCeiling`, never close
+        /// `.expired`, and never be counted in `excludedOpportunities`. The log has four
+        /// cycles that open and never close.
+        ///
+        /// `handleSnoozed` had this right all along and the doc states it for that case —
+        /// BREAK-DECISION.md:474, "`seamWaitElapsed = 0`; `totalElapsed` continues" — so
+        /// this is the idle path being brought into line with the one beside it: only what
+        /// a genuine absence invalidates is cleared, which is the standing prompt.
+        if let suspended = idle.suspendedBreakDue {
+            var d = suspended
+            d.totalElapsed += max(0, input.monotonic - d.lastStepMono)
+            d.lastStepMono = input.monotonic
+            d.seamWaitElapsed = 0
+            d.promptedAt = nil
+            d.promptedAtMono = nil
+            effects.append(.setIndicator(.breakDue))
+            return .breakDue(d)
         }
         if let cycle = idle.suspendedCycle {
             var d = BreakDue(cycle: cycle, dueSince: input.now, lastStepMono: input.monotonic)

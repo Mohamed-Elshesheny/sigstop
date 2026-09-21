@@ -212,8 +212,30 @@ feature.
 
 ### 4.4 Never read content
 
-Window **titles** only, at Tier 1, redacted per `docs/PRIVACY.md` §1.5. Never document bodies,
-never keystrokes, never clipboard, never screen contents, never message text.
+Window **titles**, `kAXDocument` **file paths**, and, behind a separate opt-in that is off by
+default, the **host** of a `kAXDocument` web URL. All at Tier 1, redacted per `docs/PRIVACY.md`
+§1.5. Never document bodies, never keystrokes, never clipboard, never screen contents, never
+message text, and never a URL path, query or fragment.
+
+This used to read "window titles only", which was already narrower than the code: `kAXDocument`
+file URLs have been read since Tier 1 existed, and a file path is not a window title. The host
+is the new thing, and it is written here rather than argued in a commit message because this
+section is the one a reader checks.
+
+**The argument for it.** `kAXDocument` is fetched once and a browser answers it with the page
+URL, measured on Chrome as `https://github.com/Mohamed-Elshesheny/sigstop`. That string was
+already arriving in the process and being dropped on the floor by a file-URL filter. So the
+change is not a new read, it is a decision about a value the app already had, which is the
+weakest possible version of this escalation and still a real one: where you are is more
+sensitive than what a window chose to call itself. It buys the thing the product is for — a call
+on `meet.google.com` is held, a pull request is not — and without it every browser is one
+undifferentiated "browsing".
+
+**The rails on it.** Off by default and its own switch, never folded into the title switch.
+`AccessibilityCollector.host(from:)` is the only place a remote URL is parsed; `URL` is a local
+inside it and only `host` is returned, so the path and query have no later in which to be
+redacted. Schemes other than `http` and `https` are refused outright. The opt-in is re-checked
+on every sample in `ContextEngine`, so switching it off takes effect on the next tick.
 
 The app's pitch is "this watches your workflow, not your code." That sentence must stay literally
 true at the source level.

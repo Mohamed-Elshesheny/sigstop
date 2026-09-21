@@ -139,7 +139,10 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
         case .dailyCapReached:        return "today's notification budget is spent, passive only from here"
         case .cycleNotificationCap:   return "this cycle has had its notifications"
         case .minimumSpacing:         return "too soon after the last one"
-        case .ignoreBackoff:          return "these have been going unanswered, so the ladder is shortened"
+        /// "a single prompt", not "one or two". The ladder cannot reach rung two under
+        /// backoff: the cycle closes exhausted on the first ignored tick, so the rung
+        /// never leaves `.first`. The old wording matched a ceiling that never ran.
+        case .ignoreBackoff:          return "these have been going unanswered, so each one now gets a single prompt"
         case .userSnoozed:            return "you snoozed it"
         case .userAway:               return "you are away from the keyboard"
         case .breakRunning:           return "a break is running"

@@ -484,20 +484,32 @@ extension — see §7.
 - A title says nothing about *mode*. A VS Code window mid-debug-session looks identical to one that
   is idle. This is the core reason `DEBUGGING` is hard (§7.2).
 
-**Tier 1b (separately opt-in): browser URL host. Specified here, and not built.** Chrome-family
-browsers expose the omnibox as an AX text field and a web area with `kAXURL`; Safari similarly.
-This is technically Tier 1 but is a real privacy escalation, so it would be a **separate toggle**,
-and even when enabled the app would extract and retain **only the host** (`github.com`), never the
-path or query.
+**Tier 1b (separately opt-in): browser URL host. Built.** A separate toggle, off by default, and
+even when enabled the app extracts and retains **only the host** (`github.com`), never the path or
+query.
 
-**What is actually in the code today**, because this section read like a description of shipped
-behaviour and was not one. `SigstopSettings.browserHostEnabled` exists, `PermissionBroker`
-answers `browserHostPermitted()`, and `SignalContext.browserHost` is declared. No collector ever
-sets it: `ContextEngine` passes `browserHost: nil` unconditionally, so the permission question is
-answered for a caller that does not exist and the field is nil on every sample. There is no switch
-for it in Settings, so nothing is offered to a user that the app cannot do. It stays because the
-shape is right and the privacy argument above is the one a collector would have to satisfy; the
-moment something sets that field, this paragraph is what it has to make true.
+The mechanism is not the one this section predicted, and the prediction is worth keeping because
+it was wrong in a useful way. It said Chrome-family browsers expose "a web area with `kAXURL`".
+Probed on Chrome, macOS 27.0, 2026-09-21: the focused window answers `AXURL` with nil, no
+`AXWebArea` appears within 400 nodes and six levels of the focused window's subtree, and the
+window's attribute list contains exactly one URL-shaped entry — `AXDocument`, the attribute the
+file reader was already fetching. It returns `https://github.com/Mohamed-Elshesheny/sigstop`.
+
+So Tier 1b costs no new read and no tree traversal. `AccessibilityCollector.host(from:)` parses
+that string, returns the host and drops everything else inside the function; `ContextEngine`
+checks `browserHostPermitted()` on every sample before letting it past.
+
+**What is actually in the code today.** `AccessibilityCollector` reads `kAXDocument` once and
+hands the result to two parsers: `fileURL(from:)` for a local file and `host(from:)` for a remote
+page. `ContextEngine` passes the host only when `permissions.browserHostPermitted()` is true,
+which is `browserHostEnabled && tier1`. Settings has the switch, under the title switch and
+disabled while titles are off. `BrowserHostTests` asserts that a path, a query, a fragment,
+credentials and a port are all gone, and that `file:` and `https:` never cross into each other's
+parser.
+
+This paragraph used to say the opposite — that the field was declared, wired for a caller that
+did not exist, and passed `nil` unconditionally. That was true for a long time and the honesty
+about it is why the gap was findable at all.
 
 ### 4.3 Tier 2 — explicit opt-in local context
 

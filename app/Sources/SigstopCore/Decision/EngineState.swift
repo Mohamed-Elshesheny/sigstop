@@ -425,17 +425,23 @@ public struct IdleState: Sendable, Codable, Hashable {
     /// Only a suspension out of `.ignored` sets this. A suspension out of `.breakDue` has
     /// no ladder to keep and still restores through `suspendedCycle`.
     public var suspendedEscalation: Escalation?
+    /// The same, for a cycle suspended before it was ever ignored. Kept rather than
+    /// rebuilt so `dueSince` and `totalElapsed` survive, which is what the stale ceiling
+    /// measures: rebuilding restarted it and an opportunity could stay open forever.
+    public var suspendedBreakDue: BreakDue?
 
     public init(
         since: Date,
         cause: PauseCause,
         suspendedCycle: CycleID? = nil,
-        suspendedEscalation: Escalation? = nil
+        suspendedEscalation: Escalation? = nil,
+        suspendedBreakDue: BreakDue? = nil
     ) {
         self.since = since
         self.cause = cause
         self.suspendedCycle = suspendedCycle
         self.suspendedEscalation = suspendedEscalation
+        self.suspendedBreakDue = suspendedBreakDue
     }
 }
 

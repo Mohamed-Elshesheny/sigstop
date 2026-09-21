@@ -381,10 +381,11 @@ public final class ContextEngine {
             windowGeometry: geometry,
             windowTitle: axInfo.title,
             documentURL: axInfo.documentURL,
-            // Tier 1b is specified in docs/ACTIVITY-DETECTION.md 4.2 and is not built. This
-            // nil is the whole of it: no collector reads an omnibox, so the separate
-            // opt-in gates nothing and no Settings switch offers it.
-            browserHost: nil,
+            /// Tier 1b, built. The separate opt-in is checked here rather than in the
+            /// collector, so the host is dropped on the way past even though the read that
+            /// produced it happens anyway for file URLs. Turning the switch off therefore
+            /// takes effect on the next sample and leaves nothing behind.
+            browserHost: permissions.browserHostPermitted() ? axInfo.browserHost : nil,
             processes: processes,
             git: git
         )

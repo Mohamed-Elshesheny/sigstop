@@ -400,16 +400,16 @@ struct SettingsView: View {
                 ) {
                     TerminalSwitch(isOn: settings.accessibilityEnabled)
                 }
-                /// Tier 1b had no switch at all, which is the same defect the daily cap had:
-                /// a setting that changes what the app can tell about you, reachable only by
-                /// hand-editing `settings.json`. Nested under the title switch because it is
-                /// read out of the title and does nothing without it.
+                /// Tier 1b. Separate from the title switch because the spec says so and
+                /// the reason is good: a title is what an app chose to display, a host is
+                /// where you actually are.
                 SettingRow(
-                    "Read the site name from a browser title",
-                    detail: "Off by default. The host only — \"github.com\", never the path and "
-                        + "never the query string. It is what separates a call on meet.google.com "
-                        + "from a pull request, so the app can hold a break for one and not the "
-                        + "other. Without it a browser is just \"browsing\"."
+                    "Read the site name from a browser",
+                    detail: "Off by default, and separate on purpose. The host only — "
+                        + "\"github.com\" — taken from the same attribute the file reader "
+                        + "already uses. The path and the query are dropped in the function "
+                        + "that parses them and never reach the rest of the app. It is what "
+                        + "separates a call on meet.google.com from a pull request."
                 ) {
                     TerminalSwitch(isOn: settings.browserHostEnabled)
                         .disabled(!model.settings.accessibilityEnabled)
