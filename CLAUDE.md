@@ -378,6 +378,17 @@ refactor(sensors): resolve providers by claim specificity
 chore: scaffold repo, architecture docs and Core contract
 ```
 
+**One fix, one commit, straight onto `main`. No merge commits.**
+
+Work in a branch or a worktree and merging it back loses things, and it has already nearly
+happened here: a branch cut before a fix landed carries the old file, and its merge quietly
+reverts the fix. That one was caught by reading the diff. The next one would not be.
+
+So: land each change as its own commit on `main`, in order. If work was done somewhere else,
+cherry-pick the individual commits rather than merging the branch, and rebase onto current `main`
+first so the diff is against what is actually there. A change that spans several concerns is
+several commits, not one merge.
+
 **No AI attribution.** Commits carry no `Co-Authored-By` for an assistant, no "generated
 with" footers, and no tool names in the message or the author field. Author and committer
 are the human whose account the work ships under. This is not about hiding anything; the
