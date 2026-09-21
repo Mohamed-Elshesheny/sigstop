@@ -91,6 +91,30 @@ struct BadgeContactSheet: View {
     }
 }
 
+/// Renders the menu bar panel to a file. Same reason as the others: it is the surface the
+/// user sees most and the hardest one to look at, because it only exists while the status
+/// item is clicked.
+enum PanelRenderer {
+
+    @MainActor
+    static func runAndExit(stem: String) -> Never {
+        let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
+        for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+            let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
+            do {
+                try BadgeSheetRenderer.write(
+                    MenuBarView(model: AppModel()), appearance: appearance, to: url
+                )
+                FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
+                exit(1)
+            }
+        }
+        exit(0)
+    }
+}
+
 /// Renders a Settings pane to a file, the same way and for the same reason.
 ///
 /// The About pane shipped two thirds empty with two of its own URLs rendered nowhere, and

@@ -302,6 +302,19 @@ struct MenuBarView: View {
     /// with Quit set apart on the right so leaving never sits next to acting.
     private var actions: some View {
         VStack(alignment: .leading, spacing: 8) {
+            /// Always. Not sometimes.
+            ///
+            /// A panel that says nothing when it is quiet is indistinguishable from a
+            /// panel that is broken, and the user who cannot tell those apart deletes the
+            /// app rather than filing a bug. The claim in front of the sentence says
+            /// which kind of quiet this is; `WaitingLine` owns both.
+            ///
+            /// It reads before the buttons because it is the reason for them. Wedged
+            /// between two rows of controls, which is where it sat, it split one group of
+            /// buttons into two unrelated ones and explained neither.
+            hold(model.waiting.text)
+                .padding(.bottom, 2)
+
             HStack(spacing: 8) {
                 if model.isOnBreak {
                     TerminalButton("Resume · SIGCONT", style: .filled) { model.endBreak() }
@@ -341,17 +354,18 @@ struct MenuBarView: View {
                 TerminalButton(model.ignoreInputDeviceLabel, style: .quiet) { model.clearMeetingHold() }
                     .fixedSize()
             } else {
+                /// Full width, like the primary above it. At its intrinsic size it sat
+                /// short and left-aligned under a full-width button, which is the ragged
+                /// edge that made this corner look unfinished.
                 TerminalButton("I'm in a meeting", style: .quiet) { model.assertMeeting() }
-                    .fixedSize()
             }
 
-            /// Always. Not sometimes.
-            ///
-            /// A panel that says nothing when it is quiet is indistinguishable from a
-            /// panel that is broken, and the user who cannot tell those apart deletes the
-            /// app rather than filing a bug. The claim in front of the sentence says
-            /// which kind of quiet this is; `WaitingLine` owns both.
-            hold(model.waiting.text)
+            /// Everything below the rule is app chrome rather than an answer to the
+            /// prompt, and it is separated so the eye stops at the actions first.
+            Rectangle()
+                .fill(Brand.line)
+                .frame(height: 1)
+                .padding(.top, 4)
 
             HStack(spacing: 4) {
                 if model.pausedUntil == nil {
