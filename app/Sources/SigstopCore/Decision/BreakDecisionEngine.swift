@@ -403,7 +403,8 @@ public struct BreakDecisionEngine: Sendable {
             return (.idle(IdleState(
                 since: input.now.addingTimeInterval(-input.context.idleSeconds),
                 cause: .microIdleExceeded,
-                suspendedCycle: e.cycle
+                suspendedCycle: e.cycle,
+                suspendedEscalation: e
             )), nil)
         }
 
@@ -636,6 +637,24 @@ public struct BreakDecisionEngine: Sendable {
         guard input.context.idleSeconds < policy.microIdleGrace, !input.signals.screenLocked else {
             effects.append(.setIndicator(.idle))
             return .idle(idle)
+        }
+        /// Back to the rung it was on, not back to the bottom.
+        ///
+        /// The gap ages the opportunity but not the ladder, and the two clocks are
+        /// separate for exactly this reason: `totalElapsed` is wall clock since
+        /// `dueSince` and is what the stale ceiling measures, so time away still counts
+        /// toward giving up on an opportunity. `ladderElapsed` is how long a prompt has
+        /// stood in front of you unanswered, so it must not accrue while you were not
+        /// there to answer it. Crediting the gap to both would hand a user who stepped
+        /// away for four minutes an instant SIGINT on their return.
+        ///
+        /// `step` re-enters `.ignored` on this same tick, where `dt` then comes out zero
+        /// because `lastStepMono` has just been moved forward. Nothing is counted twice.
+        if var e = idle.suspendedEscalation {
+            e.totalElapsed += max(0, input.monotonic - e.lastStepMono)
+            e.lastStepMono = input.monotonic
+            effects.append(.setIndicator(.escalating))
+            return .ignored(e)
         }
         if let cycle = idle.suspendedCycle {
             var d = BreakDue(cycle: cycle, dueSince: input.now, lastStepMono: input.monotonic)

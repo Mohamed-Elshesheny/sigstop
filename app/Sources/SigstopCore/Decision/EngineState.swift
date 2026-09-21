@@ -393,11 +393,32 @@ public struct IdleState: Sendable, Codable, Hashable {
     /// The cycle that was open when the user walked away, if any. Walking away on your own
     /// is the success case, so it closes honored once the gap qualifies.
     public var suspendedCycle: CycleID?
+    /// The ladder that was climbing when the user stepped away, parked rather than thrown
+    /// away.
+    ///
+    /// The id on its own was not enough, and that was the whole of the bug this field
+    /// exists to fix. A gap longer than `microIdleGrace` but shorter than
+    /// `qualifyingBreak` is too long to ignore and too short to be a break: it suspended
+    /// the cycle, and the resume rebuilt a virgin `BreakDue`, so `level`,
+    /// `deliveredLevels`, `ladderElapsed` and `notificationsThisCycle` were all lost and
+    /// the next prompt came back at rung one. A user who glanced at their phone for two
+    /// minutes mid-escalation got SIGTSTP again instead of SIGINT, and paid another unit
+    /// of the day's notification budget for it.
+    ///
+    /// Only a suspension out of `.ignored` sets this. A suspension out of `.breakDue` has
+    /// no ladder to keep and still restores through `suspendedCycle`.
+    public var suspendedEscalation: Escalation?
 
-    public init(since: Date, cause: PauseCause, suspendedCycle: CycleID? = nil) {
+    public init(
+        since: Date,
+        cause: PauseCause,
+        suspendedCycle: CycleID? = nil,
+        suspendedEscalation: Escalation? = nil
+    ) {
         self.since = since
         self.cause = cause
         self.suspendedCycle = suspendedCycle
+        self.suspendedEscalation = suspendedEscalation
     }
 }
 

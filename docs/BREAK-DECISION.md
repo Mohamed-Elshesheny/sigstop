@@ -476,6 +476,7 @@ engine is allowed to *say*.
 | `snoozed` | user picks "break now" | — | `breakActive` | begin break |
 | `ignored` | tick | ladder timing (§11) | `ignored` | next level; at most one notification per level |
 | `ignored` | any user interaction | — | per action | ladder stops |
+| `ignored` | no input for `microIdleGrace` | gap `< qualifyingBreak` | `idle` | not an ignore; retract prompt and **park the ladder** |
 | `ignored` | gap ≥ `qualifyingBreak` | — | `working` | break recorded; cycle closed honored |
 | `ignored` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
 | `ignored` | level 4 delivered + no response | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1 |
@@ -483,6 +484,7 @@ engine is allowed to *say*.
 | `breakActive` | user ends early | elapsed `>= qualifyingBreak` | `working` | as above |
 | `breakActive` | user ends early | elapsed `< qualifyingBreak` | `working` | **no reset, no break recorded**, log `.abandoned` |
 | `breakActive` | input resumes | elapsed `< qualifyingBreak` | `breakActive` | keep the timer; do not nag; a break is not a jail |
+| `idle` | input resumes | gap `< qualifyingBreak`, ladder parked | `ignored` | **resume the ladder at its rung**; gap ages `totalElapsed`, not `ladderElapsed` |
 | `idle` | input resumes | gap `< qualifyingBreak` | `working` or `breakDue` | resume clock; re-evaluate `W >= T` |
 | `idle` | input resumes | gap `>= qualifyingBreak` | `working` | reset, record break, close any open cycle honored |
 | `idle` | gap `>= sessionGap` | — | `working` (new session) | finalize session |
