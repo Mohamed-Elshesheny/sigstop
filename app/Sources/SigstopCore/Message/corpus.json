@@ -3630,6 +3630,886 @@
       "optionalSlots": [],
       "when": [],
       "claimsActivity": false
+    },
+    {
+      "id": "editor.state.nothing-expires",
+      "text": "Your undo stack does not drain while you are away. The folds stay folded, the cursor keeps its line and its column. The editor has no opinion about how long five minutes is, so take all five.",
+      "tone": "friendly",
+      "category": "editor_generic",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "editor"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "editor.window.no-view-out",
+      "text": "{minutes} minutes in the editor. It will give you a minimap, a sidebar and as many split windows as you ask for, and none of them is made of glass. Go stand near one that is, for five.",
+      "tone": "sarcastic",
+      "category": "editor_generic",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "editor"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "editor.bluff.signal-i-do-not-have",
+      "text": "The one signal that cannot be caught, blocked or ignored is not one a menu bar app gets to send. So I am asking instead. Your editor will hold every buffer and every scroll position exactly where you left them.",
+      "tone": "sarcastic",
+      "category": "editor_generic",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "editor"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "editor.progress.no-bar-to-watch",
+      "text": "A build tells you when it is done. A scrollbar only tells you where you are. Nothing in an editor will ever announce the moment, so it has to be picked rather than waited for. Pick this one. Five minutes.",
+      "tone": "friendly",
+      "category": "editor_generic",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "editor"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "shell.scrollback.nothing-expires",
+      "text": "Scrollback has no session timeout. No idle warning, no are-you-still-there, no polite logout at minute six. Whatever is in that buffer is not counting the minutes you are gone. Take the five.",
+      "tone": "friendly",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "terminal"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "shell.window.looks-the-same",
+      "text": "A shell prompt comes back the same shape whether the thing worked or it did not. Excellent poker face, no help at all to me. So I am calling it either way: five minutes. It will be in exactly that shape when you get back.",
+      "tone": "sarcastic",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 2,
+        "max": 3
+      },
+      "minConfidence": 0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "terminal"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "shell.dismiss.not-a-shell",
+      "text": "A shell takes one instruction, runs it and returns to the prompt with no further opinions. I have never once managed that. Give me five minutes on your feet and I will return to the prompt too.",
+      "tone": "sarcastic",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "terminal"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "shell.hour.runs-anything",
+      "text": "It is {hour}. The shell has no confirmation step, no opinion about the hour, and no undo. Be the half of this pair with a sense of timing: five minutes off before the next line.",
+      "tone": "roast",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "terminal"
+          ]
+        },
+        {
+          "p": "timeBand",
+          "in": [
+            "lateNight"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "shell.uptime.not-a-daemon",
+      "text": "{minutes} minutes at this terminal with no pause anywhere in it. A daemon runs like that because it gave up its controlling terminal. You still have yours. Ctrl-Z, walk away, fg when you get back.",
+      "tone": "roast",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "terminal"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "chat.scroll.no-last-page",
+      "text": "Chat has no last page. The bottom moves because other people move it, and they are not done. Take five minutes. Catching up was never on the table.",
+      "tone": "friendly",
+      "category": "chat_context",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "chat.refill.never-reach-the-end",
+      "text": "{minutes} minutes in a window where answering a message is how you get another message. There is no end of it to reach. Step away for five: it refills whether you are watching or not, so it will be exactly this full when you get back.",
+      "tone": "friendly",
+      "category": "chat_context",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "chat.attention.somewhere-with-a-door",
+      "text": "Builds finish. Files save. A conversation just keeps having more of itself. Take your attention somewhere with a door for five minutes.",
+      "tone": "sarcastic",
+      "category": "chat_context",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "chat.signal.nothing-goes-green",
+      "text": "The queue in here is refilled by other people, so it never ends and never says done. That is how this stretch got to {minutes} minutes with no natural stopping point. Here is an unnatural one.",
+      "tone": "sarcastic",
+      "category": "chat_context",
+      "escalation": {
+        "min": 2,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "chat.hours.has-not-noticed",
+      "text": "It is {hour} and this window is still keeping office hours. It is built out of other people's working days, so it never looks late. You are the only part of this arrangement that is allowed to stop.",
+      "tone": "sarcastic",
+      "category": "chat_context",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        },
+        {
+          "p": "timeBand",
+          "in": [
+            "night",
+            "lateNight"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "chat.interrupt.never-managed-it",
+      "text": "This is an app whose entire job is interrupting people, and it has had you here the whole stretch without once getting you to stop. Fine. I will do it: stand up, walk somewhere, come back.",
+      "tone": "roast",
+      "category": "chat_context",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "chat.state.loses-nothing",
+      "text": "This window puts itself back exactly as you left it: scroll position, unread line, draft box. Nothing in here is being held in your head, so for once the excuse is unavailable. Five minutes.",
+      "tone": "roast",
+      "category": "chat_context",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "focused",
+            "deep",
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "browse.blindspot.tabs-titles-urls",
+      "text": "A browser in front is the one signal that means nothing. {minutes} minutes of it could be the docs, or it could be the exact opposite of the docs, and the call is the same either way. Stand up.",
+      "tone": "sarcastic",
+      "category": "research_browsing",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "browse.entry.one-reason-different-reason",
+      "text": "Nothing in the browser is designed to let you finish. Leaving is a feature you have to supply yourself. Supply it for five minutes, then come back to whatever you opened it for.",
+      "tone": "sarcastic",
+      "category": "research_browsing",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "focused",
+            "deep"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "browse.rung.built-for-ignoring",
+      "text": "We are past the polite signals now, which is a strange thing to announce inside the one window where you dismiss a banner a day without reading a word of it. Same reflex, same button. Five minutes. The tab keeps your scroll position.",
+      "tone": "sarcastic",
+      "category": "research_browsing",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "browse.tenure.visit-and-residency",
+      "text": "The browser is the one app whose entire job is going somewhere else. You have been in it {minutes} minutes and the chair has not moved. Five minutes outside, then come back a tourist.",
+      "tone": "roast",
+      "category": "research_browsing",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "browse.hour.nothing-expires-overnight",
+      "text": "It is {hour}. Everything in that browser was written hours ago by people who have since gone to bed. The whole internet clocked off and left you holding it. Take five, then consider calling it.",
+      "tone": "sarcastic",
+      "category": "research_browsing",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        },
+        {
+          "p": "timeBand",
+          "in": [
+            "lateNight"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "canvas.infinite.the-day-is-not",
+      "text": "A page has a bottom. A canvas has no edge to hit, so it is never going to be the thing that tells you to stop. That leaves me. Five minutes, and it will be exactly this infinite when you get back.",
+      "tone": "friendly",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "design"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "canvas.deciding.stopped-deciding-started-adjusting",
+      "text": "Somewhere in the last {minutes} minutes you stopped deciding and started adjusting. Nothing on a canvas compiles, so nothing tells you which one the last change was. Five minutes away is the only thing that does.",
+      "tone": "sarcastic",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "design"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "canvas.zoom.nobody-else-gets-this-zoom",
+      "text": "Whatever zoom you are at right now, nobody else will ever see it at that size. They get it at whatever scale their own screen decides. Look away for five minutes and come back as one of them.",
+      "tone": "sarcastic",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 2,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "design"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "focused",
+            "deep"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "canvas.night.the-room-is-voting",
+      "text": "It is {hour} and the room is dark, which is a generous light for low contrast: at this brightness everything passes. Break, and get a second opinion from a room with daylight in it.",
+      "tone": "sarcastic",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "design"
+          ]
+        },
+        {
+          "p": "timeBand",
+          "in": [
+            "lateNight"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "canvas.familiar.it-is-furniture-now",
+      "text": "{minutes} minutes and the canvas has become furniture. You are not looking at it any more, you are walking past it. Go walk past something else. It goes back to being a design when you sit down.",
+      "tone": "roast",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "design"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "canvas.state.everything-is-still-selected",
+      "text": "Nobody is going to pan the canvas while you are gone. Whatever you are zoomed into, however many groups deep, it is all still there and still selected when you get back. Five minutes.",
+      "tone": "friendly",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "design"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "stack.pace.not-yours-to-set",
+      "text": "Nothing here moves at typing speed: not a pull, not a build, not a registry three continents away. The pace belongs to the daemon, and always did. Take five. A daemon keeps its own time whether or not anyone is watching.",
+      "tone": "friendly",
+      "category": "containers",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "containers"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "stack.opacity.identical-either-way",
+      "text": "{minutes} minutes with the container dashboard in front. Whatever those containers are up to, they are up to it out of sight. That is the entire point of them, and it is also my exact situation. Go and be uncertain somewhere with a view.",
+      "tone": "sarcastic",
+      "category": "containers",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "containers"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "stack.state.same-promise-other-way",
+      "text": "{minutes} minutes. You trust this thing to come down and back up with the volumes intact and the layers still cached. Extend yourself the same terms: down for five, up again, nothing rebuilt from scratch.",
+      "tone": "friendly",
+      "category": "containers",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "containers"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "stack.clock.no-opinion-about-the-hour",
+      "text": "It is {hour}. Containers are built to run unattended for years and never once check the clock. That is a feature of containers. You were not built to that spec. Stand up.",
+      "tone": "sarcastic",
+      "category": "containers",
+      "escalation": {
+        "min": 2,
+        "max": 3
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "containers"
+          ]
+        },
+        {
+          "p": "timeBand",
+          "in": [
+            "lateNight"
+          ]
+        }
+      ],
+      "claimsActivity": false
+    },
+    {
+      "id": "stack.abstraction.thing-that-runs-the-thing",
+      "text": "You are in the app that runs the machine that runs the process that runs the code. Each of those layers is somewhere an hour can quietly go. The stack will be exactly this deep when you get back. Take five in one layer.",
+      "tone": "roast",
+      "category": "containers",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "containers"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": false
     }
   ]
 }
