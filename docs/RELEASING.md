@@ -11,6 +11,48 @@ Related: `docs/PRIVACY.md` §2.7 (what the network use is), §2.8 (why signature
 
 ---
 
+## 0. What a release is called
+
+Every release carries a codename, and the codename is **chosen by a person**. It is worth
+saying why, because the obvious assumption is wrong: the project this convention was
+modelled on looks like it has a bot inventing names, and reading its workflow shows the
+title comes from a pull request somebody wrote by hand. Nothing generates "Flying Rabbit".
+
+**The family: animals that suspend completely and resume with nothing lost.** A wood frog
+freezes solid, stops its heart, and thaws in spring with its memory intact. That is the
+whole product in one image, and it is the same claim `SIGSTOP` and `SIGCONT` make about a
+process. It also gives decades of names without repeating, and the list gets more charming
+the further into it you go, which is the opposite of how version numbers age.
+
+    v0.1.x    Sleeping Dormouse 🐿️
+    v0.2.x    Wood Frog 🐸
+    v0.3.x    Hibernating Bear 🐻
+    v0.4.x    Torpid Hummingbird 🐦
+
+**The codename belongs to the minor version, not the patch.** Every `v0.2.x` is Wood Frog.
+A patch release is the same animal with a bug fixed, and changing the name every time
+would make the name carry no information at all.
+
+The release title is the tag and the name together, which is what shows in the list:
+
+    v0.2.0 Wood Frog 🐸
+
+One rule about the emoji, since there is exactly one: it is the animal, and nothing else.
+No rockets, no sparkles, no party poppers. A release is not a celebration, it is a build
+somebody is about to run on their own machine.
+
+Cutting it is one command, and everything after the name is automated so no step gets
+skipped at two in the morning:
+
+```sh
+cd app
+make release VERSION=0.2.0 NAME="Wood Frog 🐸"
+```
+
+It refuses to run if `Info.plist` and the version disagree, if the tag exists, or if the
+working tree is dirty, and it runs the tests, `make verify` and the scenario suite before
+it publishes anything. A release that cannot prove its own claims does not go out.
+
 ## 1. What makes this safe, in one paragraph
 
 sigstop is distributed outside the App Store and is **ad-hoc signed: no Apple Developer ID, no Team
