@@ -2,75 +2,47 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleExecutable</key><string>sigstop</string>
-	<key>CFBundleIconFile</key><string>sigstop</string>
-	<key>CFBundleIdentifier</key><string>dev.sigstop.app</string>
-	<key>CFBundleName</key><string>sigstop</string>
-	<key>CFBundleDisplayName</key><string>sigstop</string>
-	<key>CFBundlePackageType</key><string>APPL</string>
-	<key>CFBundleShortVersionString</key><string>0.1.0</string>
-	<!-- The release codename, shown beside the version wherever the version is shown.
-	     One source of truth: Scripts/release.sh refuses to publish if this and the name
-	     it was given disagree, the same way it refuses if the version disagrees.
-	     The convention, and why it is animals, is in docs/RELEASING.md. -->
-	<key>SGReleaseName</key><string>Sleeping Dormouse 🐿️</string>
-	<key>CFBundleVersion</key><string>1</string>
-	<key>LSMinimumSystemVersion</key><string>14.0</string>
-	<!-- Menu bar only: no Dock icon, no main window. -->
-	<key>LSUIElement</key><true/>
-	<key>NSHighResolutionCapable</key><true/>
-	<key>NSSupportsAutomaticTermination</key><false/>
-	<key>NSSupportsSuddenTermination</key><false/>
-	<!-- NOTE: there is deliberately no NSMicrophoneUsageDescription. The app asks CoreAudio
-	     whether the input device is running; it never opens a stream, so no TCC prompt and
-	     no access to audio. See docs/PRIVACY.md §2.5. -->
-
-	<!-- ==================== Sparkle ====================
-	     The app's one network capability, and the whole of it. Read docs/RELEASING.md
-	     before changing any key below; several of them are load-bearing for claims the
-	     website and docs/PRIVACY.md §5 make in public.
-
-	     SUPublicEDKey is the EdDSA public half. Sparkle refuses to install any archive
-	     whose signature does not verify against exactly this string, so a compromised
-	     GitHub account, CDN or network can serve a malicious download and still not get
-	     it installed. The private half is in the maintainer's login keychain under
-	     service "https://sparkle-project.org", account "sigstop", and is not in this
-	     repository and never will be.
-
-	     Rotating this key is a breaking change for everyone already running an older
-	     build: they verify against the key compiled into the copy they have, not this
-	     one. docs/RELEASING.md §6 says what to do about that. -->
-	<key>SUPublicEDKey</key><string>v0rY/NWn8izKVHcZl7vVyqRCsrV929pkGNyJpThhv6s=</string>
-
-	<!-- The only URL the app is ever able to fetch. A static file on GitHub Pages, served
-	     to anyone, identical for everyone, with no query string and nothing to
-	     personalise. If a custom domain is ever put in front of the site this has to
-	     change in a release BEFORE the old host stops answering, because an installed
-	     build only ever reads the URL compiled into itself. -->
-	<key>SUFeedURL</key><string>https://mohamed-elshesheny.github.io/sigstop/appcast.xml</string>
-
-	<!-- Sparkle 2 runs the installer out of an XPC service embedded in Sparkle.framework
-	     rather than in this process. That is what keeps the privileged half of an install
-	     out of an app that also holds an Accessibility grant. -->
-	<key>SUEnableInstallerLauncherService</key><true/>
-
-	<!-- OFF. Nothing checks on a timer, at launch, or on wake unless the user turns the
-	     switch on in Settings > About. This key is only the default for a user who has
-	     never expressed a preference; once they do, Sparkle stores theirs and this is
-	     ignored. -->
-	<key>SUEnableAutomaticChecks</key><false/>
-
-	<!-- Never download or install without being told to, even when automatic checking is
-	     on. The user sees the version and presses the button. -->
-	<key>SUAutomaticallyUpdate</key><false/>
-
-	<!-- Sparkle can append a system profile (macOS version, CPU, RAM, language, app
-	     version) to the feed request as a query string. It is off by default; it is
-	     written here explicitly so that the absence is a stated decision rather than an
-	     inherited default, and so `plutil -p` shows a reader the answer. -->
-	<key>SUEnableSystemProfiling</key><false/>
-
-	<!-- Daily, and only relevant at all if the user switched automatic checks on. -->
-	<key>SUScheduledCheckInterval</key><integer>86400</integer>
+	<key>CFBundleDisplayName</key>
+	<string>sigstop</string>
+	<key>CFBundleExecutable</key>
+	<string>sigstop</string>
+	<key>CFBundleIconFile</key>
+	<string>sigstop</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.sigstop.app</string>
+	<key>CFBundleName</key>
+	<string>sigstop</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.1</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+	<key>SGReleaseName</key>
+	<string>Sleeping Dormouse 🐿️</string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://mohamed-elshesheny.github.io/sigstop/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>v0rY/NWn8izKVHcZl7vVyqRCsrV929pkGNyJpThhv6s=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>
