@@ -10,8 +10,8 @@ import SigstopCore
 /// carries none of that risk, and without it the three-hour daily ceiling is defeated by
 /// quitting and reopening the app.
 ///
-/// One small JSON file next to the event log. Nothing here is personal: a day index and
-/// a number of seconds.
+/// One small JSON file next to the event log, at mode 0600 like the rest of the folder.
+/// Nothing here is personal: a day index and a number of seconds.
 enum CallHoldLedger {
     private struct Record: Codable {
         var dayIndex: Int
@@ -40,5 +40,6 @@ enum CallHoldLedger {
             attributes: [.posixPermissions: 0o700]
         )
         try? data.write(to: file, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }
 }

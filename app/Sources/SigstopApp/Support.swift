@@ -39,6 +39,9 @@ enum AppPaths {
 /// diff, and cannot delete along with the rest of their data. A file in the same
 /// directory as everything else means "Delete my data" really does remove everything,
 /// and `cat` stays a complete audit tool (docs/PRIVACY.md §4.6).
+///
+/// Written at mode 0600 like everything else in the folder. An atomic write lands at
+/// the umask, 0644, which is not what docs/PRIVACY.md §4.2 promises for this file.
 enum SettingsStore {
     static func load() -> SigstopSettings {
         guard let data = FileManager.default.contents(atPath: AppPaths.settingsFile.path) else {
@@ -58,6 +61,9 @@ enum SettingsStore {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             try encoder.encode(settings).write(to: AppPaths.settingsFile, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: AppPaths.settingsFile.path
+            )
             return true
         } catch {
             return false
