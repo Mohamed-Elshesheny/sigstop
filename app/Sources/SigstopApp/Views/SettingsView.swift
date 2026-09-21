@@ -83,11 +83,6 @@ struct SettingsView: View {
             }
 
             Spacer(minLength: 0)
-
-            Text(version)
-                .font(Brand.mono(10))
-                .foregroundStyle(Brand.fgMuted)
-                .padding(18)
         }
         .frame(width: 176)
         .frame(maxHeight: .infinity)
