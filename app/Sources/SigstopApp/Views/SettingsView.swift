@@ -48,10 +48,13 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            Rectangle().fill(Brand.line).frame(width: 1)
-            content
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                sidebar
+                Rectangle().fill(Brand.line).frame(width: 1)
+                content
+            }
+            madeBy
         }
         .frame(width: Self.size.width, height: Self.size.height)
         .background(Brand.bg)
@@ -171,7 +174,7 @@ struct SettingsView: View {
             SettingsSection("prompt") {
                 SettingRow(
                     "Play a sound",
-                    detail: "Silent at SIGTSTP. Tink at SIGINT, Submarine at SIGTERM, Sosumi at SIGSTOP. A sound on every reminder is how an app gets muted before the level that matters."
+                    detail: "Tink at SIGTSTP, Morse at SIGINT, Submarine at SIGTERM, Sosumi at SIGSTOP. The escalation is carried by volume, quiet enough at the first rung to sit under a conversation."
                 ) {
                     TerminalSwitch(isOn: settings.promptSound)
                 }
@@ -372,28 +375,41 @@ struct SettingsView: View {
     private var data: some View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection("where it lives") {
-                CodeBlock(AppPaths.storageRoot.path)
-                    .padding(.top, 12)
                 Note(
-                    "One JSON object per line. Raw events are kept for "
-                        + "\(Retention.defaultEventDays) days; daily summaries outlive them because "
-                        + "they are a hundredth of the data."
+                    "One JSON object per line, in four files you can open with cat. Raw events "
+                        + "are kept for \(Retention.defaultEventDays) days; daily summaries outlive "
+                        + "them because they are a hundredth of the data."
                 )
-            }
-
-            SettingsSection("export · delete") {
-                HStack(spacing: 8) {
-                    TerminalButton("Export…") { export() }
-                        .fixedSize()
-                    TerminalButton("Delete my data…") { confirmDelete() }
-                        .fixedSize()
+                CodeBlock(AppPaths.storageRoot.path)
+                    .padding(.top, 10)
+                VStack(alignment: .leading, spacing: 5) {
+                    FileRow("events/", "one file per day, appended, never rewritten")
+                    FileRow("summaries/", "one object per day, kept after the events age out")
+                    FileRow("badges.json", "which of the ten unlocked, and when")
+                    FileRow("settings.json", "exactly what the panes above set")
                 }
                 .padding(.top, 12)
+            }
+
+            SettingsSection("export") {
                 Note(
-                    "The export is a copy, not a report: nothing is filtered or transformed, "
-                        + "so what you audit is what the app has. Delete removes the event log, the "
-                        + "summaries and these settings, with no archive kept anywhere."
+                    "A copy, not a report. Nothing is filtered or transformed, so what you audit "
+                        + "is what the app has."
                 )
+                TerminalButton("Export…") { export() }
+                    .fixedSize()
+                    .padding(.top, 12)
+            }
+
+            SettingsSection("delete") {
+                Note(
+                    "Removes the event log, the summaries, the badges and these settings. There "
+                        + "is no archive, no tombstone and no copy kept anywhere, which is the "
+                        + "point and also means there is no undo."
+                )
+                TerminalButton("Delete my data…", style: .quiet) { confirmDelete() }
+                    .fixedSize()
+                    .padding(.top, 12)
                 if let dataReport {
                     CodeBlock(dataReport)
                         .padding(.top, 12)
@@ -466,7 +482,6 @@ struct SettingsView: View {
             updates
             links
             builtOn
-            madeBy
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -513,11 +528,12 @@ struct SettingsView: View {
 
     /// The one piece of the interface that is not about the user.
     ///
-    /// Kept to a single line at the bottom of the last pane, in the faintest ink the
-    /// palette has, because a byline that competes with the product is a byline nobody
-    /// trusts. The heart is the only non-amber colour anywhere in the app and it is four
-    /// millimetres wide, which is about the right amount of sentiment for a utility that
-    /// otherwise refuses to be warm at you.
+    /// A bar across the bottom of the window rather than a line inside a pane, so it does
+    /// not scroll away and does not belong to About in particular. It sits on the raised
+    /// surface under a hairline, which is the separation the sidebar already uses, so it
+    /// reads as part of the window's chrome rather than as content. The heart is the only
+    /// non-amber colour in the app and it is four millimetres wide, which is about the
+    /// right amount of sentiment for a utility that otherwise refuses to be warm at you.
     ///
     /// The name is text and not a link on purpose. Linking it needs an account-root URL in
     /// the binary, and `verify.sh` allowlists only this repository, which is the narrower
@@ -525,20 +541,22 @@ struct SettingsView: View {
     /// Widening that to the whole account so a byline could be clicked would be paying a
     /// real boundary for a small convenience.
     private var madeBy: some View {
-        HStack(spacing: 5) {
-            Spacer(minLength: 0)
-            Text("Made with")
-            Text("\u{1FAF6}")
-                .font(.system(size: 11))
-            Text("by")
-            Text("Mohamed Elshesheny")
-                .foregroundStyle(Brand.fgMuted)
-            Spacer(minLength: 0)
+        VStack(spacing: 0) {
+            Rectangle().fill(Brand.line).frame(height: 1)
+            HStack(spacing: 6) {
+                Text("Made with")
+                Text("\u{1FAF6}")
+                    .font(.system(size: 12))
+                Text("by")
+                Text("Mohamed Elshesheny")
+                    .foregroundStyle(Brand.fgMuted)
+            }
+            .font(Brand.mono(11))
+            .foregroundStyle(Brand.fgFaint)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
         }
-        .font(Brand.mono(10))
-        .foregroundStyle(Brand.fgFaint)
-        .padding(.top, 10)
-        .padding(.bottom, 2)
+        .background(Brand.surface)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Made with love by Mohamed Elshesheny")
     }
@@ -783,6 +801,32 @@ private struct CreditRow: View {
                 .font(Brand.sans(11.5))
                 .foregroundStyle(Brand.fgFaint)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// One file in the storage root, and what is in it. A name in mono against a sentence in
+/// prose, so the list scans as a directory listing rather than as more paragraphs.
+private struct FileRow: View {
+    let name: String
+    let role: String
+
+    init(_ name: String, _ role: String) {
+        self.name = name
+        self.role = role
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(name)
+                .font(Brand.mono(11))
+                .foregroundStyle(Brand.fgMuted)
+                .frame(width: 112, alignment: .leading)
+            Text(role)
+                .font(Brand.sans(11.5))
+                .foregroundStyle(Brand.fgFaint)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
     }
 }
