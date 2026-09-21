@@ -52,6 +52,7 @@ struct MenuBarView: View {
                 .padding(.horizontal, Self.gutter)
                 .padding(.top, 14)
                 .padding(.bottom, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Brand.chrome)
             Rule()
             VStack(alignment: .leading, spacing: 22) {
@@ -64,6 +65,12 @@ struct MenuBarView: View {
             uptime
                 .padding(.horizontal, Self.gutter)
                 .padding(.vertical, 12)
+                /// The band has to be the panel's width, not the text's.
+                ///
+                /// Without this the chrome fill took the content's intrinsic size, so on a
+                /// short day the footer was a paler rectangle over about half the panel
+                /// with a hard vertical edge down the middle of nothing.
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Brand.chrome)
         }
         .frame(width: Self.width)
