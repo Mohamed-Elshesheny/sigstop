@@ -410,7 +410,7 @@ public enum CorpusError: Error, Sendable, Equatable {
 
 public struct Corpus: Sendable, Hashable {
     public let packs: [MessagePack]
-    /// Flattened, id-deduped (first pack wins), unsupported packs dropped wholesale ,
+    /// Flattened, id-deduped (first pack wins), unsupported packs dropped wholesale,
     /// never partially, because a half-loaded pack produces exactly the coverage holes the
     /// lint exists to prevent.
     public let templates: [MessageTemplate]

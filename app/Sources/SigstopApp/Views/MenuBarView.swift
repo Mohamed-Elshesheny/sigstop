@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// Its job is to answer three questions without the user having to trust anything:
 /// how long have I been at this, what does the app think I am doing, and **why does it
-/// think that**. The third one is the disclosure, and it is not a debug affordance ,
+/// think that**. The third one is the disclosure, and it is not a debug affordance:
 /// CLAUDE.md §4.1 makes "the app must always be able to answer *why do you think that?*"
 /// an invariant, and this is where a user meets it.
 ///
@@ -216,14 +216,16 @@ struct MenuBarView: View {
             .padding(.bottom, 8)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text(model.applicationName)
-                    .font(Brand.mono(14, weight: .semibold))
-                    .foregroundStyle(Brand.fg)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text("·")
-                    .font(Brand.mono(13))
-                    .foregroundStyle(Brand.fgMuted)
+                if !model.applicationName.isEmpty {
+                    Text(model.applicationName)
+                        .font(Brand.mono(14, weight: .semibold))
+                        .foregroundStyle(Brand.fg)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("·")
+                        .font(Brand.mono(13))
+                        .foregroundStyle(Brand.fgMuted)
+                }
                 Text(model.activityLabel)
                     .font(Brand.mono(13))
                     .foregroundStyle(Brand.fgMuted)

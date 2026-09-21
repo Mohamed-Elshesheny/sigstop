@@ -6,7 +6,7 @@ import SwiftUI
 /// idea in fourteen points: a process paused, intact, ready to continue.
 ///
 /// Drawn with shapes rather than an SF Symbol for two reasons. The first is that the
-/// symbol set has nothing that fills continuously, and the fill *is* the information ,
+/// symbol set has nothing that fills continuously, and the fill *is* the information:
 /// the bars rise with real continuous work, so the icon answers "how long have I been at
 /// this" without opening anything. The second is that a symbol would have to be swapped
 /// for a different symbol at each state, and swapping glyphs in the menu bar reads as a

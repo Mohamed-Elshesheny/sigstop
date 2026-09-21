@@ -142,7 +142,7 @@ enum Brand {
 /// The `SIGSTOP` glyph: two bars, a process paused and intact.
 ///
 /// `fill` is 0…1 and is drawn, not decorative. The outline is the whole session and the
-/// fill is how much of it has elapsed, so the mark *is* the timer wherever it appears ,
+/// fill is how much of it has elapsed, so the mark *is* the timer wherever it appears:
 /// at 14pt in the menu bar, at 44pt beside the clock, at 40pt on the About pane. The
 /// About pane shows it half filled because a half-filled pair is what the mark means; a
 /// solid pair would read as "a break is due" to anyone who has watched the menu bar for

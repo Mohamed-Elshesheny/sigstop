@@ -61,7 +61,7 @@ final class BreakOverlayController {
     /// Shows the overlay on every screen and installs a *local* Escape monitor.
     ///
     /// Escape works while sigstop happens to be the active application. A global monitor
-    /// would catch it everywhere, but that needs Accessibility or Input Monitoring ,
+    /// would catch it everywhere, but that needs Accessibility or Input Monitoring,
     /// permissions this app refuses to require for a convenience. So: Escape works when
     /// the overlay or the app has focus, and the SIGCONT button always works.
     func presentBreak(model: AppModel) {

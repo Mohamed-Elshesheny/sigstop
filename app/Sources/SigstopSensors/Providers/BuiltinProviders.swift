@@ -586,7 +586,7 @@ public struct VSCodeProvider: ActivityProvider {
 public struct CursorProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.cursor")
     /// The bundle ID is a ToDesktop-generated opaque string. It is correct today and it is
-    /// not stable across a repackage, so the localized name is claimed as a fallback ,
+    /// not stable across a repackage, so the localized name is claimed as a fallback at
     /// lower specificity, so the exact ID still wins when it is right.
     public let claims = [
         AppClaim(.bundleID(BundleIDs.cursor)),

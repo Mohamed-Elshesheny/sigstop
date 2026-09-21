@@ -6,7 +6,7 @@ import SigstopCore
 
 /// What Tier 1 can see. Deliberately two fields, both optional, both `Sendable`.
 ///
-/// `documentURL` is a *real path* (`kAXDocument`) and is worth far more than the title ,
+/// `documentURL` is a *real path* (`kAXDocument`) and is worth far more than the title,
 /// but Electron apps (VS Code, Cursor, Slack, Discord, Figma) never provide it, so it is
 /// a bonus, never a requirement.
 public struct AXWindowInfo: Sendable, Hashable {
@@ -304,7 +304,7 @@ public final class AccessibilityCollector: @unchecked Sendable {
     }
 
     /// `kAXDocument` is documented as a URL string but real apps hand back both
-    /// `file:///…` and bare POSIX paths. Anything that is not a local file is discarded ,
+    /// `file:///…` and bare POSIX paths. Anything that is not a local file is discarded:
     /// we are not in the business of collecting remote URLs.
     static func fileURL(from raw: String) -> URL? {
         if let url = URL(string: raw), url.isFileURL { return url }

@@ -67,7 +67,9 @@ final class AppModel {
     private(set) var continuousWorkMeasuredAt: Double = 0
     private(set) var timeSinceLastBreak: TimeInterval?
     private(set) var activityLabel: String = "starting up"
-    private(set) var applicationName: String = ","
+    /// Empty until the first sample lands. The panel draws nothing for it rather than a
+    /// placeholder, because there is no application to name yet.
+    private(set) var applicationName: String = ""
     private(set) var confidence: Double = 0
     private(set) var evidenceLines: [EvidenceLine] = []
     private(set) var caveats: [String] = []
