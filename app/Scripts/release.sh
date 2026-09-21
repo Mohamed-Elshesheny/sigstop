@@ -57,6 +57,15 @@ echo "==> building the image"
 make dmg >/dev/null
 SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 
+# The step 0.1.0 shipped without. Doing it before the tag means a release that cannot be
+# signed fails here, with nothing published, rather than after the announcement.
+echo "==> signing the update feed"
+./Scripts/appcast.sh >/dev/null
+if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
+  (cd .. && git add updater/appcast.xml && git commit -q -m "build: publish the appcast for v${VERSION}")
+  echo "    committed updater/appcast.xml"
+fi
+
 NOTES="$(cat <<EOF
 macOS 14 or later, Apple Silicon and Intel.
 
@@ -102,3 +111,6 @@ echo "  sha256: ${SHA}"
 echo "  https://github.com/${REPO}/releases/tag/${TAG}"
 echo
 echo "  The site links to the asset by name, so nothing there needs changing."
+echo
+echo "  Push main so Pages deploys the feed, then check it as a user would:"
+echo "    git push && curl -sSI https://mohamed-elshesheny.github.io/sigstop/appcast.xml | head -1"
