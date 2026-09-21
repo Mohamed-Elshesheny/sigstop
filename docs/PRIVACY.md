@@ -59,7 +59,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 28 | **Seconds the call hold has held a break today**, and the day they count for | Derived from #25, #26 and #27 by the call latch | So the three-hour daily ceiling on holding survives a relaunch instead of resetting to zero | Persisted, `call-hold.json` (a day index and a number of seconds) | Overwritten in place; reset on delete | Follows "Hold my break during calls" |
 | 29 | **The focused window's document path** (`/Users/you/p/a.swift`) | `kAXDocument` on the focused window, read in the same call that reads the title. Tier 1 | Names the file you have open when the title does not, and tells the git collector which registered folder you are in | Memory-only, one sample. Anything that is not a local file URL is discarded before it is parsed, which is what keeps a browser's full page URL out (`AccessibilityCollector.fileURL(from:)`) | Until the next sample | Follows Tier 1 |
 | 30 | **Which of a fixed list of developer tools is running**, as an enum case, never a string, plus one `Bool` for whether anything is under a debugger | One `sysctl(KERN_PROC_ALL)`, then `proc_pidpath` for the pids whose `p_comm` already matched the `ToolToken` allowlist in `app/Sources/SigstopSensors/SignalContext.swift`. **No permission is required and none is requested** | The only signal in this product that can tell `DEBUGGING` from `CODING`. Without it the app degrades to `CODING` rather than guess between siblings (`CLAUDE.md` §4.1) | **Not persisted, and nothing but the match survives.** The path is compared and dropped. A process matching nothing is not recorded, not counted, not reported. No command line, environment or working directory is read at all | Memory-only, one sample | **Yes, and off by default** |
-| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | One read of the first 512 bytes of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`, plus four `access` checks. No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), and `--doctor` prints its length rather than the name (§8.12) | Until the next sample, or process exit | **Yes, and off by default** |
+| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | One read of the first 512 bytes of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`, plus four `access` checks. No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), `--doctor` prints its length rather than the name (§8.12), and it is **withheld from the system-notification channel** so that the one path out of this process cannot carry it (§8.11) | Until the next sample, or process exit | **Yes, and off by default** |
 
 Rows 25 to 27 are **property reads on device and process objects**. No stream is opened, no capture
 session is created, no frame or sample is ever available to this process, and the capability to do
@@ -1413,6 +1413,18 @@ as §8.3 and for the same reason: the claim is that neither is persisted, logged
 that neither existed. A branch name may carry a ticket id, a customer, or an unreleased product. It
 may appear in a memory dump, in swap, or in a crash report if a crash happens inside the collector.
 If that matters to you, leave Tier 2 off, which is where it ships.
+
+*Memory-only has a delivery channel attached to it.* A break prompt can be drawn by the app or
+handed to `UNUserNotificationCenter`, and those are not the same thing. A notification body is
+copied into notificationd's own store under `~/Library/Group Containers/group.com.apple.usernoted`,
+drawn on the lock screen, and mirrored to whatever display is attached; there is no call this app
+can make that takes it back. Two lines in the corpus name a branch, and on the notification route
+they are simply not selectable: `AppModel.deliver` withholds the `{branch}` slot before a line is
+chosen, so the branch is absent from the slot table rather than trusted to stay out of the string.
+Turning "Deliver prompts through macOS notifications" off, or hitting escalation 4, which the app
+always draws itself, gets you those two lines back in a window this process owns. Without the
+withholding, the switch would have quietly written a branch name to somebody else's database, and
+"memory-only" in row 31 would have been false through a switch rather than through a bug.
 
 **8.12 `--doctor` knows your branch, and you are asked to paste `--doctor` into public issues.** That
 combination is the one place Tier 2 could leak something you did not mean to publish, so `--doctor`

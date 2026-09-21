@@ -216,6 +216,16 @@ public struct MessageContext: Sendable, Hashable {
     /// Override for how sure we are *which app is in front*. Normally derived from the
     /// bundle identifier, which is an OS fact rather than an inference.
     public var appConfidenceOverride: Double?
+    /// Slots this particular delivery may not carry, whatever the corpus says.
+    ///
+    /// The one user of it today is the branch name on the way to a system notification.
+    /// A line the app draws itself stays inside the process; a line handed to
+    /// `UNUserNotificationCenter` is copied into notificationd's own store, rendered on
+    /// the lock screen and mirrored to whatever display is attached, and the app cannot
+    /// take it back. docs/PRIVACY.md row 31 says the branch is memory-only, so the branch
+    /// does not go down that route. A slot listed here is dropped from the table, which
+    /// makes every line that needs it unselectable rather than rendered without it.
+    public var withheldSlots: Set<SlotKey>
 
     public init(
         developer: DeveloperContext,
@@ -226,7 +236,8 @@ public struct MessageContext: Sendable, Hashable {
         slotOverrides: [SlotKey: SlotValue] = [:],
         calendar: Calendar = .current,
         locale: Locale = .current,
-        appConfidence: Double? = nil
+        appConfidence: Double? = nil,
+        withheldSlots: Set<SlotKey> = []
     ) {
         self.developer = developer
         self.escalation = escalation
@@ -237,6 +248,7 @@ public struct MessageContext: Sendable, Hashable {
         self.calendar = calendar
         self.locale = locale
         self.appConfidenceOverride = appConfidence
+        self.withheldSlots = withheldSlots
     }
 
     /// Convenience: the tone ceiling is a setting, so read it from the settings.
@@ -248,7 +260,8 @@ public struct MessageContext: Sendable, Hashable {
         facts: [FactKey: FactValue] = [:],
         slotOverrides: [SlotKey: SlotValue] = [:],
         calendar: Calendar = .current,
-        locale: Locale = .current
+        locale: Locale = .current,
+        withheldSlots: Set<SlotKey> = []
     ) {
         self.init(
             developer: developer,
@@ -258,7 +271,8 @@ public struct MessageContext: Sendable, Hashable {
             facts: facts,
             slotOverrides: slotOverrides,
             calendar: calendar,
-            locale: locale
+            locale: locale,
+            withheldSlots: withheldSlots
         )
     }
 

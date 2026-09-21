@@ -736,6 +736,17 @@ final class AppModel {
     }
 
     private func deliver(_ request: PromptRequest, context: DeveloperContext, now: Date) {
+        /// Decided before the line is chosen, not after, because it decides which lines
+        /// may be chosen at all.
+        ///
+        /// A panel the app draws is a string in this process. A system notification is a
+        /// string handed to `UNUserNotificationCenter`, which copies it into
+        /// notificationd's own store, shows it on the lock screen and mirrors it to any
+        /// attached display, and there is no API here that takes it back. The branch name
+        /// is the one slot the privacy inventory calls memory-only (docs/PRIVACY.md row
+        /// 31), so it does not take that route: the two corpus lines that name a branch
+        /// become unselectable and something else is picked.
+        let goesToTheSystem = request.channel != .panel && settings.useSystemNotifications
         let messageContext = MessageContext(
             developer: context,
             escalation: request.level,
@@ -745,11 +756,12 @@ final class AppModel {
                 .skippedConsecutive: day.consecutiveIgnoredCycles,
                 .takenToday: tracker.session.breakCount,
             ],
-            facts: Self.facts(from: context)
+            facts: Self.facts(from: context),
+            withheldSlots: goesToTheSystem ? [.branch] : []
         )
         let message = messages.select(for: messageContext).message
         PromptSound.play(for: request.level, enabled: settings.promptSound)
-        if request.channel == .panel || !settings.useSystemNotifications {
+        if !goesToTheSystem {
             presentPanel(request, message: message)
         } else {
             notifier.deliver(request, message: message)

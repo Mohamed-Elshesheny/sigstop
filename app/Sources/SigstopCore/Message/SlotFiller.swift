@@ -98,6 +98,9 @@ public struct SlotResolver: Sendable {
         }
 
         for (k, v) in ctx.slotOverrides { out[k] = v }
+        /// Last, and after the overrides on purpose: a withheld slot is a property of
+        /// where this line is going, and nothing upstream may put the value back.
+        for key in ctx.withheldSlots { out.removeValue(forKey: key) }
         return out
     }
 

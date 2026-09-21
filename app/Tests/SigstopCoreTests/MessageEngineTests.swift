@@ -71,7 +71,8 @@ private func makeContext(
     branch: String? = nil,
     streaks: [StreakKey: Int] = [:],
     facts: [FactKey: FactValue] = [:],
-    slotOverrides: [SlotKey: SlotValue] = [:]
+    slotOverrides: [SlotKey: SlotValue] = [:],
+    withheldSlots: Set<SlotKey> = []
 ) -> MessageContext {
     let dev = DeveloperContext(
         timestamp: date(hour: hour, day: day),
@@ -91,7 +92,8 @@ private func makeContext(
         facts: facts,
         slotOverrides: slotOverrides,
         calendar: fixedCalendar,
-        locale: Locale(identifier: "en_US_POSIX")
+        locale: Locale(identifier: "en_US_POSIX"),
+        withheldSlots: withheldSlots
     )
 }
 
@@ -378,6 +380,49 @@ struct MessageEngineGatingTests {
                 #expect(template?.requiredSlots.contains(.branch) != true)
             }
         }
+    }
+
+    /// The branch is read into memory and never written anywhere by this app. Handing it
+    /// to `UNUserNotificationCenter` would write it somewhere else's: notificationd keeps
+    /// the body, the lock screen draws it, and nothing here can take it back. So the
+    /// delivery path withholds the slot and the lines that need it become unselectable,
+    /// rather than the app trusting itself to remember at render time.
+    @Test("A withheld slot cannot be named, and cannot be reintroduced by an override")
+    func withheldSlotsNeverReachARenderedLine() {
+        let secret = "acme-4417-billing"
+        for level in EscalationLevel.allCases {
+            let engine = makeEngine()
+            for hour in [1, 14] {
+                let ctx = makeContext(
+                    activity: .coding, confidence: 0.9, minutes: 120, hour: hour,
+                    escalation: level, tone: .nuclear, branch: secret,
+                    facts: [.branchIsDefault: .bool(true)],
+                    slotOverrides: [
+                        .branch: SlotValue(text: secret, confidence: 0.99, provenance: .exact)
+                    ],
+                    withheldSlots: [.branch]
+                )
+                let result = engine.select(for: ctx)
+                let template = Corpus.bundled.template(id: result.message.templateID)
+                #expect(template?.allSlots.contains(.branch) != true)
+                #expect(!result.message.text.contains(secret))
+                #expect(SlotResolver().table(for: ctx)[.branch] == nil)
+            }
+        }
+    }
+
+    /// The same context without the withholding still reaches those lines, so the test
+    /// above is not passing because the branch was unreachable anyway.
+    @Test("Nothing else stops a branch line being chosen")
+    func branchLinesAreOtherwiseSelectable() {
+        let ctx = makeContext(
+            activity: .coding, confidence: 0.9, minutes: 120, hour: 1,
+            escalation: .second, tone: .nuclear, branch: "acme-4417-billing")
+        let resolver = SlotResolver()
+        #expect(resolver.table(for: ctx)[.branch] != nil)
+        let branchLines = Corpus.bundled.templates.filter { $0.allSlots.contains(.branch) }
+        #expect(!branchLines.isEmpty)
+        #expect(branchLines.contains { resolver.fill($0, in: ctx) != nil })
     }
 
     @Test("A template that claims an activity is unselectable below its minConfidence")
