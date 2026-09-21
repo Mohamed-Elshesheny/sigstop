@@ -464,7 +464,50 @@ struct SettingsView: View {
     private var about: some View {
         VStack(alignment: .leading, spacing: 0) {
             updates
+            links
+            builtOn
             madeBy
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The four places a curious or suspicious reader goes next.
+    ///
+    /// Two of these URLs were already defined and rendered nowhere, which is the shape of
+    /// a pane that was built and never looked at: the constants existed, the page was two
+    /// thirds empty, and nothing connected the two facts.
+    private var links: some View {
+        SettingsSection("links") {
+            VStack(alignment: .leading, spacing: 0) {
+                LinkRow("Source on GitHub", "every line of this, including the parts that are wrong", Links.repo)
+                LinkRow("Architecture docs", "why it decides what it decides, written before the code", Links.docs)
+                LinkRow("What it collects", "the full inventory, and the one thing that leaves the machine", Links.privacy)
+                LinkRow("Report a bug", "run the doctor first, it prints everything this app can see", Links.issues)
+            }
+            .padding(.top, 12)
+        }
+    }
+
+    /// Credit where the app is not its own work.
+    ///
+    /// Short, and specific about what each thing is doing here, because "acknowledgements"
+    /// as a wall of names tells a reader nothing about what is running on their machine.
+    private var builtOn: some View {
+        SettingsSection("built on") {
+            VStack(alignment: .leading, spacing: 10) {
+                CreditRow(
+                    "Sparkle 2.10.0",
+                    "The only third-party code in the app, and the only thing in it that can "
+                        + "open a socket. It refuses any update whose signature does not verify "
+                        + "against a key compiled into this binary."
+                )
+                CreditRow(
+                    "JetBrains Mono",
+                    "Used if you already have it. Nothing is downloaded and no font is bundled: "
+                        + "without it this falls back to the system monospace."
+                )
+            }
+            .padding(.top, 12)
         }
     }
 
@@ -488,8 +531,8 @@ struct SettingsView: View {
         }
         .font(Brand.mono(10))
         .foregroundStyle(Brand.fgFaint)
-        .padding(.top, 28)
-        .padding(.bottom, 4)
+        .padding(.top, 10)
+        .padding(.bottom, 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Made with love by Mohamed Elshesheny")
     }
@@ -619,6 +662,10 @@ struct SettingsView: View {
         static let privacy = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/PRIVACY.md")!
         static let author = URL(string: "https://github.com/Mohamed-Elshesheny")!
+        static let docs = URL(
+            string: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs")!
+        static let issues = URL(
+            string: "https://github.com/Mohamed-Elshesheny/sigstop/issues/new/choose")!
     }
 }
 
@@ -664,6 +711,77 @@ private struct NavRow: View {
 // MARK: - Page structure
 
 /// A kicker, a rule, and rows. Sections are separated by air, not by cards.
+/// One row in the About pane's link list: a label, a line saying what is on the other
+/// side, and an arrow. The whole row is the target, not just the text.
+private struct LinkRow: View {
+    let title: String
+    let detail: String
+    let url: URL
+
+    @State private var hovering = false
+
+    init(_ title: String, _ detail: String, _ url: URL) {
+        self.title = title
+        self.detail = detail
+        self.url = url
+    }
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(Brand.mono(12, weight: .medium))
+                        .foregroundStyle(hovering ? Brand.fg : Brand.fgMuted)
+                    Text(detail)
+                        .font(Brand.sans(11.5))
+                        .foregroundStyle(Brand.fgFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Text("\u{2197}")
+                    .font(Brand.mono(11))
+                    .foregroundStyle(hovering ? Brand.amber : Brand.fgFaint)
+            }
+            .padding(.vertical, 7)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(hovering ? Brand.surfaceHi : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityHint(detail)
+    }
+}
+
+/// A thing the app did not write, and what it is doing here.
+private struct CreditRow: View {
+    let name: String
+    let role: String
+
+    init(_ name: String, _ role: String) {
+        self.name = name
+        self.role = role
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(name)
+                .font(Brand.mono(11.5, weight: .medium))
+                .foregroundStyle(Brand.fgMuted)
+            Text(role)
+                .font(Brand.sans(11.5))
+                .foregroundStyle(Brand.fgFaint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 private struct SettingsSection<Content: View>: View {
     let kicker: String
     let content: Content

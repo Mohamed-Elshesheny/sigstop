@@ -91,6 +91,36 @@ struct BadgeContactSheet: View {
     }
 }
 
+/// Renders a Settings pane to a file, the same way and for the same reason.
+///
+/// The About pane shipped two thirds empty with two of its own URLs rendered nowhere, and
+/// nobody noticed because looking at it meant launching the app, clicking through to the
+/// last tab and taking a screenshot by hand. One command is cheap enough to do every time.
+enum SettingsPaneRenderer {
+
+    @MainActor
+    static func runAndExit(pane: String, stem: String) -> Never {
+        let chosen = SettingsView.Pane(rawValue: pane) ?? .about
+        let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
+        for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+            let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
+            do {
+                try BadgeSheetRenderer.write(
+                    SettingsView(model: AppModel(), initialPane: chosen)
+                        .frame(width: SettingsView.size.width, height: SettingsView.size.height),
+                    appearance: appearance,
+                    to: url
+                )
+                FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
+                exit(1)
+            }
+        }
+        exit(0)
+    }
+}
+
 /// Renders the contact sheet in both appearances and writes two PNGs.
 enum BadgeSheetRenderer {
 
@@ -113,7 +143,7 @@ enum BadgeSheetRenderer {
     }
 
     @MainActor
-    private static func write(_ view: some View, appearance name: NSAppearance.Name, to url: URL) throws {
+    static func write(_ view: some View, appearance name: NSAppearance.Name, to url: URL) throws {
         let hosting = NSHostingView(rootView: view)
         hosting.appearance = NSAppearance(named: name)
         hosting.layoutSubtreeIfNeeded()

@@ -14,6 +14,15 @@ enum SigstopEntryPoint {
         if CommandLine.arguments.contains("--doctor") {
             runDoctorAndExit()
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-settings") {
+            let args = CommandLine.arguments
+            let pane = index + 1 < args.count ? args[index + 1] : "about"
+            let stem = index + 2 < args.count ? args[index + 2] : "settings"
+            MainActor.assumeIsolated {
+                NSApplication.shared.setActivationPolicy(.prohibited)
+                SettingsPaneRenderer.runAndExit(pane: pane, stem: stem)
+            }
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-badges") {
             let next = index + 1
             let stem = next < CommandLine.arguments.count ? CommandLine.arguments[next] : "badges"
