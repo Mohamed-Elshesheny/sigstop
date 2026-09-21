@@ -12,7 +12,7 @@ moment instead of on a timer.
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?style=flat-square)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square)](#building)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
-[![281 tests](https://img.shields.io/badge/tests-281%20passing-3fb950?style=flat-square)](#building)
+[![281 tests](https://img.shields.io/badge/tests-288%20passing-3fb950?style=flat-square)](#building)
 
 </div>
 

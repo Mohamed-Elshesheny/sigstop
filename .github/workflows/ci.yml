@@ -38,7 +38,13 @@ jobs:
       # site being told fails the build rather than drifting quietly.
       - name: Test
         working-directory: app
-        run: make test
+        run: make test | tee "$RUNNER_TEMP/test.log"
+
+      # The README's test-count badge, against the run that just happened. It said 281
+      # while the suite ran 288, on the front page of a repository that invites people to
+      # check its claims.
+      - name: The README's test count is the real one
+        run: python3 .github/scripts/check-test-count.py "$RUNNER_TEMP/test.log"
 
       # The privacy claims, asserted against the built binary rather than the source:
       # no networking symbol in the app's own executable, exactly one embedded framework,
