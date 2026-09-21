@@ -556,12 +556,29 @@ public enum DailyRollup {
         let spans = breakSpans(events, dayEnd: dayEnd, policy: policy).filter(\.qualifies)
         let delivered = events.filter(\.wasDelivered).map(\.at)
 
+        /// One break answers one opportunity.
+        ///
+        /// This used to ask each opportunity whether *any* qualifying break started inside
+        /// its window, so two opportunities opened close together were both answered by
+        /// the same single break. The day then read more opportunities honoured than
+        /// breaks taken, which is what the owner saw: one break and two honoured, six and
+        /// seven. It also unlocked the badge for a day where every break offered was
+        /// taken, on a day where they were not, because the badge asks whether honoured
+        /// equals asked and the left side was inflated.
+        ///
+        /// Each span is now spent on the first opportunity whose window it falls in.
+        let ordered = spans.sorted { $0.start < $1.start }
+        var spent = Set<Int>()
+
         var totals = OpportunityTotals()
         totals.total = opens.count
         for open in opens {
             let windowEnd = open.at.addingTimeInterval(policy.complianceWindow)
-            let honored = spans.contains { $0.start >= open.at && $0.start <= windowEnd }
-            if honored {
+            let match = ordered.indices.first {
+                !spent.contains($0) && ordered[$0].start >= open.at && ordered[$0].start <= windowEnd
+            }
+            if let match {
+                spent.insert(match)
                 totals.honored += 1
             } else if !delivered.contains(where: { $0 >= open.at && $0 <= windowEnd }) {
                 totals.excluded += 1
