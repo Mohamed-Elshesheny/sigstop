@@ -23,6 +23,17 @@ private struct Sandbox: ~Copyable {
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
+    /// Called at the end of every async test that reads from this sandbox.
+    ///
+    /// `Sandbox` is noncopyable, so it is destroyed after its **last use**, not at the
+    /// end of the scope, and `deinit` deletes the directory the collector is being asked
+    /// to read. In a test whose last use of the box is before an `await`, the delete
+    /// raced the read: the collector found no `.git` and answered `noRepository`, and the
+    /// test failed about one run in eight with a message about a branch rather than about
+    /// a directory that was no longer there. This is the anchor that stops that, and it
+    /// has to be a real use, which is why it touches `root`.
+    func keepAlive() { _ = root.path }
+
     @discardableResult
     func repository(_ name: String, head: String) -> String {
         let folder = root.appendingPathComponent(name)
@@ -62,7 +73,8 @@ private func collector(gitOn: Bool) -> GitCollector {
 /// returned at the guard, the work clock stopped, no break was ever prompted again, and
 /// nothing on screen said why.
 @Test func aFolderThatNeverAnswersDoesNotHoldUpTheCaller() async {
-    /// Signalled at the end of the test, so the parked thread is not left parked.
+    /// Waited on with a timeout, so the fake slow read parks a worker thread for a
+    /// bounded time instead of for the rest of the suite.
     let stuck = DispatchSemaphore(value: 0)
     var settings = SigstopSettings.default
     settings.gitContextEnabled = true
@@ -71,7 +83,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         memoWindow: 0,
         deadline: 0.1,
         reader: { folder, now in
-            if folder.hasSuffix("dead") { stuck.wait() }
+            if folder.hasSuffix("dead") { _ = stuck.wait(timeout: .now() + 2) }
             return .success(GitSignal(
                 branch: "main", repoState: .clean,
                 repoName: (folder as NSString).lastPathComponent, readAt: now
@@ -79,25 +91,33 @@ private func collector(gitOn: Bool) -> GitCollector {
         }
     )
 
-    let started = Date()
-    let first = await collector.read(
-        frontmost: editor, folders: ["/Users/x/dead"], documentURL: nil,
-        windowTitle: "a.swift — dead", now: Date()
-    )
-    let elapsed = Date().timeIntervalSince(started)
-    #expect(first == nil)
-    #expect(elapsed < 2)
-    #expect(collector.lastOutcome == .timedOut(folder: "dead"))
+    /// Two misses, because one is allowed to be a busy machine rather than a dead mount.
+    for _ in 0..<GitCollector.strikesBeforeSettingAside {
+        let started = Date()
+        let attempt = await collector.read(
+            frontmost: editor, folders: ["/Users/x/dead"], documentURL: nil,
+            windowTitle: "a.swift — dead", now: Date()
+        )
+        #expect(attempt == nil)
+        let spent = Date().timeIntervalSince(started)
+        #expect(spent < 2)
+        /// Lower bound as well as upper: every attempt inside the strike count has to
+        /// actually reach the filesystem and wait out the deadline. Without this the
+        /// test passes just as happily if the folder is set aside on the first miss,
+        /// which is the behaviour it exists to rule out.
+        #expect(spent >= 0.1)
+        #expect(collector.lastOutcome == .timedOut(folder: "dead"))
+    }
 
-    /// And it is not asked again, so a dead mount costs one parked thread rather than
-    /// one per sample for as long as the app runs.
+    /// Now it is set aside and not asked again, so a dead mount costs a bounded number
+    /// of parked threads rather than one per sample for as long as the app runs.
     let secondStarted = Date()
     let second = await collector.read(
         frontmost: editor, folders: ["/Users/x/dead"], documentURL: nil,
         windowTitle: "a.swift — dead", now: Date()
     )
     #expect(second == nil)
-    #expect(Date().timeIntervalSince(secondStarted) < 0.1)
+    #expect(Date().timeIntervalSince(secondStarted) < 0.05)
     #expect(collector.lastOutcome == .timedOut(folder: "dead"))
 
     /// Changing the registered folders is the user saying something new about what they
@@ -267,6 +287,7 @@ private func collector(gitOn: Bool) -> GitCollector {
     )
     #expect(signal == nil)
     #expect(collector.lastOutcome == .optedOut)
+    box.keepAlive()
 }
 
 @Test func withNoRegisteredFolderTheSwitchSaysSoRatherThanGoingLooking() async {
@@ -290,6 +311,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         Issue.record("expected skipped, got \(collector.lastOutcome)")
         return
     }
+    box.keepAlive()
 }
 
 @Test func aMatchedFolderIsReadEndToEnd() async {
@@ -308,6 +330,7 @@ private func collector(gitOn: Bool) -> GitCollector {
     #expect(folder == "sigstop")
     #expect(length == "fix/retry-loop".count)
     #expect(!detached)
+    box.keepAlive()
 }
 
 /// The outcome `--doctor` prints must carry a length and a route, and never the name.
@@ -320,6 +343,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         windowTitle: "main.swift — sigstop", now: Date()
     )
     #expect(!"\(collector.lastOutcome)".contains("acme-4417-billing"))
+    box.keepAlive()
 }
 
 // MARK: - What the providers do with it

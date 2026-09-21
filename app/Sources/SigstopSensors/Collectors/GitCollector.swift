@@ -69,8 +69,8 @@ public enum GitFolderRoute: String, Sendable, Hashable {
 /// loop still awaited the caller, so a hard mount whose server went away stopped the whole
 /// product: no work clock, no prompt, nothing on screen saying why. So the read has a
 /// deadline, the way the Accessibility path already has
-/// `AXUIElementSetMessagingTimeout`, and a folder that misses it is set aside instead of
-/// being asked again every few seconds.
+/// `AXUIElementSetMessagingTimeout`, and a folder that misses it twice is set aside
+/// instead of being asked again every few seconds.
 public final class GitCollector: @unchecked Sendable {
     /// `HEAD` is one line. This is the whole read, and it is the bound that makes "never
     /// a file's contents" a property of the code rather than a promise.
@@ -80,6 +80,13 @@ public final class GitCollector: @unchecked Sendable {
     /// microseconds warm, so anything near this is a filesystem that is not going to
     /// answer at all.
     public static let defaultDeadline: TimeInterval = 0.25
+
+    /// One miss is not evidence. A laptop waking its disk, a machine under load or a
+    /// repository large enough to be slow once will all blow a 0.25s deadline without
+    /// being unreachable, and setting a folder aside on the first one means the branch
+    /// silently stops being read for the rest of the session over a hiccup. Two in a row
+    /// is a mount that is not coming back.
+    static let strikesBeforeSettingAside = 2
 
     /// Concurrent on purpose. On a serial queue one blocked `stat` holds every later
     /// read behind it, so a dead mount would take the other registered folders with it
@@ -95,10 +102,11 @@ public final class GitCollector: @unchecked Sendable {
 
     private var memo: (signal: GitSignal, folder: String, takenAt: Date)?
     private var outcome: GitScanOutcome = .optedOut
-    /// Folders that missed the deadline. Nothing is asked of them again until the list of
+    /// How many times in a row each folder has missed the deadline. At
+    /// `strikesBeforeSettingAside` nothing is asked of it again until the list of
     /// registered folders changes, which is the user's next statement about what they
     /// want read. Without this, a dead mount leaves one blocked thread per sample.
-    private var unresponsive: Set<String> = []
+    private var misses: [String: Int] = [:]
     private var lastFolders: [String] = []
 
     public convenience init(
@@ -178,7 +186,7 @@ public final class GitCollector: @unchecked Sendable {
         let result = await bounded(folder: match.folder, now: now)
 
         guard let result else {
-            setAside(match.folder)
+            noteMiss(match.folder)
             record(.timedOut(folder: name))
             return nil
         }
@@ -190,6 +198,8 @@ public final class GitCollector: @unchecked Sendable {
             record(.noRepository(folder: name))
             return nil
         case .success(let signal):
+            // "Two in a row" is only true if answering clears the first one.
+            clearMisses(match.folder)
             store(signal, folder: match.folder, name: name, route: match.route, now: now)
             return signal
         }
@@ -259,12 +269,17 @@ public final class GitCollector: @unchecked Sendable {
 
     private func isSetAside(_ folder: String) -> Bool {
         lock.lock(); defer { lock.unlock() }
-        return unresponsive.contains(folder)
+        return misses[folder, default: 0] >= Self.strikesBeforeSettingAside
     }
 
-    private func setAside(_ folder: String) {
+    private func noteMiss(_ folder: String) {
         lock.lock(); defer { lock.unlock() }
-        unresponsive.insert(folder)
+        misses[folder, default: 0] += 1
+    }
+
+    private func clearMisses(_ folder: String) {
+        lock.lock(); defer { lock.unlock() }
+        misses[folder] = nil
     }
 
     /// Changing the registered folders is the user saying something new about what they
@@ -273,7 +288,7 @@ public final class GitCollector: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard folders != lastFolders else { return }
         lastFolders = folders
-        unresponsive.removeAll()
+        misses.removeAll()
     }
 
     private func record(_ value: GitScanOutcome) {
