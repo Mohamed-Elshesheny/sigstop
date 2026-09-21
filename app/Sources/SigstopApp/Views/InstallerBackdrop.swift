@@ -12,6 +12,10 @@ import SwiftUI
 ///
 /// Deliberately almost empty. The whole instruction is one arrow between two icons that
 /// Finder draws on top, and anything else competes with the only thing the window is for.
+///
+/// It carried a paragraph about the first launch being blocked and it is gone. The same
+/// thing is said on the release page and in the README, where someone who wants it will
+/// look, and four lines of small print under a drag target is not where anybody reads.
 struct InstallerBackdrop: View {
 
     /// Where Finder is told to put the two icons, in the window's own coordinates. The
@@ -20,47 +24,41 @@ struct InstallerBackdrop: View {
     static let applicationsIcon = CGPoint(x: 435, y: 205)
     static let size = CGSize(width: 600, height: 400)
 
+    /// The light palette, fixed rather than resolved.
+    ///
+    /// Finder paints a disk image background once and never repaints it when the system
+    /// theme changes, so this cannot follow the appearance the way the rest of the app
+    /// does. It is the site's paper white, which is warm rather than clinical, and the
+    /// accent is the dark amber the palette uses on light surfaces: the bright one is
+    /// about 1.9 to 1 on white and would be the glare rather than the mark.
+    static let paper = Color(red: 0xFB / 255, green: 0xFB / 255, blue: 0xF9 / 255)
+    static let ink = Color(red: 0x17 / 255, green: 0x19 / 255, blue: 0x1C / 255)
+    static let inkMuted = Color(red: 0x53 / 255, green: 0x58 / 255, blue: 0x5E / 255)
+    static let accent = Color(red: 0x8A / 255, green: 0x4E / 255, blue: 0x00 / 255)
+
     var body: some View {
         ZStack {
-            Brand.Dark.surfaceBehindInstaller
+            Self.paper
 
             VStack(spacing: 0) {
                 HStack(spacing: 10) {
                     BrandMark(size: 18, fill: 0.5)
                     Text("sigstop")
                         .font(Brand.mono(15, weight: .semibold))
-                        .foregroundStyle(Brand.Dark.fg)
+                        .foregroundStyle(Self.ink)
                 }
                 .padding(.top, 44)
 
                 Text("Drag it onto Applications")
                     .font(Brand.mono(12.5))
-                    .foregroundStyle(Brand.Dark.fgMuted)
+                    .foregroundStyle(Self.inkMuted)
                     .padding(.top, 12)
 
                 Spacer()
-
-                /// The only genuinely confusing moment in installing this, answered here
-                /// rather than in a README nobody opens before double clicking.
-                VStack(spacing: 7) {
-                    Text("macOS will refuse to open it the first time.")
-                        .font(Brand.mono(11, weight: .medium))
-                        .foregroundStyle(Brand.Dark.fg)
-                    Text("It is not broken. Apple charges for the signature that would")
-                        .font(Brand.mono(10))
-                        .foregroundStyle(Brand.Dark.fgMuted)
-                    Text("stop it saying that. Open System Settings, Privacy and")
-                        .font(Brand.mono(10))
-                        .foregroundStyle(Brand.Dark.fgMuted)
-                    Text("Security, and press Open Anyway.")
-                        .font(Brand.mono(10))
-                        .foregroundStyle(Brand.Dark.fgMuted)
-                }
-                .padding(.bottom, 30)
             }
 
             Arrow()
-                .stroke(Brand.Dark.amber, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .stroke(Self.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 .frame(width: 96, height: 16)
                 .position(
                     x: (Self.appIcon.x + Self.applicationsIcon.x) / 2,
@@ -86,19 +84,18 @@ struct InstallerBackdrop: View {
     }
 }
 
-extension Brand.Dark {
-    /// The disk image window is its own surface and never follows the system appearance,
-    /// because Finder does not repaint a background when the theme changes.
-    static let surfaceBehindInstaller = Color(red: 0x10/255, green: 0x13/255, blue: 0x17/255)
-}
-
-/// Writes the backdrop at 1x and 2x, which is the pair Finder expects.
+/// Writes one backdrop at twice the size.
+///
+/// Not a 1x and an `@2x` pair. Finder does not look for the `@2x` file behind a disk
+/// image background, so the pair meant it scaled the small one up and the type came out
+/// soft. One image at 1200 by 800 is written instead, and `dmg.sh` stamps it 144 dpi so
+/// its natural size is the 600 by 400 the window actually is.
 enum InstallerBackdropRenderer {
 
     @MainActor
     static func runAndExit(stem: String) -> Never {
         let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
-        for (suffix, scale) in [("", 1.0), ("@2x", 2.0)] {
+        for (suffix, scale) in [("", 2.0)] {
             let url = URL(fileURLWithPath: "\(base)\(suffix).png")
             do {
                 try write(scale: scale, to: url)

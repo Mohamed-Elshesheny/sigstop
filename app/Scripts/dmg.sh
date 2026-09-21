@@ -59,7 +59,10 @@ STAGE="$(mktemp -d)"
 cp -R "${BUNDLE}" "${STAGE}/"
 ln -s /Applications "${STAGE}/Applications"
 mkdir -p "${STAGE}/.background"
-cp dist/.dmg-background/backdrop.png dist/.dmg-background/backdrop@2x.png "${STAGE}/.background/"
+# 1200x800 pixels stamped at 144 dpi is 600x400 points, which is the window, drawn at
+# retina density. Without the stamp Finder reads it as a 1200 point image and scales it.
+sips -s dpiWidth 144 -s dpiHeight 144 dist/.dmg-background/backdrop.png >/dev/null
+cp dist/.dmg-background/backdrop.png "${STAGE}/.background/"
 
 echo "==> read-write image"
 hdiutil detach "${MOUNT}" -quiet 2>/dev/null || true
@@ -80,7 +83,9 @@ tell application "Finder"
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
-    set the bounds of container window to {200, 140, ${WINDOW_W} + 200, ${WINDOW_H} + 140}
+    -- bounds includes the title bar, so the content area is shorter than the number
+    -- given here by exactly its height. Without the 28 the backdrop lost its last line.
+    set the bounds of container window to {200, 140, ${WINDOW_W} + 200, ${WINDOW_H} + 140 + 28}
     set theOptions to the icon view options of container window
     set arrangement of theOptions to not arranged
     set icon size of theOptions to 92
