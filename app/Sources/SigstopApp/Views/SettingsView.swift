@@ -30,7 +30,7 @@ struct SettingsView: View {
     }
 
     enum Pane: String, CaseIterable, Identifiable {
-        case rhythm, voice, badges, signals, data, about
+        case rhythm, voice, badges, access, data, about
 
         var id: String { rawValue }
         var title: String { rawValue.capitalized }
@@ -40,7 +40,7 @@ struct SettingsView: View {
             case .rhythm: return "When a break is due, how long it lasts, and when the app should keep quiet."
             case .voice: return "How hard the app is allowed to hit. A ceiling you set, never a floor it raises."
             case .badges: return "Ten marks. Every one of them is for taking the break or for not needing it, and none of them is a streak."
-            case .signals: return "What the app can see right now, tier by tier, and the switches that widen it."
+            case .access: return "What the app can see right now, what each thing costs you, and the switches that widen it."
             case .data: return "Everything the app keeps lives in one folder you can read with cat."
             case .about: return ""
             }
@@ -113,7 +113,7 @@ struct SettingsView: View {
                     case .rhythm: rhythm
                     case .voice: voice
                     case .badges: badges
-                    case .signals: signals
+                    case .access: access
                     case .data: data
                     case .about: about
                     }
@@ -221,11 +221,30 @@ struct SettingsView: View {
         }
     }
 
-    /// "Tier 2, tool names: ON…" -> "Tier 2". The tier is the text before the first comma,
-    /// which is the same split `TierRow` makes to draw the label.
-    private static func tier(of line: String) -> String {
-        guard let comma = line.range(of: ", ") else { return line }
-        return String(line[..<comma.lowerBound])
+    /// "Needs Accessibility, window titles: ON…" splits into the cost and the signal.
+    ///
+    /// `PermissionBroker.explanation` stays `[String]` because `--doctor` prints the same
+    /// lines verbatim and a terminal has no groups. The shape is made here, where there
+    /// is a layout to make it for.
+    struct SignalGroup: Hashable {
+        let label: String
+        var items: [String]
+    }
+
+    static func groups(_ lines: [String]) -> [SignalGroup] {
+        var out: [SignalGroup] = []
+        for line in lines {
+            let (label, rest): (String, String) = {
+                guard let comma = line.range(of: ", ") else { return (line, line) }
+                return (String(line[..<comma.lowerBound]), String(line[comma.upperBound...]))
+            }()
+            if out.last?.label == label {
+                out[out.count - 1].items.append(rest)
+            } else {
+                out.append(SignalGroup(label: label, items: [rest]))
+            }
+        }
+        return out
     }
 
     /// What the number actually buys at the interval that is set, because a cap is
@@ -371,27 +390,32 @@ struct SettingsView: View {
 
     // MARK: Signals
 
-    private var signals: some View {
+    private var access: some View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection("visible now") {
-                /// The tier is printed once per run, not once per line.
+                /// Grouped by what it costs, because that is the only axis a reader cares
+                /// about and the rows within a group are the same answer to it.
                 ///
-                /// Every line carries its own tier, so two Tier 2 signals drew the words
-                /// "Tier 2" twice in a 58pt column and the column became a thing you read
-                /// past. They are separate rows because they are separate signals from
-                /// separate sources with separate switches — `.git/HEAD` is a file read,
-                /// tool names come from the process list — and that is worth a row each.
-                /// It is not worth the label twice.
-                let lines = model.permissionStatus.explanation
-                ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
-                    TierRow(
-                        line: line,
-                        showsTier: index == 0 || Self.tier(of: lines[index - 1]) != Self.tier(of: line)
-                    )
+                /// The first attempt printed the label once per run and left the rest of
+                /// the group as a bare dot in an empty column with a rule above it, which
+                /// reads as a broken row rather than a continuation. A label is not a
+                /// column here, it is a heading: the group says what it costs once, and
+                /// its signals sit under it with their own on/off dot, because a group can
+                /// be half on — a branch name read while tool names are not.
+                ForEach(Self.groups(model.permissionStatus.explanation), id: \.label) { group in
+                    VStack(alignment: .leading, spacing: 0) {
+                        Kicker(group.label)
+                            .padding(.top, 14)
+                            .padding(.bottom, 2)
+                        ForEach(group.items, id: \.self) { item in
+                            SignalLine(text: item)
+                        }
+                    }
                 }
+                Rule().padding(.top, 14)
             }
 
-            SettingsSection("tier 1 · window titles") {
+            SettingsSection("needs accessibility") {
                 SettingRow(
                     "Use window titles to tell a meeting from a terminal",
                     detail: "Titles are parsed inside one function and the raw string is discarded. "
@@ -438,7 +462,7 @@ struct SettingsView: View {
                 }
             }
 
-            SettingsSection("tier 2 · local context") {
+            SettingsSection("off by default · local context") {
                 SettingRow(
                     "Read the branch name from .git/HEAD",
                     detail: "Off by default. The branch name only, read from the file, never a "
@@ -1268,47 +1292,22 @@ private struct ToneCard: View {
 /// `Tier N, what: ON/OFF, and why`. The tier is set in mono, the rest in the sans, and
 /// the dot is green only when the line says the tier is on. The split is presentational:
 /// a line without the dash is shown whole.
-private struct TierRow: View {
-    let line: String
-    /// False on a row whose tier is the same as the row above it.
-    var showsTier: Bool = true
+private struct SignalLine: View {
+    let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                StateDot(state: line.contains(": ON") ? .running : .off)
-                Text(showsTier ? label : "")
-                    .font(Brand.mono(11, weight: .medium))
-                    .foregroundStyle(Brand.fg)
-                    .frame(width: 58, alignment: .leading)
-                    .accessibilityHidden(!showsTier)
-                Text(rest)
-                    .font(Brand.sans(12))
-                    .foregroundStyle(Brand.fgMuted)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.vertical, 10)
-            Rule()
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            StateDot(state: text.contains(": ON") ? .running : .off)
+            Text(text)
+                .font(Brand.sans(12))
+                .foregroundStyle(Brand.fgMuted)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.vertical, 5)
     }
-
-    private var split: (String, String) {
-        guard let range = line.range(of: ", ") else { return ("", line) }
-        return (String(line[..<range.lowerBound]), String(line[range.upperBound...]))
-    }
-
-    private var label: String { split.0 }
-    private var rest: String { split.1 }
 }
 
-/// `HH:mm` typed, not picked.
-///
-/// Quiet hours are stored as minutes from local midnight, which is the only
-/// representation that survives a time-zone change without moving. `DatePicker` wants a
-/// `Date` and draws the system's control; a five-character monospaced field is both the
-/// app's own grammar and faster for anyone who knows what time they stop working. The
-/// text is parsed on commit and reverts to the stored value when it does not parse.
 private struct TimeField: View {
     @Binding var minutes: Int
     var enabled: Bool = true

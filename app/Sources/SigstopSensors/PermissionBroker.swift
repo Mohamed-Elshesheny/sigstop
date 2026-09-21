@@ -59,38 +59,50 @@ public struct PermissionStatus: Sendable, Hashable {
     public var tier2Active: Bool { tiers.contains(.tier2) }
 
     /// One line per tier, in the order a skeptic would ask about them.
+    ///
+    /// The labels are what it costs you, not what we call it internally. "Tier 0" is the
+    /// vocabulary of `docs/ACTIVITY-DETECTION.md` and it is the right word there, where the
+    /// reader is deciding how to add a provider. In a settings pane the only question is
+    /// "what did I pay for this", so the answer is the label: nothing, an Accessibility
+    /// grant, or a switch you found and turned on.
     public var explanation: [String] {
         var lines = [
-            "Tier 0, frontmost app, idle time, microphone-in-use, screen lock, thermal: "
+            "Always on, frontmost app, idle time, microphone-in-use, screen lock, thermal: "
                 + "ON, and it needs no permission. This is most of the product.",
         ]
         switch (accessibilityEnabledInSettings, accessibilityTrusted) {
         case (false, _):
-            lines.append("Tier 1, window titles: OFF, you have not turned it on.")
+            lines.append("Needs Accessibility, window titles: OFF, you have not turned it on.")
         case (true, false):
             lines.append(
-                "Tier 1, window titles: OFF. You turned it on here, but macOS has not granted "
-                    + "Accessibility to this app yet."
+                "Needs Accessibility, window titles: OFF. You turned it on here, but macOS has "
+                    + "not granted Accessibility to this app yet."
             )
         case (true, true):
-            lines.append("Tier 1, window titles: ON. Titles are parsed and the raw title is discarded.")
+            lines.append(
+                "Needs Accessibility, window titles: ON. Titles are parsed and the raw title "
+                    + "is discarded."
+            )
         }
         if tier1Active && browserHostEnabled {
-            lines.append("Tier 1b, browser host: ON. The host only, never a path or a query string.")
+            lines.append(
+                "Needs Accessibility, browser host: ON. The host only, never a path or a "
+                    + "query string."
+            )
         }
         /// Two lines, because there are two switches and each has to describe only what
         /// it does. One line covering both was true while both collectors were missing
         /// and became a lie the moment either one landed.
         lines.append(
             gitContextEnabled
-                ? "Tier 2, branch name: ON. One line of .git/HEAD, in folders you added yourself."
-                : "Tier 2, branch name: OFF."
+                ? "Off by default, branch name: ON. One line of .git/HEAD, in folders you added yourself."
+                : "Off by default, branch name: OFF."
         )
         lines.append(
             processContextEnabled
-                ? "Tier 2, tool names: ON. Executable names against a fixed list, and whether "
-                    + "anything is under a debugger. No command line is ever read."
-                : "Tier 2, tool names: OFF, so DEBUGGING stays unreachable and the app says "
+                ? "Off by default, tool names: ON. Executable names against a fixed list, and "
+                    + "whether anything is under a debugger. No command line is ever read."
+                : "Off by default, tool names: OFF, so DEBUGGING stays unreachable and the app says "
                     + "coding rather than guess between them."
         )
         return lines
