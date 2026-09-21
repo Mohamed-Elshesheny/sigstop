@@ -34,6 +34,24 @@ public struct RollupPolicy: Sendable, Codable, Hashable {
     }
 
     public static let `default` = RollupPolicy()
+
+    /// The same three numbers the engine runs on, derived the same way.
+    ///
+    /// This type had no settings init and every caller took `.default`, so the panel that
+    /// reports your day judged a break against a hard-coded 5 minutes and 90 seconds while
+    /// the engine that offered it used whatever `idleCountsAsBreakMinutes` and
+    /// `microIdleThresholdSeconds` were set to. Turn the qualifying break down to 2 minutes
+    /// and the engine honours a 2 minute break while the summary files it as abandoned.
+    /// Mirrors `BreakPolicy.init(settings:)`, floor and all, so the two cannot drift.
+    public init(settings: SigstopSettings) {
+        self.init()
+        microIdleGrace = TimeInterval(settings.microIdleThresholdSeconds)
+        qualifyingBreak = max(
+            TimeInterval(settings.idleCountsAsBreakMinutes * 60),
+            microIdleGrace + 30
+        )
+        longPauseReset = min(max(longPauseReset, qualifyingBreak), max(longPauseReset, qualifyingBreak * 2))
+    }
 }
 
 // MARK: - The summary
@@ -463,7 +481,7 @@ public enum DailyRollup {
             switch event.kind {
             case .breakBegin:
                 if let pending = open {
-                    spans.append(span(from: pending, to: event.at, measured: nil, policy: policy))
+                    spans.append(span(from: pending, to: event.at, measured: nil, terminated: false, policy: policy))
                 }
                 open = event
             case .breakEnd:
@@ -471,20 +489,36 @@ public enum DailyRollup {
                     continue
                 }
                 let measured = event.durationSeconds.map(TimeInterval.init)
-                spans.append(span(from: pending, to: event.at, measured: measured, policy: policy))
+                spans.append(span(from: pending, to: event.at, measured: measured, terminated: true, policy: policy))
                 open = nil
             default:
                 continue
             }
         }
         if let pending = open {
-            spans.append(span(from: pending, to: dayEnd, measured: nil, policy: policy))
+            spans.append(span(from: pending, to: dayEnd, measured: nil, terminated: false, policy: policy))
         }
         return spans
     }
 
+    /// A break with no `break_end` is of unknown length, and unknown is not long.
+    ///
+    /// `terminated` is the discriminator, and it has to be passed rather than inferred from
+    /// `measured == nil`: `measured` is the end line's own `dur_s`, which is absent on plenty
+    /// of perfectly complete breaks. Reading nil as "never ended" broke two existing tests
+    /// that pair a begin with an end and no `dur_s`, which is exactly the trap.
+    ///
+    /// Unterminated means the process died mid-break, which happens routinely because engine
+    /// state is not kept across launches. The span was closed at the next `break_begin` or at
+    /// the end of the day and took that whole gap as its length, so quitting during a break
+    /// minted a qualifying break out of nothing.
+    ///
+    /// It still appears, with the time that actually elapsed, because something did happen
+    /// and hiding it would be its own lie. It just cannot qualify: `countBreaks` files it
+    /// under abandoned, which is what an interrupted break is.
     private static func span(
-        from begin: LoggedEvent, to end: Date, measured: TimeInterval?, policy: RollupPolicy
+        from begin: LoggedEvent, to end: Date, measured: TimeInterval?,
+        terminated: Bool, policy: RollupPolicy
     ) -> BreakSpan {
         let elapsed = max(0, end.timeIntervalSince(begin.at))
         let duration = max(elapsed, measured ?? 0)
@@ -492,7 +526,7 @@ public enum DailyRollup {
             start: begin.at,
             measured: duration,
             origin: begin.origin ?? .idleInferred,
-            qualifies: duration >= policy.qualifyingBreak
+            qualifies: terminated && duration >= policy.qualifyingBreak
         )
     }
 
