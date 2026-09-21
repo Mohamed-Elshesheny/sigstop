@@ -1,6 +1,10 @@
 import Foundation
 import SigstopCore
-import UserNotifications
+/// `@preconcurrency` because `UNNotificationSettings` is not `Sendable` in the macOS 15
+/// SDK, so `await center.notificationSettings()` is an error on Xcode 16.4 and compiles
+/// clean on newer toolchains. This built here and failed in CI on its first run, which is
+/// the whole reason CI builds against the SDK most people actually have.
+@preconcurrency import UserNotifications
 
 /// What the developer did with a delivered notification.
 enum PromptResponse: Sendable, Hashable {
