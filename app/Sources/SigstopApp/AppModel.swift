@@ -392,10 +392,28 @@ final class AppModel {
     /// spinning the loop.
     private func secondsUntilNextTick() -> TimeInterval {
         let now = time.now
-        let deadlines = [breakEndsAt, snoozeUntil, pausedUntil]
+        var deadlines = [breakEndsAt, snoozeUntil, pausedUntil]
             .compactMap { $0 }
             .map { $0.timeIntervalSince(now) }
             .filter { $0 > 0 }
+
+        /// The work target is a known instant too, and it was the one missing.
+        ///
+        /// The three above are wall-clock deadlines; this one is on the work clock, which
+        /// is why it was overlooked. The effect was the same and it was reported the same
+        /// way: at a five minute interval the panel sat on `5:04 / 5:00` and the prompt
+        /// arrived four seconds after it was due, because the engine only asks whether
+        /// `continuousWork >= armThreshold` when it happens to wake, and it was waking on
+        /// a five second cadence that has nothing to do with when the target falls.
+        ///
+        /// The prediction is only right while the user keeps working, which is exactly
+        /// when it matters. Go idle and the clock stops, the wake-up finds the target not
+        /// met, and it sleeps again — the cost of being wrong is one wake-up that does
+        /// nothing, and `max(0.25,)` keeps a deadline that has just passed from spinning.
+        if workTargetInForce, continuousWork < workTarget {
+            deadlines.append(workTarget - continuousWork)
+        }
+
         guard let soonest = deadlines.min() else { return Self.tickInterval }
         return max(0.25, min(Self.tickInterval, soonest))
     }
