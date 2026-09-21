@@ -54,7 +54,7 @@ struct SettingsView: View {
                 Rectangle().fill(Brand.line).frame(width: 1)
                 content
             }
-            madeBy
+            if pane == .about { madeBy }
         }
         .frame(width: Self.size.width, height: Self.size.height)
         .background(Brand.bg)
@@ -528,8 +528,9 @@ struct SettingsView: View {
 
     /// The one piece of the interface that is not about the user.
     ///
-    /// A bar across the bottom of the window rather than a line inside a pane, so it does
-    /// not scroll away and does not belong to About in particular. It sits on the raised
+    /// A bar across the bottom of the window, shown on About and nowhere else. It is
+    /// outside the scroll view so it cannot drift up the page, and outside the pane so it
+    /// spans the sidebar too rather than starting at the content margin. It sits on the raised
     /// surface under a hairline, which is the separation the sidebar already uses, so it
     /// reads as part of the window's chrome rather than as content. The heart is the only
     /// non-amber colour in the app and it is four millimetres wide, which is about the
