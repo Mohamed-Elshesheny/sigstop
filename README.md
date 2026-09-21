@@ -98,28 +98,48 @@ Full inventory: [`docs/PRIVACY.md`](docs/PRIVACY.md).
 
 ## Installing
 
-Download the `.dmg` from [Releases](https://github.com/Mohamed-Elshesheny/sigstop/releases),
-open it, drag sigstop to Applications. That is the whole installer.
+[![Download for macOS](https://img.shields.io/badge/Download%20for-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest/download/sigstop.dmg)
 
-**The first launch will say the app is damaged and cannot be opened.** It is not damaged.
-macOS says that about any app it cannot trace to a paid Apple Developer account, and this
-one is signed with a certificate that belongs to nobody. Downloading it attaches a
-quarantine flag, and Gatekeeper kills the process before it starts, with `SIGKILL`, which
-is a joke this project did not ask for. Clear the flag once:
+Open the `.dmg` and drag **sigstop** into your `/Applications` folder.
+
+> [!IMPORTANT]
+> There is no Apple Developer account behind this build, so macOS will refuse to open it
+> the first time. Apple charges ninety nine dollars a year for the certificate that would
+> stop it saying that, and until this is worth that to somebody, it is not there.
+>
+> You have to clear it once. After that it opens like anything else.
+
+### Recommended: one command, which always works
+
+System Settings can fail, and it does nothing at all for a user without admin rights. This
+does not:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/sigstop.app
 ```
 
-Then open it normally. Nothing else is needed and you never have to do it again.
+Then open the app normally.
 
-Two things worth saying rather than leaving you to wonder. Running that command means you
-are choosing to trust a binary a stranger built, so check the `sha256` printed beside the
-download against your own copy, or skip all of this and build from source below, which is
-four commands and needs no trust at all. And the reason there is no signature is money:
-Apple charges ninety nine dollars a year for the certificate that would make this
-paragraph unnecessary, and until this is worth that to somebody it stays here, written
-out, instead of being hidden behind a scarier dialog.
+### Alternative: System Settings
+
+Double click sigstop and let it be refused. Then open **System Settings**, go to **Privacy
+and Security**, scroll to the bottom, and press **Open Anyway** next to the message about
+sigstop. Confirm once and it opens.
+
+### Before you run either of them
+
+Both routes mean deciding to trust a binary somebody else built. Two honest ways out of
+taking that on faith:
+
+Check the file against the `sha256` printed on the
+[release](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest):
+
+```sh
+shasum -a 256 sigstop.dmg
+```
+
+Or skip the download entirely and build it yourself, which is the section below, takes
+four commands, and requires trusting nobody.
 
 ## Building
 
