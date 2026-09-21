@@ -76,9 +76,13 @@ public struct PermissionStatus: Sendable, Hashable {
         if tier1Active && browserHostEnabled {
             lines.append("Tier 1b, browser host: ON. The host only, never a path or a query string.")
         }
+        /// The opt-in is recorded and nothing reads it yet: neither the `.git/HEAD`
+        /// collector nor the process snapshot is implemented. Saying ON here put a green
+        /// dot on a tier that sees nothing, in the pane whose kicker is "visible now".
         lines.append(
             gitContextEnabled
-                ? "Tier 2, branch name and allowlisted tool names: ON."
+                ? "Tier 2, branch name and allowlisted tool names: opted in, but the collector "
+                    + "is not implemented yet, so nothing is read."
                 : "Tier 2, branch name and allowlisted tool names: OFF."
         )
         return lines
