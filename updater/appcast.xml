@@ -4,12 +4,13 @@
         <title>sigstop</title>
         <item>
             <title>0.1.0</title>
-            <pubDate>Mon, 21 Sep 2026 07:38:25 +0300</pubDate>
+            <pubDate>Mon, 21 Sep 2026 17:34:47 +0300</pubDate>
             <link>https://github.com/Mohamed-Elshesheny/sigstop</link>
             <sparkle:version>1</sparkle:version>
             <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/Mohamed-Elshesheny/sigstop/releases/download/v0.1.0/sigstop-0.1.0-sleeping-dormouse.dmg" length="4637742" type="application/octet-stream" sparkle:edSignature="15WqKI6+dPwDU33pA51FnV9QJWOZdDJnojiGSEQMKG6mG7HJ7lodUhlnXoW4xRu9NYgi4453bylXt45pMQlWAg=="/>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/Mohamed-Elshesheny/sigstop/releases/download/v0.1.0/sigstop-0.1.0-sleeping-dormouse.dmg" length="2732218" type="application/octet-stream" sparkle:edSignature="RdHrn/XNWoY4/vD/4uulEoQhiqL6WGLXcGihWCUIIWJo7gUsYuOD2cTFQZICXIYvZ5x945qYdVEaoVogeWM9Bw=="/>
         </item>
     </channel>
 </rss>
