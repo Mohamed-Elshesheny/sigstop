@@ -43,7 +43,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 12 | **Focused window title** | `AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute)` then `kAXTitleAttribute` — **requires Accessibility permission** | Only to answer one question: does this window look like a live meeting, a terminal, an editor, a browser, or a document? A meeting is the one thing worth never interrupting | **The string itself is never persisted by default.** It is classified into a five-value enum inside one function and released. Only the enum is persisted | Enum: same as #1. String: memory-only, lifetime of one function call | **Yes, and off by default** |
 | 13 | **Title classification result** (`meeting`/`terminal`/`editor`/`browser`/`document`/`none`) | Derived from #12 | see #12 | Persisted | Same as #1 | Follows #12 |
 | 14 | **Raw title debug ring** (last 20 titles) | Derived from #12 | Lets you see exactly what the app is reading, so you can audit the permission you granted | Memory-only, capacity 20, cleared on quit | Process lifetime | Yes — **off by default**, and the UI switch is labelled as such |
-| 15 | **Break engine state**: streak start, last break end, snooze count, next fire time | Derived from #1/#5/#7 | The actual product | Persisted, `state.json` | Overwritten in place; reset on delete | No |
+| 15 | **Break engine state**: streak start, last break end, snooze count, next fire time | Derived from #1/#5/#7 | The actual product | Memory-only; nothing writes it to disk. The day's budgets that have to survive a relaunch are in `counters.json` (§4.2) | Gone when the process exits | No |
 | 16 | **Break interaction events**: prompted, taken, skipped, snoozed | UI callbacks | "You skipped 6 of 8 breaks today" and nothing more | Persisted as events | Same as #1 | Yes |
 | 17 | **Daily aggregates**: minutes per category, breaks taken/skipped, longest streak | Derived from the event log nightly | Weekly view without keeping raw events | Persisted, `summaries/YYYY-MM.json` | Default 90 days | Yes |
 | 18 | **Preferences**: interval, threshold, quiet hours, tone, prompt channel and sound | User input | Configuration | Persisted, `settings.json` (plain JSON, human-editable) | Until you change or delete them | n/a |
@@ -56,6 +56,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 25 | **Audio input device in use** (one `Bool` per device, OR'd) | `kAudioDevicePropertyDeviceIsRunningSomewhere` on each device with input channels. **No Microphone permission; none is requested** | Do not interrupt a live call. This is the signal a hard block rests on | Not persisted. Only the derived verdict reaches the log, as a `reason` string | n/a | No — it is what stops a prompt landing in a meeting |
 | 26 | **Camera device in use** (one `Bool` per device, OR'd) and the **device names** | `kCMIODevicePropertyDeviceIsRunningSomewhere` over `kCMIOHardwarePropertyDevices`. **No Camera permission; none is requested, and a probe generated no `tccd` activity** | Same, for the camera-on / microphone-muted posture, which is the normal one on Teams and Meet | Not persisted. Device names are printed by `--doctor` on request and held in memory only | Process lifetime | No |
 | 27 | **Bundle identifiers of processes running audio input** | `kAudioHardwarePropertyProcessObjectList`, then `kAudioProcessPropertyBundleID` and `kAudioProcessPropertyIsRunningInput` per process object. **No permission; none is requested** | Say *which* app has the microphone, so the call hold names a fact rather than guessing, and so Siri, dictation and a permanently-open virtual device can be discounted instead of disabling the signal | Not persisted. Each identifier is matched against a fixed list and dropped. Nothing else about the process, not the pid, not the name, not the path, is read | Memory-only, one sample | No |
+| 28 | **Seconds the call hold has held a break today**, and the day they count for | Derived from #25, #26 and #27 by the call latch | So the three-hour daily ceiling on holding survives a relaunch instead of resetting to zero | Persisted, `call-hold.json` (a day index and a number of seconds) | Overwritten in place; reset on delete | Follows "Hold my break during calls" |
 
 Rows 25 to 27 are **property reads on device and process objects**. No stream is opened, no capture
 session is created, no frame or sample is ever available to this process, and the capability to do
@@ -605,7 +606,7 @@ Sandboxed flavor:
 ~/Library/Containers/<BUNDLE_ID>/Data/Library/Application Support/<BUNDLE_ID>/
 ```
 
-The menu has **Reveal Data Folder in Finder**, which opens whichever of the two is in use, so you
+Settings → Data prints whichever of the two is in use, as a path you can select and copy, so you
 never have to guess.
 
 ### 4.2 Layout
@@ -613,9 +614,9 @@ never have to guess.
 ```
 <storage root>/                        (mode 0700)
 ├── settings.json                      (mode 0600)  your preferences
-├── state.json                         (mode 0600)  break engine state, overwritten in place
 ├── badges.json                        (mode 0600)  which badges have unlocked, and when
 ├── counters.json                      (mode 0600)  today's budgets, overwritten in place
+├── call-hold.json                     (mode 0600)  seconds the call hold has held today, overwritten in place
 ├── events/
 │   ├── 2026-09-18.jsonl               (mode 0600)  append-only, one JSON object per line
 │   ├── 2026-09-19.jsonl
@@ -860,12 +861,13 @@ its maximum size — and "Delete everything" removes it with the rest, because d
 
 ### 4.6 Export and delete
 
-**Export** (one menu item, `NSSavePanel`, no permission needed): writes a folder containing the raw
-`.jsonl` files, the summaries, `settings.json`, a generated `events.csv` for spreadsheet users, and
-a `README.txt` describing the schema. Nothing is transformed or filtered — the export is a copy, so
-what you audit is what the app has.
+**Export** (one button in Settings → Data, `NSSavePanel`, no permission needed): writes one text
+file. A commented header names the schema version, the source folder, the day range and every field
+the log can hold; under it is every event on disk, verbatim, one JSON object per line, grouped by
+day. Nothing is transformed or filtered, so what you audit is what the app recorded. Settings, badges
+and the summaries are not in it: they are the plain files in §4.2, and `cat` is the export for those.
 
-**Delete everything** (one menu item, one confirmation): removes the storage directory recursively,
+**Delete everything** (one button in Settings → Data, one confirmation): removes the storage directory recursively,
 resets in-memory state, and reports what it removed. The dialog also tells you the two things the
 app cannot clean up itself, because no app can:
 
