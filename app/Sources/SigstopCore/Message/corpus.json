@@ -3540,6 +3540,96 @@
         }
       ],
       "isFallback": true
+    },
+    {
+      "id": "hydration.glass",
+      "text": "💧 Break time. Take a glass of water with you.",
+      "tone": "friendly",
+      "category": "hydration",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
+      "claimsActivity": false
+    },
+    {
+      "id": "hydration.desk-check",
+      "text": "💧 Quick check: is there anything in the glass on your desk?",
+      "tone": "friendly",
+      "category": "hydration",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
+      "claimsActivity": false
+    },
+    {
+      "id": "hydration.coffee-not-water",
+      "text": "💧 Coffee is not water. It is lovely, and it is not water.",
+      "tone": "sarcastic",
+      "category": "hydration",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
+      "claimsActivity": false
+    },
+    {
+      "id": "hydration.refill",
+      "text": "💧 Five minutes away from the screen. The kitchen is on the way.",
+      "tone": "friendly",
+      "category": "hydration",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
+      "claimsActivity": false
+    },
+    {
+      "id": "medication.if-you-take-one",
+      "text": "💊 If you take anything around now, this is a good moment for it.",
+      "tone": "friendly",
+      "category": "medication",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
+      "claimsActivity": false
+    },
+    {
+      "id": "medication.moment",
+      "text": "💊 Break time. A good moment if something is due.",
+      "tone": "friendly",
+      "category": "medication",
+      "escalation": {
+        "min": 1,
+        "max": 2
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
+      "claimsActivity": false
     }
   ]
 }
