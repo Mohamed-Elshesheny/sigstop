@@ -80,38 +80,20 @@ if [ -n "${PREVIOUS_TAG}" ]; then
 [Every commit since ${PREVIOUS_TAG}](https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${TAG})"
 fi
 
+# Only what is different about THIS build. The install steps are the same on every
+# release and are already in the README, which is where somebody looks for them; printing
+# them again on each tag made the page mostly boilerplate and buried the changelog under
+# it. The checksum stays because it is the one line here that is per-build and the one a
+# careful reader actually uses.
 NOTES="$(cat <<EOF
 ${CHANGES}
 
 ---
 
-## Install
+\`sigstop.dmg\` · macOS 14+ · Apple Silicon and Intel · \`${SHA}\`
 
-macOS 14 or later, Apple Silicon and Intel.
-
-Open the disk image and drag sigstop to Applications.
-
-**macOS will refuse to open it the first time.** It is not broken. This build is signed
-with a certificate that belongs to nobody, because the one that would stop macOS saying
-that costs ninety nine dollars a year. Open System Settings, go to Privacy and Security,
-and press Open Anyway. If that button is not there, this clears it instead:
-
-\`\`\`sh
-xattr -dr com.apple.quarantine /Applications/sigstop.app
-\`\`\`
-
-Either way you only do it once.
-
-Running it means trusting a binary somebody else built, so check the file first if you
-would rather:
-
-\`\`\`
-shasum -a 256 sigstop.dmg
-${SHA}
-\`\`\`
-
-Or build it yourself, which needs no trust at all: clone, \`cd app\`, \`make run\`. Command
-Line Tools are enough and there is no Xcode requirement.
+[How to install it](https://github.com/${REPO}#install), including what to do about the
+first-launch refusal, and how to build it yourself instead.
 EOF
 )"
 

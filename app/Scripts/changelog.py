@@ -50,7 +50,11 @@ def main() -> int:
         if not m:
             continue
         kind, scope, subject = m.group("type"), m.group("scope"), m.group("subject")
-        if kind == "build" and subject.startswith("publish the appcast"):
+        # The release's own bookkeeping. A version bump and the appcast commit are the
+        # act of releasing, not something that changed in the build somebody downloads.
+        if kind == "build" and (
+            subject.startswith("publish the appcast") or re.match(r"^bump to [\d.]+$", subject)
+        ):
             continue
         if m.group("breaking"):
             breaking.append(subject)
@@ -76,10 +80,14 @@ def main() -> int:
             parts.append(f"- {f'**{scope}** ' if scope else ''}{subject}")
         parts.append("")
 
+    # Everything that did not change the app itself, counted rather than listed: somebody
+    # downloading a build is not shopping for a workflow tweak, and a page that lists them
+    # buries the three lines they came for.
     quiet_total = sum(len(buckets.get(k) or []) for k in QUIET)
     if quiet_total:
-        bits = [f"{len(buckets[k])} {HEADINGS[k].lower()}" for k in QUIET if buckets.get(k)]
-        parts.append(f"Plus {', '.join(bits)}.\n")
+        noun = "commit" if quiet_total == 1 else "commits"
+        kinds = ", ".join(HEADINGS[k].lower() for k in QUIET if buckets.get(k))
+        parts.append(f"_And {quiet_total} more {noun} to {kinds}._\n")
 
     print("\n".join(parts).rstrip())
     return 0
