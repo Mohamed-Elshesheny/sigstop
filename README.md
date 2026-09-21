@@ -9,6 +9,7 @@
 A macOS menu bar app that works out what you are doing, then interrupts at a defensible
 moment instead of on a timer.
 
+[![CI](https://github.com/Mohamed-Elshesheny/sigstop/actions/workflows/ci.yml/badge.svg)](https://github.com/Mohamed-Elshesheny/sigstop/actions/workflows/ci.yml)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?style=flat-square)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square)](#building)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
