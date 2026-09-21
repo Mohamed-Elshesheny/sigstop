@@ -1,0 +1,69 @@
+# Serve updater/ at https://mohamed-elshesheny.github.io/sigstop/
+#
+# This exists because it did not. `SUFeedURL` has pointed at that address since before
+# 0.1.0 shipped, Pages was never enabled, and the URL returned 404, so "Check for
+# updates" failed for everyone who installed the release. Nothing in CI noticed, because
+# nothing in CI can: the feed lives outside the repository's build.
+#
+# The deploy has no secrets and builds nothing. It copies one signed XML file, which was
+# signed on a laptop, because the key that signs it is not here and must not be.
+name: Pages
+
+on:
+  push:
+    branches: ["main"]
+    paths: ["updater/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a deploy in flight: the feed is what users' update checks read.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      # A malformed feed is indistinguishable from a missing one to a user, and the
+      # appcast is the one artifact nothing else checks.
+      - name: The feed is well-formed XML and every enclosure is signed
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          NS = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
+          tree = ET.parse("updater/appcast.xml")
+          items = tree.findall(".//item")
+          if not items:
+              sys.exit("appcast.xml has no <item>, so every client sees 'no updates'")
+          for item in items:
+              enc = item.find("enclosure")
+              version = item.findtext("sparkle:shortVersionString", namespaces=NS)
+              if enc is None:
+                  sys.exit(f"{version}: no <enclosure>")
+              if not enc.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature"):
+                  sys.exit(f"{version}: enclosure has no sparkle:edSignature")
+              if not (enc.get("url") or "").startswith("https://"):
+                  sys.exit(f"{version}: enclosure url is not https")
+          print(f"{len(items)} item(s), every one signed and served over https")
+          PY
+
+      - name: Setup Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Upload updater/
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: "updater/"
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
