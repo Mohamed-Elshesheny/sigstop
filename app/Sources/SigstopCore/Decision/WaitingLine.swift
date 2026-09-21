@@ -186,16 +186,32 @@ public extension WaitingLine {
     }
 
     private static func pending(_ r: Reading) -> WaitingLine {
+        /// A hard block is a fact about the machine and outranks everything: the user
+        /// cannot answer a prompt that is not allowed to exist.
+        if let gate = r.gate, gate.isHardBlock { return blocked(gate, r) }
+
+        /// Once the ask is out, the silence belongs to the user, and the line has to say
+        /// so even when a rate limit is also in force.
+        ///
+        /// The gate was being read first, so a prompt the owner had just waved off
+        /// produced "holding off, too soon after the last one": true of the engine's own
+        /// spacing rule, and read from outside as though something external were in the
+        /// way. Minimum spacing is a decision about how often to ask, not a reason the
+        /// break is not due, and the difference is the whole point of keeping these three
+        /// claims apart.
+        if case .ignored(let e) = r.state {
+            let overdue = DurationText.short(r.now.timeIntervalSince(e.dueSince))
+            return WaitingLine(.waitingOnYou, "you waved the last one off, and it has been due \(overdue)")
+        }
+        if case .breakDue(let d) = r.state, d.promptedAt != nil {
+            return WaitingLine(.waitingOnYou, "you have been asked and it is still waiting")
+        }
+
         if let gate = r.gate, gate != .delivered {
-            if gate.isHardBlock { return blocked(gate, r) }
             if gate == .ignoreBackoff {
                 return WaitingLine(.holdingOff, "this one gets a single prompt and has had it")
             }
             return WaitingLine(.holdingOff, gate.summary)
-        }
-        if case .ignored(let e) = r.state {
-            let overdue = DurationText.short(r.now.timeIntervalSince(e.dueSince))
-            return WaitingLine(.waitingOnYou, "this one has been due \(overdue)")
         }
         if case .breakDue = r.state {
             return WaitingLine(.waitingOnYou, "a break is due and nothing is holding it")
