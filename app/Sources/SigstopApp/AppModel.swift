@@ -1034,6 +1034,19 @@ final class AppModel {
                 calendar: .current
             )
         )
+        /// A hold the user asserted by hand outranks whatever the clock was going to say.
+        ///
+        /// Without this the panel contradicted itself in two adjacent lines: "not asking
+        /// yet, the next one is 3m of work away" above a sentence saying prompts were
+        /// held. Both were true in their own terms, the work clock really was three
+        /// minutes from the threshold and the hold really was in force, and neither the
+        /// engine nor the gate knew about the other, because a manual hold is not a
+        /// verdict until something tries to deliver.
+        if let hold = latchSignal(now: time.now, monotonic: monotonic).summary,
+           waiting.claim != .holdingOff {
+            waiting = WaitingLine(.holdingOff, hold)
+        }
+
         holdReason = waiting.body
     }
 

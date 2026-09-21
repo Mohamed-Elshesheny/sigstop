@@ -337,22 +337,17 @@ struct MenuBarView: View {
             /// away. `--doctor` is not a safety valve, because nobody runs it; this is.
             /// Twenty minutes of silence is the largest thing the app ever does without
             /// being asked, and a user who cannot see it happening cannot report it.
-            if let hold = model.callHoldSummary {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(hold)
-                        .fixedSize(horizontal: false, vertical: true)
-                    TerminalButton("Not in a meeting", style: .quiet) { model.clearMeetingHold() }
-                        .fixedSize()
-                }
-                .font(Brand.mono(10.5))
-                .foregroundStyle(Brand.fgMuted)
+            if model.callHoldSummary != nil {
+                /// No sentence here. The waiting line above already says the hold is in
+                /// force and why, and printing it again between two buttons is how this
+                /// corner got two contradicting claims in adjacent rows.
+                TerminalButton("Not in a meeting", style: .quiet) { model.clearMeetingHold() }
             } else if model.inputDeviceIsHoldingABreak {
                 /// The same button, named for what it actually does here. Offering "I'm
                 /// in a meeting" while the line above says a device is open and nobody is
                 /// using it is the panel contradicting itself in two adjacent rows, and
                 /// this is the one Mac where the answer matters.
                 TerminalButton(model.ignoreInputDeviceLabel, style: .quiet) { model.clearMeetingHold() }
-                    .fixedSize()
             } else {
                 /// Full width, like the primary above it. At its intrinsic size it sat
                 /// short and left-aligned under a full-width button, which is the ragged
