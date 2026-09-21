@@ -412,6 +412,8 @@ enum Doctor {
             return "on, and macOS refused the read in \(folder)"
         case .noRepository(let folder):
             return "on, and there is no repository at the root of \(folder)"
+        case .timedOut(let folder):
+            return "on, and \(folder) did not answer in time, so it is being left alone"
         case .read(let folder, let length, let detached, _):
             return detached
                 ? "read from \(folder): detached HEAD, so there is no branch to name"
@@ -435,6 +437,13 @@ enum Doctor {
             ]
         case .noRepository:
             return ["Register the repository root, not a directory inside it."]
+        case .timedOut:
+            return [
+                "A folder on a network share or a sleeping disk can block for as long",
+                "as the filesystem takes. The read is given a quarter of a second and",
+                "then abandoned, so nothing else in the app waits behind it. It will",
+                "be tried again when you next change the folders in Settings.",
+            ]
         case .read(_, _, _, let route):
             return [
                 "Which folder was decided by \(route).",

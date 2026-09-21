@@ -22,6 +22,10 @@ public enum GitScanOutcome: Sendable, Hashable {
     case notPermitted(folder: String)
     /// A folder matched and there is no repository at its root.
     case noRepository(folder: String)
+    /// A folder matched and the filesystem did not answer inside the deadline. A network
+    /// mount whose server went away does this, and it does it for as long as the mount
+    /// is hard. Kept separate from every other failure because the user can act on it.
+    case timedOut(folder: String)
     case read(folder: String, branchLength: Int, detached: Bool, route: String)
 }
 
@@ -58,25 +62,71 @@ public enum GitFolderRoute: String, Sendable, Hashable {
 /// the source fires exactly once. Measured: one event across four checkouts, then silence.
 /// The read is cheap enough to do on demand behind a memo, which is what this does.
 ///
-/// **Why it is not on the main actor.** Not for CPU. A `stat` on a sleeping external disk,
-/// an SMB share or an sshfs mount blocks for as long as the filesystem takes, and a
-/// registered folder can be on any of those.
+/// **Why it is not on the main actor, and why that was not enough.** Not for CPU. A `stat`
+/// on a sleeping external disk, an SMB share or an sshfs mount blocks for as long as the
+/// filesystem takes, and a registered folder can be on any of those. Moving it off the
+/// main actor only decided which thread waits. The caller still awaited it, and the tick
+/// loop still awaited the caller, so a hard mount whose server went away stopped the whole
+/// product: no work clock, no prompt, nothing on screen saying why. So the read has a
+/// deadline, the way the Accessibility path already has
+/// `AXUIElementSetMessagingTimeout`, and a folder that misses it is set aside instead of
+/// being asked again every few seconds.
 public final class GitCollector: @unchecked Sendable {
     /// `HEAD` is one line. This is the whole read, and it is the bound that makes "never
     /// a file's contents" a property of the code rather than a promise.
     private static let headReadLimit = 512
 
-    private let queue = DispatchQueue(label: "dev.sigstop.git", qos: .utility)
+    /// The same 0.25s the Accessibility collector gives an app to answer. The read is 50
+    /// microseconds warm, so anything near this is a filesystem that is not going to
+    /// answer at all.
+    public static let defaultDeadline: TimeInterval = 0.25
+
+    /// Concurrent on purpose. On a serial queue one blocked `stat` holds every later
+    /// read behind it, so a dead mount would take the other registered folders with it
+    /// even after the deadline let the caller go.
+    private let queue = DispatchQueue(
+        label: "dev.sigstop.git", qos: .utility, attributes: .concurrent
+    )
     private let lock = NSLock()
     private let permissions: PermissionBroker
     private let memoWindow: TimeInterval
+    private let deadline: TimeInterval
+    private let reader: @Sendable (String, Date) -> Result<GitSignal, GitReadFailure>
 
     private var memo: (signal: GitSignal, folder: String, takenAt: Date)?
     private var outcome: GitScanOutcome = .optedOut
+    /// Folders that missed the deadline. Nothing is asked of them again until the list of
+    /// registered folders changes, which is the user's next statement about what they
+    /// want read. Without this, a dead mount leaves one blocked thread per sample.
+    private var unresponsive: Set<String> = []
+    private var lastFolders: [String] = []
 
-    public init(permissions: PermissionBroker, memoWindow: TimeInterval = 4) {
+    public convenience init(
+        permissions: PermissionBroker,
+        memoWindow: TimeInterval = 4,
+        deadline: TimeInterval = GitCollector.defaultDeadline
+    ) {
+        self.init(
+            permissions: permissions,
+            memoWindow: memoWindow,
+            deadline: deadline,
+            reader: { GitCollector.readRepository(at: $0, now: $1) }
+        )
+    }
+
+    /// The reader is injectable so the deadline can be tested against a read that does
+    /// not come back, which is the whole point of it and is not something a real
+    /// filesystem will do on demand. `GitReadFailure` is internal, so this init is too.
+    init(
+        permissions: PermissionBroker,
+        memoWindow: TimeInterval = 4,
+        deadline: TimeInterval = GitCollector.defaultDeadline,
+        reader: @escaping @Sendable (String, Date) -> Result<GitSignal, GitReadFailure>
+    ) {
         self.permissions = permissions
         self.memoWindow = memoWindow
+        self.deadline = deadline
+        self.reader = reader
     }
 
     public var lastOutcome: GitScanOutcome {
@@ -93,6 +143,7 @@ public final class GitCollector: @unchecked Sendable {
         windowTitle: String?,
         now: Date
     ) async -> GitSignal? {
+        noteFolders(folders)
         guard permissions.gitContextPermitted() else {
             record(.optedOut)
             return nil
@@ -118,13 +169,19 @@ public final class GitCollector: @unchecked Sendable {
 
         if let cached = memoized(folder: match.folder, now: now) { return cached }
 
-        let result = await withCheckedContinuation { continuation in
-            queue.async {
-                continuation.resume(returning: Self.readRepository(at: match.folder, now: now))
-            }
+        let name = (match.folder as NSString).lastPathComponent
+        guard !isSetAside(match.folder) else {
+            record(.timedOut(folder: name))
+            return nil
         }
 
-        let name = (match.folder as NSString).lastPathComponent
+        let result = await bounded(folder: match.folder, now: now)
+
+        guard let result else {
+            setAside(match.folder)
+            record(.timedOut(folder: name))
+            return nil
+        }
         switch result {
         case .failure(.notPermitted):
             record(.notPermitted(folder: name))
@@ -135,6 +192,45 @@ public final class GitCollector: @unchecked Sendable {
         case .success(let signal):
             store(signal, folder: match.folder, name: name, route: match.route, now: now)
             return signal
+        }
+    }
+
+    /// The read, or nil if the filesystem did not answer in time.
+    ///
+    /// The work item is not cancelled, because there is nothing to cancel: it is parked
+    /// inside a blocking syscall and it will finish whenever the mount does. What this
+    /// guarantees is that the *caller* comes back, which is the half that matters, since
+    /// the caller is one `await` away from the tick loop.
+    private func bounded(
+        folder: String, now: Date
+    ) async -> Result<GitSignal, GitReadFailure>? {
+        let once = ResumeOnce()
+        return await withCheckedContinuation { continuation in
+            once.attach(continuation)
+            queue.async { [reader] in once.resume(reader(folder, now)) }
+            queue.asyncAfter(deadline: .now() + deadline) { once.resume(nil) }
+        }
+    }
+
+    /// Whichever of the two arrives first wins, and the loser is dropped. Resuming a
+    /// checked continuation twice is a crash, so this is a lock rather than a convention.
+    private final class ResumeOnce: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Result<GitSignal, GitReadFailure>?, Never>?
+        private var done = false
+
+        func attach(_ value: CheckedContinuation<Result<GitSignal, GitReadFailure>?, Never>) {
+            lock.lock(); defer { lock.unlock() }
+            continuation = value
+        }
+
+        func resume(_ value: Result<GitSignal, GitReadFailure>?) {
+            lock.lock()
+            guard !done, let continuation else { lock.unlock(); return }
+            done = true
+            self.continuation = nil
+            lock.unlock()
+            continuation.resume(returning: value)
         }
     }
 
@@ -159,6 +255,25 @@ public final class GitCollector: @unchecked Sendable {
             detached: signal.branch == nil,
             route: route.rawValue
         )
+    }
+
+    private func isSetAside(_ folder: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return unresponsive.contains(folder)
+    }
+
+    private func setAside(_ folder: String) {
+        lock.lock(); defer { lock.unlock() }
+        unresponsive.insert(folder)
+    }
+
+    /// Changing the registered folders is the user saying something new about what they
+    /// want read, so it is the moment a folder that timed out gets another chance.
+    private func noteFolders(_ folders: [String]) {
+        lock.lock(); defer { lock.unlock() }
+        guard folders != lastFolders else { return }
+        lastFolders = folders
+        unresponsive.removeAll()
     }
 
     private func record(_ value: GitScanOutcome) {

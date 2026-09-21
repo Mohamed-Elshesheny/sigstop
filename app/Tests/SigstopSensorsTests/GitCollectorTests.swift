@@ -53,6 +53,64 @@ private func collector(gitOn: Bool) -> GitCollector {
     return GitCollector(permissions: PermissionBroker(settings: settings, trustCheck: { false }))
 }
 
+// MARK: - The deadline
+
+/// A registered folder can be on an SMB share or an sshfs mount. When the server goes
+/// away, `stat` on a hard mount does not fail, it waits, and before this the whole app
+/// waited with it: the read never returned, `ContextEngine.sampleAndPublish` never
+/// returned, and `AppModel.tick` left its re-entrancy flag set forever. Every later tick
+/// returned at the guard, the work clock stopped, no break was ever prompted again, and
+/// nothing on screen said why.
+@Test func aFolderThatNeverAnswersDoesNotHoldUpTheCaller() async {
+    /// Signalled at the end of the test, so the parked thread is not left parked.
+    let stuck = DispatchSemaphore(value: 0)
+    var settings = SigstopSettings.default
+    settings.gitContextEnabled = true
+    let collector = GitCollector(
+        permissions: PermissionBroker(settings: settings, trustCheck: { false }),
+        memoWindow: 0,
+        deadline: 0.1,
+        reader: { folder, now in
+            if folder.hasSuffix("dead") { stuck.wait() }
+            return .success(GitSignal(
+                branch: "main", repoState: .clean,
+                repoName: (folder as NSString).lastPathComponent, readAt: now
+            ))
+        }
+    )
+
+    let started = Date()
+    let first = await collector.read(
+        frontmost: editor, folders: ["/Users/x/dead"], documentURL: nil,
+        windowTitle: "a.swift — dead", now: Date()
+    )
+    let elapsed = Date().timeIntervalSince(started)
+    #expect(first == nil)
+    #expect(elapsed < 2)
+    #expect(collector.lastOutcome == .timedOut(folder: "dead"))
+
+    /// And it is not asked again, so a dead mount costs one parked thread rather than
+    /// one per sample for as long as the app runs.
+    let secondStarted = Date()
+    let second = await collector.read(
+        frontmost: editor, folders: ["/Users/x/dead"], documentURL: nil,
+        windowTitle: "a.swift — dead", now: Date()
+    )
+    #expect(second == nil)
+    #expect(Date().timeIntervalSince(secondStarted) < 0.1)
+    #expect(collector.lastOutcome == .timedOut(folder: "dead"))
+
+    /// Changing the registered folders is the user saying something new about what they
+    /// want read, and a folder that answers is unaffected by one that did not.
+    let live = await collector.read(
+        frontmost: editor, folders: ["/Users/x/dead", "/Users/x/live"], documentURL: nil,
+        windowTitle: "a.swift — live", now: Date()
+    )
+    #expect(live?.branch == "main")
+
+    stuck.signal()
+}
+
 // MARK: - Reading HEAD
 
 @Test func aNormalRepositoryYieldsItsBranch() {

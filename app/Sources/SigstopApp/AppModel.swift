@@ -447,11 +447,17 @@ final class AppModel {
             return
         }
         ticking = true
+        /// The flag is the one piece of state that can stop the whole app on its own: a
+        /// pass that never clears it turns every later tick into an immediate return at
+        /// the guard above, the work clock stops advancing, and nothing says so. It is
+        /// cleared on every exit from here, and the awaits inside `tickOnce` are each
+        /// bounded at their source (AX messaging timeout, the git collector's deadline)
+        /// so that "never returns" is not reachable in the first place.
+        defer { ticking = false }
         repeat {
             tickAgain = false
             await tickOnce()
         } while tickAgain
-        ticking = false
     }
 
     private func tickOnce() async {
