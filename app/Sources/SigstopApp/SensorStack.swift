@@ -26,6 +26,7 @@ struct SensorStack {
     let audioProcesses: AudioProcessCollector
     let accessibility: AccessibilityCollector
     let idle: IdleCollector
+    let processes: ProcessCollector
     let context: ContextEngine
 
     init(settings: SigstopSettings, time: any TimeSource = SystemTimeSource(), workClock: WorkClockBox? = nil) {
@@ -37,6 +38,7 @@ struct SensorStack {
         let audioProcesses = AudioProcessCollector(time: time)
         let accessibility = AccessibilityCollector()
         let idle = IdleCollector()
+        let processes = ProcessCollector(permissions: permissions)
 
         self.time = time
         self.permissions = permissions
@@ -47,6 +49,7 @@ struct SensorStack {
         self.audioProcesses = audioProcesses
         self.accessibility = accessibility
         self.idle = idle
+        self.processes = processes
         self.context = ContextEngine(
             time: time,
             permissions: permissions,
@@ -55,6 +58,7 @@ struct SensorStack {
             audio: audio,
             accessibility: accessibility,
             idle: idle,
+            processes: processes,
             workClock: { [workClock] in workClock?.read() ?? .zero }
         )
     }

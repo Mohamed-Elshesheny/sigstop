@@ -357,13 +357,23 @@ struct SettingsView: View {
                 }
             }
 
-            SettingsSection("tier 2 · git context") {
+            SettingsSection("tier 2 · local context") {
                 SettingRow(
                     "Read the branch name from .git/HEAD",
                     detail: "Off by default. The branch name only, read from the file, never a "
                         + "command, never a diff, never a commit message."
                 ) {
                     TerminalSwitch(isOn: settings.gitContextEnabled)
+                }
+                SettingRow(
+                    "Notice when a debugger is running",
+                    detail: "Off by default, and a separate switch because it reads something "
+                        + "different. Executable names against a fixed list in the source, plus "
+                        + "the kernel flag that says a process is under a debugger. No command "
+                        + "line is ever read, which is where passwords are. Without it the app "
+                        + "says coding rather than guess whether you are debugging."
+                ) {
+                    TerminalSwitch(isOn: settings.processContextEnabled)
                 }
             }
         }

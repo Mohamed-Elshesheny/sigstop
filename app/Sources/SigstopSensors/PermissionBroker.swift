@@ -49,8 +49,10 @@ public struct PermissionStatus: Sendable, Hashable {
     public let accessibilityEnabledInSettings: Bool
     /// Tier 1b, record the browser host only. A separate opt-in from Tier 1 itself.
     public let browserHostEnabled: Bool
-    /// Tier 2, `.git/HEAD` and allowlisted process names. Explicit opt-in.
+    /// Tier 2, `.git/HEAD`. Explicit opt-in, and its own switch.
     public let gitContextEnabled: Bool
+    /// Tier 2, allowlisted process names. A SEPARATE explicit opt-in.
+    public let processContextEnabled: Bool
     public let tiers: SignalTierSet
 
     public var tier1Active: Bool { tiers.contains(.tier1) }
@@ -76,14 +78,20 @@ public struct PermissionStatus: Sendable, Hashable {
         if tier1Active && browserHostEnabled {
             lines.append("Tier 1b, browser host: ON. The host only, never a path or a query string.")
         }
-        /// The opt-in is recorded and nothing reads it yet: neither the `.git/HEAD`
-        /// collector nor the process snapshot is implemented. Saying ON here put a green
-        /// dot on a tier that sees nothing, in the pane whose kicker is "visible now".
+        /// Two lines, because there are two switches and each has to describe only what
+        /// it does. One line covering both was true while both collectors were missing
+        /// and became a lie the moment either one landed.
         lines.append(
             gitContextEnabled
-                ? "Tier 2, branch name and allowlisted tool names: opted in, but the collector "
-                    + "is not implemented yet, so nothing is read."
-                : "Tier 2, branch name and allowlisted tool names: OFF."
+                ? "Tier 2, branch name: ON. One line of .git/HEAD, in folders you added yourself."
+                : "Tier 2, branch name: OFF."
+        )
+        lines.append(
+            processContextEnabled
+                ? "Tier 2, tool names: ON. Executable names against a fixed list, and whether "
+                    + "anything is under a debugger. No command line is ever read."
+                : "Tier 2, tool names: OFF, so DEBUGGING stays unreachable and the app says "
+                    + "coding rather than guess between them."
         )
         return lines
     }
@@ -143,6 +151,7 @@ public final class PermissionBroker: @unchecked Sendable {
             accessibilityEnabledInSettings: settings.accessibilityEnabled,
             browserHostEnabled: settings.browserHostEnabled,
             gitContextEnabled: settings.gitContextEnabled,
+            processContextEnabled: settings.processContextEnabled,
             tiers: lastPublished
         )
     }
@@ -152,6 +161,23 @@ public final class PermissionBroker: @unchecked Sendable {
     public func browserHostPermitted() -> Bool {
         lock.lock(); defer { lock.unlock() }
         return settings.browserHostEnabled && lastPublished.contains(.tier1)
+    }
+
+    /// True only when the process switch itself is on.
+    ///
+    /// `.tier2` is now set by *either* Tier 2 switch, so the tier bit is necessary and not
+    /// sufficient, exactly as `browserHostPermitted()` already works. Without this, the
+    /// person who agreed to have a branch name read would silently get the process table
+    /// enumerated as well, which is the kind of thing this project's readers check.
+    public func processContextPermitted() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return settings.processContextEnabled
+    }
+
+    /// True only when the git switch itself is on. Same argument as above, other side.
+    public func gitContextPermitted() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return settings.gitContextEnabled
     }
 
     /// Re-reads `AXIsProcessTrusted()` and recomputes the tier set. **Never prompts.**
@@ -252,7 +278,10 @@ public final class PermissionBroker: @unchecked Sendable {
     static func tiers(settings: SigstopSettings, trusted: Bool) -> SignalTierSet {
         var set: SignalTierSet = [.tier0]
         if settings.accessibilityEnabled && trusted { set.insert(.tier1) }
-        if settings.gitContextEnabled { set.insert(.tier2) }
+        /// Either Tier 2 switch raises the tier. Which of the two collectors may actually
+        /// read is decided at the collector, by `gitContextPermitted()` and
+        /// `processContextPermitted()`, so one opt-in never implies the other.
+        if settings.gitContextEnabled || settings.processContextEnabled { set.insert(.tier2) }
         return set
     }
 }

@@ -175,6 +175,10 @@ enum Doctor {
         if let failure = sensors.accessibility.lastFailure {
             out.append("        last Accessibility error: \(failure.userFacingSummary)")
         }
+        row("2", "tool names", toolText(sensors))
+        for line in toolDetail(sensors) {
+            out.append("                              \(line)")
+        }
         row(
             "2", "git branch",
             raw.tiers.contains(.tier2)
@@ -184,6 +188,55 @@ enum Doctor {
 
         out.append("")
         return out
+    }
+
+    /// The Tier 2 process row. Four outcomes and not a count, because "off", "not this
+    /// sample", "could not read the table" and "read it, nothing matched" are four facts
+    /// and only the last one means no debugger is running.
+    private static func toolText(_ sensors: SensorStack) -> String {
+        switch sensors.processes.lastOutcome {
+        case .optedOut:
+            return "opted out, nothing is read"
+        case .skipped(let reason):
+            return "on, not scanned this sample: \(reason)"
+        case .unreadable:
+            return "on, and the process table could not be read. Reported as unknown,"
+        case .scanned(let count):
+            let matched = sensors.processes.lastSnapshot?.matchedTools ?? []
+            let names = matched.map(\.displayName).sorted().joined(separator: ", ")
+            return "on, \(count) processes compared by name; "
+                + (matched.isEmpty ? "none matched" : "matched \(names)")
+        }
+    }
+
+    private static func toolDetail(_ sensors: SensorStack) -> [String] {
+        switch sensors.processes.lastOutcome {
+        case .optedOut:
+            return []
+        case .skipped:
+            return [
+                "The scan is gated so it costs nothing while it could tell you",
+                "nothing. This is not a failure and not an answer: the app does",
+                "not know whether a debugger is running, and does not claim to.",
+            ]
+        case .unreadable:
+            return ["never as nobody. A zero-length table is a failure, not a Mac with", "no processes on it."]
+        case .scanned:
+            let snapshot = sensors.processes.lastSnapshot
+            var lines = [
+                "Only p_comm, the executable path of the few that matched, and the",
+                "P_TRACED flag. No command line, no environment, no working directory.",
+            ]
+            if snapshot?.tracedUnderFrontmost == true {
+                lines.append("under a debugger: yes, in something this app started")
+            } else if snapshot?.tracedElsewhere == true {
+                lines.append("under a debugger: yes, but elsewhere on this Mac, so it is")
+                lines.append("corroboration for a named debugger and never a verdict alone")
+            } else {
+                lines.append("under a debugger: nothing on this Mac is, right now")
+            }
+            return lines
+        }
     }
 
     /// What the call latch would do with the signals above.
@@ -341,6 +394,15 @@ enum Doctor {
         return out
     }
 
+    /// Rendered from `ToolAllowlist.undetectable` rather than retyped, so the list a user
+    /// reads here cannot drift from the list the collector actually skips.
+    private static var undetectableTools: [String] {
+        let names = ToolAllowlist.undetectable.map(\.displayName)
+        return stride(from: 0, to: names.count, by: 5).map {
+            names[$0..<min($0 + 5, names.count)].joined(separator: ", ")
+        }
+    }
+
     /// The honest list. Every row here is something the app could plausibly be expected to
     /// know and does not, with the reason it does not.
     private static func unavailableSection(_ raw: RawSignals) -> [String] {
@@ -353,9 +415,15 @@ enum Doctor {
             "                       Apple Events (an Automation grant) and Screen Recording, both",
             "                       declined. The opt-in exists; the collector does not, so the",
             "                       field is nil rather than faked.",
-            "  running processes    Tier 2 process snapshot is not implemented yet. Consequence:",
-            "                       DEBUGGING is currently unreachable and the app degrades to",
-            "                       CODING instead of guessing between them.",
+            "  argv-shaped tools    These are named by their ARGUMENTS, not by their own",
+            "                       executables, and a shebang script called jest is `node` to",
+            "                       the kernel. Reading arguments means reading command lines,",
+            "                       which is where passwords are, so they are not detected at",
+            "                       all. Everything else on the allowlist is, so DEBUGGING is",
+            "                       reachable and TESTING keeps only xctest. Not detected:",
+        ]
+            + undetectableTools.map { "                         \($0)" }
+            + [
             "  git branch / state   Tier 2 .git/HEAD collector is not implemented yet, so the opt-in",
             "                       currently buys nothing. Templates needing {branch} simply cannot",
             "                       be selected.",

@@ -156,6 +156,7 @@ public final class ContextEngine {
     private let audioCollector: AudioDeviceCollector
     private let accessibilityCollector: AccessibilityCollector
     private let idleCollector: IdleCollector
+    private let processCollector: ProcessCollector
     private var registry: ProviderRegistry
     private var workClock: @Sendable () -> WorkClockReading
 
@@ -198,6 +199,7 @@ public final class ContextEngine {
         audio: AudioDeviceCollector? = nil,
         accessibility: AccessibilityCollector = AccessibilityCollector(),
         idle: IdleCollector = IdleCollector(),
+        processes: ProcessCollector? = nil,
         workClock: @escaping @Sendable () -> WorkClockReading = { .zero }
     ) {
         self.time = time
@@ -209,6 +211,7 @@ public final class ContextEngine {
         self.audioCollector = audio ?? AudioDeviceCollector(time: time)
         self.accessibilityCollector = accessibility
         self.idleCollector = idle
+        self.processCollector = processes ?? ProcessCollector(permissions: permissions)
         self.workClock = workClock
         self.corroboratedAt = time.now
     }
@@ -338,6 +341,14 @@ public final class ContextEngine {
 
         let axInfo = await readTitleIfPermitted(tiers: tiers, pid: snapshot.frontmost.pid, input: input, now: now)
 
+        /// Taken here rather than on a timer of its own. The engine already wakes on every
+        /// app activation, which is exactly the moment a debugger appearing matters, and
+        /// the collector's own gate and memo keep a burst of samples down to one scan.
+        /// Measured cost of that scan on this machine: 0.24 ms over 1003 processes.
+        let processes = processCollector.snapshot(
+            frontmost: snapshot.frontmost, input: input, power: power, now: now
+        )
+
         let signals = SignalContext(
             now: now,
             available: tiers,
@@ -353,7 +364,7 @@ public final class ContextEngine {
             windowTitle: axInfo.title,
             documentURL: axInfo.documentURL,
             browserHost: nil,
-            processes: nil,
+            processes: processes,
             git: nil
         )
 

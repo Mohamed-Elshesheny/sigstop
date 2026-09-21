@@ -422,6 +422,29 @@ enum Ev {
         make("communication.title", .tier1, 1.0, "the window title names a channel or a conversation")
     }
 
+    /// The strongest thing Tier 2 has, and the only one that reaches DEBUGGING alone.
+    ///
+    /// `P_TRACED` is a kernel flag on the process being debugged, so this is not "a binary
+    /// called lldb exists somewhere", it is "something started by the app you are looking
+    /// at is stopped under a debugger right now". docs/ACTIVITY-DETECTION.md §7.2 caps
+    /// DEBUGGING at 0.90 anyway, because a traced process can be sitting at a breakpoint
+    /// nobody is looking at.
+    static func tracedUnderFrontmost() -> Evidence {
+        make(
+            "process.traced", .tier2, 3.0,
+            "a process this app started is under a debugger right now"
+        )
+    }
+    /// Never enough on its own: it may be another project's debugger. It earns its weight
+    /// only beside a debugger this app can also name, where it is the difference between
+    /// lldb sitting at a prompt and lldb actually attached to something.
+    static func tracedElsewhere() -> Evidence {
+        make(
+            "process.tracedElsewhere", .tier2, 1.8,
+            "something on this Mac is under a debugger, though not started by this app"
+        )
+    }
+
     static func debuggerProcess(_ tool: ToolToken, childOfFrontmost: Bool) -> Evidence {
         let weight = tool == .debugserver ? 3.0 : 2.2
         let suffix = childOfFrontmost ? ", started by the app you are in" : ""
@@ -519,11 +542,22 @@ enum EditorClassifier {
 
         let processes = signals.processesIfPermitted
 
+        if processes?.tracedUnderFrontmost == true {
+            evidence.append(Ev.tracedUnderFrontmost())
+            if let tool = processes?.firstMatch(in: ToolToken.debuggers) {
+                evidence.append(Ev.debuggerProcess(
+                    tool, childOfFrontmost: processes?.childrenOfFrontmost.contains(tool) ?? false
+                ))
+            }
+            return ProviderVerdict(activity: .debugging, evidence: evidence, context: context)
+        }
+
         if let tool = processes?.firstChildMatch(in: ToolToken.debuggers)
             ?? processes?.firstMatch(in: ToolToken.debuggers) {
             let isChild = processes?.childrenOfFrontmost.contains(tool) ?? false
             evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: isChild))
             if isChild { evidence.append(Ev.childOfFrontmost()) }
+            if processes?.tracedElsewhere == true { evidence.append(Ev.tracedElsewhere()) }
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: context)
         }
 
@@ -688,10 +722,20 @@ public struct TerminalProvider: ActivityProvider {
             evidence.append(Ev.aiCLIProcess(tool))
             return ProviderVerdict(activity: .aiCoding, evidence: evidence, context: activityContext)
         }
+        if processes.tracedUnderFrontmost {
+            evidence.append(Ev.tracedUnderFrontmost())
+            if let tool = processes.firstMatch(in: ToolToken.debuggers) {
+                evidence.append(Ev.debuggerProcess(
+                    tool, childOfFrontmost: processes.childrenOfFrontmost.contains(tool)
+                ))
+            }
+            return ProviderVerdict(activity: .debugging, evidence: evidence, context: activityContext)
+        }
         if let tool = processes.firstChildMatch(in: ToolToken.debuggers)
             ?? processes.firstMatch(in: ToolToken.debuggers) {
             let isChild = processes.childrenOfFrontmost.contains(tool)
             evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: isChild))
+            if processes.tracedElsewhere { evidence.append(Ev.tracedElsewhere()) }
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: activityContext)
         }
         if let tool = processes.firstChildMatch(in: ToolToken.testRunners)

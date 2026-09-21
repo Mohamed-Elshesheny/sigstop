@@ -105,6 +105,13 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     public var accessibilityEnabled: Bool
     /// Tier 2, read branch from `.git/HEAD`. Explicit opt-in, off by default.
     public var gitContextEnabled: Bool
+    /// Tier 2, look for a known debugger in the process table. Its OWN opt-in.
+    ///
+    /// Two switches, not one, because they read different things and the copy on each has
+    /// to be true. Somebody who agreed to have a branch name read has not agreed to have
+    /// the process table enumerated, and docs/ACTIVITY-DETECTION.md §4.3 has said "two
+    /// independent opt-ins, each with its own switch" since before either existed.
+    public var processContextEnabled: Bool
     /// Record the browser HOST only. Explicit opt-in, off by default.
     public var browserHostEnabled: Bool
 
@@ -149,6 +156,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         maxSnoozesPerBreak: Int = 2,
         accessibilityEnabled: Bool = false,
         gitContextEnabled: Bool = false,
+        processContextEnabled: Bool = false,
         browserHostEnabled: Bool = false,
         promptSound: Bool = true,
         useSystemNotifications: Bool = false,
@@ -169,6 +177,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.maxSnoozesPerBreak = maxSnoozesPerBreak
         self.accessibilityEnabled = accessibilityEnabled
         self.gitContextEnabled = gitContextEnabled
+        self.processContextEnabled = processContextEnabled
         self.browserHostEnabled = browserHostEnabled
         self.promptSound = promptSound
         self.useSystemNotifications = useSystemNotifications
@@ -202,6 +211,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         maxSnoozesPerBreak = clamp(try c.decodeIfPresent(Int.self, forKey: .maxSnoozesPerBreak) ?? d.maxSnoozesPerBreak, 0, 10)
         accessibilityEnabled = try c.decodeIfPresent(Bool.self, forKey: .accessibilityEnabled) ?? d.accessibilityEnabled
         gitContextEnabled = try c.decodeIfPresent(Bool.self, forKey: .gitContextEnabled) ?? d.gitContextEnabled
+        processContextEnabled = try c.decodeIfPresent(Bool.self, forKey: .processContextEnabled) ?? d.processContextEnabled
         browserHostEnabled = try c.decodeIfPresent(Bool.self, forKey: .browserHostEnabled) ?? d.browserHostEnabled
         promptSound = try c.decodeIfPresent(Bool.self, forKey: .promptSound) ?? d.promptSound
         useSystemNotifications = try c.decodeIfPresent(Bool.self, forKey: .useSystemNotifications) ?? d.useSystemNotifications

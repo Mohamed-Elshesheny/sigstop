@@ -556,6 +556,7 @@ runs is knowing something about them. The rules are absolute:
   so it says *something has this process under `ptrace` right now* rather than *a binary with this
   name exists*, which is nearer an OS fact than any name match can be. Measured baseline on a
   developer machine: 0 of 1003 processes, and exactly 1 the instant a real `debugserver` attached.
+  Cost of the whole scan, measured: **0.17 ms**, which is why it needs no timer of its own.
 - **`KERN_PROCARGS2` is not called.** This section used to mandate it, on the grounds that "`p_comm`
   alone is truncated to 16 characters, which is why `KERN_PROCARGS2` is needed at all." That
   reasoning was wrong, and the measurement is one-sided: `proc_pidpath` returns the complete,
@@ -1240,7 +1241,7 @@ work** — no timer fires, nothing is polled.
 | What | Interval | Gated on | Cost |
 |---|---|---|---|
 | Idle-threshold crossing | **self-scheduling**, not periodic | always | ~2 wakeups per idle transition |
-| Process snapshot (Tier 2) | not polled at all: taken inside the sample the engine was already going to build | the process opt-in on **AND** frontmost is editor/terminal **AND** `idleSeconds < 120` **AND** thermal `.nominal`/`.fair` **AND** not (on battery AND Low Power Mode), then memoized for a few seconds | 0.24 ms per scan, measured over 200 scans of 1003 processes |
+| Process snapshot (Tier 2) | not polled at all: taken inside the sample the engine was already going to build | the process opt-in on **AND** frontmost is editor/terminal **AND** `idleSeconds < 120` **AND** thermal `.nominal`/`.fair` **AND** not (on battery AND Low Power Mode), then memoized for a few seconds | **0.17 ms** per scan, mean of 200 scans of the real table over 1006 processes, release build. At one scan every five seconds that is 0.003% of one core |
 | Window geometry | **on demand only** | on app-activation events | sub-ms |
 | AX title reconciliation | 60 s, leeway 30 s | Tier 1 on and not idle | guards against a missed `AXObserver` notification |
 

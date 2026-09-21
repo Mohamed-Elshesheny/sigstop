@@ -74,5 +74,15 @@ let package = Package(
             dependencies: ["SigstopCore"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // Providers are pure functions of a SignalContext and the Tier 2 collectors are
+        // pure functions of a process table, so this target needs no window server and no
+        // logged-in session either: it constructs literals and calls functions. It exists
+        // because DEBUGGING lives entirely in this layer and an activity that cannot be
+        // tested is an activity nobody can trust.
+        .testTarget(
+            name: "SigstopSensorsTests",
+            dependencies: ["SigstopSensors"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
     ]
 )

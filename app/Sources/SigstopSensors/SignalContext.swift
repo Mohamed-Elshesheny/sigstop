@@ -168,9 +168,15 @@ public struct AppSwitch: Sendable, Hashable, Codable {
 
 // MARK: - Tier 2 signal shapes
 
-/// Allowlisted tool names. The ONLY thing ever extracted from `KERN_PROCARGS2`.
-/// Raw argv is matched against this list and immediately discarded, argv routinely
-/// contains secrets (`psql "postgres://user:password@…"`). See §4.3.
+/// Allowlisted tool names, matched against an executable's own name and nothing else.
+///
+/// `KERN_PROCARGS2` is never called, so argv never enters this process: it is where a
+/// password routinely sits in plain text (`psql "postgres://user:password@…"`). The price
+/// is that the tokens named by their arguments rather than by their executable, `node
+/// --inspect`, `debugpy`, `pytest`, `jest`, `go test` and their kind, cannot be detected
+/// at all. They stay in this enum because the corpus and the docs refer to them and
+/// because `--doctor` names them as undetectable rather than reporting them absent. See
+/// docs/ACTIVITY-DETECTION.md §4.3(b) and `ToolAllowlist`.
 public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
     case lldb, debugserver, gdb, delve, debugpy, nodeInspect
     case pytest, jest, vitest, xctest, goTest, cargoTest, swiftTesting, rspec, phpunit, playwright
@@ -208,14 +214,33 @@ public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
 public struct ProcessSnapshot: Sendable, Hashable, Codable {
     /// Allowlist-matched tool tokens only. Raw argv is never stored here.
     public let matchedTools: Set<ToolToken>
-    /// Tools whose parent process is the frontmost app, a much stronger signal, because
-    /// it distinguishes "I am debugging" from "a debugger is running in another project".
+    /// Tools that descend from the frontmost app, a much stronger signal, because it
+    /// distinguishes "I am debugging" from "a debugger is running in another project".
     public let childrenOfFrontmost: Set<ToolToken>
+    /// Something descending from the app in front is under `ptrace` right now.
+    ///
+    /// This is a kernel flag on the process being debugged, not a name, so it says the
+    /// debugging is *happening* rather than that a debugger binary exists. It is the
+    /// strongest thing this tier has and the only one that turns `CODING` into
+    /// `DEBUGGING` on its own.
+    public let tracedUnderFrontmost: Bool
+    /// Something elsewhere on this Mac is under `ptrace`. Never enough on its own: it may
+    /// be another project's debugger. It corroborates a debugger this app can also name,
+    /// which is the difference between `lldb` sitting at a prompt and `lldb` attached.
+    public let tracedElsewhere: Bool
     public let capturedAt: Date
 
-    public init(matchedTools: Set<ToolToken>, childrenOfFrontmost: Set<ToolToken>, capturedAt: Date) {
+    public init(
+        matchedTools: Set<ToolToken>,
+        childrenOfFrontmost: Set<ToolToken>,
+        tracedUnderFrontmost: Bool = false,
+        tracedElsewhere: Bool = false,
+        capturedAt: Date
+    ) {
         self.matchedTools = matchedTools
         self.childrenOfFrontmost = childrenOfFrontmost
+        self.tracedUnderFrontmost = tracedUnderFrontmost
+        self.tracedElsewhere = tracedElsewhere
         self.capturedAt = capturedAt
     }
 
