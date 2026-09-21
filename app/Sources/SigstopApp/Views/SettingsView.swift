@@ -407,7 +407,10 @@ struct SettingsView: View {
                         + "is no archive, no tombstone and no copy kept anywhere, which is the "
                         + "point and also means there is no undo."
                 )
-                TerminalButton("Delete my data…", style: .quiet) { confirmDelete() }
+                /// Boxed, while every other secondary control in this window is not.
+                /// There is no undo behind this one, and a border is cheap next to the
+                /// cost of it reading as the heading of the paragraph above it.
+                TerminalButton("Delete my data…") { confirmDelete() }
                     .fixedSize()
                     .padding(.top, 12)
                 if let dataReport {

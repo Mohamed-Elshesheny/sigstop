@@ -10,12 +10,16 @@ import SwiftUI
 /// CLAUDE.md §4.1 makes "the app must always be able to answer *why do you think that?*"
 /// an invariant, and this is where a user meets it.
 ///
-/// The panel is four blocks at three surface values, top to bottom in order of why the
-/// panel was opened: the state and the clock on a `surface` strip; the inference as a
-/// raised card on the `bg`; the actions as one primary control and a quiet row; and
-/// today's `jobs` on a second `surface` strip, dense and small. Amber is spent on the
-/// state alone, the kicker, the clock and the primary control turn amber together when
-/// a break is due and at no other time, so the eye finds the one thing that changed.
+/// The panel is three bands, top to bottom in order of why the panel was opened: the
+/// state and the clock; the body, carrying the inference and then the actions; and
+/// today's `jobs`, dense and small. The two outer bands are chrome and sit on the back
+/// plane, `Brand.chrome`, with the body one step in front of them on `Brand.content`,
+/// because a frame that is lighter than the thing it frames reads as sitting on top of
+/// it. In dark mode it did, for as long as this panel has existed.
+///
+/// Amber is spent on the state alone, the kicker, the clock, the command mark and the
+/// primary control turn amber together when a break is due and at no other time, so the
+/// eye finds the one thing that changed.
 struct MenuBarView: View {
     let model: AppModel
     /// Supplied by the status item controller. The panel lives outside the scene graph,
@@ -28,7 +32,11 @@ struct MenuBarView: View {
 
     private static let width: CGFloat = 356
     private static let gutter: CGFloat = 16
-    private static let cardRadius: CGFloat = 8
+
+    /// The two glyphs of the action block. They are here rather than at each call site
+    /// because the whole point of them is that there are exactly two.
+    private static let output = "→"
+    private static let command = "❯"
 
     /// `expandEvidence` opens the "why do you think that?" trail from the first frame.
     /// The panel never passes it; it exists so a preview or a render check can show the
@@ -45,9 +53,9 @@ struct MenuBarView: View {
                 .padding(.horizontal, Self.gutter)
                 .padding(.top, 14)
                 .padding(.bottom, 14)
-                .background(Brand.surface)
+                .background(Brand.chrome)
             Rule()
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 22) {
                 inference
                 actions
             }
@@ -57,10 +65,10 @@ struct MenuBarView: View {
             jobs
                 .padding(.horizontal, Self.gutter)
                 .padding(.vertical, 12)
-                .background(Brand.surface)
+                .background(Brand.chrome)
         }
         .frame(width: Self.width)
-        .background(Brand.bg)
+        .background(Brand.content)
         .onAppear { model.refreshRollup(force: true) }
     }
 
@@ -232,13 +240,7 @@ struct MenuBarView: View {
                     .padding(.top, 8)
             }
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Brand.bgRaised, in: RoundedRectangle(cornerRadius: Self.cardRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Self.cardRadius, style: .continuous)
-                .strokeBorder(Brand.line, lineWidth: 1)
-        )
     }
 
     /// The number is shown, always, and in the unit the model actually works in. A
@@ -294,14 +296,25 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: Actions, one primary control, one quiet row
+    // MARK: Actions, a short transcript with one button in it
 
-    /// The primary control is filled amber only while a break is due or in progress,
-    /// which is when it is the point of opening the panel; the rest of the day it is
-    /// outlined. Everything else is a quiet button in one row, in the same vocabulary,
-    /// with Quit set apart on the right so leaving never sits next to acting.
+    /// Exactly one control in this panel is drawn as a button, and it is the one the
+    /// panel exists to offer. It is outlined while nothing is owed and filled amber the
+    /// moment a break is due, which is the only colour change in the body.
+    ///
+    /// Everything else is a quiet control: a label at text weight that fills under the
+    /// pointer, like a menu item. They were rectangles of the same value as the primary,
+    /// so five things asked for attention equally and the panel read as a stack of slabs.
+    /// Nothing is hidden by this, the labels are all still there at 7:1 against the
+    /// background, and each one is still a real button to VoiceOver and to the keyboard.
+    ///
+    /// What replaces the box is the mark column. The block reads as a session: `→` is
+    /// the app's line, `❯` is a line you can give it, and the two glyphs sit on one
+    /// vertical rule so the difference between them is the only thing that moves. A
+    /// borderless control needs standing evidence that it is a control, and brightness
+    /// alone was carrying that on its own.
     private var actions: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             /// Always. Not sometimes.
             ///
             /// A panel that says nothing when it is quiet is indistinguishable from a
@@ -309,72 +322,73 @@ struct MenuBarView: View {
             /// app rather than filing a bug. The claim in front of the sentence says
             /// which kind of quiet this is; `WaitingLine` owns both.
             ///
-            /// It reads before the buttons because it is the reason for them. Wedged
-            /// between two rows of controls, which is where it sat, it split one group of
-            /// buttons into two unrelated ones and explained neither.
+            /// It reads before the button because it is the reason for it.
             hold(model.waiting.text)
-                .padding(.bottom, 2)
 
-            HStack(spacing: 8) {
-                if model.isOnBreak {
-                    TerminalButton("Resume · SIGCONT", style: .filled) { model.endBreak() }
-                } else {
-                    TerminalButton("Take a break now", style: breakWanted ? .filled : .outlined) {
-                        model.takeBreakNow()
-                    }
-                    if model.canSnooze {
-                        TerminalButton("Snooze · SIGALRM") { model.snooze() }
-                            .fixedSize()
-                    }
+            if model.isOnBreak {
+                TerminalButton("Resume · SIGCONT", style: .filled, mark: Self.command) {
+                    model.endBreak()
+                }
+            } else {
+                TerminalButton(
+                    "Take a break now",
+                    style: breakWanted ? .filled : .outlined,
+                    mark: Self.command
+                ) { model.takeBreakNow() }
+            }
+
+            /// The answers that are not "yes", each on its own line under the one that
+            /// is. They were a wrapping row, which meant "Snooze · SIGALRM" beside
+            /// "Ignore this input device · 20m" either wrapped anyway or squeezed; a
+            /// command per line is both the honest shape and the one that never squeezes.
+            if !model.isOnBreak, model.canSnooze {
+                TerminalButton("Snooze · SIGALRM", style: .quiet, mark: Self.command) {
+                    model.snooze()
                 }
             }
-
+            meetingControl
             if let version = model.updates.state.offeredVersion {
-                TerminalButton("Update to \(version)…") { openSettings() }
-            }
-
-            /// The call hold says so continuously, in words, with a way out one click
-            /// away. `--doctor` is not a safety valve, because nobody runs it; this is.
-            /// Twenty minutes of silence is the largest thing the app ever does without
-            /// being asked, and a user who cannot see it happening cannot report it.
-            if model.callHoldSummary != nil {
-                /// No sentence here. The waiting line above already says the hold is in
-                /// force and why, and printing it again between two buttons is how this
-                /// corner got two contradicting claims in adjacent rows.
-                TerminalButton("Not in a meeting", style: .quiet) { model.clearMeetingHold() }
-            } else if model.inputDeviceIsHoldingABreak {
-                /// The same button, named for what it actually does here. Offering "I'm
-                /// in a meeting" while the line above says a device is open and nobody is
-                /// using it is the panel contradicting itself in two adjacent rows, and
-                /// this is the one Mac where the answer matters.
-                TerminalButton(model.ignoreInputDeviceLabel, style: .quiet) { model.clearMeetingHold() }
-            } else {
-                /// Full width, like the primary above it. At its intrinsic size it sat
-                /// short and left-aligned under a full-width button, which is the ragged
-                /// edge that made this corner look unfinished.
-                TerminalButton("I'm in a meeting", style: .quiet) { model.assertMeeting() }
+                TerminalButton("Update to \(version)…", style: .quiet, mark: Self.command) {
+                    openSettings()
+                }
             }
 
             /// Everything below the rule is app chrome rather than an answer to the
-            /// prompt, and it is separated so the eye stops at the actions first.
-            Rectangle()
-                .fill(Brand.line)
-                .frame(height: 1)
-                .padding(.top, 4)
+            /// prompt, and it is separated so the eye stops at the button first.
+            Rule()
+                .padding(.top, 2)
 
-            HStack(spacing: 4) {
+            QuietRow {
                 if model.pausedUntil == nil {
                     TerminalButton("Pause · 1h", style: .quiet) { model.pause(for: 3600) }
-                        .fixedSize()
                 } else {
                     TerminalButton("Resume", style: .quiet) { model.resume() }
-                        .fixedSize()
                 }
                 TerminalButton("Settings…", style: .quiet) { openSettings() }
-                    .fixedSize()
                 Spacer(minLength: 0)
                 TerminalButton("Quit", style: .quiet) { NSApp.terminate(nil) }
-                    .fixedSize()
+            }
+            .padding(.trailing, -TerminalButton.quietInset)
+        }
+    }
+
+    /// One control with three names. Which one is showing depends on what the app
+    /// currently believes, and offering "I'm in a meeting" while the line above says a
+    /// device is already holding a break is the panel contradicting itself in two
+    /// adjacent rows.
+    @ViewBuilder
+    private var meetingControl: some View {
+        if model.callHoldSummary != nil {
+            TerminalButton("Not in a meeting", style: .quiet, mark: Self.command) {
+                model.clearMeetingHold()
+            }
+        } else if model.inputDeviceIsHoldingABreak {
+            TerminalButton(model.ignoreInputDeviceLabel, style: .quiet, mark: Self.command) {
+                model.clearMeetingHold()
+            }
+        } else {
+            TerminalButton("I'm in a meeting", style: .quiet, mark: Self.command) {
+                model.assertMeeting()
             }
         }
     }
@@ -388,13 +402,16 @@ struct MenuBarView: View {
     /// where it was, telling a user it was running while it had no intention of saying
     /// anything for an hour.
     private func hold(_ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("→")
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(Self.output)
+                .frame(width: TerminalButton.markGutter, alignment: .leading)
             Text(text)
                 .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
         .font(Brand.mono(10.5))
         .foregroundStyle(Brand.fgMuted)
+        .padding(.horizontal, TerminalButton.markInset)
     }
 
     private var breakWanted: Bool {

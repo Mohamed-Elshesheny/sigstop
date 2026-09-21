@@ -25,7 +25,28 @@ enum Brand {
 
     static let fg = dynamic(light: 0x17191C, dark: 0xE8EAED)
     static let fgMuted = dynamic(light: 0x53585E, dark: 0x9AA2AD)
+
+    /// Not for text. On `bgRaised` in dark this measures 3.33:1, under the 4.5:1 that
+    /// 9 to 12 point type needs, so it is for disabled glyphs, dots, marks and borders
+    /// and nothing that has to be read. Quietness in a paragraph is bought with size and
+    /// weight instead.
     static let fgFaint = dynamic(light: 0x6B7177, dark: 0x656D78)
+
+    // MARK: Planes
+
+    /// The back plane: chrome that frames content, such as the panel's header and footer.
+    ///
+    /// A surface that frames content has to be *behind* it. The panel painted its header
+    /// and footer one step lighter than the body between them, so in dark mode the chrome
+    /// read as sitting in front of the thing it framed, which is backwards. These two
+    /// names are roles rather than new colours, and they are roles rather than one token
+    /// because the answer differs by appearance: recessed means darker in both, and in
+    /// light the body is already the palest thing in the ramp. `chrome` is `surface` in
+    /// light and `bg` in dark; `content` is `bg` in light and `bgRaised` in dark.
+    static let chrome = dynamic(light: 0xF4F4F1, dark: 0x101317)
+
+    /// The plane content sits on, one step in front of `chrome` in both appearances.
+    static let content = dynamic(light: 0xFBFBF9, dark: 0x171A1F)
 
     // MARK: Signal colours
 
@@ -217,33 +238,62 @@ struct Rule: View {
 
 // MARK: - Controls
 
-/// A flat, dense, monospaced button in three weights.
+/// A control in three weights, of which only one is a box.
 ///
 /// `.filled` is amber with near-black text and is for the one action a surface exists
 /// for, `SIGCONT` on the overlay, "Take it" on the prompt. `.outlined` is the ordinary
-/// button. `.quiet` has no border at rest and is for a third action that should not
-/// compete with the first two. `Button(.bordered)` is the thing that made the old panes
-/// look like a system preference pane, so nothing here uses it.
+/// button and is the only other style that draws a container. `.quiet` draws nothing at
+/// rest: it is a label at text weight that gains a fill under the pointer, the way a menu
+/// item does, so a pane full of secondary actions does not read as a stack of grey slabs.
+///
+/// **A control that cannot be undone keeps its box.** Delete, and anything else that
+/// opens a confirmation it is possible to mean, is `.outlined` wherever it appears.
+/// Quiet is discoverable because of where it sits and what it sits next to, and that is
+/// a thin thing to be resting the app's one irreversible action on.
+///
+/// `mark` puts a glyph in a fixed gutter in front of the label and makes the control
+/// full width. The panel uses it so its commands share one column with the app's own
+/// output line: `→` is the app talking, `❯` is something you can say back. It earns its
+/// keep on the styles that have no box, where it is the only standing evidence that a
+/// line is pressable rather than printed. Settings never sets it, because nothing there
+/// is an answer to a question the app just asked.
+///
+/// A quiet control is still a real `Button`, so VoiceOver announces it as a button and
+/// Full Keyboard Access reaches it; the focus ring is drawn here rather than by the
+/// system, because the system's is the one blue in an otherwise amber product.
 struct TerminalButton: View {
     enum Style { case filled, outlined, quiet }
 
+    /// How far a quiet control's hover fill reaches past its label. `QuietRow` hands it
+    /// back to the layout so the words, not the highlights, make the straight edge.
+    static let quietInset: CGFloat = 8
+
+    /// The mark column. `markInset` is the boxed styles' own horizontal padding, so a
+    /// boxed command and an unboxed one put their glyphs on the same vertical line, and
+    /// `markGutter` is wide enough that their labels do too.
+    static let markInset: CGFloat = 12
+    static let markGutter: CGFloat = 15
+
     let title: String
     var style: Style = .outlined
+    var mark: String? = nil
     var enabled: Bool = true
     var shortcut: KeyboardShortcut? = nil
     let action: () -> Void
 
-    @State private var hovering = false
+    @FocusState private var focused: Bool
 
     init(
         _ title: String,
         style: Style = .outlined,
+        mark: String? = nil,
         enabled: Bool = true,
         shortcut: KeyboardShortcut? = nil,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.style = style
+        self.mark = mark
         self.enabled = enabled
         self.shortcut = shortcut
         self.action = action
@@ -252,22 +302,16 @@ struct TerminalButton: View {
     var body: some View {
         let button = Button(action: action) {
             Text(title)
-                .font(Brand.mono(11, weight: weight))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
+                .font(Brand.mono(11, weight: style.weight))
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(foreground)
-        .background(background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .strokeBorder(border, lineWidth: 1)
+        .buttonStyle(
+            TerminalButtonStyle(style: style, mark: mark, enabled: enabled, focused: focused)
         )
         .opacity(enabled ? 1 : 0.45)
-        .onHover { hovering = $0 }
         .disabled(!enabled)
+        .focusable(enabled)
+        .focusEffectDisabled()
+        .focused($focused)
 
         if let shortcut {
             button.keyboardShortcut(shortcut)
@@ -275,40 +319,178 @@ struct TerminalButton: View {
             button
         }
     }
+}
 
-    /// Quiet buttons are the site's ghost links: regular weight, muted on a surface at rest, and only
-    /// as bright as ordinary text under the pointer. They must never weigh as much as the
-    /// primary control they sit under.
-    private var weight: NSFont.Weight {
-        switch style {
+extension TerminalButton.Style {
+
+    /// Weight is the hierarchy now that two of the three styles have no container: the
+    /// primary is semibold on amber, the ordinary button is medium in a box, and a quiet
+    /// control is set at the same weight as the text around it.
+    var weight: NSFont.Weight {
+        switch self {
         case .filled: return .semibold
         case .outlined: return .medium
         case .quiet: return .regular
         }
     }
 
-    private var foreground: Color {
-        switch style {
-        case .filled: return Brand.onAmber
-        case .outlined: return Brand.fg
-        case .quiet: return hovering ? Brand.fg : Brand.fgMuted
-        }
+    var boxed: Bool { self != .quiet }
+}
+
+/// Draws the three styles, and is a `ButtonStyle` rather than a modifier stack so the
+/// pressed state is real. A control with no border at rest has to answer the click
+/// somehow, and dimming it on press is the only feedback left once the box is gone.
+private struct TerminalButtonStyle: ButtonStyle {
+    let style: TerminalButton.Style
+    let mark: String?
+    let enabled: Bool
+    let focused: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        Face(
+            configuration: configuration,
+            style: style,
+            mark: mark,
+            enabled: enabled,
+            focused: focused
+        )
     }
 
-    private var background: Color {
-        switch style {
-        case .filled: return hovering && enabled ? Brand.amberFill.opacity(0.88) : Brand.amberFill
-        case .outlined: return hovering && enabled ? Brand.surfaceHi : Brand.surface
-        case .quiet: return hovering && enabled ? Brand.surfaceHi : Brand.surface
+    private struct Face: View {
+        let configuration: TerminalButtonStyle.Configuration
+        let style: TerminalButton.Style
+        let mark: String?
+        let enabled: Bool
+        let focused: Bool
+
+        @State private var hovering = false
+
+        private var shape: RoundedRectangle {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+        }
+
+        private var pressed: Bool { configuration.isPressed && enabled }
+        private var hot: Bool { hovering && enabled }
+
+        var body: some View {
+            content
+                .padding(.horizontal, marked || style.boxed
+                    ? TerminalButton.markInset
+                    : TerminalButton.quietInset)
+                .padding(.vertical, style.boxed ? 6 : 5)
+                .frame(maxWidth: marked || style.boxed ? .infinity : nil, alignment: .leading)
+                .contentShape(Rectangle())
+                .foregroundStyle(foreground)
+                .background(background, in: shape)
+                .overlay(shape.strokeBorder(border, lineWidth: 1))
+                .overlay(focusRing)
+                .onHover { hovering = $0 }
+        }
+
+        private var marked: Bool { mark != nil }
+
+        /// An unmarked control centres its label, because that is what every other pane
+        /// in the app expects of a button. A marked one cannot: the glyph column only
+        /// means anything if the labels start at the same x as well.
+        @ViewBuilder
+        private var content: some View {
+            if let mark {
+                HStack(spacing: 0) {
+                    Text(mark)
+                        .font(Brand.mono(11, weight: .medium))
+                        .foregroundStyle(markInk)
+                        .frame(width: TerminalButton.markGutter, alignment: .leading)
+                    configuration.label
+                    Spacer(minLength: 0)
+                }
+            } else {
+                configuration.label.frame(maxWidth: style.boxed ? .infinity : nil)
+            }
+        }
+
+        /// The one place in the body where amber is spent while nothing is due: a single
+        /// glyph on the single offered command. When that command becomes the amber block
+        /// the glyph is punched out of it instead.
+        ///
+        /// Every other mark is at the tone the app's own output line uses, so the column
+        /// reads as one column and the shape of the glyph, not its brightness, is what
+        /// separates a line you can give from a line the app printed. `fgFaint` was the
+        /// first try and measured 3.33:1 in dark, which is a thin thing to rest the only
+        /// standing evidence that a borderless line is pressable on.
+        private var markInk: Color {
+            switch style {
+            case .filled: return Brand.onAmber.opacity(0.55)
+            case .outlined: return Brand.amber
+            case .quiet: return Brand.fgMuted
+            }
+        }
+
+        @ViewBuilder
+        private var focusRing: some View {
+            if focused, enabled {
+                shape.inset(by: -2).strokeBorder(Brand.amber, lineWidth: 1.5)
+            }
+        }
+
+        /// A marked quiet control is at full text strength, because it is an answer to
+        /// the question the panel just asked and it has a glyph saying so. An unmarked
+        /// one is chrome, the row of housekeeping under the rule, and chrome that is as
+        /// black as the thing it sits under is the loudest thing on a panel where
+        /// nothing is happening. It brightens to full strength under the pointer.
+        private var foreground: Color {
+            switch style {
+            case .filled: return Brand.onAmber
+            case .outlined: return Brand.fg
+            case .quiet:
+                if marked { return Brand.fg }
+                return hot || pressed ? Brand.fg : Brand.fgMuted
+            }
+        }
+
+        /// Quiet has no fill at rest and the same two fills as everything else once the
+        /// pointer is on it, so the whole panel highlights in one language.
+        private var background: Color {
+            switch style {
+            case .filled:
+                if pressed { return Brand.amberFill.opacity(0.78) }
+                return hot ? Brand.amberFill.opacity(0.88) : Brand.amberFill
+            case .outlined:
+                if pressed { return Brand.lineHi }
+                return hot ? Brand.surfaceHi : Brand.surface
+            case .quiet:
+                if pressed { return Brand.lineHi }
+                return hot ? Brand.surfaceHi : .clear
+            }
+        }
+
+        private var border: Color {
+            switch style {
+            case .filled: return .clear
+            case .outlined: return Brand.fgFaint
+            case .quiet: return .clear
+            }
         }
     }
+}
 
-    private var border: Color {
-        switch style {
-        case .filled: return .clear
-        case .outlined: return hovering && enabled ? Brand.fgFaint : Brand.lineHi
-        case .quiet: return .clear
+/// A row of quiet controls whose *labels* line up with the margin.
+///
+/// A quiet control pads itself so the fill it draws under the pointer is bigger than the
+/// word inside it. Left unattended that padding pushes the label 8 points right of the
+/// button above it, which is the ragged edge these panes have already been fixed for
+/// once. The row bleeds that padding back out: the highlight still has its margin, it
+/// just takes it from the gutter. A row of one is the right way to place a lone quiet
+/// control, which is why this is not called a row of two or more.
+/// A marked quiet control does not need this: its own leading inset is the mark column's,
+/// which already lines up with the boxed control above it.
+struct QuietRow<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 4) {
+            content
         }
+        .padding(.leading, -TerminalButton.quietInset)
     }
 }
 
