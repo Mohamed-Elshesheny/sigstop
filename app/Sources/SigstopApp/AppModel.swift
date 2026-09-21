@@ -155,7 +155,7 @@ final class AppModel {
             return continuousWork
         }
         guard continuousWorkMeasuredAt > 0 else { return continuousWork }
-        let elapsed = time.monotonicSeconds - continuousWorkMeasuredAt
+        let elapsed = time.continuousSeconds - continuousWorkMeasuredAt
         guard elapsed > 0, elapsed < 60 else { return continuousWork }
         return continuousWork + elapsed
     }
@@ -336,7 +336,7 @@ final class AppModel {
             of: time.now, calendar: .current, boundaryHour: policy.dayBoundaryHour
         )
         self.latch = MeetingLatch
-            .started(at: time.monotonicSeconds, wall: time.now, dayIndex: dayIndex)
+            .started(at: time.continuousSeconds, wall: time.now, dayIndex: dayIndex)
             .restoringDailyHold(seconds: CallHoldLedger.load(dayIndex: dayIndex), dayIndex: dayIndex)
     }
 
@@ -518,7 +518,7 @@ final class AppModel {
         let sample = await sensors.context.sampleAndPublish()
         let raw = sensors.readSignals()
         let now = time.now
-        let monotonic = time.monotonicSeconds
+        let monotonic = time.continuousSeconds
 
         let tickSample = TickSample(
             idleSeconds: raw.input.knownIdleSeconds ?? 0,
@@ -644,7 +644,7 @@ final class AppModel {
 
     /// The menu bar's "why?" line, when the app is holding a break for a call.
     var callHoldSummary: String? {
-        latchSignal(now: time.now, monotonic: time.monotonicSeconds).summary
+        latchSignal(now: time.now, monotonic: time.continuousSeconds).summary
     }
 
     /// True while a live input device, and not the latch, is what is holding a break.
@@ -665,7 +665,7 @@ final class AppModel {
     /// reach: a Meet call in Safari, a screen share with the microphone muted, and a
     /// phone dial-in while presenting from the Mac.
     func assertMeeting() {
-        latch = latch.assertedByUser(at: time.monotonicSeconds, policy: latchPolicy)
+        latch = latch.assertedByUser(at: time.continuousSeconds, policy: latchPolicy)
         Task { [weak self] in await self?.tick() }
     }
 
@@ -679,8 +679,8 @@ final class AppModel {
     /// latch's own `latchManualInhibit`, because a mute button that never expires is what
     /// `MeetingLatch` already refuses to be.
     func clearMeetingHold() {
-        latch = latch.clearedByUser(at: time.monotonicSeconds, policy: latchPolicy)
-        micInhibitUntilMono = time.monotonicSeconds + latchPolicy.latchManualInhibit
+        latch = latch.clearedByUser(at: time.continuousSeconds, policy: latchPolicy)
+        micInhibitUntilMono = time.continuousSeconds + latchPolicy.latchManualInhibit
         micInhibitUntil = time.now.addingTimeInterval(latchPolicy.latchManualInhibit)
         Task { [weak self] in await self?.tick() }
     }
@@ -1057,7 +1057,7 @@ final class AppModel {
         sample: ContextSample, context: DeveloperContext, outcome: EngineOutcome
     ) {
         continuousWork = context.continuousWork
-        continuousWorkMeasuredAt = time.monotonicSeconds
+        continuousWorkMeasuredAt = time.continuousSeconds
         timeSinceLastBreak = context.timeSinceLastBreak
         /// The site when Tier 1b knows one, the app otherwise; the reasoning is on the
         /// property. `--doctor` prints the same one, so it can prove what this line draws.
@@ -1138,7 +1138,7 @@ final class AppModel {
     /// The sentence itself now comes from `WaitingLine` in `Core`, where it can be
     /// asserted against the real engine; this is only the wiring.
     private func publishHold(gate: GateReason?) {
-        let monotonic = time.monotonicSeconds
+        let monotonic = time.continuousSeconds
         workTargetInForce = true
         if case .working(let w) = engineState {
             workTarget = w.armThreshold

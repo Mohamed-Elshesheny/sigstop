@@ -30,7 +30,7 @@ public struct CallCapableApp: Sendable, Codable, Hashable {
 /// able to inherit a guess, and the cheapest way to guarantee that is to make the guess
 /// unrepresentable in its input.
 public struct MeetingLatchInput: Sendable, Hashable {
-    /// From `TimeSource.monotonicSeconds`. Every duration in the latch is a difference of
+    /// From `TimeSource.continuousSeconds`. Every duration in the latch is a difference of
     /// two of these; the latch never reads a clock itself (CLAUDE.md §3.2).
     public var monotonic: Double
     /// From `TimeSource.now`. Used to notice an unobserved gap and for display. Never to

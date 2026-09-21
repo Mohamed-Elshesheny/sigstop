@@ -79,7 +79,7 @@ public enum GapClassificationKind: String, Sendable, Codable, Hashable {
 ///
 /// Two rules carry the whole design:
 ///
-/// 1. **Durations come from `TimeSource.monotonicSeconds`, never from `now`.** The wall clock
+/// 1. **Durations come from `TimeSource.continuousSeconds`, never from `now`.** The wall clock
 ///    steps (NTP, DST, a user setting the date) and a stepped wall clock must not be able to
 ///    fabricate work or a break. `now` is used for timestamps and for calendar questions only.
 /// 2. **A tick never trusts its own interval.** A tick that lands later than
@@ -129,7 +129,7 @@ public struct SessionTracker: Sendable {
         self.policy = policy
         self.calendar = calendar
         let now = time.now
-        let mono = time.monotonicSeconds
+        let mono = time.continuousSeconds
         self.session = DeveloperSession(startedAt: now)
         self.lastTickMono = mono
         self.lastTickWall = now
@@ -148,7 +148,7 @@ public struct SessionTracker: Sendable {
     @discardableResult
     public mutating func beginBreak(origin: BreakOrigin) -> [SessionEvent] {
         let now = time.now
-        let mono = time.monotonicSeconds
+        let mono = time.continuousSeconds
         session.revokeProvisionalCredit()
         session.pauseClock(cause: .breakActive, since: now)
         gap = ActiveGap(cause: .breakActive, startMono: mono, startWall: now, paused: true)
@@ -161,7 +161,7 @@ public struct SessionTracker: Sendable {
     @discardableResult
     public mutating func endBreak(origin: BreakOrigin) -> [SessionEvent] {
         let now = time.now
-        let mono = time.monotonicSeconds
+        let mono = time.continuousSeconds
         var events: [SessionEvent] = []
         let start = breakStart?.wall ?? gap?.startWall ?? now
         let duration = mono - (breakStart?.mono ?? gap?.startMono ?? mono)
@@ -191,7 +191,7 @@ public struct SessionTracker: Sendable {
     public mutating func tick(_ sample: TickSample) -> [SessionEvent] {
         var events: [SessionEvent] = []
         let now = time.now
-        let mono = time.monotonicSeconds
+        let mono = time.continuousSeconds
 
         let delta = max(0, mono - lastTickMono)
         let wallDelta = now.timeIntervalSince(lastTickWall)

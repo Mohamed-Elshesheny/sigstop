@@ -114,7 +114,12 @@ harness. A test that needs a logged-in window server is a test that never runs i
 
 ### 3.2 Time is injected, never read
 
-`Core` must never call `Date()`, `Date.now`, or `DispatchTime.now()`. It takes a `TimeSource`.
+`Core` must never read a clock directly. Not `Date()`, not `Date.now`, not
+`DispatchTime.now()`, not `clock_gettime`, not `mach_absolute_time`. It takes a `TimeSource`.
+
+Stated as a shape rather than a list of three API names, because the list was the three names
+and `SystemTimeSource` now calls `clock_gettime`, which the list did not cover. The rule was
+never about those functions.
 Production passes the system clock; tests pass a fake one and advance it by hand.
 
 Consequence: "45 minutes of continuous work triggers a break" is a unit test that runs in
