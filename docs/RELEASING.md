@@ -136,7 +136,7 @@ Commit this on its own, as a `chore` or `build` commit, before anything is built
 
 ```sh
 cd app
-make test      # 83 tests, Core only, no GUI session needed
+make test      # 231 tests, Core only, no GUI session needed
 make bundle    # assembles and signs dist/sigstop.app, embedding Sparkle.framework
 make verify    # asserts the privacy claims against the bundle you just built
 ```
