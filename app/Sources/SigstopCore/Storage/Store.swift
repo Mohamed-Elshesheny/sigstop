@@ -144,14 +144,10 @@ extension EventStore {
         let before = merged.last { $0.at < interval.start }
         return ((before.map { [$0] } ?? []) + inWindow, malformed)
     }
-
 }
 
 public enum Retention {
     public static let defaultEventDays = 7
-    public static let minimumEventDays = 0
-    public static let maximumEventDays = 365
-
 }
 
 public final class InMemoryEventStore: EventStore, @unchecked Sendable {

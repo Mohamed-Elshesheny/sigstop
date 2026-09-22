@@ -140,7 +140,6 @@ public struct SystemSignals: Sendable, Codable, Hashable {
     public var isPowerConstrained: Bool {
         lowPowerMode || (!isCharging && (batteryFraction ?? 1) < 0.20)
     }
-
 }
 
 public struct CalendarSignals: Sendable, Codable, Hashable {

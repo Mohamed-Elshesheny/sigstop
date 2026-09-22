@@ -517,7 +517,6 @@ final class AppModel {
 
         case .recordSnooze:
             tracker.recordSnooze()
-
         }
     }
 

@@ -768,7 +768,6 @@ struct SettingsView: View {
                 }
             }
             .padding(.top, 12)
-
         }
     }
 

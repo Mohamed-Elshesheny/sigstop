@@ -18,7 +18,6 @@ public extension EscalationLevel {
     }
 
     var signalName: String { signal.rawValue }
-
 }
 
 public enum PromptChannel: String, Sendable, Codable, Hashable {
@@ -93,7 +92,6 @@ public enum CycleOutcome: String, Sendable, Codable, Hashable {
     case expired
     case quietSuppressed
     case dailyCapReached
-
 }
 
 public enum QuietCause: String, Sendable, Codable, CaseIterable, Hashable {
