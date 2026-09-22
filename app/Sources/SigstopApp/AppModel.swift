@@ -133,6 +133,7 @@ final class AppModel {
     @ObservationIgnored private var seamsForNextStep: Set<Seam> = []
     @ObservationIgnored private var latch = MeetingLatch()
     @ObservationIgnored private var lastPersistedHold: TimeInterval = 0
+    @ObservationIgnored private var lastPruneMono: Double = 0
     @ObservationIgnored private var micInhibitUntilMono: Double = 0
     @ObservationIgnored private var micInhibitUntil: Date?
     @ObservationIgnored private var unheldDeviceSince: Double?
@@ -639,6 +640,11 @@ final class AppModel {
             lastStoreError = "Could not open \(AppPaths.storageRoot.path), \(error)"
             return
         }
+        pruneOldLogs()
+    }
+
+    private func pruneOldLogs() {
+        lastPruneMono = time.continuousSeconds
         do {
             try store?.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
         } catch {
@@ -746,6 +752,7 @@ final class AppModel {
         }
 
         refreshRollup(force: false)
+        if time.continuousSeconds - lastPruneMono >= 3600 { pruneOldLogs() }
     }
 
     private func publishGitReading(context: DeveloperContext) {
