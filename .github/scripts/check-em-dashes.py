@@ -28,15 +28,17 @@ for message in json.loads(corpus.read_text())["messages"]:
 
 STRING = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
 
-# The one escape hatch, and it is a comment rather than a path list so that using it is
-# visible on the line that needs it instead of in a file nobody opens. It is for a literal
-# the app *matches against*: `TitleParsing.separators` has to contain the exact character
-# VS Code puts in its window title, and a rule about prose has no business reaching it.
-ALLOWED = "em dash is data"
+# The one escape hatch, keyed to the declaration by name rather than to a comment, because
+# the source no longer carries comments to key it to. It is for a literal the app MATCHES
+# AGAINST: `separators` has to contain the exact character VS Code puts in its window title,
+# and a rule about prose has no business reaching it.
+ALLOWED_NAMES = ("separators",)
 
 for path in sorted((ROOT / "app/Sources").rglob("*.swift")):
     for number, line in enumerate(path.read_text().splitlines(), 1):
-        if line.lstrip().startswith("//") or ALLOWED in line:
+        if line.lstrip().startswith("//"):
+            continue
+        if any(name in line for name in ALLOWED_NAMES) and ("let " in line or "var " in line):
             continue
         for literal in STRING.findall(line):
             if DASH in literal:
