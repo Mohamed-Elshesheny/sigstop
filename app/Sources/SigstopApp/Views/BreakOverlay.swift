@@ -224,7 +224,7 @@ struct BreakOverlayView: View {
                 resume
                     .padding(.top, 44)
 
-                Text("Your process is stopped, not killed. Escape resumes.")
+                Text("Your process is stopped, not killed. SIGCONT resumes.")
                     .font(Brand.mono(12))
                     .foregroundStyle(Brand.Dark.fgMuted)
                     .padding(.top, 20)
@@ -339,7 +339,7 @@ struct FallbackPromptView: View {
                     .padding(.top, message.title == nil ? 34 : 14)
 
                 HStack(spacing: 14) {
-                    TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
+                    TerminalButton("Take it", style: .filled, action: onTake)
                         .fixedSize()
                     if standsInForNotification {
                         if !request.snoozeOffered.isEmpty {
@@ -355,8 +355,8 @@ struct FallbackPromptView: View {
                 .padding(.top, 44)
 
                 Text(isIncident
-                     ? "esc to ignore, then it leaves you alone for \(DurationText.short(quietAfterLast))"
-                     : "esc to ignore, it asks again in a few minutes")
+                     ? "ignore it, and it leaves you alone for \(DurationText.short(quietAfterLast))"
+                     : "ignore it, and it asks again in a few minutes")
                     .font(Brand.mono(11))
                     .foregroundStyle(Brand.Dark.fgFaint)
                     .padding(.top, 18)

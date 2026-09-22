@@ -1073,7 +1073,9 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   escape hatch and it is deliberately cheap to use.
 - **Skip is not the cheap gesture, and the UI must not let it look like one.** Twenty minutes of
   silence is the longest suppression in the engine, so the control that buys it says so, and Escape
-  does not call it. Escape and *Ignore it* take the panel down and tell the engine nothing, so the
+  does not call it. Escape and *Ignore it* take the panel down and tell the engine nothing (Escape
+  reaches the panel only after a click on it, because the panel never takes the keyboard from the app
+  you are in, which may be showing a password field), so the
   prompt stands in the engine: `promptTimeout` (90 s) after it was delivered it is classified
   ignored, which is what §10 means by ignored and what the product means by a rung you are allowed
   to catch. The next rung waits for its own ladder time (§11, L2 at `t0 + 5 min`), and after L4 the
