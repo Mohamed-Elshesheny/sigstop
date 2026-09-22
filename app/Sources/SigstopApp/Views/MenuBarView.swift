@@ -51,7 +51,6 @@ struct MenuBarView: View {
         }
         .frame(width: Self.width)
         .background(Brand.content)
-        .onAppear { model.refreshRollup(force: true) }
     }
 
     private var header: some View {
