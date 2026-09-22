@@ -137,6 +137,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         content.sizingOptions = [.preferredContentSize]
         content.onPreferredContentSizeChange = { [weak self] in self?.layoutPanel() }
         panel.contentViewController = content
+        panel.contentView = nil
         panel.delegate = self
         panel.onCancel = { [weak self] in self?.dismiss() }
 
