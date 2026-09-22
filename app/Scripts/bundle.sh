@@ -52,7 +52,18 @@ echo "==> swift build -c ${CONFIG}"
 swift build -c "${CONFIG}"
 
 if [ "${UNIVERSAL}" = "1" ]; then
-  ARM=".build/$(uname -m)-apple-macosx/${CONFIG}/${APP_NAME}"
+  # This machine builds arm64; the x86_64 slice is cross-built (see dmg.sh). On an Intel
+  # Mac `uname -m` is x86_64, so ARM and X86 would name the same file and `lipo -create`
+  # would fail on two identical slices with a message about neither cause nor fix. A
+  # universal release therefore has to be cut from Apple Silicon, and this says so instead
+  # of failing obscurely.
+  if [ "$(uname -m)" != "arm64" ]; then
+    echo "error: UNIVERSAL=1 builds the arm64 slice natively and cross-builds x86_64, so it" >&2
+    echo "       has to run on an Apple Silicon Mac. This is $(uname -m)." >&2
+    echo "       For a local build without the second slice, drop UNIVERSAL=1." >&2
+    exit 1
+  fi
+  ARM=".build/arm64-apple-macosx/${CONFIG}/${APP_NAME}"
   X86=".build/x86_64-apple-macosx/${CONFIG}/${APP_NAME}"
   [ -f "${ARM}" ] && [ -f "${X86}" ] || {
     echo "error: expected both slices, found:" >&2
@@ -75,9 +86,25 @@ cp Resources/sigstop.icns "${BUNDLE}/Contents/Resources/"
 
 # SwiftPM emits resource bundles next to the binary; the app expects them inside
 # Contents/Resources, so copy any that exist.
-for b in .build/"${CONFIG}"/*.bundle; do
-  [ -e "$b" ] && cp -R "$b" "${BUNDLE}/Contents/Resources/"
+#
+# The message corpus lives in one of these, and the app dies at launch without it. That is
+# not hypothetical: it is exactly what shipped through v0.1.5. So this is a guard, not a
+# best-effort copy. A universal build resolves the bundles under a per-arch directory, a
+# native one under .build/<config> directly; check both, and refuse to assemble an app
+# with no corpus rather than hand one to `make smoke` to reject later.
+COPIED_CORPUS=0
+for dir in ".build/${CONFIG}" ".build/arm64-apple-macosx/${CONFIG}" ".build/x86_64-apple-macosx/${CONFIG}"; do
+  for b in "${dir}"/*.bundle; do
+    [ -e "$b" ] || continue
+    cp -R "$b" "${BUNDLE}/Contents/Resources/"
+    case "$b" in *SigstopCore.bundle) COPIED_CORPUS=1 ;; esac
+  done
 done
+if [ "${COPIED_CORPUS}" -ne 1 ] || [ ! -f "${BUNDLE}/Contents/Resources/${APP_NAME}_SigstopCore.bundle/corpus.json" ]; then
+  echo "error: the SigstopCore resource bundle with corpus.json is not in the app." >&2
+  echo "       Without it the app dies at launch on every machine (this was the v0.1.5 bug)." >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Sparkle
@@ -136,9 +163,13 @@ if [ -d "${SPARKLE_IN_BUNDLE}" ]; then
     "${SPARKLE_IN_BUNDLE}/Versions/B/Autoupdate" \
     "${SPARKLE_IN_BUNDLE}/Versions/B/Updater.app"
   do
-    [ -e "${nested}" ] && sign "${nested}" || true
+    # `|| true` guarded only the "path absent" case and swallowed a real signing
+    # failure with it. A nested piece that will not sign produces a framework whose
+    # outer signature seals a broken inner one, and the app dies at launch on a
+    # machine stricter than the one that built it. If the path is there, it has to sign.
+    if [ -e "${nested}" ]; then sign "${nested}"; fi
   done
-  sign "${SPARKLE_IN_BUNDLE}" || true
+  sign "${SPARKLE_IN_BUNDLE}"
 fi
 
 # Hardened runtime is now OPT-IN, and the reason is worth reading before you turn
@@ -177,6 +208,18 @@ codesign --force --sign "${SIGN_IDENTITY}" \
          --entitlements Resources/sigstop.entitlements \
          ${RUNTIME_FLAGS[@]+"${RUNTIME_FLAGS[@]}"} \
          "${BUNDLE}" 2>&1 | sed 's/^/    /'
+
+# The seal, checked. Every failure above this point was either swallowed or trusted, and
+# nothing ever asked codesign whether the finished bundle actually verifies. --deep --strict
+# walks the nested code the same way Gatekeeper does on a strict machine, which is the one
+# this build has never run on.
+echo "==> verifying the signature"
+if codesign --verify --deep --strict --verbose=1 "${BUNDLE}" 2>&1 | sed 's/^/    /'; then
+  echo "    valid on disk, seal intact through the nested code"
+else
+  echo "error: the assembled bundle does not verify, so it would be refused where it counts" >&2
+  exit 1
+fi
 
 echo
 echo "built ${BUNDLE}"
