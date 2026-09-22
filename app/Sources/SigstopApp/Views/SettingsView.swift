@@ -869,8 +869,14 @@ struct SettingsView: View {
                         TerminalButton("Later") { updater.dismiss() }.fixedSize()
                     case .downloading, .checking:
                         TerminalButton("Cancel") { updater.dismiss() }.fixedSize()
-                    case .extracting, .installing:
+                    case .extracting:
                         TerminalButton("Working…", enabled: false) {}.fixedSize()
+                    case .installing:
+                        // Not a dead end. Installing waits for this app to quit, and if it
+                        // does not, "Working…" would sit there forever with no way out but
+                        // relaunching. Try again re-asks; the button is idle the rest of the time.
+                        TerminalButton("Working…", enabled: false) {}.fixedSize()
+                        TerminalButton("Try again") { updater.retryInstalling() }.fixedSize()
                     case .unavailable:
                         TerminalButton("Open releases in browser") {
                             NSWorkspace.shared.open(Links.releases)

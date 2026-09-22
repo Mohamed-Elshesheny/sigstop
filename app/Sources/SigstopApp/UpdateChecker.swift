@@ -125,6 +125,9 @@ final class UpdateChecker {
     /// one is outstanding is parked here until the user presses something.
     private var pendingChoice: ((SPUUserUpdateChoice) -> Void)?
     private var cancelInFlight: (() -> Void)?
+    /// Sparkle's way out of a stuck install: it hands this over when the app it is trying to
+    /// replace has not quit. Held so `.installing` is not a dead end.
+    private var retryInstall: (() -> Void)?
     private var acknowledge: (() -> Void)?
 
     private var downloadedBytes: Int64 = 0
@@ -199,6 +202,13 @@ final class UpdateChecker {
         reply(.install)
     }
 
+    /// Nudge a stalled install: the app Sparkle is replacing has not quit, so ask again.
+    /// `.installing` had no control at all, which meant an install that stuck for any reason
+    /// left "Working…" on the screen forever with no way out but relaunching.
+    func retryInstalling() {
+        retryInstall?()
+    }
+
     /// Back out of the current step. Cancels an in-flight transfer if there is one.
     func dismiss() {
         if let cancel = cancelInFlight {
@@ -236,11 +246,18 @@ final class UpdateChecker {
         state = .checking
     }
 
-    fileprivate func didFindUpdate(version: String, reply: @escaping (SPUUserUpdateChoice) -> Void) {
+    fileprivate func didFindUpdate(
+        version: String,
+        alreadyDownloaded: Bool,
+        reply: @escaping (SPUUserUpdateChoice) -> Void
+    ) {
         cancelInFlight = nil
         offeredVersion = version
         pendingChoice = reply
-        state = .available(version: version)
+        // A button that reinstalls what is already on disk must not be spelled "Download".
+        // Sparkle offers an update it has already fetched with the same callback as a fresh
+        // one, and the label was "Download" for both.
+        state = alreadyDownloaded ? .readyToInstall(version: version) : .available(version: version)
     }
 
     fileprivate func didFindInformationOnly(version: String) {
@@ -314,8 +331,9 @@ final class UpdateChecker {
         state = .readyToInstall(version: offeredVersion ?? "the new version")
     }
 
-    fileprivate func didStartInstalling() {
+    fileprivate func didStartInstalling(retry: @escaping () -> Void) {
         pendingChoice = nil
+        retryInstall = retry
         state = .installing
     }
 
@@ -372,7 +390,13 @@ private final class UserDriver: NSObject, SPUUserDriver {
             owner?.didFindInformationOnly(version: appcastItem.displayVersionString)
             return
         }
-        owner?.didFindUpdate(version: appcastItem.displayVersionString, reply: reply)
+        // .downloaded and .installing both mean the bits are already here; only
+        // .notDownloaded is a fresh "Download".
+        owner?.didFindUpdate(
+            version: appcastItem.displayVersionString,
+            alreadyDownloaded: state.stage != .notDownloaded,
+            reply: reply
+        )
     }
 
     func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
@@ -414,7 +438,7 @@ private final class UserDriver: NSObject, SPUUserDriver {
         withApplicationTerminated applicationTerminated: Bool,
         retryTerminatingApplication: @escaping () -> Void
     ) {
-        owner?.didStartInstalling()
+        owner?.didStartInstalling(retry: retryTerminatingApplication)
     }
 
     func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) {
