@@ -648,12 +648,17 @@ final class AppModel {
         pruneOldLogs()
     }
 
+    private static let pruneFailurePrefix = "Could not prune old logs"
+
     private func pruneOldLogs() {
         lastPruneMono = time.continuousSeconds
         do {
             try store?.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
+            if lastStoreError?.hasPrefix(Self.pruneFailurePrefix) == true { lastStoreError = nil }
         } catch {
-            lastStoreError = "Could not prune old logs, \(error)"
+            if lastStoreError == nil || lastStoreError?.hasPrefix(Self.pruneFailurePrefix) == true {
+                lastStoreError = "\(Self.pruneFailurePrefix), \(error)"
+            }
         }
     }
 
