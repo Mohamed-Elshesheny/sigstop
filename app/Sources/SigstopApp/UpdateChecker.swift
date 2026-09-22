@@ -249,9 +249,30 @@ final class UpdateChecker {
         state = .failed("\(version) exists but has to be installed by hand. Open Releases below.")
     }
 
+    /// "You are on the latest version" has to be something Sparkle said, not something we
+    /// assumed because it did not offer one.
+    ///
+    /// `showUpdateNotFoundWithError:` is the callback for EVERY reason an update is
+    /// unavailable, and only one of them is "you are current". The others include a feed
+    /// that parsed but held nothing for this platform, a minimum OS version the machine
+    /// does not meet, and an item skipped by policy. The `error` argument carries which,
+    /// and this threw it away and printed a green dot saying the user was up to date. That
+    /// is the update path claiming more than the signals support, which is the thing
+    /// CLAUDE.md §4.1 forbids everywhere else in this app.
+    ///
+    /// `SPUNoUpdateFoundReason.onLatestVersion` is the one that earns the sentence. The
+    /// rest go through the same formatter `didFail` already uses, which prefers
+    /// `localizedRecoverySuggestion`: Sparkle populates it here precisely so an app can
+    /// say what happened.
     fileprivate func didFindNothing(error: any Error, acknowledgement: @escaping () -> Void) {
         cancelInFlight = nil
-        state = .upToDate(current: currentVersion)
+        let reason = (error as NSError).userInfo[SPUNoUpdateFoundReasonKey] as? Int
+        // Nil means Sparkle did not say, which is the old behaviour and the safe reading.
+        if reason.map({ $0 == SPUNoUpdateFoundReason.onLatestVersion.rawValue }) ?? true {
+            state = .upToDate(current: currentVersion)
+        } else {
+            state = .failed(Self.humanReadable(error))
+        }
         acknowledgement()
     }
 
