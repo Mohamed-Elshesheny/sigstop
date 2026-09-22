@@ -12,7 +12,7 @@ SECTIONS = [
 ]
 SUBJECT = re.compile(r"^(?P<type>\w+)(?:\((?P<scope>[^)]*)\))?(?P<breaking>!)?: (?P<subject>.+)$")
 SHIPS = re.compile(
-    r"^app/(Sources/|Resources/(Info\.plist|sigstop\.icns|sigstop\.entitlements)$"
+    r"^app/(Sources/(?!Scenarios/)|Resources/(Info\.plist|sigstop\.icns|sigstop\.entitlements)$"
     r"|Package\.swift$|Scripts/(bundle|dmg)\.sh$)"
 )
 UI = re.compile(r"^app/(Sources/SigstopApp/Views/|Scripts/dmg\.sh$)")
@@ -40,11 +40,11 @@ def section_for(kind, scope, breaking, files, first):
         return "feat" if kind == "feat" else None
     if breaking:
         return "breaking"
-    if kind not in {"feat", "fix", "perf", "refactor"}:
+    if kind not in {"feat", "fix", "perf"}:
         return None
     if scope == "ui" or all(UI.match(f) for f in files):
         return "ui"
-    return kind if kind != "refactor" else None
+    return kind
 
 
 def main():

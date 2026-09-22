@@ -135,11 +135,11 @@ fi
 if plutil -extract SUEnableDownloaderService raw "${PLIST}" >/dev/null 2>&1; then
   fail "SUEnableDownloaderService is set; Sparkle warns against it on an unsandboxed app"
 else
-  pass "the download runs in-process inside Sparkle.framework, and the app's own binary references no networking symbol (section 1)"
+  pass "SUEnableDownloaderService is unset, so the download runs in-process inside Sparkle.framework"
 fi
 
 if [ -x "${FRAMEWORKS_DIR}/Sparkle.framework/Versions/B/Autoupdate" ]; then
-  pass "the installer is a separate executable, so installing never runs inside this process"
+  pass "Sparkle's separate Autoupdate installer is present in the bundle"
 else
   fail "Sparkle's Autoupdate is missing, so there is nothing to install an update out of process"
 fi

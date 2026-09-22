@@ -39,18 +39,21 @@ BIN="$(find .build/artifacts -type f -name generate_appcast -perm +111 2>/dev/nu
 # stale one while `gh release create` uploaded both, and the URL the appcast points at would
 # resolve to a different build than the signature covers. `dist/` is never cleaned, so the
 # glob has plenty to choose from: it currently holds eight images.
-MATCHES="$(ls dist/${APP_NAME}-${VERSION}*.dmg 2>/dev/null | wc -l | tr -d ' ')"
+shopt -s nullglob
+IMAGES=(dist/"${APP_NAME}"-"${VERSION}"*.dmg)
+shopt -u nullglob
+MATCHES="${#IMAGES[@]}"
 if [ "${MATCHES}" -eq 0 ]; then
   echo "error: no dist/${APP_NAME}-${VERSION}*.dmg, run 'make dmg' first" >&2
   exit 1
 fi
 if [ "${MATCHES}" -gt 1 ]; then
   echo "error: ${MATCHES} images match ${APP_NAME}-${VERSION}*.dmg, so signing one would be a guess:" >&2
-  ls dist/${APP_NAME}-${VERSION}*.dmg | sed 's/^/       /' >&2
+  printf '       %s\n' "${IMAGES[@]}" >&2
   echo "       Remove the ones that are not this build, or run 'make dmg' again after clearing them." >&2
   exit 1
 fi
-DMG="$(ls dist/${APP_NAME}-${VERSION}*.dmg)"
+DMG="${IMAGES[0]}"
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "${STAGE}"' EXIT
