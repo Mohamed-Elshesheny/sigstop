@@ -611,6 +611,18 @@ public struct BreakDecisionEngine: Sendable {
         day: inout DailyCounters,
         effects: inout [Effect]
     ) -> EngineState {
+        if case .breakActive(let b) = state {
+            switch action {
+            case .endBreak:
+                break
+            case .pauseApp:
+                let elapsed = input.monotonic - b.startedMono
+                let ended = finishBreak(b, elapsed: elapsed, input: input, day: &day, effects: &effects)
+                return handle(action, state: ended, input: input, day: &day, effects: &effects)
+            case .acceptBreak, .startBreakNow, .snooze, .skip, .resumeApp:
+                return state
+            }
+        }
         switch action {
         case .acceptBreak, .startBreakNow:
             let origin: BreakOrigin = (action == .acceptBreak) ? .accepted : .userInitiated

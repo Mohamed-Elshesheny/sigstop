@@ -139,6 +139,7 @@ final class AppModel {
     @ObservationIgnored private var unheldDeviceSince: Double?
     @ObservationIgnored private var lastAudioDeviceRunning = false
     @ObservationIgnored private var captureLive = false
+    @ObservationIgnored private var breakOrigin: BreakOrigin?
     @ObservationIgnored private var lastVerdict: InterruptionVerdict?
     @ObservationIgnored private var rollupComputedAt: Date?
     @ObservationIgnored private var lastWrittenSummary: DailySummary?
@@ -364,6 +365,7 @@ final class AppModel {
         for effect in outcome.effects {
             execute(effect, context: context, now: now)
         }
+        closeBreakTheEngineLeft()
         verifyPromptPresentation()
 
         record(sessionEvents: sessionEvents, at: now)
@@ -457,6 +459,16 @@ final class AppModel {
         }
     }
 
+    private func closeBreakTheEngineLeft() {
+        if case .breakActive = engineState { return }
+        guard let origin = breakOrigin else { return }
+        tracker.endBreak(origin: origin)
+        overlay.dismissBreak()
+        breakOrigin = nil
+        breakEndsAt = nil
+        breakContent = nil
+    }
+
     private func execute(_ effect: Effect, context: DeveloperContext, now: Date) {
         for line in EventLogWriter.lines(for: effect, at: now, context: logContext) {
             append(line)
@@ -488,6 +500,7 @@ final class AppModel {
 
         case .beginBreak(_, let origin, let plannedEnd):
             tracker.beginBreak(origin: origin)
+            breakOrigin = origin
             breakEndsAt = plannedEnd
             breakContent = BreakContent.make(
                 for: context,
@@ -502,6 +515,7 @@ final class AppModel {
         case .endBreak(_, let origin, _, _, _):
             tracker.endBreak(origin: origin)
             overlay.dismissBreak()
+            breakOrigin = nil
             breakEndsAt = nil
             breakContent = nil
             refreshRollup(force: true)
