@@ -160,22 +160,6 @@ final class BreakOverlayController {
         }
     }
 
-    private static func cornerFrame(on screen: NSScreen) -> NSRect {
-        let size = NSSize(width: 400, height: 208)
-        let inset: CGFloat = 16
-        let visible = screen.visibleFrame
-        return NSRect(
-            x: visible.maxX - size.width - inset,
-            y: visible.maxY - size.height - inset,
-            width: size.width,
-            height: size.height
-        )
-    }
-
-    private static func promptScreen() -> NSScreen? {
-        NSScreen.main ?? NSScreen.screens.first
-    }
-
     private static func isOnScreen(windowNumber: Int) -> Bool {
         guard windowNumber > 0,
               let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(windowNumber)) as? [[String: Any]],
