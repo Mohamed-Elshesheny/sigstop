@@ -13,7 +13,9 @@
 #
 #   1. a copy of the .app somewhere with no relationship to the source tree
 #   2. .build moved aside, so a baked build path resolves to nothing
-#   3. a pristine HOME, so no settings, no counters, no badges, no defaults
+#   3. a pristine HOME, so no settings, no counters and no badges. Not the defaults: cfprefsd
+#      ignores HOME, so the GUI launch reads and writes the real dev.sigstop.app domain, which
+#      holds only Sparkle's own keys and the menu bar icon's position
 #   4. launched as the GUI, not as --doctor, because --doctor never touched the corpus and
 #      that is exactly why the first version of this check passed while the bug was live
 #

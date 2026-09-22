@@ -383,7 +383,8 @@ fi
 # ever run on.
 #
 # So run it with `.build` moved aside, which is the closest this machine can get to being
-# somebody else's. A fresh HOME as well, so a launch here cannot touch real data.
+# somebody else's. A fresh HOME as well, so a launch here cannot touch the real data folder.
+# --doctor reads no defaults, so the one thing a fresh HOME does not isolate is not reached.
 head2 "8. it starts on a machine with no build directory"
 
 PROBE_HOME="$(mktemp -d)"
