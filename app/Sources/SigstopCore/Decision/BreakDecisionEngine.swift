@@ -422,6 +422,7 @@ public struct BreakDecisionEngine: Sendable {
             return e.ladderElapsed >= policy.ladderLevel4 + policy.promptTimeout
         }()
         if exhausted {
+            effects.append(.withdrawPrompt(cycle: e.cycle, reason: .cycleExpired))
             effects.append(.closeCycle(e.cycle, .ignoredExhausted))
             day.consecutiveIgnoredCycles += 1
             effects.append(.setIndicator(.backedOff))

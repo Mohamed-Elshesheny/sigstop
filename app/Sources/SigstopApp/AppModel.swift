@@ -468,7 +468,11 @@ final class AppModel {
 
         case .closeCycle(let cycle, _):
             if currentCycle == cycle { currentCycle = nil }
-            if presentation?.request.cycle == cycle { presentation = nil }
+            if presentation?.request.cycle == cycle {
+                notifier.withdraw(cycle: cycle)
+                overlay.dismissPromptPanel()
+                presentation = nil
+            }
             verdicts.reset()
 
         case .deliverPrompt(let request):
