@@ -3,13 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// A `break_end` has to carry the number it was judged against.
-///
-/// `dur_s` alone is only half a verdict: whether 60 seconds counted depends on
-/// `min(qualifyingBreak, plannedDuration)`, and both come from settings that can change
-/// under a running app. A reader holding the file had the measurement and no threshold, so
-/// answering "why does today say 0 kept" meant opening the settings file, deriving the
-/// floor by hand, and hoping it had not moved since the line was written.
 struct LogExplainsItselfTests {
 
     @Test("break_end records the threshold it was judged against")
@@ -27,7 +20,6 @@ struct LogExplainsItselfTests {
         #expect(end?.durationSeconds == 60)
         #expect(end?.thresholdSeconds == 300, "the reader must not have to guess this")
 
-        // And the verdict is recomputable from the line, with nothing else in hand.
         let recomputed = (end?.durationSeconds ?? 0) >= (end?.thresholdSeconds ?? .max)
         #expect(recomputed == false, "60 < 300, which is exactly what the engine decided")
     }
@@ -47,8 +39,6 @@ struct LogExplainsItselfTests {
 
     @Test("every field on a log line has a gloss for the export header")
     func everyFieldIsDocumented() {
-        // The gloss switch is exhaustive with no default on purpose, so this is really a
-        // compile-time guarantee; the assertion is here so the reason is written down.
         for key in LoggedEvent.CodingKeys.allCases {
             #expect(!key.gloss.isEmpty, "\(key) has no gloss")
         }

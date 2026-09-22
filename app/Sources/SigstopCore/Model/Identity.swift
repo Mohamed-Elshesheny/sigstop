@@ -1,9 +1,6 @@
 import Foundation
 
-// MARK: - App identity
-
 public struct AppIdentity: Sendable, Codable, Hashable {
-    /// nil for bundle-less processes (a raw binary run from a shell).
     public let bundleID: String?
     public let localizedName: String
     public let pid: pid_t
@@ -21,31 +18,17 @@ public struct ProviderID: Sendable, Codable, Hashable, RawRepresentable {
     public init(_ s: String) { self.rawValue = s }
 }
 
-// MARK: - Context
-
 public enum RepoState: String, Sendable, Codable, Hashable {
     case clean, rebaseInProgress, mergeInProgress, bisecting, detachedHead
 }
 
-/// Everything is optional. A field is nil when the tier that would populate it is
-/// unavailable. There is deliberately no "unknown" sentinel string, absence is
-/// modelled as absence, so a template that needs `{branch}` simply cannot be selected
-/// when the branch is not known.
 public struct ActivityContext: Sendable, Codable, Hashable {
-    /// tier1, parsed from a window title. A heuristic, and labelled as one.
     public var projectName: String?
-    /// tier1
     public var fileName: String?
-    /// tier1
     public var fileExtension: String?
-    /// tier1, `kAXDocument`. A real path, unlike `projectName`.
     public var documentURL: URL?
-    /// tier2, read from `.git/HEAD`.
     public var branch: String?
-    /// tier2
     public var repoState: RepoState?
-    /// tier1, opt-in. HOST ONLY. Never a path, never a query string.
-    /// See docs/PRIVACY.md §1.5.
     public var browserHost: String?
 
     public init(
@@ -69,17 +52,12 @@ public struct ActivityContext: Sendable, Codable, Hashable {
     public static let empty = ActivityContext()
 }
 
-/// States that are NOT mutually exclusive with the primary activity.
-///
-/// You can be in a meeting while coding. Modelling "meeting" purely as a peer of
-/// "coding" would force a false choice, so it lives on its own axis.
 public struct ConcurrentStates: Sendable, Codable, Hashable {
     public var inMeeting: Bool
     public var meetingConfidence: Confidence
     public var screenLocked: Bool
     public var onBattery: Bool
     public var lowPowerMode: Bool
-    /// Any display is running a fullscreen app, a weak presentation signal.
     public var fullscreen: Bool
 
     public init(
@@ -101,14 +79,10 @@ public struct ConcurrentStates: Sendable, Codable, Hashable {
     public static let none = ConcurrentStates()
 }
 
-// MARK: - Observation
-
-/// What a provider produces for a single sample.
 public struct ActivityObservation: Sendable, Codable, Hashable {
     public let timestamp: Date
     public let activity: Activity
     public let confidence: Confidence
-    /// Ordered by |logOdds| descending, so the first entry is the strongest reason.
     public let evidence: [Evidence]
     public let app: AppIdentity
     public let context: ActivityContext
@@ -138,8 +112,6 @@ public struct ActivityObservation: Sendable, Codable, Hashable {
         self.tiersUsed = tiersUsed
     }
 
-    /// The activity to actually *say out loud*. Degrades to the parent class when the
-    /// app is not confident enough to name a specific child. See CLAUDE.md §4.1.
     public var claimableActivity: Activity {
         confidence.isConfidentEnoughForSpecificClaim ? activity : (activity.parent ?? activity)
     }

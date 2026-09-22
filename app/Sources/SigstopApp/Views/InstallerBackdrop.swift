@@ -1,35 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// The backdrop of the disk image people download, drawn by the app itself.
-///
-/// Rendered from `Brand` rather than exported from a design tool, for the same reason the
-/// badge sheet is: a picture kept in a second place drifts from the thing it is a picture
-/// of, and this one would be seen before anything else in the product. The window it sits
-/// behind is 600 by 400 at 1x, so this renders at 2x for the retina layer that Finder
-/// picks up from the `@2x` file beside it.
-///
-/// Deliberately almost empty. The whole instruction is one arrow between two icons that
-/// Finder draws on top, and anything else competes with the only thing the window is for.
-///
-/// It carried a paragraph about the first launch being blocked and it is gone. The same
-/// thing is said on the release page and in the README, where someone who wants it will
-/// look, and four lines of small print under a drag target is not where anybody reads.
 struct InstallerBackdrop: View {
 
-    /// Where Finder is told to put the two icons, in the window's own coordinates. The
-    /// arrow is drawn between them, so the two have to agree.
     static let appIcon = CGPoint(x: 165, y: 195)
     static let applicationsIcon = CGPoint(x: 435, y: 195)
     static let size = CGSize(width: 600, height: 320)
 
-    /// The light palette, fixed rather than resolved.
-    ///
-    /// Finder paints a disk image background once and never repaints it when the system
-    /// theme changes, so this cannot follow the appearance the way the rest of the app
-    /// does. It is the site's paper white, which is warm rather than clinical, and the
-    /// accent is the dark amber the palette uses on light surfaces: the bright one is
-    /// about 1.9 to 1 on white and would be the glare rather than the mark.
     static let paper = Color(red: 0xFB / 255, green: 0xFB / 255, blue: 0xF9 / 255)
     static let ink = Color(red: 0x17 / 255, green: 0x19 / 255, blue: 0x1C / 255)
     static let inkMuted = Color(red: 0x53 / 255, green: 0x58 / 255, blue: 0x5E / 255)
@@ -67,7 +44,6 @@ struct InstallerBackdrop: View {
         .frame(width: Self.size.width, height: Self.size.height)
     }
 
-    /// A shaft and a head, pointing at Applications.
     private struct Arrow: Shape {
         func path(in rect: CGRect) -> Path {
             var path = Path()
@@ -83,12 +59,6 @@ struct InstallerBackdrop: View {
     }
 }
 
-/// Writes one backdrop at twice the size.
-///
-/// Not a 1x and an `@2x` pair. Finder does not look for the `@2x` file behind a disk
-/// image background, so the pair meant it scaled the small one up and the type came out
-/// soft. One image at 1200 by 800 is written instead, and `dmg.sh` stamps it 144 dpi so
-/// its natural size is the 600 by 400 the window actually is.
 enum InstallerBackdropRenderer {
 
     @MainActor

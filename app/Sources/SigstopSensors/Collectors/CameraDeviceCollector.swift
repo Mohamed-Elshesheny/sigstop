@@ -2,41 +2,7 @@ import CoreMediaIO
 import Foundation
 import SigstopCore
 
-/// Tier 0. "Some process on this machine has a camera device running."
-///
-/// **No Camera permission is required and none is requested.** This reads
-/// `kCMIODevicePropertyDeviceIsRunningSomewhere` on each device returned by
-/// `kCMIOHardwarePropertyDevices`. It is a property read on a device object, exactly as
-/// `AudioDeviceCollector` reads the CoreAudio twin of the same property. No capture
-/// session is opened, so the app cannot see a frame and the capability to do so is absent
-/// rather than merely unused.
-///
-/// This collector exists because the repository used to claim, in
-/// `SensorStack.RawSignals` and in `--doctor`, that there was no permission-free API for
-/// the camera-in-use bit and that it required a capture session or a private symbol. That
-/// was false, and `docs/ACTIVITY-DETECTION.md` had said so for a while. Reproduce it:
-///
-/// ```sh
-/// swiftc -O cam.swift -o camprobe && ./camprobe
-/// log show --last 5m --predicate 'process == "tccd"' | grep -i camprobe   # no matches
-/// ```
-///
-/// What the bit genuinely does NOT tell us, and which we must never pretend:
-///
-/// * **Who.** CoreMediaIO exposes no process list, so the camera bit carries no
-///   attribution at all. That is why it can hard-block on its own (it is a fact) but
-///   cannot, on its own, name a meeting.
-/// * **Why.** Photo Booth, QuickTime, a Continuity Camera preview and a call all trip it.
-///
-/// And the same failure mode as the audio collector: OBS Virtual Camera and friends hold
-/// a device open indefinitely. Continuously running past
-/// `continuousRunningUnreliableThreshold`, or past `unreliableDutyCycle` of the last day
-/// of awake time, downgrades the signal to `.unreliable`, which contributes nothing.
 public final class CameraDeviceCollector: @unchecked Sendable {
-    /// Deliberately the same numbers as `AudioDeviceCollector`. One set of constants in
-    /// the repository, one place to look. They were chosen for audio daemons and have not
-    /// been validated against a virtual camera; `--doctor` prints the state so the data
-    /// can arrive before anyone retunes them.
     public static let continuousRunningUnreliableThreshold: TimeInterval = 4 * 3600
     public static let unreliableDutyCycle: Double = 0.85
     public static let calibrationMinimumObservation: TimeInterval = 3600
@@ -46,7 +12,7 @@ public final class CameraDeviceCollector: @unchecked Sendable {
     private let lock = NSLock()
     private let queue = DispatchQueue(label: "dev.sigstop.camera", qos: .utility)
 
-    private var isRunningRaw: Bool?           // nil means no camera device at all
+    private var isRunningRaw: Bool?
     private var runningSince: Date?
     private var windowStart: Date
     private var observedAwakeSeconds: TimeInterval = 0
@@ -71,8 +37,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         for c in continuations.values { c.finish() }
     }
 
-    // MARK: - Lifecycle
-
     public func start() {
         lock.lock()
         if started { lock.unlock(); return }
@@ -90,8 +54,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         removeAllListeners()
     }
 
-    /// Re-enumerates devices, re-registers listeners, recomputes the raw state. Called at
-    /// start, when the device list changes (a phone offering Continuity), and on wake.
     public func refresh() {
         let devices = Self.cameraDevices()
         registerDeviceListeners(devices)
@@ -113,8 +75,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         if awake { refresh() }
     }
 
-    // MARK: - Reading
-
     public func state() -> CameraInputState {
         lock.lock()
         accountLocked(at: time.now)
@@ -130,8 +90,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         }
     }
 
-    /// The device names, for `--doctor`. Names of *devices*, never of processes and never
-    /// of anything a camera saw.
     public func devices() -> [String] {
         lock.lock()
         defer { lock.unlock() }
@@ -170,8 +128,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         }
     }
 
-    // MARK: - State accounting
-
     private func update(raw: Bool?) {
         lock.lock()
         let now = time.now
@@ -194,7 +150,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         for sink in sinks { sink.yield(published) }
     }
 
-    /// Caller holds `lock`.
     private func accountLocked(at now: Date) {
         let elapsed = now.timeIntervalSince(lastAccountedAt)
         lastAccountedAt = now
@@ -211,7 +166,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         }
     }
 
-    /// Caller holds `lock`.
     private func isUnreliableLocked(at now: Date) -> Bool {
         if let since = runningSince, now.timeIntervalSince(since) > Self.continuousRunningUnreliableThreshold {
             return true
@@ -219,8 +173,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         guard observedAwakeSeconds >= Self.calibrationMinimumObservation else { return false }
         return (runningAwakeSeconds / observedAwakeSeconds) > Self.unreliableDutyCycle
     }
-
-    // MARK: - CoreMediaIO listeners
 
     private func registerHardwareListener() {
         var address = CMIOObjectPropertyAddress(
@@ -304,8 +256,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         CMIOObjectRemovePropertyListenerBlock(device, &address, queue, block)
     }
 
-    // MARK: - CoreMediaIO reads
-
     private static func runningAddress() -> CMIOObjectPropertyAddress {
         CMIOObjectPropertyAddress(
             mSelector: CMIOObjectPropertySelector(kCMIODevicePropertyDeviceIsRunningSomewhere),
@@ -338,7 +288,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
         return ids
     }
 
-    /// `nil` when the property cannot be read. Treated as "no information", never `false`.
     static func deviceIsRunningSomewhere(_ device: CMIOObjectID) -> Bool? {
         var address = runningAddress()
         var dataSize: UInt32 = 0

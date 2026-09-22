@@ -1,25 +1,9 @@
 import Foundation
 
-// MARK: - Schema
-
 public enum EventSchema {
-    /// Bumped on any breaking change. Readers reject unknown majors rather than
-    /// guessing at a format they do not understand. See docs/PRIVACY.md §4.3.
     public static let version = 1
 }
 
-// MARK: - Calendar day
-
-/// A bare year/month/day. No time zone is attached, because the same value serves two
-/// different purposes and conflating them is a bug:
-///
-/// * **File key**, `CalendarDay.utc(of:)`. Event-log files are named by the UTC date
-///   of the event, which is what makes `t`'s first ten characters and the file name the
-///   same string (docs/PRIVACY.md §4.3).
-/// * **Logical day**, `CalendarDay.local(of:...)`. The daily rollup's day, in the
-///   user's calendar, with the boundary at 04:00 (docs/BREAK-DECISION.md §14).
-///
-/// A rollup for one logical day therefore reads up to three UTC files.
 public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertible {
     public let year: Int
     public let month: Int
@@ -31,8 +15,6 @@ public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertib
         self.day = day
     }
 
-    /// A gregorian calendar pinned to UTC, used for file keys and timestamp formatting
-    /// so that neither depends on the machine's time zone or locale.
     public static let utcCalendar: Calendar = {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = TimeZone(identifier: "UTC") ?? .gmt
@@ -40,28 +22,11 @@ public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertib
         return c
     }()
 
-    /// The UTC date of `date`. This is the event-log **file** key.
     public static func utc(of date: Date) -> CalendarDay {
         let c = utcCalendar.dateComponents([.year, .month, .day], from: date)
         return CalendarDay(year: c.year ?? 0, month: c.month ?? 0, day: c.day ?? 0)
     }
 
-    /// The **logical** day `date` belongs to: the local calendar day, with the boundary
-    /// moved to `boundaryHour` so that 01:30 still belongs to the day before.
-    /// **The caller's time zone, never the caller's calendar system.**
-    ///
-    /// A `CalendarDay` is a file name. `utc(of:)` writes one with a pinned Gregorian
-    /// calendar, so a reader that numbers the same instant in another era asks for a file
-    /// that was never written. Measured: the same moment is `2025-09-22` to the writer and
-    /// `1447-03-30` under Islamic Umm al-Qura, `2568-09-22` under Buddhist. macOS picks
-    /// the calendar from the Region, so that is the DEFAULT in the Gulf and in Thailand,
-    /// and nothing looks broken when it happens: breaks still fire, the menu bar still
-    /// works, and only the uptime panel and all ten badges read zero, forever, silently.
-    ///
-    /// What genuinely belongs to the user here is the time zone and the boundary hour:
-    /// their midnight, their 4am. The era does not, because it is choosing a key that has
-    /// to match one written by a pinned calendar. Formatting a date for someone to READ is
-    /// a different job and should use `Calendar.current`; this is not that.
     public static func local(
         of date: Date,
         calendar: Calendar = .current,
@@ -72,8 +37,6 @@ public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertib
         return CalendarDay(year: c.year ?? 0, month: c.month ?? 0, day: c.day ?? 0)
     }
 
-    /// `calendar`'s time zone on a Gregorian calendar, which is the system every
-    /// `CalendarDay` is numbered in. See `local(of:)`.
     static func keyed(like calendar: Calendar) -> Calendar {
         guard calendar.identifier != .gregorian else { return calendar }
         var c = Calendar(identifier: .gregorian)
@@ -82,11 +45,6 @@ public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertib
         return c
     }
 
-    /// `[boundaryHour on this day, boundaryHour on the next day)`, in `calendar`'s time
-    /// zone. `nil` only when the components do not name a real date.
-    /// Reconstruction has to use the same system construction did, or the numbers are read
-    /// as an era they were never written in: Gregorian 2026 taken as a Hijri year lands
-    /// roughly five and a half centuries away, and every event falls outside the window.
     public func interval(boundaryHour: Int = 4, calendar: Calendar = .current) -> DateInterval? {
         let calendar = CalendarDay.keyed(like: calendar)
         var comps = DateComponents()
@@ -108,7 +66,7 @@ public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertib
         comps.year = year
         comps.month = month
         comps.day = day
-        comps.hour = 12 // midday: immune to a DST shift in either direction
+        comps.hour = 12
         guard
             let anchor = CalendarDay.utcCalendar.date(from: comps),
             let moved = CalendarDay.utcCalendar.date(byAdding: .day, value: days, to: anchor)
@@ -116,8 +74,6 @@ public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertib
         return .utc(of: moved)
     }
 
-    /// `"2026-09-20"`. Zero-padded, which is what makes lexicographic comparison of file
-    /// names equivalent to chronological comparison (docs/PRIVACY.md §4.5).
     public var description: String {
         "\(Pad.four(year))-\(Pad.two(month))-\(Pad.two(day))"
     }
@@ -159,8 +115,6 @@ extension CalendarDay: Codable {
     }
 }
 
-// MARK: - Timestamps
-
 enum Pad {
     static func two(_ n: Int) -> String { (0..<10).contains(n) ? "0\(n)" : "\(n)" }
     static func four(_ n: Int) -> String {
@@ -184,13 +138,6 @@ enum Digits {
     }
 }
 
-/// ISO-8601, UTC, **second resolution**. Sub-second precision is deliberately discarded
-/// (docs/PRIVACY.md §4.3): a millisecond-accurate trace of a person's day is a finer
-/// record than this app has any reason to keep.
-///
-/// Hand-rolled rather than `ISO8601DateFormatter` for two reasons, the formatter is a
-/// non-`Sendable` class, and a fixed 20-character grammar is easier for a skeptical
-/// reader to confirm than a formatter's option set.
 public enum ISO8601Second {
     public static func string(from date: Date) -> String {
         let floored = Date(timeIntervalSince1970: date.timeIntervalSince1970.rounded(.down))
@@ -205,10 +152,10 @@ public enum ISO8601Second {
     public static func date(from s: some StringProtocol) -> Date? {
         let b = Array(s.utf8)
         guard b.count == 20,
-              b[4] == 0x2D, b[7] == 0x2D,   // -
-              b[10] == 0x54,                // T
-              b[13] == 0x3A, b[16] == 0x3A, // :
-              b[19] == 0x5A                 // Z
+              b[4] == 0x2D, b[7] == 0x2D,
+              b[10] == 0x54,
+              b[13] == 0x3A, b[16] == 0x3A,
+              b[19] == 0x5A
         else { return nil }
         guard
             let year = Digits.read(b, 0..<4),
@@ -229,17 +176,6 @@ public enum ISO8601Second {
     }
 }
 
-// MARK: - Event vocabulary
-
-/// The complete event vocabulary.
-///
-/// There is no `other`, no free-text `note`, and no field anywhere in `LoggedEvent`
-/// that can hold a window title, a URL path, a file path, document text, or a
-/// keystroke. That is enforced by the type rather than by review convention: to
-/// persist a title you would have to add a field here, which is a diff a reviewer
-/// cannot miss. See docs/PRIVACY.md §1.2 rows 12–14 and CLAUDE.md §4.4.
-///
-/// Raw values are the short strings written to disk.
 public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     case start
     case stop
@@ -248,115 +184,47 @@ public enum EventKind: String, Sendable, Codable, CaseIterable, Hashable {
     case idleEnd = "idle_end"
     case lock
     case unlock
-    /// The machine suspended. `display_sleep` is a different fact and has its own name:
-    /// the screen going dark while the process keeps running is not the machine stopping,
-    /// and collapsing the two made a log that appeared to record the same event twice.
     case sleep
     case wake
     case displaySleep = "display_sleep"
     case displayWake = "display_wake"
     case sessionOut = "session_out"
     case sessionIn = "session_in"
-    /// A break **opportunity** opened: continuous active work reached the target, i.e.
-    /// the engine entered `breakDue`, including entries immediately suppressed by
-    /// quiet hours or a hard block (docs/BREAK-DECISION.md §14.1).
-    ///
-    /// Compliance is undefined without it: a prompt that was never delivered still
-    /// opened an opportunity, and the difference between "missed" and "never asked" is
-    /// the whole honesty of the metric.
-    ///
-    /// This shipped for a while without being listed in docs/PRIVACY.md §4.3, which
-    /// claims to be the complete vocabulary. It is listed there now, along with
-    /// `break_begin` and `break_end` which had drifted the same way.
     case breakOpen = "break_open"
     case breakPrompt = "break_prompt"
     case breakResponse = "break_response"
-    /// A candidate break started. `origin` says how it started.
     case breakBegin = "break_begin"
-    /// It ended. `dur_s` is the measured duration and `plan_s` is the threshold it was
-    /// judged against, so the reader can re-derive the verdict instead of guessing it.
-    ///
-    /// `plan_s` is `min(qualifyingBreak, plannedDuration)`, and both of those come from
-    /// settings that can change under a running app. Without it a reader holding the file
-    /// has `dur_s` and no number to compare it to: answering "why did today say 0 of 17
-    /// kept" meant opening the settings file, deriving the floor by hand and hoping it had
-    /// not moved since. It carries no text and no content, so §4.4 is untouched.
     case breakEnd = "break_end"
-    /// A break opportunity ended, with the `CycleOutcome` that ended it.
-    ///
-    /// Without this a cycle could be closed as expired, quietSuppressed, dailyCapReached,
-    /// ignoredExhausted, skipped or honored and leave no trace at all. The day that
-    /// produced the 20:06:51Z incident holds seventeen `break_open` lines and twelve
-    /// `break_response` lines: five opportunities simply stop existing mid-file, and the
-    /// difference between "the user said no" and "the app gave up" was unrecoverable.
     case cycleClose = "cycle_close"
-    /// Why the app is or is not allowed to speak right now, written when the answer
-    /// changes rather than when it is computed.
-    ///
-    /// The verdict is recomputed on every five second tick. A fourteen minute hold
-    /// produces 168 identical answers and used to keep none of them, so "why did you say
-    /// nothing at 20:12" had no answer after the fact. CLAUDE.md §4.1 requires the app to
-    /// always be able to say why it thinks what it thinks; this is that promise for the
-    /// one question the whole product turns on.
     case gate
 }
 
-/// What the developer did with a delivered prompt.
 public enum BreakResponseAction: String, Sendable, Codable, CaseIterable, Hashable {
     case taken
     case skipped
     case snoozed
-    /// The prompt timed out with no interaction (docs/BREAK-DECISION.md §10).
     case ignored
 }
 
-// MARK: - The record
-
-/// One line of `events/YYYY-MM-DD.jsonl`.
-///
-/// On-disk field names are the short ones from docs/PRIVACY.md §4.3 (`v`, `t`, `e`,
-/// `app`, …), and optional fields are omitted entirely when `nil`, so a line stays
-/// short enough to read at a glance. That is the actual design goal: `cat` is meant to
-/// be a complete audit tool.
 public struct LoggedEvent: Sendable, Hashable, Codable {
     public var v: Int
-    /// UTC, second resolution.
     public var at: Date
     public var kind: EventKind
 
-    /// Bundle identifier, e.g. `com.apple.dt.Xcode`. Never a path, never a title.
     public var app: String?
-    /// Coarse category from `categories.json`: `code`, `browse`, `meet`, `write`, `other`.
     public var category: String?
-    /// The inferred `Activity`. Derived, never raw input.
     public var activity: Activity?
-    /// The five-value window-title classification. **Never the title itself.**
     public var titleSignal: String?
-    /// Length of the idle period that just ended. Kept for auditability only, the
-    /// rollup diffs real timestamps instead of trusting this (CLAUDE.md §3.4).
     public var idleSeconds: Int?
-    /// The signal a prompt was named after, on `break_prompt`. Typed, because the
-    /// paragraph above promises no field here can hold free text and a `String?` was
-    /// quietly the one that could.
     public var reason: SignalName?
-    /// How a break opportunity ended. Typed, so the field can hold one of six values and
-    /// nothing else.
     public var outcome: CycleOutcome?
-    /// Why a prompt was or was not allowed. Typed for the same reason: a closed
-    /// vocabulary of twenty-nine, never a sentence, and never anything derived from a
-    /// window title (CLAUDE.md §4.4).
     public var gate: GateReason?
     public var action: BreakResponseAction?
     public var snoozeSeconds: Int?
-    /// Present on `break_prompt` when the prompt was **not** delivered: why it was
-    /// withheld (`meeting`, `quiet_hours`, `rate_limit`, …). Its presence is what makes
-    /// an opportunity excludable rather than missed.
     public var deferred: GateReason?
     public var origin: BreakOrigin?
     public var durationSeconds: Int?
-    /// The threshold `dur_s` was judged against, on a `break_end`. See `breakEnd`.
     public var thresholdSeconds: Int?
-    /// The `CycleID` this event belongs to, so counters scope to a cycle.
     public var cycle: Int?
 
     public init(
@@ -399,18 +267,10 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
         self.cycle = cycle
     }
 
-    /// The UTC day whose file this line belongs in.
     public var fileDay: CalendarDay { .utc(of: at) }
 
-    /// True for a `break_prompt` that actually reached the developer.
     public var wasDelivered: Bool { kind == .breakPrompt && deferred == nil }
 
-    /// The on-disk field names, in the order the field reference lists them.
-    ///
-    /// Not private, and `CaseIterable`, so the export header can be **generated** from
-    /// this rather than retyped beside it. It was retyped beside it, and it drifted:
-    /// `outcome` and `gate` reached the body of an export while the header still named
-    /// the field set from two changes earlier.
     enum CodingKeys: String, CodingKey, CaseIterable {
         case v
         case at = "t"
@@ -485,11 +345,6 @@ public struct LoggedEvent: Sendable, Hashable, Codable {
 }
 
 extension LoggedEvent.CodingKeys {
-    /// What this field holds, in a few words, for the export header.
-    ///
-    /// Exhaustive with no `default`, so a new field on `LoggedEvent` stops this file
-    /// compiling until somebody says what it is. That is the point: the header used to be
-    /// a hand-typed list beside the type, and it fell two fields behind it.
     var gloss: String {
         switch self {
         case .v:               return "schema"
@@ -515,10 +370,6 @@ extension LoggedEvent.CodingKeys {
 }
 
 extension LoggedEvent {
-    /// Every on-disk field, `name=what it holds`, wrapped to `width` columns.
-    ///
-    /// Generated from `CodingKeys` rather than written out beside it, so an export cannot
-    /// carry a field its own header does not account for (docs/PRIVACY.md §4.3).
     static func fieldGuide(width: Int = 66) -> [String] {
         var lines: [String] = []
         var current = ""
@@ -537,8 +388,6 @@ extension LoggedEvent {
         return lines
     }
 }
-
-// MARK: - Convenience constructors
 
 extension LoggedEvent {
     public static func start(at: Date) -> LoggedEvent { LoggedEvent(at: at, kind: .start) }
@@ -615,17 +464,7 @@ extension LoggedEvent {
     }
 }
 
-// MARK: - Codec
-
-/// JSONL in, JSONL out. One event per line, plain field names, nothing encoded.
-///
-/// The decoder is forgiving in exactly one direction: a line it cannot parse is
-/// **skipped and counted**, never guessed at and never fatal. That is what turns a
-/// crash mid-append into a one-line loss instead of a corrupt history
-/// (docs/PRIVACY.md §4.3).
 public enum EventLogCodec {
-    /// Lines beginning with this are human-written headers in an export, not data.
-    /// Skipping them is what keeps an export re-readable by this same decoder.
     public static let commentPrefix = "#"
 
     public static func makeEncoder() -> JSONEncoder {
@@ -657,8 +496,6 @@ public enum EventLogCodec {
 
     public struct DecodeResult: Sendable, Hashable {
         public let events: [LoggedEvent]
-        /// Lines that were neither blank, a comment, nor a valid event. A torn tail from
-        /// a crash lands here.
         public let malformedLines: Int
 
         public init(events: [LoggedEvent], malformedLines: Int) {

@@ -1,16 +1,8 @@
 import Foundation
 
-// MARK: - Input
-
-/// One sample of the world, as the sensor layer sees it. Everything here is a Tier 0 fact
-/// except `activity`/`confidence`, which are an inference and are never allowed to move the
-/// clock on their own.
 public struct TickSample: Sendable, Hashable {
-    /// `CGEventSource.secondsSinceLastEventType`, keyboard, mouse, trackpad, tablet, all
-    /// apps, no permission required.
     public var idleSeconds: TimeInterval
     public var screenLocked: Bool
-    /// The audio input device is actually running. A fact, not a guess about an app.
     public var micRunning: Bool
     public var fastUserSwitched: Bool
     public var userPaused: Bool
@@ -39,24 +31,18 @@ public struct TickSample: Sendable, Hashable {
     }
 }
 
-/// What a tick did. The tracker reports; it never notifies, presents, or decides.
 public enum SessionEvent: Sendable, Codable, Hashable {
     case sessionStarted(id: UUID, at: Date)
     case sessionEnded(id: UUID, at: Date)
     case gapClassified(GapClassificationKind, duration: TimeInterval, cause: PauseCause)
     case clockPaused(cause: PauseCause, since: Date)
-    /// SIGCONT: the clock continues from exactly where it stopped.
     case clockResumed(at: Date)
     case clockReset(reason: ResetReason)
     case breakRecorded(origin: BreakOrigin, start: Date, end: Date, duration: TimeInterval)
     case graceRevoked(seconds: TimeInterval)
-    /// The wall clock moved without the monotonic clock: an NTP step, or the user changed
-    /// the date. It is neither work nor a break, and it is never allowed to touch the clock.
     case wallClockSkewIgnored(seconds: TimeInterval)
 }
 
-/// `GapClassification` carries a `PauseCause` payload, which makes it awkward to report in a
-/// flat event. This is the same taxonomy without the payload.
 public enum GapClassificationKind: String, Sendable, Codable, Hashable {
     case microIdle
     case pause
@@ -73,18 +59,6 @@ public enum GapClassificationKind: String, Sendable, Codable, Hashable {
     }
 }
 
-// MARK: - Tracker
-
-/// The work clock: continuous **active** work, which is not elapsed wall time.
-///
-/// Two rules carry the whole design:
-///
-/// 1. **Durations come from `TimeSource.continuousSeconds`, never from `now`.** The wall clock
-///    steps (NTP, DST, a user setting the date) and a stepped wall clock must not be able to
-///    fabricate work or a break. `now` is used for timestamps and for calendar questions only.
-/// 2. **A tick never trusts its own interval.** A tick that lands later than
-///    `tickInterval + tickTolerance` is a discontinuity, not a tick; it is classified as a gap
-///    and credited nothing. Credited work can therefore never exceed observed elapsed time.
 public struct SessionTracker: Sendable {
 
     public let policy: BreakPolicy
@@ -96,19 +70,10 @@ public struct SessionTracker: Sendable {
 
     private var lastTickMono: Double
     private var lastTickWall: Date
-    /// Monotonic timestamp of the most recent input event we know about.
     private var lastInputMono: Double
     private var dayIndex: Int
     private var gap: ActiveGap?
 
-    /// When the current break started, tracked apart from the idle gap.
-    ///
-    /// The gap is closed by input, which is correct for idleness and wrong for a break: a
-    /// break does not end because you moved the mouse, it ends when the app says it ends.
-    /// Measuring the break from the gap meant any input during it wiped the start marker,
-    /// `endBreak` then measured roughly zero, the break failed the qualifying threshold,
-    /// the work clock was never reset, and the engine re-prompted in the same second the
-    /// break finished.
     private var breakStart: (mono: Double, wall: Date)?
     private var pendingWakeCause: PauseCause?
     private var awaitingNewSession: Bool = false
@@ -137,14 +102,8 @@ public struct SessionTracker: Sendable {
         self.dayIndex = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
     }
 
-    // MARK: - Notifications from the app layer
-
-    /// The machine slept and has just woken. Labels the next discontinuity `.systemSleep`
-    /// instead of "the timer was starved"; the duration bands are identical either way.
     public mutating func noteSystemWake() { pendingWakeCause = .systemSleep }
 
-    /// The user accepted (or started) a break. The clock pauses, it does not reset. A break
-    /// that turns out to be too short must cost nothing.
     @discardableResult
     public mutating func beginBreak(origin: BreakOrigin) -> [SessionEvent] {
         let now = time.now
@@ -156,8 +115,6 @@ public struct SessionTracker: Sendable {
         return [.clockPaused(cause: .breakActive, since: now)]
     }
 
-    /// End a break. Long enough and it is a real break: reset and record. Too short and it
-    /// is nothing at all, counting it would make the compliance number a lie the user can farm.
     @discardableResult
     public mutating func endBreak(origin: BreakOrigin) -> [SessionEvent] {
         let now = time.now
@@ -184,8 +141,6 @@ public struct SessionTracker: Sendable {
     public mutating func recordSkip() { session.recordSkip() }
     public mutating func recordSnooze() { session.recordSnooze() }
     public mutating func recordIgnoredPrompt() { session.recordIgnoredPrompt() }
-
-    // MARK: - The tick
 
     @discardableResult
     public mutating func tick(_ sample: TickSample) -> [SessionEvent] {
@@ -248,9 +203,6 @@ public struct SessionTracker: Sendable {
         return events
     }
 
-    // MARK: - Gap machinery
-
-    /// Why the clock should not be crediting right now, or nil if it should.
     private func pauseCause(for sample: TickSample, discontinuity: Bool, idle: TimeInterval) -> PauseCause? {
         if sample.screenLocked { return .screenLocked }
         if sample.userPaused { return .userPaused }
@@ -381,7 +333,6 @@ public struct SessionTracker: Sendable {
         gap = current
     }
 
-    /// The authoritative table of docs/BREAK-DECISION.md §4.1, as one function.
     public func classify(duration: TimeInterval, cause: PauseCause) -> GapClassification {
         switch cause {
         case .meetingNoInput, .userPaused, .breakActive:
@@ -398,8 +349,6 @@ public struct SessionTracker: Sendable {
         }
     }
 
-    // MARK: - Crediting
-
     private mutating func creditIfPossible(delta: TimeInterval, mono: Double, bundleID: String?) {
         guard delta > 0, session.isRunning else { return }
         let start = mono - delta
@@ -410,8 +359,6 @@ public struct SessionTracker: Sendable {
         let provisional = max(0, creditEnd - max(start, lastInputMono))
         session.credit(credited, provisional: provisional, bundleID: bundleID)
     }
-
-    // MARK: - Session lifecycle
 
     private mutating func endSession(at date: Date) -> [SessionEvent] {
         guard !session.isStopped else { return [] }
@@ -430,9 +377,6 @@ public struct SessionTracker: Sendable {
         events.append(.sessionStarted(id: session.id, at: now))
     }
 
-    // MARK: - Handing the session to the decision engine
-
-    /// The snapshot the decision and message engines consume.
     public func makeContext(now: Date, evidence: [Evidence] = [], context: ActivityContext = .empty, concurrent: ConcurrentStates = .none) -> DeveloperContext {
         DeveloperContext(
             timestamp: now,

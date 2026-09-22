@@ -1,29 +1,15 @@
 import Foundation
 
-// MARK: - Errors
-
 public enum StoreError: Error, Sendable, Hashable {
-    /// A line claims a schema version this build does not understand. Readers reject
-    /// unknown majors instead of guessing (docs/PRIVACY.md §4.3).
     case unsupportedSchemaVersion(Int)
-    /// The storage root could not be created or written.
     case notWritable(path: String, reason: String)
     case notADirectory(path: String)
 }
 
-// MARK: - Reports
-
-/// One day's worth of log, plus an honest count of what could not be read.
 public struct DayLoad: Sendable, Hashable {
     public let day: CalendarDay
-    /// Sorted ascending by timestamp.
     public let events: [LoggedEvent]
-    /// Lines that did not parse. Surfaced rather than swallowed: a corrupt file never
-    /// crashes the app and never *silently* changes your history.
     public let malformedLines: Int
-    /// The file is there and would not open: permissions, an I/O error, or too large to
-    /// read. Separate from an empty day, because "nothing happened" and "I could not look"
-    /// are different answers and only one of them is about you.
     public let unreadable: Bool
 
     public init(
@@ -68,8 +54,6 @@ public struct PruneReport: Sendable, Hashable {
     }
 }
 
-/// What a "delete everything" actually removed. The app says what it did rather than
-/// showing a spinner and a checkmark (docs/PRIVACY.md §4.6).
 public struct DeletionReport: Sendable, Hashable {
     public let location: String
     public let removedFiles: Int
@@ -91,8 +75,6 @@ public struct DeletionReport: Sendable, Hashable {
         self.removedEvents = removedEvents
     }
 
-    /// Verbatim shape from docs/PRIVACY.md §4.6, including the honest footer about the
-    /// two things no application can clean up for you.
     public var userFacingSummary: String {
         let size = DeletionReport.humanBytes(removedBytes)
         return """
@@ -117,41 +99,22 @@ public struct DeletionReport: Sendable, Hashable {
     }
 }
 
-// MARK: - The protocol
-
-/// Everything that touches durable state goes through here.
-///
-/// The point of the indirection is that `DailyRollup` never performs I/O: it is handed
-/// `[LoggedEvent]` and returns a value. `FileEventStore` is the only thing in the tree
-/// that knows a filesystem exists, and `InMemoryEventStore` is what the tests use, so
-/// the rollup's behaviour is provable without a disk, a GUI session, or a clock.
 public protocol EventStore: Sendable {
-    /// Append one event. Implementations must be crash-safe at line granularity: a
-    /// process that dies mid-write loses at most the line it was writing.
     func append(_ event: LoggedEvent) throws
     func append(contentsOf events: [LoggedEvent]) throws
 
-    /// Every UTC day that currently has a log, ascending.
     func availableDays() throws -> [CalendarDay]
 
     func load(day: CalendarDay) throws -> DayLoad
 
-    /// A single, self-describing text blob the user can read end to end. Nothing is
-    /// transformed or filtered, the export is a copy, so what you audit is what the
-    /// app has (docs/PRIVACY.md §4.6).
     func exportText() throws -> String
 
-    /// Drop everything older than `retentionDays` counted back from `now`.
-    /// `retentionDays == 0` means keep nothing, a real mode, not a degenerate one.
     @discardableResult
     func prune(retentionDays: Int, asOf now: Date) throws -> PruneReport
 
-    /// Remove everything, and say what was removed.
     @discardableResult
     func deleteEverything() throws -> DeletionReport
 }
-
-// MARK: - Shared behaviour
 
 extension EventStore {
     public func append(contentsOf events: [LoggedEvent]) throws {
@@ -162,12 +125,6 @@ extension EventStore {
         try days.map { try load(day: $0) }
     }
 
-    /// Every event that could belong to one **logical** day (local calendar, 04:00
-    /// boundary). Reads the UTC files on either side, because a logical day straddles
-    /// up to three of them, then clips to the day's interval.
-    ///
-    /// Events from just before the interval are deliberately kept: the walk needs to
-    /// know which app was frontmost when the day began.
     public func events(
         forLogicalDay day: CalendarDay,
         calendar: Calendar = .current,
@@ -185,17 +142,13 @@ extension EventStore {
         return ((before.map { [$0] } ?? []) + inWindow, malformed)
     }
 
-    /// Retention default for raw events (docs/PRIVACY.md §4.5).
     public static var defaultRetentionDays: Int { 7 }
 }
 
-/// Retention defaults, in one place so the UI and the store cannot disagree.
 public enum Retention {
-    /// docs/PRIVACY.md §4.5. Range 0…365; 0 is "memory-only mode".
     public static let defaultEventDays = 7
     public static let minimumEventDays = 0
     public static let maximumEventDays = 365
-    /// Daily summaries outlive raw events, because they are a hundredth of the data.
     public static let defaultSummaryDays = 90
 
     public static func clampEventDays(_ days: Int) -> Int {
@@ -203,16 +156,9 @@ public enum Retention {
     }
 }
 
-// MARK: - In-memory implementation
-
-/// The reference implementation, and the one the tests use.
-///
-/// It is also the shape of "memory-only mode" (retention = 0 days): the engine works,
-/// the summary is computed, and nothing is ever written to disk.
 public final class InMemoryEventStore: EventStore, @unchecked Sendable {
     private let lock = NSLock()
     private var days: [CalendarDay: [LoggedEvent]] = [:]
-    /// Injected so a test can simulate a log that already contains a torn line.
     private var injectedMalformed: [CalendarDay: Int] = [:]
 
     public init(events: [LoggedEvent] = []) {
@@ -243,7 +189,6 @@ public final class InMemoryEventStore: EventStore, @unchecked Sendable {
         )
     }
 
-    /// Test affordance: pretend `count` lines of `day` were unreadable.
     public func injectMalformedLines(_ count: Int, on day: CalendarDay) {
         lock.lock()
         defer { lock.unlock() }
@@ -296,24 +241,13 @@ public final class InMemoryEventStore: EventStore, @unchecked Sendable {
     }
 }
 
-// MARK: - Pruning arithmetic
-
-/// Split out so both stores prune by the same rule and one test pins it.
 public enum PruneMath {
-    /// The oldest day that survives. `nil` means "keep nothing".
     public static func cutoffDay(retentionDays: Int, asOf now: Date) -> CalendarDay? {
         guard retentionDays > 0 else { return nil }
         let today = CalendarDay.utc(of: now)
         return today.adding(days: -(retentionDays - 1))
     }
 
-    /// Two-sided: older than the cutoff, OR later than today.
-    ///
-    /// The lower bound is the retention window. The upper bound is the one that was missing:
-    /// a file named for a day in the future is never `< cutoff`, so it survived every prune
-    /// forever, and the seven-day promise quietly did not hold for anyone whose clock had
-    /// been wrong when an event was written. A day after now cannot be real data, and is
-    /// exactly what retention should reach.
     public static func shouldDrop(_ day: CalendarDay, cutoff: CalendarDay?, today: CalendarDay) -> Bool {
         if day > today { return true }
         guard let cutoff else { return true }
@@ -321,12 +255,6 @@ public enum PruneMath {
     }
 }
 
-// MARK: - Export rendering
-
-/// One file, plain text, readable top to bottom.
-///
-/// Header lines start with `#`, which `EventLogCodec` skips, so the export is not only
-/// human-readable, it feeds straight back into this same reader.
 enum ExportWriter {
     static func render(
         location: String,
@@ -351,9 +279,6 @@ enum ExportWriter {
             out += "# days: none\n"
         }
         out += "# events: \(total)\n"
-        // Generated from `LoggedEvent.CodingKeys`, never retyped: a header that lists a
-        // field set two changes out of date under-describes the artifact a sceptic is
-        // being handed, which is the one thing an export cannot do.
         for (i, line) in LoggedEvent.fieldGuide().enumerated() {
             out += i == 0 ? "# fields: \(line)\n" : "#         \(line)\n"
         }

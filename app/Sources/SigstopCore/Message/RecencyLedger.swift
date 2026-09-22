@@ -1,39 +1,25 @@
 import Foundation
 
-// MARK: - Policy
-
-/// The repetition rules. Repetition is the failure mode that gets the app uninstalled, so
-/// these are hard gates rather than preferences. See docs/MESSAGE-ENGINE.md §3.1.
 public enum Policy {
-    /// A line rests three days.
     public static let templateCooldownHours = 72
-    /// Don't do two Docker jokes in a row.
     public static let categoryCooldownMinutes = 45
-    /// The last N shown ids are excluded outright.
     public static let lruWindow = 60
     public static let relaxedLRUWindow = 20
-    /// Scarcity is what makes NUCLEAR land.
     public static let nuclearPerDay = 1
     public static let nuclearCooldownHours = 6
-    /// Avoid three identical tones in a row, deprioritized, not blocked.
     public static let toneRepeatWindow = 3
     public static let toneRepeatWeightMultiplier = 0.4
-    /// At the `allowSameDay` stage a same-day repeat needs at least this much distance.
     public static let sameDayRepeatMinimumHours = 6.0
     public static let ledgerRetentionDays = 30
 }
 
-/// Selection never returns nothing. When the recency rules empty the candidate set, the
-/// engine re-runs them one stage looser and records the stage in the trace. A user who
-/// reaches stage 3 regularly has packs too small for their usage, which is a thing the app
-/// can say out loud rather than silently repeat itself.
 public enum RelaxationStage: Int, Sendable, Codable, Hashable, CaseIterable, Comparable {
-    case strict = 0        // all rules
-    case dropCategory = 1  // drop the 45-minute category cooldown
-    case shrinkLRU = 2     // LRU window 60 -> 20
-    case dropCooldown = 3  // drop the 72h template cooldown; same-day rule still absolute
-    case allowSameDay = 4  // allow a same-day repeat, but only after 6h
-    case emergency = 5     // compiled-in fallback pool, tone forced to .friendly
+    case strict = 0
+    case dropCategory = 1
+    case shrinkLRU = 2
+    case dropCooldown = 3
+    case allowSameDay = 4
+    case emergency = 5
 
     public static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
 
@@ -44,8 +30,6 @@ public enum RelaxationStage: Int, Sendable, Codable, Hashable, CaseIterable, Com
     public var enforcesTemplateCooldown: Bool { self < .dropCooldown }
     public var enforcesSameDayUniqueness: Bool { self < .allowSameDay }
 }
-
-// MARK: - Entries
 
 public struct LedgerEntry: Sendable, Codable, Hashable {
     public let templateID: String
@@ -61,23 +45,14 @@ public struct LedgerEntry: Sendable, Codable, Hashable {
     }
 }
 
-// MARK: - Ledger
-
-/// What has been shown, and when.
-///
-/// A reference type on purpose: the engine and the persistence layer hold the same ledger,
-/// and "what did we already say" is genuine shared identity rather than a value. Core does
-/// no I/O, so persistence is somebody else's job, `snapshot` / `init(entries:)` is the
-/// whole interface they need.
 public final class RecencyLedger: @unchecked Sendable {
     private let lock = NSLock()
-    private var entries: [LedgerEntry]   // append order, oldest first
+    private var entries: [LedgerEntry]
 
     public init(entries: [LedgerEntry] = []) {
         self.entries = entries.sorted { $0.shownAt < $1.shownAt }
     }
 
-    /// For the persistence layer. Ordered oldest first.
     public var snapshot: [LedgerEntry] {
         lock.withLock { entries }
     }
@@ -115,7 +90,6 @@ public final class RecencyLedger: @unchecked Sendable {
         lastShownToday(templateID: templateID, calendar: calendar, now: now) != nil
     }
 
-    /// The most recent show of this template that falls on `now`'s calendar day.
     public func lastShownToday(templateID: String, calendar: Calendar, now: Date) -> Date? {
         lock.withLock {
             entries.last {
@@ -124,13 +98,11 @@ public final class RecencyLedger: @unchecked Sendable {
         }
     }
 
-    /// Most-recent-first.
     public func recentTemplateIDs(limit: Int) -> [String] {
         guard limit > 0 else { return [] }
         return lock.withLock { entries.suffix(limit).reversed().map(\.templateID) }
     }
 
-    /// Most-recent-first.
     public func recentTones(limit: Int) -> [Tone] {
         guard limit > 0 else { return [] }
         return lock.withLock { entries.suffix(limit).reversed().map(\.tone) }
@@ -142,7 +114,6 @@ public final class RecencyLedger: @unchecked Sendable {
         }
     }
 
-    /// Retention. Core never schedules this; the app calls it.
     public func purge(before cutoff: Date) {
         lock.withLock { entries.removeAll { $0.shownAt < cutoff } }
     }
@@ -151,9 +122,6 @@ public final class RecencyLedger: @unchecked Sendable {
         lock.withLock { entries.removeAll() }
     }
 
-    // MARK: Rules
-
-    /// True when this template may be shown at this relaxation stage.
     public func allows(
         _ t: MessageTemplate, at stage: RelaxationStage, now: Date, calendar: Calendar
     ) -> Bool {
@@ -190,8 +158,6 @@ public final class RecencyLedger: @unchecked Sendable {
         return true
     }
 
-    /// Freshness in `0.05...1`. A never-shown template scores 1 and therefore dominates
-    /// naturally, which is why a newly installed pack surfaces without a special case.
     public func freshness(_ t: MessageTemplate, now: Date) -> Double {
         guard let last = lastShown(templateID: t.id) else { return 1.0 }
         let hours = now.timeIntervalSince(last) / 3600
@@ -200,7 +166,6 @@ public final class RecencyLedger: @unchecked Sendable {
         return min(1.0, max(0.05, hours / recovery))
     }
 
-    /// True when the last `Policy.toneRepeatWindow` shows were all this tone.
     public func toneIsOverused(_ tone: Tone) -> Bool {
         let recent = recentTones(limit: Policy.toneRepeatWindow)
         guard recent.count == Policy.toneRepeatWindow else { return false }

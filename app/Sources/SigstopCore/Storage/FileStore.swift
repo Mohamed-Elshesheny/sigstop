@@ -1,19 +1,5 @@
 import Foundation
 
-/// The on-disk store.
-///
-/// ```
-/// <root>/                        (0700)
-/// ├── events/
-/// │   ├── 2026-09-19.jsonl       (0600)  append-only, one JSON object per line
-/// │   └── 2026-09-20.jsonl
-/// └── summaries/
-///     └── 2026-09.json           (0600)
-/// ```
-///
-/// No database, no binary blob, no encoding. The format is chosen so that `cat` is a
-/// complete audit tool, a skeptical developer should understand a line in ten seconds
-/// and the whole file in a minute. That is a feature, not a shortcut.
 public final class FileEventStore: EventStore, @unchecked Sendable {
     public let root: URL
     public let eventsDirectory: URL
@@ -22,8 +8,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     private let lock = NSLock()
     private let fm = FileManager.default
 
-    /// - Parameter root: the storage root. Creating it (and `events/`, `summaries/`)
-    ///   is the only directory creation this type ever performs.
     public init(root: URL) throws {
         self.root = root
         self.eventsDirectory = root.appendingPathComponent("events", isDirectory: true)
@@ -31,10 +15,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         try createTree()
     }
 
-    /// `~/Library/Application Support/<bundleID>`, or the sandboxed container's
-    /// equivalent, which `applicationSupport` already accounts for when the caller got
-    /// it from `FileManager`. Resolving the URL is the app layer's job; this type only
-    /// assembles the path so `SigstopCore` never has to ask the OS anything.
     public static func defaultRoot(applicationSupport: URL, bundleID: String) -> URL {
         applicationSupport.appendingPathComponent(bundleID, isDirectory: true)
     }
@@ -55,26 +35,10 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         }
     }
 
-    // MARK: - Append
-
     public func append(_ event: LoggedEvent) throws {
         try append(contentsOf: [event])
     }
 
-    /// `t` is when the event happened, not when the line was written, and the file is in
-    /// write order. Those two sentences are the whole contract, and not writing them down
-    /// is what made a real log look corrupt.
-    ///
-    /// A session end is discovered after the fact and carries the timestamp of the gap it
-    /// describes, so a line stamped 04:23 can be appended after a line stamped 04:33 and
-    /// the file genuinely runs backwards at that point. The owner's log does, once.
-    ///
-    /// The sort below orders one batch and nothing more. The single-event `append` above
-    /// hands it an array of one, where sorting is a no-op, so it is not and cannot be a
-    /// guarantee about the file. Every reader sorts for itself — `DailyRollup` at :222 and
-    /// :570 — and must keep doing so. Making the file itself monotonic would mean holding
-    /// events back to see whether something older turns up, which is a buffer in front of
-    /// an append-only log people are invited to `cat`, and a worse trade than one sentence.
     public func append(contentsOf events: [LoggedEvent]) throws {
         guard !events.isEmpty else { return }
         lock.lock()
@@ -87,16 +51,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         }
     }
 
-    /// Append-only, `0600`, one `write` per batch, then `fsync`.
-    ///
-    /// Crash safety, concretely. A process killed mid-write leaves a partial final line
-    /// with no trailing newline. Two things then hold:
-    ///
-    /// 1. The reader skips and counts that line instead of dying on it, so the rest of
-    ///    the day survives intact.
-    /// 2. The next append **heals the tail**, if the file does not end in a newline, a
-    ///    newline is written first. Without that step the torn bytes would fuse with the
-    ///    next event and quietly corrupt two lines instead of one.
     private func appendRaw(_ text: String, to url: URL) throws {
         if !fm.fileExists(atPath: url.path) {
             guard fm.createFile(
@@ -121,8 +75,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         try handle.write(contentsOf: Data(text.utf8))
         try handle.synchronize()
     }
-
-    // MARK: - Read
 
     public func url(for day: CalendarDay) -> URL {
         eventsDirectory.appendingPathComponent(day.fileName)
@@ -150,14 +102,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         return unlockedLoad(day: day)
     }
 
-    /// A day with no file and a day whose file will not open are different answers.
-    ///
-    /// `fm.contents` returns nil for both: a file that is not there, and one that is there
-    /// and cannot be read because of permissions, an I/O error, or a size that will not fit
-    /// in memory. Both became `.empty(day)`, so an unreadable day was reported upward as a
-    /// day on which nothing happened, with `malformedLines: 0` to say the reading went
-    /// fine. PRIVACY.md promises a corrupt file "never silently changes your history", and
-    /// reporting a day you cannot read as a day you did nothing is exactly that.
     private func unlockedLoad(day: CalendarDay) -> DayLoad {
         let path = url(for: day)
         guard fm.fileExists(atPath: path.path) else { return .empty(day) }
@@ -167,8 +111,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         let result = EventLogCodec.decodeLines(String(decoding: data, as: UTF8.self))
         return DayLoad(day: day, events: result.events, malformedLines: result.malformedLines)
     }
-
-    // MARK: - Export
 
     public func exportText() throws -> String {
         lock.lock()
@@ -191,9 +133,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         }
     }
 
-    /// Write the export as a single file the user can open in any text editor.
-    /// Written atomically: readers of `destination` see either the old file or the whole
-    /// new one, never a half-written export.
     @discardableResult
     public func export(to destination: URL) throws -> ExportReport {
         let text = try exportText()
@@ -208,9 +147,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         )
     }
 
-    /// temp file in the same directory, fsync, then `rename(2)` via `replaceItemAt`.
-    /// Same-directory is load-bearing: a cross-volume move is a copy, and a copy is not
-    /// atomic.
     func writeAtomically(_ data: Data, to destination: URL) throws {
         let directory = destination.deletingLastPathComponent()
         let temp = directory.appendingPathComponent(
@@ -237,29 +173,12 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         }
     }
 
-    // MARK: - Summaries
-
-    /// `summaries/YYYY-MM.json`, one object per day, rewritten atomically.
-    /// Summaries outlive raw events (90 days vs 7) because they are a hundredth of the
-    /// data and answer "what did last month look like" without keeping the trace.
     public func writeSummary(_ summary: DailySummary) throws {
         lock.lock()
         defer { lock.unlock() }
         let name = "\(Pad.four(summary.day.year))-\(Pad.two(summary.day.month)).json"
         let path = summariesDirectory.appendingPathComponent(name)
 
-        /// A month that will not decode is set aside, never overwritten.
-        ///
-        /// This fell through to an empty file on any decode failure and then wrote that
-        /// over the original, so one bad key in one day destroyed up to a month of
-        /// summaries and left nothing to look at afterwards. `SummaryFile.days` is a
-        /// dictionary of non-optional values, so a single field added or removed by a
-        /// future version fails the whole file, which makes this reachable by upgrading
-        /// rather than by corruption.
-        ///
-        /// Renaming costs one file on disk and keeps the thing a person could still
-        /// recover by hand. Deleting to make room for today's row is not a trade this
-        /// project gets to make quietly.
         var file: SummaryFile
         if let data = fm.contents(atPath: path.path) {
             if let decoded = try? JSONDecoder().decode(SummaryFile.self, from: data) {
@@ -301,11 +220,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         var days: [String: DailySummary]
     }
 
-    /// Every stored summary, newest month included, keyed by logical day.
-    ///
-    /// The badge evaluator needs the whole window rather than one month, and summaries
-    /// outlive raw events by design, so this is where "what did the last three months
-    /// look like" is answered without keeping the trace that produced it.
     public func readAllSummaries() throws -> [CalendarDay: DailySummary] {
         lock.lock()
         defer { lock.unlock() }
@@ -325,21 +239,10 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         return out
     }
 
-    // MARK: - Badges
-
-    /// `badges.json`, beside `settings.json` at the storage root.
     public var badgesFile: URL {
         root.appendingPathComponent("badges.json", isDirectory: false)
     }
 
-    /// Writes the ledger atomically, in the same plain readable shape as everything else
-    /// here: a schema version and a flat map of badge id to the day it unlocked.
-    ///
-    /// **This file is the only reason a badge survives retention.** Raw events are kept
-    /// for seven days, so the tallies behind most of the ten stop being recomputable
-    /// long before the badges would stop being true. Callers must merge into what is
-    /// already on disk rather than overwrite it, `BadgeLedger.merging` is that merge,
-    /// and it only ever adds.
     public func writeBadges(_ ledger: BadgeLedger) throws {
         lock.lock()
         defer { lock.unlock() }
@@ -348,9 +251,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         try writeAtomically(try encoder.encode(ledger), to: badgesFile)
     }
 
-    /// The ledger on disk, or an empty one. A file that will not parse reads as empty
-    /// rather than throwing: the badges are a record of something nice, and no part of
-    /// the app should fail to launch over one.
     public func readBadges() -> BadgeLedger {
         lock.lock()
         defer { lock.unlock() }
@@ -358,25 +258,10 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         return (try? JSONDecoder().decode(BadgeLedger.self, from: data)) ?? .empty
     }
 
-    // MARK: - Daily counters
-
-    /// `counters.json`, beside `badges.json` at the storage root.
     public var countersFile: URL {
         root.appendingPathComponent("counters.json", isDirectory: false)
     }
 
-    /// The day's budgets, so a relaunch does not hand the user a fresh allowance.
-    ///
-    /// `DailyCounters` used to be a plain value constructed at launch, which meant the
-    /// notification cap, the minimum spacing, the ignore backoff and the cycle numbering
-    /// all reset every time the app started. On the day this was found the app had been
-    /// relaunched 72 times, `break_open {cycle:0}` appears eleven times in one file, and
-    /// the user-visible "notifications per day" setting had never once been a real
-    /// constraint.
-    ///
-    /// It holds counts and one timestamp. No activity, no application, nothing about what
-    /// was on screen, so it adds nothing to the inventory in docs/PRIVACY.md §1.2 that
-    /// the event log does not already hold.
     public func writeCounters(_ counters: DailyCounters) throws {
         lock.lock()
         defer { lock.unlock() }
@@ -385,9 +270,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         try writeAtomically(try encoder.encode(counters), to: countersFile)
     }
 
-    /// The counters on disk, or nil when there are none or the file will not parse. A
-    /// corrupt file reads as absent: starting the day again is a small wrong answer, and
-    /// refusing to launch is a large one.
     public func readCounters() -> DailyCounters? {
         lock.lock()
         defer { lock.unlock() }
@@ -395,10 +277,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         return try? JSONDecoder().decode(DailyCounters.self, from: data)
     }
 
-    // MARK: - Retention
-
-    /// Retention is a file deletion, never a rewrite. That is the payoff for one file
-    /// per day: nothing is ever partially scrubbed (docs/PRIVACY.md §4.5).
     @discardableResult
     public func prune(retentionDays: Int, asOf now: Date) throws -> PruneReport {
         lock.lock()
@@ -416,11 +294,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         )
     }
 
-    // MARK: - Delete
-
-    /// Removes the storage directory recursively and reports what went. No archive, no
-    /// tombstone, no soft delete (docs/PRIVACY.md §4.6). The tree is recreated empty so
-    /// the app keeps working without a relaunch.
     @discardableResult
     public func deleteEverything() throws -> DeletionReport {
         lock.lock()

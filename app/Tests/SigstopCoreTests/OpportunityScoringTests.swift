@@ -3,17 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// One break answers one opportunity, and never two.
-///
-/// Reported from the owner's own stored summaries: `breakCount: 1` beside
-/// `honoredOpportunities: 2`, and on the day before, six breaks beside seven honoured.
-/// The panel read the inflated number under "kept", and the badge for a day where every
-/// break offered was taken unlocked on a day where they were not, because that badge asks
-/// whether honoured equals asked.
-///
-/// The cause was that each opportunity asked whether *any* qualifying break started inside
-/// its compliance window, so two opportunities opened close together were both answered by
-/// the same single break.
 @Suite("One break answers one opportunity")
 struct OpportunityScoringTests {
 
@@ -23,8 +12,6 @@ struct OpportunityScoringTests {
         LoggedEvent(at: day.addingTimeInterval(offset), kind: kind, cycle: cycle)
     }
 
-    /// Two opportunities a minute apart, and one break long enough to qualify. The break
-    /// falls inside both compliance windows.
     private static func twoOpportunitiesOneBreak() -> [LoggedEvent] {
         [
             event(.breakOpen, 0, cycle: 0),

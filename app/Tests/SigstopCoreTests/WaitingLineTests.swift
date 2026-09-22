@@ -3,19 +3,10 @@ import Testing
 
 @testable import SigstopCore
 
-/// The panel is never quiet without saying so.
-///
-/// These live here rather than next to the view for the reason `QuietCause`'s words
-/// already live in `Core`: `SigstopApp` has no test target, so a vocabulary kept there
-/// cannot be checked at all, and this vocabulary is the whole fix.
 @Suite("the panel always says what it is waiting for")
 struct WaitingLineTests {
 
     private let noon = Date(timeIntervalSince1970: 1_700_000_000)
-    /// A 24-hour locale, so the times below stay readable as times. The line follows the
-    /// reader's locale now rather than forcing `HH:mm`; `theClockFollowsTheLocale` pins
-    /// that, and pinning it here too would only make every other assertion depend on
-    /// where ICU puts the space before PM.
     private var calendar: Calendar {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
@@ -57,8 +48,6 @@ struct WaitingLineTests {
         )
     }
 
-    /// Every state the engine can be in, with every quiet cause and every stand-down
-    /// cause, and there is no empty line and no fallback anywhere in the space.
     @Test("no state the engine can reach leaves the panel with nothing to say")
     func totalOverTheStateSpace() {
         let cycle = CycleID.initial
@@ -100,8 +89,6 @@ struct WaitingLineTests {
         }
     }
 
-    /// The line that would have answered the owner's question. Two facts, in one muted
-    /// sentence: the app chose this, and here is when it ends.
     @Test("the backed-off cooldown names the backoff and says when it ends")
     func backedOffCooldownCarriesItsDeadline() {
         let line = read(
@@ -114,8 +101,6 @@ struct WaitingLineTests {
         #expect(line.text.contains("nothing new until 22:38"), "\(line.text)")
     }
 
-    /// The claim the panel used to make to a user who had waved nothing off. `WorkingState`
-    /// carried no cause, so `armThreshold > target` was read as a skip on both paths.
     @Test("a cycle that expired unseen is not reported as a skip")
     func staleRearmIsNotASkip() {
         let skipped = read(.working(WorkingState(armThreshold: 65 * 60, standDown: .skipped)))
@@ -126,8 +111,6 @@ struct WaitingLineTests {
         #expect(!expired.body.contains("waved"))
     }
 
-    /// The hour a new user on a Krisp or BlackHole Mac spends deciding the app is broken.
-    /// It now says how long it has been doubting the device and when it stops.
     @Test("a microphone the app is starting to doubt says so, with a deadline")
     func uncorroboratedMicrophoneSaysHowLongAndUntilWhen() {
         var due = BreakDue(cycle: .initial, dueSince: noon, lastStepMono: 0)
@@ -140,8 +123,6 @@ struct WaitingLineTests {
         #expect(line.text.contains("It stops holding at 22:21"), "\(line.text)")
     }
 
-    /// Under a minute the app has no business doubting anything yet, so it says the plain
-    /// thing rather than starting a countdown on every short dictation.
     @Test("a microphone that just started reads as an ordinary call block")
     func freshMicrophoneReadsPlainly() {
         var due = BreakDue(cycle: .initial, dueSince: noon, lastStepMono: 0)
@@ -150,8 +131,6 @@ struct WaitingLineTests {
         #expect(line.body == GateReason.audioInputInUse.summary)
     }
 
-    /// Pressing a button and seeing nothing change is how a user concludes an app is
-    /// broken. "Not in a meeting" used to do exactly nothing on a stuck-device Mac.
     @Test("ignoring an input device is confirmed in words while the device is still open")
     func theManualOverrideAnswersBack() {
         let line = read(
@@ -163,9 +142,6 @@ struct WaitingLineTests {
         #expect(line.text.contains("22:43"), "\(line.text)")
     }
 
-    /// While the engine is working nothing is being held, so the panel must not borrow a
-    /// block reason. It used to, and on a stuck-device Mac it therefore asserted "you may
-    /// be on a call" for an hour with the process table in the same process disagreeing.
     @Test("a working engine reports the work clock, never a block")
     func workingNeverBorrowsABlockReason() {
         let line = read(
@@ -177,8 +153,6 @@ struct WaitingLineTests {
         #expect(line.body == "the next one is 12m of work away")
     }
 
-    /// The same shape as `everyQuietCauseHasItsOwnWords`, for the same reason: a cause
-    /// with no words of its own is a cause the panel will explain with another one's.
     @Test("every stand-down cause has its own words")
     func everyStandDownCauseHasItsOwnWords() {
         let causes = StandDownCause.allCases
@@ -190,10 +164,6 @@ struct WaitingLineTests {
         }
     }
 
-    /// The confirmation used to be checked before the state, so for the whole half hour
-    /// of the inhibit it answered for every state at once. On the machine the button is
-    /// for, the input device never stops running, so the panel spent thirty minutes
-    /// talking about the microphone while the header said STOPPED, PAUSED or snoozed.
     @Test("a break, a pause, a snooze and a quiet cause all outrank the mic confirmation")
     func theMicConfirmationNeverSpeaksForAnotherState() {
         let ignored = noon.addingTimeInterval(1800)
@@ -218,9 +188,6 @@ struct WaitingLineTests {
         }
     }
 
-    /// And it does not speak over the sentence that explains the silence either. A
-    /// cooldown is the reason nothing is coming; an ignored input device is not a reason
-    /// for anything.
     @Test("a stand-down outranks the mic confirmation")
     func theMicConfirmationNeverSpeaksOverAStandDown() {
         let line = read(
@@ -231,9 +198,6 @@ struct WaitingLineTests {
         #expect(line.body.contains("the last few went unanswered"), "\(line.text)")
     }
 
-    /// The panel's own subtitle one row up is `formatted(date: .omitted, time: .shortened)`,
-    /// so a 24-hour string here put "asking again at 2:22 pm" directly over "you snoozed
-    /// it, asking again at 14:22".
     @Test("the clock follows the reader's locale, like the row above it")
     func theClockFollowsTheLocale() {
         let due = SnoozedState(
@@ -249,7 +213,6 @@ struct WaitingLineTests {
         #expect(!american.text.contains("22:43"), "\(american.text)")
     }
 
-    /// The three claims are different claims and the panel depends on them staying so.
     @Test("the three claims stay three claims")
     func claimsAreDistinct() {
         #expect(Set(WaitingLine.Claim.allCases.map(\.prefix)).count == 3)

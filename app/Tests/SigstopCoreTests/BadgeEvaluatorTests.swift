@@ -2,12 +2,6 @@ import Foundation
 import Testing
 @testable import SigstopCore
 
-// MARK: - Fixtures
-
-/// Everything here runs on the UTC calendar, so "a break at 02:00" means the same thing
-/// on a machine in Cairo and a machine in Denver. The logical day boundary is 04:00, the
-/// production value, because two of the ten badges are defined by the hour on the clock
-/// and moving the boundary would quietly move them.
 private enum Fix {
     static let calendar = CalendarDay.utcCalendar
     static let policy = RollupPolicy(
@@ -20,7 +14,6 @@ private enum Fix {
 
     static func day(_ n: Int) -> CalendarDay { CalendarDay(year: 2026, month: 9, day: n) }
 
-    /// A UTC instant on 2026-09-`day` at `hour`:`minute`.
     static func at(_ day: Int, _ hour: Int, _ minute: Int = 0, _ second: Int = 0) -> Date {
         var c = DateComponents()
         c.year = 2026
@@ -32,7 +25,6 @@ private enum Fix {
         return calendar.date(from: c) ?? Date(timeIntervalSince1970: 1_790_000_000)
     }
 
-    /// A day that exists only as a stored summary: no events, just the aggregates.
     static func summary(
         _ n: Int,
         breaks: Int = 0,
@@ -55,8 +47,6 @@ private enum Fix {
         )
     }
 
-    /// A day carrying raw events, with an otherwise empty summary, the four
-    /// event-derived badges do not read the aggregates at all.
     static func events(_ n: Int, _ events: [LoggedEvent]) -> BadgeDay {
         BadgeDay(summary: DailySummary(day: day(n)), events: events)
     }
@@ -67,7 +57,6 @@ private enum Fix {
         )
     }
 
-    /// One prompt delivered at `promptedAt`, accepted `afterSeconds` later.
     static func acceptedPrompt(
         cycle: Int, promptedAt: Date, afterSeconds: TimeInterval
     ) -> [LoggedEvent] {
@@ -78,8 +67,6 @@ private enum Fix {
         ]
     }
 }
-
-// MARK: - The two counting badges
 
 @Suite("badges · breaks taken")
 struct BreakCountBadgeTests {
@@ -119,8 +106,6 @@ struct BreakCountBadgeTests {
         #expect(ledger.date(for: .stoppedHundred) == Fix.day(2))
     }
 }
-
-// MARK: - nothing blocked / always halts
 
 @Suite("badges · every break offered was taken")
 struct CleanDayBadgeTests {
@@ -167,8 +152,6 @@ struct CleanDayBadgeTests {
         #expect(ledger.date(for: .provablyHalts) == Fix.day(10))
     }
 }
-
-// MARK: - no handler
 
 @Suite("badges · no handler")
 struct ReflexBadgeTests {
@@ -224,8 +207,6 @@ struct ReflexBadgeTests {
     }
 }
 
-// MARK: - uncatchable
-
 @Suite("badges · uncatchable")
 struct SigstopBadgeTests {
 
@@ -270,8 +251,6 @@ struct SigstopBadgeTests {
     }
 }
 
-// MARK: - yielded
-
 @Suite("badges · yielded")
 struct YieldBadgeTests {
 
@@ -307,8 +286,6 @@ struct YieldBadgeTests {
         #expect(!Fix.evaluate([Fix.summary(1)]).contains(.schedYield))
     }
 }
-
-// MARK: - early return / still running
 
 @Suite("badges · the two clock badges")
 struct ClockBadgeTests {
@@ -383,8 +360,6 @@ struct ClockBadgeTests {
     }
 }
 
-// MARK: - The ledger
-
 @Suite("badges · the ledger")
 struct BadgeLedgerTests {
 
@@ -451,15 +426,9 @@ struct BadgeLedgerTests {
     }
 }
 
-// MARK: - Retention
-
 @Suite("badges · earned is earned")
 struct BadgeRetentionTests {
 
-    /// The whole point of persisting the ledger, as a test: raw events are kept for
-    /// seven days, and a badge won inside that window has to survive the day it was won
-    /// being deleted. The clock is injected, as everywhere else in this suite, so the
-    /// prune cutoff is a value and not whatever day the machine thinks it is.
     @Test("An unlocked badge survives the log it was computed from being pruned")
     func a_badge_outlives_its_evidence() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
@@ -517,15 +486,9 @@ struct BadgeRetentionTests {
     }
 }
 
-// MARK: - The design rule
-
 @Suite("badges · the rule")
 struct BadgeDesignRuleTests {
 
-    /// The one rule that decided the catalogue, as an executable check: no badge may be
-    /// won by working longer. Every predicate is fed a day of ten hours at the desk with
-    /// one unbroken stretch, the exact day this product exists to prevent, and nothing
-    /// may fire.
     @Test("A ten hour day with no breaks unlocks nothing")
     func nothing_rewards_working_longer() {
         let grind = Fix.summary(
@@ -551,8 +514,6 @@ struct BadgeDesignRuleTests {
         }
     }
 
-    /// A motif is part of a badge's identity, not a rendering choice, so they are pinned
-    /// here: a refactor that reassigns one is a rename, and this fails first.
     @Test("Every badge keeps the motif it was given")
     func the_motifs_are_fixed() {
         let expected: [BadgeID: BadgeMotif] = [
@@ -572,9 +533,6 @@ struct BadgeDesignRuleTests {
         }
     }
 
-    /// The old geometry gave two badges the same shape and called it a progression. Ten
-    /// objects that a reader is meant to tell apart have to actually be ten objects, and
-    /// the one place that can go wrong silently is the catalogue.
     @Test("No two badges share a motif")
     func the_motifs_are_distinct() {
         #expect(Set(Badge.all.map(\.motif)).count == Badge.all.count)

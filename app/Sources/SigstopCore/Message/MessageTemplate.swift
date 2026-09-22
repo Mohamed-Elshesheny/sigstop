@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - Predicates
-
 public enum Predicate: Sendable, Hashable, Codable {
     case app(Set<AppKey>)
     case appFamily(Set<AppFamily>)
@@ -48,9 +46,6 @@ public enum Predicate: Sendable, Hashable, Codable {
         }
     }
 
-    /// How much context this predicate commits to. Higher = more specific = better match.
-    /// Set size deliberately does not reduce the weight: penalising `[.vscode, .zed]`
-    /// would push contributors to duplicate every line per app.
     public var specificity: Int {
         switch self {
         case .app:               return 40
@@ -65,7 +60,6 @@ public enum Predicate: Sendable, Hashable, Codable {
         }
     }
 
-    /// Stable label used for tracing and for the deterministic tie-break.
     public var kindName: String {
         switch self {
         case .app:               return "app"
@@ -79,8 +73,6 @@ public enum Predicate: Sendable, Hashable, Codable {
         case .fact:              return "fact"
         }
     }
-
-    // MARK: Codable, the `{ "p": ..., "in": [...] }` wire format from §7.2
 
     private enum CodingKeys: String, CodingKey {
         case p, `in`, atLeast, key, match, value
@@ -183,21 +175,15 @@ public enum Predicate: Sendable, Hashable, Codable {
     }
 }
 
-// MARK: - Template
-
 public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let title: String?
     public let text: String
-    /// A variant sentence with the optional slots removed. How a line keeps its joke when
-    /// one detail goes missing.
     public let altText: String?
     public let tone: Tone
     public let category: String
     public let escalation: ClosedRange<EscalationLevel>
     public let minConfidence: Double
-    /// True when the line asserts, as fact, what the developer is doing. These are the
-    /// lines that destroy the product when they are wrong, so they are gated hardest.
     public let claimsActivity: Bool
     public let requiredSlots: [SlotKey]
     public let optionalSlots: [SlotKey]
@@ -252,7 +238,6 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
         self.notes = notes
     }
 
-    /// Every slot the rendered line may need to fill.
     public var allSlots: [SlotKey] { requiredSlots + optionalSlots }
 
     public var usesAppPredicate: Bool {
@@ -260,14 +245,11 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
             || requiredSlots.contains(.app)
     }
 
-    /// A template "uses" the activity if it matches on one, prints one, or claims one.
     public var usesActivityClaim: Bool {
         when.contains { if case .activity = $0 { return true }; return false }
             || requiredSlots.contains(.activity)
             || claimsActivity
     }
-
-    // MARK: Codable
 
     private enum CodingKeys: String, CodingKey {
         case id, title, text, altText, tone, category, escalation, minConfidence
@@ -336,16 +318,9 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
-// MARK: - Scoring
-
 public enum Scorer {
-    /// Per required slot: a line that commits to a detail is a line that earned it.
     public static let slotBonus = 4
-    /// A template aimed at exactly one escalation rung is aimed.
     public static let tightEscalationBonus = 6
-    /// Deliberately smaller than the cheapest strong predicate (`appFamily`, 15), so a
-    /// template that pins the app or the activity can never be beaten inside the band by
-    /// one that does not.
     public static let bandTolerance = 10
 
     public static func score(_ t: MessageTemplate) -> Int {
@@ -356,8 +331,6 @@ public enum Scorer {
         return s
     }
 }
-
-// MARK: - Packs and corpus
 
 public struct MessagePack: Codable, Sendable, Hashable {
     public let schemaVersion: Int
@@ -410,9 +383,6 @@ public enum CorpusError: Error, Sendable, Equatable {
 
 public struct Corpus: Sendable, Hashable {
     public let packs: [MessagePack]
-    /// Flattened, id-deduped (first pack wins), unsupported packs dropped wholesale,
-    /// never partially, because a half-loaded pack produces exactly the coverage holes the
-    /// lint exists to prevent.
     public let templates: [MessageTemplate]
 
     public init(packs: [MessagePack]) {
@@ -433,10 +403,6 @@ public struct Corpus: Sendable, Hashable {
         templates.first { $0.id == id }
     }
 
-    // MARK: Loading
-
-    /// Accepts either a single pack envelope (docs/MESSAGE-ENGINE.md §7.1) or a
-    /// `{ "packs": [ ... ] }` wrapper, so a multi-pack file loads too.
     public static func decode(_ data: Data) throws -> Corpus {
         let decoder = JSONDecoder()
         if let pack = try? decoder.decode(MessagePack.self, from: data) {
@@ -447,54 +413,23 @@ public struct Corpus: Sendable, Hashable {
         return Corpus(packs: wrapper.packs)
     }
 
-    /// The pack compiled into the app. Never throws at use sites: a corpus that fails to
-    /// load degrades to the emergency pool rather than taking the app down.
     public static let bundled: Corpus = {
         (try? loadBundled()) ?? Corpus(packs: [])
     }()
 
-    /// Anchors `Bundle(for:)` on this module. A class, because that API takes one.
     private final class BundleAnchor {}
 
-    /// Every place the corpus can honestly be, looked for by hand.
-    ///
-    /// **`Bundle.module` is deliberately not used, and this is the reason.** SwiftPM
-    /// generates it as exactly two paths: `Bundle.main.bundleURL` plus the bundle name,
-    /// and the absolute build directory of the machine that compiled it. The first is the
-    /// *top level* of the `.app`, where nothing may live on macOS because everything has
-    /// to be under `Contents`, and the second exists only on the build machine. So a
-    /// packaged app resolved the corpus through the developer's own `.build` directory and
-    /// died on every other computer on earth, before `main()`, with no window and no icon
-    /// and nothing in the Dock. Measured by hiding `.build` and launching the shipped
-    /// bundle: `Fatal error: could not load resource bundle`.
-    ///
-    /// It also cannot be caught. `bundled` wraps this in `try?` so a missing corpus
-    /// degrades to the emergency pool, but `Bundle.module` is a `fatalError`, and `try?`
-    /// does not catch those. Touching it at all put a crash the app could not survive in
-    /// front of a fallback written specifically to survive it.
-    ///
-    /// The order is the real one: `Contents/Resources` first, because that is where a
-    /// macOS app keeps resources and where `bundle.sh` puts it.
     static var corpusCandidates: [URL] {
         let name = "sigstop_SigstopCore.bundle"
         let main = Bundle.main
         var roots: [URL] = []
 
-        // Where a macOS app actually keeps its resources.
         if let resources = main.resourceURL { roots.append(resources.appendingPathComponent(name)) }
-        // Where SwiftPM's own accessor looks, for a layout that puts it there.
         roots.append(main.bundleURL.appendingPathComponent(name))
-        // A command line tool: the bundle sits beside the executable.
         roots.append(main.bundleURL.deletingLastPathComponent().appendingPathComponent(name))
-        // Linked as a framework rather than statically.
         if let owner = Bundle(for: BundleAnchor.self).resourceURL {
             roots.append(owner.appendingPathComponent(name))
         }
-        // Under `swift test` the resource bundle sits beside the build products, and
-        // `Bundle.main` is the xctest RUNNER, somewhere else entirely. The bundle that
-        // holds this class is the .xctest itself, whose parent is the directory wanted.
-        // Walk up from both anchors rather than hardcode a depth that differs between a
-        // test run, an app and a bare executable.
         for anchor in [Bundle(for: BundleAnchor.self).bundleURL, main.bundleURL] {
             var ancestor = anchor
             for _ in 0..<4 {
@@ -511,7 +446,6 @@ public struct Corpus: Sendable, Hashable {
                 urls.append(u)
             }
         }
-        // Loose in the app's own resources, with no wrapper bundle at all.
         if let u = main.url(forResource: "corpus", withExtension: "json") { urls.append(u) }
         return urls
     }
@@ -520,8 +454,6 @@ public struct Corpus: Sendable, Hashable {
         guard let url = corpusCandidates.first else { throw CorpusError.resourceMissing }
         return try decode(try Data(contentsOf: url))
     }
-
-    // MARK: Emergency pool
 
     public static let emergencyPool: [MessageTemplate] = [
         MessageTemplate(
@@ -556,8 +488,6 @@ public struct Corpus: Sendable, Hashable {
             isFallback: true),
     ]
 
-    /// The line of absolute last resort. `select` returns a message even if every pool,
-    /// including the emergency one, has somehow been emptied.
     public static let lastResort = MessageTemplate(
         id: "emergency.fallback.last-resort",
         text: "Break time. Back in five.",

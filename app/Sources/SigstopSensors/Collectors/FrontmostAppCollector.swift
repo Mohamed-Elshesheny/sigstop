@@ -2,8 +2,6 @@ import AppKit
 import Foundation
 import SigstopCore
 
-/// What happened in the workspace. Deliberately carries only extracted `Sendable`
-/// values, `NSRunningApplication` never crosses an isolation boundary.
 public enum WorkspaceEvent: Sendable, Hashable {
     case activated(AppIdentity, at: Date)
     case deactivated(AppIdentity, at: Date)
@@ -23,13 +21,11 @@ public enum WorkspaceEvent: Sendable, Hashable {
     }
 }
 
-/// One coherent read of "which app, since when, what else is running".
 public struct FrontmostSnapshot: Sendable, Hashable {
     public let frontmost: AppIdentity
     public let frontmostSince: Date
     public let recentApps: [AppSwitch]
     public let runningBundleIDs: Set<String>
-    /// Total frontmost-app changes observed since the collector started.
     public let switchCount: Int
 
     public init(
@@ -47,21 +43,8 @@ public struct FrontmostSnapshot: Sendable, Hashable {
     }
 }
 
-/// Tier 0. Frontmost application identity and switch history.
-///
-/// Zero permission, zero prompts, and roughly 70% of the product's value.
-///
-/// **Event-driven, never polled.** Everything here comes from
-/// `NSWorkspace.shared.notificationCenter`. Subscribing to `NotificationCenter.default`
-/// instead is the classic bug, it compiles, it runs, and it silently delivers nothing.
-///
-/// `NSWorkspace` notifications are delivered on the main thread, so this type is
-/// `@MainActor`-isolated rather than being an actor with its own executor: bridging to a
-/// second isolation domain would buy nothing and add a hop per app switch.
 @MainActor
 public final class FrontmostAppCollector {
-    /// Ring buffer depth. 20 switches is enough to see "3-second lookup inside a
-    /// 25-minute editor session" without retaining a session history we never use.
     public static let historyDepth = 20
 
     private let time: any TimeSource
@@ -74,9 +57,6 @@ public final class FrontmostAppCollector {
     private var switches: Int = 0
     private var continuations: [UUID: AsyncStream<WorkspaceEvent>.Continuation] = [:]
 
-    /// The identity used when `frontmostApplication` is nil, during a switch, at login,
-    /// or while a modal system UI owns the front. Modelled explicitly rather than
-    /// force-unwrapped.
     public static let unknownApp = AppIdentity(bundleID: nil, localizedName: "Unknown", pid: 0)
 
     public init(time: any TimeSource = SystemTimeSource()) {
@@ -91,11 +71,9 @@ public final class FrontmostAppCollector {
         for c in continuations.values { c.finish() }
     }
 
-    // MARK: - Lifecycle
-
     public func start() {
         guard observers.isEmpty else { return }
-        let center = NSWorkspace.shared.notificationCenter  // NOT NotificationCenter.default
+        let center = NSWorkspace.shared.notificationCenter
 
         observers.append(observe(center, NSWorkspace.didActivateApplicationNotification) { me, app, at in
             me.handleActivation(app, at: at)
@@ -121,8 +99,6 @@ public final class FrontmostAppCollector {
         observers.removeAll()
     }
 
-    /// Re-reads the world from `NSWorkspace`. Called at start, and on wake, a
-    /// notification posted while the machine was asleep is a notification we did not get.
     public func reconcile() {
         running = Self.readRunningBundleIDs()
         guard let actual = Self.readFrontmost() else { return }
@@ -130,8 +106,6 @@ public final class FrontmostAppCollector {
             handleActivation(actual, at: time.now)
         }
     }
-
-    // MARK: - Reading
 
     public func snapshot() -> FrontmostSnapshot {
         FrontmostSnapshot(
@@ -152,8 +126,6 @@ public final class FrontmostAppCollector {
             }
         }
     }
-
-    // MARK: - Internals
 
     private func handleActivation(_ app: AppIdentity, at: Date) {
         guard app != current else { return }

@@ -3,7 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// "Why has it not prompted me", which is the question the owner could not get answered.
 @Suite("the log can answer why it is quiet")
 struct PromptOutlookTests {
 
@@ -23,7 +22,6 @@ struct PromptOutlookTests {
 
     private static func at(_ seconds: TimeInterval) -> Date { epoch.addingTimeInterval(seconds) }
 
-    /// The incident itself, as the file would look today: open, prompt, close skipped.
     @Test("a skip is named as the reason, with the re-arm spelled out")
     func skipIsExplained() {
         let events: [LoggedEvent] = [
@@ -82,8 +80,6 @@ struct PromptOutlookTests {
         #expect(outlook.headline.contains("not running"))
     }
 
-    /// `idle_begin` is backdated, so the file is genuinely not in timestamp order. A
-    /// reader that trusts file order reports the wrong last event.
     @Test("an out of order file is still read in time order")
     func unsortedFileIsSorted() {
         let events: [LoggedEvent] = [
@@ -98,11 +94,6 @@ struct PromptOutlookTests {
         #expect(outlook.headline.contains("waved the last one off"))
     }
 
-    // MARK: - An open cycle is a claim about now, and has to be bounded by the evidence
-
-    /// Engine state is deliberately not persisted, so every relaunch orphans whatever
-    /// cycle was open. The owner's own file has exactly this shape: `break_open` at
-    /// 20:26:56Z, then a `start` at 21:31:55Z that killed it.
     @Test("a relaunch ends an open cycle, and the reader says so")
     func aRelaunchOrphansAnOpenCycle() {
         let events: [LoggedEvent] = [
@@ -121,9 +112,6 @@ struct PromptOutlookTests {
         )
     }
 
-    /// The claim `--doctor` makes is present tense. Nothing in the reader compared `now`
-    /// to the last line, so a cycle left open last night was still reported as due right
-    /// now, on a machine where the app was not even running.
     @Test("a stale open cycle is reported as a log that stopped, not as a break due now")
     func aStaleOpenCycleIsNotPresentTense() {
         let events: [LoggedEvent] = [
@@ -138,9 +126,6 @@ struct PromptOutlookTests {
         #expect(outlook.headline.contains("22:18:20"), "the last line’s time is the honest anchor")
     }
 
-    /// The snooze and its length are both in the file. Ignoring them told a user who had
-    /// pressed SIGALRM ten minutes ago that a break was due right now and nothing was
-    /// holding it, when the true answer was one line above in the same file.
     @Test("a snoozed prompt is named, with the time it comes back")
     func aSnoozeIsExplained() {
         var settings = EngineHarness.ownerSettings
@@ -148,7 +133,7 @@ struct PromptOutlookTests {
         var session = EngineHarness.Session(settings: settings)
         session.stepToPrompt()
         session.step(action: .snooze)
-        session.step(times: 120) // ten minutes into a fifteen minute snooze
+        session.step(times: 120)
 
         let outlook = PromptOutlook.read(
             events: session.log.lines,
@@ -164,9 +149,6 @@ struct PromptOutlookTests {
         )
     }
 
-    /// A snooze that was pending when the process died is not a snooze that is pending.
-    /// Every present-tense branch has to be bounded by the same evidence, not just the
-    /// default one.
     @Test("a snooze left behind by a dead process reads as a stopped log")
     func aStaleSnoozeIsNotPending() {
         let events: [LoggedEvent] = [
@@ -174,8 +156,6 @@ struct PromptOutlookTests {
             .breakOpen(at: Self.at(300), cycle: .initial),
             .breakPrompt(at: Self.at(300), cycle: .initial, reason: .sigtstp),
             .breakResponse(at: Self.at(310), cycle: .initial, action: .snoozed, snoozeSeconds: 900),
-            // The heartbeat a live snooze now writes, which is what makes the file
-            // evidence about the present at all.
             .gate(at: Self.at(910), reason: .userSnoozed, cycle: .initial),
         ]
         let outlook = PromptOutlook.read(
@@ -189,8 +169,6 @@ struct PromptOutlookTests {
         #expect(dead.headline.contains("log stops"), "\(dead.headline)")
     }
 
-    /// An unanswered prompt is a different silence from a held one, and the log knows
-    /// which rung it got to.
     @Test("an ignored prompt says the ladder is climbing and which rung it reached")
     func anIgnoredPromptIsExplained() {
         var session = EngineHarness.Session()
@@ -208,8 +186,6 @@ struct PromptOutlookTests {
         #expect(outlook.headline.contains("SIGTSTP"), "\(outlook.headline)")
     }
 
-    /// What the owner's file looks like right now: a break was accepted and is running,
-    /// and the build that wrote the file predates `cycle_close`, so the cycle reads open.
     @Test("a break in progress is not a break that is due")
     func aRunningBreakIsNotDue() {
         let events: [LoggedEvent] = [
@@ -226,8 +202,6 @@ struct PromptOutlookTests {
         #expect(outlook.headline.contains("break"), "\(outlook.headline)")
     }
 
-    /// The whole loop: run the engine, write the log the way the app writes it, and ask
-    /// the reader why it is quiet. The answer must be the skip, not a shrug.
     @Test("driving the real engine produces a log that explains itself")
     func endToEnd() {
         var session = EngineHarness.Session()

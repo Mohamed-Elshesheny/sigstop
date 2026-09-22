@@ -2,10 +2,7 @@ import Foundation
 import Testing
 @testable import SigstopCore
 
-// MARK: - Fixtures
-
 private enum Fix {
-    /// A UTC calendar, so a test scenario reads the same on any machine.
     static let calendar = CalendarDay.utcCalendar
     static let policy = RollupPolicy(
         microIdleGrace: 90,
@@ -17,7 +14,6 @@ private enum Fix {
 
     static let day = CalendarDay(year: 2026, month: 9, day: 20)
 
-    /// 2026-09-20 09:00:00 UTC, comfortably inside the logical day [04:00, 04:00).
     static let nineAM: Date = {
         var c = DateComponents()
         c.year = 2026
@@ -38,13 +34,9 @@ private let xcode = "com.apple.dt.Xcode"
 private let chrome = "com.google.Chrome"
 private let term = "com.apple.Terminal"
 
-// MARK: - Compliance formula
-
 @Suite("break compliance")
 struct ComplianceTests {
 
-    /// The worked example from docs/BREAK-DECISION.md §14.2, reproduced as events:
-    /// 9 opportunities, 6 honoured, 1 never asked, 1 skipped, 1 ignored.
     @Test func worked_example_from_the_doc() {
         var events: [LoggedEvent] = [.start(at: Fix.t(0)), .focus(at: Fix.t(0), app: xcode, activity: .coding)]
         var minute = 10.0
@@ -92,8 +84,6 @@ struct ComplianceTests {
         #expect(s.ignoredPromptCount == 1)
     }
 
-    /// Edge case: zero breaks. Prompts were delivered and nothing happened, that is
-    /// 0%, not "unmeasurable". The metric must be willing to say zero.
     @Test func zero_breaks_with_delivered_prompts_is_zero_not_nil() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -110,8 +100,6 @@ struct ComplianceTests {
         #expect(s.complianceDescription == "0% (0 of 1)")
     }
 
-    /// docs/BREAK-DECISION.md §15 property 11: `nil`, never 0.0 or 1.0, when every
-    /// opportunity was excluded. You cannot hold someone to a question never asked.
     @Test func compliance_is_nil_when_every_opportunity_was_excluded() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -130,7 +118,6 @@ struct ComplianceTests {
         #expect(s.complianceDescription == "Not measured (2 opportunities, none asked).")
     }
 
-    /// Zero work, zero everything. No opportunities means no denominator means nil.
     @Test func a_day_with_no_events_at_all() {
         let s = Fix.roll([])
         #expect(s.totalActiveWork == 0)
@@ -143,8 +130,6 @@ struct ComplianceTests {
         #expect(s.isEmptyDay)
     }
 
-    /// A day with only idle: the app ran, nobody touched it. Long idle is never
-    /// credited, no matter how long the app was open.
     @Test func a_day_with_only_idle_credits_nothing() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -161,8 +146,6 @@ struct ComplianceTests {
         #expect(s.applicationDistribution.isEmpty)
     }
 
-    /// A break that begins after the 10-minute compliance window does not honour the
-    /// opportunity, even though it is a perfectly real break.
     @Test func a_break_outside_the_window_does_not_honor() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -176,12 +159,10 @@ struct ComplianceTests {
         let s = Fix.roll(events)
         #expect(s.honoredOpportunities == 0)
         #expect(s.missedOpportunities == 1)
-        #expect(s.breakCount == 1) // the break still happened and is still reported
+        #expect(s.breakCount == 1)
         #expect(s.breaksUserInitiated == 1)
     }
 
-    /// A break too short to qualify is "abandoned": counted separately, never in
-    /// `breakCount`, and it does not honour an opportunity.
     @Test func a_short_break_is_abandoned_not_counted() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -199,8 +180,6 @@ struct ComplianceTests {
         #expect(s.missedOpportunities == 1)
     }
 
-    /// Walking away without ever seeing a prompt counts identically to accepting one.
-    /// The metric measures behaviour, not obedience (§14.1).
     @Test func a_spontaneous_break_honors_just_like_an_accepted_one() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -218,13 +197,9 @@ struct ComplianceTests {
     }
 }
 
-// MARK: - The work clock
-
 @Suite("credited work and the longest stretch")
 struct WorkClockTests {
 
-    /// Micro-idle never resets and is credited: 30 s of reading is not a break
-    /// (docs/BREAK-DECISION.md §15 property 3).
     @Test func micro_idle_is_credited_and_does_not_split_the_stretch() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -239,8 +214,6 @@ struct WorkClockTests {
         #expect(s.longestContinuousSession == 46 * 60)
     }
 
-    /// A 3-minute pause neither resets the stretch nor secretly credits itself
-    /// (§15 property 4).
     @Test func a_short_pause_neither_credits_nor_resets() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -251,23 +224,21 @@ struct WorkClockTests {
             .stop(at: Fix.t(49)),
         ]
         let s = Fix.roll(events)
-        #expect(s.totalActiveWork == 46 * 60)        // 44 + 2, the 3-minute gap uncredited
-        #expect(s.longestContinuousSession == 46 * 60) // one stretch, not two
+        #expect(s.totalActiveWork == 46 * 60)
+        #expect(s.longestContinuousSession == 46 * 60)
     }
 
-    /// A gap long enough to qualify as a break splits the stretch. The longest is the
-    /// max of the pieces, not the sum.
     @Test func longest_session_across_pauses() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
             .focus(at: Fix.t(0), app: xcode, activity: .coding),
             .idleBegin(at: Fix.t(30)),
-            .idleEnd(at: Fix.t(40), idleSeconds: 600),   // 10 min: qualifying, resets
+            .idleEnd(at: Fix.t(40), idleSeconds: 600),
             .focus(at: Fix.t(40), app: xcode, activity: .coding),
             .idleBegin(at: Fix.t(70)),
             .idleEnd(at: Fix.t(72), idleSeconds: 120),
             .focus(at: Fix.t(72), app: xcode, activity: .coding),
-            .system(at: Fix.t(97), .lock),               // 25 min locked: resets
+            .system(at: Fix.t(97), .lock),
             .system(at: Fix.t(122), .unlock),
             .focus(at: Fix.t(122), app: xcode, activity: .coding),
             .stop(at: Fix.t(142)),
@@ -277,24 +248,20 @@ struct WorkClockTests {
         #expect(s.totalActiveWork == 105 * 60)
     }
 
-    /// A lock, a sleep, or a fast user switch is never credited, at any duration, not
-    /// even under the micro-idle grace. "Nobody is at the machine" is a system fact,
-    /// not a guess about reading.
     @Test func a_brief_lock_is_still_not_work() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
             .focus(at: Fix.t(0), app: xcode, activity: .coding),
             .system(at: Fix.t(10), .lock),
-            .system(at: Fix.t(10.5), .unlock),   // 30 seconds, under the grace
+            .system(at: Fix.t(10.5), .unlock),
             .focus(at: Fix.t(10.5), app: xcode, activity: .coding),
             .stop(at: Fix.t(20)),
         ]
         let s = Fix.roll(events)
         #expect(s.totalActiveWork == 19.5 * 60)
-        #expect(s.longestContinuousSession == 19.5 * 60) // brief: pauses but does not reset
+        #expect(s.longestContinuousSession == 19.5 * 60)
     }
 
-    /// Time inside a break is never credited as work.
     @Test func break_time_is_not_work_time() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -306,12 +273,9 @@ struct WorkClockTests {
         ]
         let s = Fix.roll(events)
         #expect(s.totalActiveWork == 52 * 60)
-        #expect(s.longestContinuousSession == 45 * 60) // the 8-min break reset the stretch
+        #expect(s.longestContinuousSession == 45 * 60)
     }
 
-    /// The timeline closes at the last observed event, never at the day boundary.
-    /// Without a `stop`, work is credited only up to what the log can prove
-    /// (§15 property 1: credited work ≤ wall-clock elapsed).
     @Test func an_unterminated_log_does_not_fabricate_work() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -323,13 +287,9 @@ struct WorkClockTests {
     }
 }
 
-// MARK: - Application distribution
-
 @Suite("application distribution")
 struct DistributionTests {
 
-    /// docs/BREAK-DECISION.md §15 property 2: the distribution exactly partitions
-    /// credited work. This is the invariant that makes the pie chart honest.
     @Test func distribution_sums_to_total_active_work() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -337,20 +297,19 @@ struct DistributionTests {
             .focus(at: Fix.t(25), app: chrome, activity: .browsing),
             .focus(at: Fix.t(40), app: term, activity: .terminalWork),
             .idleBegin(at: Fix.t(55)),
-            .idleEnd(at: Fix.t(65), idleSeconds: 600),   // uncredited
+            .idleEnd(at: Fix.t(65), idleSeconds: 600),
             .focus(at: Fix.t(65), app: xcode, activity: .coding),
             .stop(at: Fix.t(95)),
         ]
         let s = Fix.roll(events)
         let sum = s.applicationDistribution.values.reduce(0, +)
         #expect(sum == s.totalActiveWork)
-        #expect(s.applicationDistribution[xcode] == TimeInterval(55 * 60))  // 25 + 30
+        #expect(s.applicationDistribution[xcode] == TimeInterval(55 * 60))
         #expect(s.applicationDistribution[chrome] == TimeInterval(15 * 60))
         #expect(s.applicationDistribution[term] == TimeInterval(15 * 60))
         #expect(s.totalActiveWork == 85 * 60)
     }
 
-    /// Activity buckets partition the same quantity.
     @Test func activity_distribution_sums_to_total_active_work() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -367,8 +326,6 @@ struct DistributionTests {
         #expect(s.workByActivity[.codeReview] == TimeInterval(20 * 60))
     }
 
-    /// Time with no bundle identifier, app tracking off, or a bundle-less process ,
-    /// goes to an explicit bucket. Dropping it would quietly break the partition.
     @Test func unattributed_time_keeps_the_partition_exact() {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -382,8 +339,6 @@ struct DistributionTests {
         #expect(s.topApplication?.bundleID == xcode)
     }
 }
-
-// MARK: - Event log round-trip
 
 @Suite("event log encode/decode")
 struct EventLogTests {
@@ -435,36 +390,30 @@ struct EventLogTests {
         #expect(result.events == events)
     }
 
-    /// Optional fields are omitted, not written as `null`. The whole argument for JSONL
-    /// is that a line is readable at a glance.
     @Test func a_line_is_short_and_plainly_named() throws {
         let line = try EventLogCodec.encode(.focus(at: Fix.t(0), app: xcode, category: "code"))
         #expect(line == #"{"app":"com.apple.dt.Xcode","cat":"code","e":"focus","t":"2026-09-20T09:00:00Z","v":1}"#)
         #expect(!line.contains("null"))
     }
 
-    /// Sub-second precision is deliberately discarded (docs/PRIVACY.md §4.3).
     @Test func timestamps_are_truncated_to_the_second() throws {
         let event = LoggedEvent(at: Fix.t(0).addingTimeInterval(0.987), kind: .start)
         let decoded = try #require(EventLogCodec.decode(try EventLogCodec.encode(event)))
         #expect(decoded.at == Fix.t(0))
     }
 
-    /// A crash mid-append leaves a torn final line. It is skipped and counted; every
-    /// other line of the day survives.
     @Test func a_torn_final_line_costs_exactly_one_line() throws {
         let good: [LoggedEvent] = [
             .start(at: Fix.t(0)),
             .focus(at: Fix.t(1), app: xcode, activity: .coding),
         ]
         var text = try EventLogCodec.encodeLines(good)
-        text += #"{"v":1,"t":"2026-09-20T09:05:00Z","e":"fo"#   // killed mid-write
+        text += #"{"v":1,"t":"2026-09-20T09:05:00Z","e":"fo"#
         let result = EventLogCodec.decodeLines(text)
         #expect(result.events == good)
         #expect(result.malformedLines == 1)
     }
 
-    /// An unknown schema major is rejected rather than half-understood.
     @Test func an_unknown_schema_version_is_rejected() {
         let line = #"{"v":99,"t":"2026-09-20T09:00:00Z","e":"start"}"#
         #expect(EventLogCodec.decode(line) == nil)
@@ -480,14 +429,12 @@ struct EventLogTests {
         let a = CalendarDay(year: 2026, month: 9, day: 9)
         let b = CalendarDay(year: 2026, month: 9, day: 20)
         #expect(a < b)
-        #expect(a.description < b.description)     // the assumption retention relies on
+        #expect(a.description < b.description)
         #expect(a.fileName == "2026-09-09.jsonl")
         #expect(CalendarDay.parse("2026-09-20") == Fix.day)
         #expect(CalendarDay.parse("2026-9-20") == nil)
     }
 }
-
-// MARK: - Store behaviour
 
 @Suite("store, export, retention, delete")
 struct StoreTests {
@@ -504,8 +451,6 @@ struct StoreTests {
         #expect(try store.availableDays() == [Fix.day])
     }
 
-    /// An export is a copy, not a report: it re-parses into exactly the events it came
-    /// from, so what you audit is what the app has.
     @Test func an_export_is_readable_and_re_readable() throws {
         let events: [LoggedEvent] = [
             .start(at: Fix.t(0)),
@@ -522,15 +467,6 @@ struct StoreTests {
         #expect(reread.malformedLines == 0)
     }
 
-    /// The export's own header has to describe the export.
-    ///
-    /// It listed a field set that stopped being true two fields ago: `outcome` and `gate`
-    /// were in the body and not in the header, so the artifact a user hands to a sceptic
-    /// under-described its own contents. For a product whose pitch is that `cat` is a
-    /// complete audit tool, an undocumented field in an export is the worst place for the
-    /// vocabulary to drift, and it is the same drift docs/PRIVACY.md §4.3 was corrected
-    /// for. Driving the header off `LoggedEvent.CodingKeys` is what stops it recurring;
-    /// this is the assertion that says so.
     @Test func the_export_header_names_every_field_the_body_can_carry() throws {
         let store = InMemoryEventStore(events: [.start(at: Fix.t(0))])
         let text = try store.exportText()
@@ -560,7 +496,6 @@ struct StoreTests {
         #expect(left.last == Fix.day)
     }
 
-    /// Retention 0 is "memory-only mode": a real setting, not a degenerate one.
     @Test func retention_zero_keeps_nothing() throws {
         let store = InMemoryEventStore(events: [.start(at: Fix.t(0))])
         let report = try store.prune(retentionDays: 0, asOf: Fix.t(0))
@@ -582,7 +517,6 @@ struct StoreTests {
         #expect(try store.load(day: Fix.day).events.isEmpty)
     }
 
-    /// Unreadable lines reach the summary rather than silently shrinking the day.
     @Test func malformed_lines_are_reported_through_to_the_summary() throws {
         let store = InMemoryEventStore(events: [
             .start(at: Fix.t(0)),
@@ -596,8 +530,6 @@ struct StoreTests {
         #expect(summary.malformedLines == 2)
         #expect(summary.totalActiveWork == 30 * 60)
     }
-
-    // MARK: On-disk store
 
     private static func tempRoot() -> URL {
         URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
@@ -628,8 +560,6 @@ struct StoreTests {
         #expect(try store.availableDays().isEmpty)
     }
 
-    /// The crash case, for real: a torn tail on disk. The next append heals it, so one
-    /// interrupted write costs one line and fuses nothing.
     @Test func a_torn_tail_on_disk_is_healed_by_the_next_append() throws {
         let root = Self.tempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -645,7 +575,7 @@ struct StoreTests {
 
         let load = try store.load(day: Fix.day)
         #expect(load.events.map(\.kind) == [.start, .stop])
-        #expect(load.malformedLines == 1)   // exactly one, not two
+        #expect(load.malformedLines == 1)
     }
 
     @Test func the_file_store_exports_atomically_and_deletes_everything() throws {
@@ -696,8 +626,6 @@ struct StoreTests {
     }
 }
 
-// MARK: - Narrator
-
 @Suite("summary narrator")
 struct SummaryNarratorTests {
 
@@ -745,8 +673,6 @@ struct SummaryNarratorTests {
         }
     }
 
-    /// A template that needs a slot the day cannot fill is simply not selected.
-    /// Absence is modelled as absence, no `{top}` ever leaks into a rendered line.
     @Test func a_day_with_no_attributed_app_never_renders_an_app_slot() {
         let bare = DailySummary(day: Fix.day, totalActiveWork: 1800)
         for tone in Tone.allCases {
@@ -786,9 +712,6 @@ struct SummaryNarratorTests {
         #expect(DurationText.long(0) == "0 minutes")
     }
 
-    /// The content rails, mechanically (CLAUDE.md §4.5, docs/MESSAGE-ENGINE.md §4.2 and
-    /// the L7 banned lexicon). No medical claims, no bodies, no competence, no job
-    /// security. This is the same check the corpus lint runs, pointed at this file.
     @Test func every_template_clears_the_content_rails() throws {
         let banned = [
             "fat", "ugly", "weight", "calorie", "skinny",
@@ -813,8 +736,6 @@ struct SummaryNarratorTests {
         }
     }
 
-    /// SIGKILL is unrecoverable and destroys exactly what the name promises to keep.
-    /// SIGHUP is never an escalation rung. Neither may appear anywhere in the copy.
     @Test func the_signal_vocabulary_is_respected() {
         for text in SummaryNarrator.allTemplateTexts {
             #expect(!text.contains("SIGKILL"))

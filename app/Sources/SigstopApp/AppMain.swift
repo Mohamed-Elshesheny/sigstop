@@ -2,12 +2,6 @@ import AppKit
 import SigstopCore
 import SwiftUI
 
-/// The process entry point.
-///
-/// Deliberately **not** `@main` on the `App` type. `SwiftUI.App.main()` installs an
-/// `NSApplication` and never returns, which would make `--doctor` impossible to run
-/// without a window server, and the whole value of `--doctor` is that a sceptic can run
-/// it from a shell, pipe it, and paste it into an issue.
 @main
 enum SigstopEntryPoint {
     static func main() {
@@ -47,9 +41,6 @@ enum SigstopEntryPoint {
         SigstopScene.main()
     }
 
-    /// Badge art cannot be reviewed in a diff. This writes the contact sheet so it can be
-    /// reviewed the only way that works, by looking at it. It needs AppKit but not the
-    /// app: no status item, no tick loop, no storage, nothing observed.
     private static func renderBadgesAndExit(stem: String) -> Never {
         MainActor.assumeIsolated {
             NSApplication.shared.setActivationPolicy(.prohibited)
@@ -57,9 +48,6 @@ enum SigstopEntryPoint {
         }
     }
 
-    /// `dispatchMain()` rather than a semaphore: the collectors and the context engine are
-    /// `@MainActor`-isolated, so blocking the main thread to wait for them would deadlock
-    /// against the executor that has to run them.
     private static func runDoctorAndExit() -> Never {
         Task { @MainActor in
             await Doctor.run()
@@ -69,14 +57,6 @@ enum SigstopEntryPoint {
     }
 }
 
-/// The scene exists only because `App` requires one. Every piece of UI this app has is
-/// owned by `StatusItemController`, for a reason worth writing down:
-///
-/// `MenuBarExtra` never assigns its `NSStatusItem` an `autosaveName`. Without one, macOS
-/// has nothing to persist the icon's position under, so the item cannot be placed, cannot
-/// remember a place, and lands wherever the system puts it. On a machine running Ice,
-/// Bartender or Dozer that is usually behind the divider, and the app looks like it
-/// failed to launch. Owning the status item is the only way to fix that.
 struct SigstopScene: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
@@ -97,54 +77,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
-    /// Clicking the Dock icon of an app with no windows has to do something, and for a
-    /// menu bar app the only thing it can usefully do is open Settings. Doing nothing
-    /// reads as a hang.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         controller?.openSettings()
         return true
     }
 }
 
-// MARK: - Status item
-
-/// Owns the status item and the panel that drops down from it.
-///
-/// The panel is a plain `NSPanel` that this controller sizes, positions and orders
-/// itself, **not** an `NSPopover`, and the reason is specific to how the menu bar works
-/// now. On macOS 27 (observed on 27.0) the status item's `NSStatusBarWindow` is a
-/// placeholder: its window number is `0x1_0000_0000`, it is never on the active space,
-/// and its pixels are hosted remotely inside the window server's own menu bar window.
-/// `NSPopover.show(relativeTo:of:)` attaches the popover as a child of the anchor view's
-/// window and orders it relative to that window, so the popover inherits a parent the
-/// window server cannot order against. The result is a popover that is `isShown == true`,
-/// correctly sized and placed, at the right level, fully opaque, and never composited:
-/// `CGWindowListCopyWindowInfo` reports it `onscreen = false` for as long as it is "open".
-/// Nothing about the popover's behaviour or the app's activation state changes that. A
-/// panel ordered directly with `orderFrontRegardless()` has no parent to inherit from and
-/// shows every time.
 @MainActor
 final class StatusItemController: NSObject, NSWindowDelegate {
-    /// The key macOS stores the icon's menu bar position under. It is derived from
-    /// `autosaveName`, so the name has to stay stable across releases: change it and
-    /// everyone's icon jumps back to wherever the system feels like.
     private static let autosaveName = "sigstop"
 
-    /// A fixed width, not `variableLength`.
-    ///
-    /// The button carries no image and no title, because the icon is a hosted subview, so
-    /// AppKit sizes a variable-length item from empty content. Highlighting it on open
-    /// then re-ran that layout and the icon visibly jumped. A fixed width is stable
-    /// whatever the button thinks its content is.
     private static let itemLength: CGFloat = 26
 
-    /// Where to sit the very first time, in points from the right edge of the menu bar.
-    /// Small enough to land in the always-visible zone rather than behind a menu bar
-    /// manager's divider. Only ever written once: after that the number is the user's,
-    /// because they moved it.
-
-    /// Points between the bottom of the menu bar and the top of the panel, and between
-    /// the panel and the edge of the screen when the icon sits near it.
     private static let panelGap = 6.0
     private static let screenInset = 8.0
 
@@ -166,14 +110,10 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         item.autosaveName = Self.autosaveName
         item.behavior = .removalAllowed
 
-        /// Ahead of the first `renderIcon` below, so the mark is drawn against the
-        /// appearance it is going to keep instead of being re-resolved a frame later.
         Brand.apply(model.settings.appearance, pinning: item.button)
         model.onAppearanceChanged = { [weak self] preference in
             guard let self else { return }
             Brand.apply(preference, pinning: self.item.button)
-            /// The mark's ink comes from a bool captured at render time, so moving the
-            /// button's appearance has to redraw it rather than merely invalidate it.
             self.renderIcon()
         }
 
@@ -197,48 +137,14 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         model.start()
     }
 
-    /// `.regular` puts the app in the Dock and the Cmd-Tab switcher; `.accessory` keeps it
-    /// menu bar only. Changing this at runtime is supported and takes effect immediately.
     private func applyActivationPolicy() {
         let wanted: NSApplication.ActivationPolicy = model.settings.showInDock ? .regular : .accessory
         guard NSApp.activationPolicy() != wanted else { return }
         NSApp.setActivationPolicy(wanted)
     }
 
-    /// **Nothing seeds a position any more, and that is the point.**
-    ///
-    /// This used to write `NSStatusItem Preferred Position` on first run so the mark
-    /// landed somewhere visible. What it actually did was jump the queue: a status item's
-    /// preferred position is measured from the right edge, so claiming 128 put a
-    /// just-installed app to the right of icons the user had arranged over months. An app
-    /// that has been open for ninety seconds does not get to outrank one they chose.
-    ///
-    /// With no stored value macOS appends it where new items go, at the left end of the
-    /// status area, and the user drags it wherever they want with Command held. That is
-    /// how every other menu bar app behaves and it is the polite default.
-    ///
-    /// The risk this traded away is real and worth naming: on a menu bar that is already
-    /// full, and especially on a notched Mac, a newly appended item can be pushed out of
-    /// sight entirely. The app cannot fix that, and neither could the seeded position; it
-    /// only moved which app got hidden. `showInDock` is on by default, so there is a Dock
-    /// icon either way and the app is never invisible in both places at once.
-
-    // MARK: Panel
-
-    /// When the panel was last dismissed. A click on the icon while the panel is open
-    /// could reach this controller twice, first as a focus change that dismisses the
-    /// panel and then as the button's action; without the check the action would reopen
-    /// what the focus change just closed, and the icon could never close the panel.
     private var dismissedAt = Date.distantPast
 
-    /// Renders the SwiftUI mark into the button's `image` rather than hosting it as a
-    /// subview.
-    ///
-    /// A subview inside an `NSStatusItem` button is laid out against the button's bounds,
-    /// and the button re-lays out when it is highlighted on open, so the icon visibly
-    /// jumped every time the panel was opened. A button image is positioned by AppKit
-    /// itself and does not move. It also removes the need for a hit-test-defeating hosting
-    /// view, because an image never swallows the click.
     private func renderIcon() {
         let appearance = item.button?.effectiveAppearance ?? NSApp.effectiveAppearance
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
@@ -249,13 +155,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         )
         renderer.scale = item.button?.window?.backingScaleFactor ?? 2
 
-        /// Resolve dynamic colours against the menu bar's own appearance.
-        ///
-        /// `ImageRenderer` draws outside any window, so an unresolved dynamic colour falls
-        /// back to the light variant. The mark's amber has a dark ink value for light
-        /// backgrounds, which is why the icon came out a muddy brown in a dark menu bar.
-        /// The only words the mark can carry. One bit of opacity cannot say *why* the app
-        /// is quiet, and hovering is cheaper than opening the panel.
         item.button?.toolTip = model.iconTooltip
 
         guard let image = renderer.nsImage else { return }
@@ -263,18 +162,10 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         item.button?.image = image
     }
 
-    /// Re-renders the icon whenever the values it draws change, and re-arms itself.
-    ///
-    /// `withObservationTracking` fires once per change, so the loop is what keeps it
-    /// watching. Nothing polls: with the clock paused or the app idle no redraw happens
-    /// at all.
     private func trackIcon() {
         withObservationTracking {
             _ = model.workFraction
             _ = model.indicator
-            /// Read here or the tooltip goes stale: `withObservationTracking` only
-            /// watches what the first block touched. It carries a wall-clock time and
-            /// never a countdown, so this still fires a handful of times an hour.
             _ = model.iconTooltip
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -316,7 +207,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         dismissedAt = Date()
     }
 
-    /// Sizes the panel to its content and hangs it under the icon, kept on screen.
     private func layoutPanel() {
         guard let button = item.button, let bar = button.window else { return }
         let anchor = bar.convertToScreen(button.convert(button.bounds, to: nil))
@@ -338,12 +228,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         panel.invalidateShadow()
     }
 
-    /// Dismissal without permissions. A *global* monitor sees mouse events delivered to
-    /// other apps, and unlike key events that needs no Accessibility or Input Monitoring
-    /// grant; it covers clicks on the desktop, on another app's window and on other menu
-    /// bar items. The panel also resigns key when another window takes focus, which
-    /// `windowDidResignKey` turns into a dismissal. Escape is a local monitor because the
-    /// panel is the key window while it is open, so the key event arrives here.
     private func installMonitors() {
         removeMonitors()
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
@@ -373,25 +257,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         dismiss()
     }
 
-    // MARK: Settings
-
-    /// Where the settings window opens, and why it is computed rather than asked for.
-    ///
-    /// `NSWindow.center()` measures against `NSScreen.main`, which is the screen holding
-    /// the key window. This app is an accessory with no key window when the menu item is
-    /// clicked, so that answer was whatever macOS felt like. Centring on the screen the
-    /// pointer is actually on puts the window where the person is looking.
-    ///
-    /// The size is passed in, and that is the entire bug this function was rewritten for.
-    /// Reading `window.frame.size` after assigning a `NSHostingController` returns
-    /// 0 x 32: SwiftUI has not laid out yet, so the window has collapsed and does not get
-    /// its real size until a later pass. Centring a zero-width window puts its left edge
-    /// on the middle of the screen, and AppKit anchors the top left corner when it
-    /// resizes, so the window then grew right and down from there and arrived in the top
-    /// right corner. Measured, not guessed. Use `frameRect(forContentRect:)` for the size
-    /// instead, which is known before any layout happens.
-    ///
-    /// Slightly above centre on purpose: a window on the exact vertical middle reads low.
     private static func centredOrigin(for size: NSSize) -> NSPoint {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
@@ -423,8 +288,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         window.title = "sigstop Settings"
         window.contentViewController = NSHostingController(rootView: SettingsView(model: model))
         window.isReleasedWhenClosed = false
-        // Both at once, and the size from the content rect rather than from the window,
-        // for the reason written out above `centredOrigin`.
         var frame = window.frameRect(forContentRect: content)
         frame.origin = Self.centredOrigin(for: frame.size)
         window.setFrame(frame, display: false)
@@ -435,11 +298,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     }
 }
 
-// MARK: - The panel
-
-/// The dropdown's window. `.nonactivatingPanel` lets it take keyboard focus without
-/// activating the app; `canBecomeKey` is what makes Escape and `windowDidResignKey`
-/// work at all, since a borderless window refuses key status by default.
 private final class MenuBarPanel: NSPanel {
     var onCancel: (() -> Void)?
 
@@ -465,13 +323,11 @@ private final class MenuBarPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    /// Escape and Cmd-. through the responder chain.
     override func cancelOperation(_ sender: Any?) {
         onCancel?()
     }
 }
 
-/// Reports the SwiftUI content's ideal size as it changes, so the panel can follow it.
 private final class PanelHostingController: NSHostingController<PanelChrome> {
     var onPreferredContentSizeChange: (() -> Void)?
 
@@ -484,9 +340,6 @@ private final class PanelHostingController: NSHostingController<PanelChrome> {
     }
 }
 
-/// Popover-style chrome around the dropdown: the popover material behind the content,
-/// continuous rounded corners, and a hairline edge. The window itself is transparent, so
-/// its shadow follows this shape.
 private struct PanelChrome: View {
     let model: AppModel
     let openSettings: () -> Void
@@ -515,6 +368,3 @@ private struct PopoverMaterial: NSViewRepresentable {
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
-
-
-

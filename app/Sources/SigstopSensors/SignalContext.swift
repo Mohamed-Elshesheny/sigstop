@@ -1,16 +1,9 @@
 import Foundation
 import SigstopCore
 
-// MARK: - Input
-
-/// Where the idle number came from. Surfaced so the UI can be honest about it:
-/// `.ioRegistry` is a fallback and `.unavailable` means we genuinely do not know.
 public enum IdleSource: String, Sendable, Codable, Hashable {
-    /// `CGEventSource.secondsSinceLastEventType(.hidSystemState, …)`, real human HID input.
     case hidSystemState
-    /// `IOHIDSystem` → `HIDIdleTime`. Used when the CoreGraphics path is unavailable.
     case ioRegistry
-    /// Neither path answered. Callers must treat this as "no information", never as zero.
     case unavailable
 }
 
@@ -23,8 +16,6 @@ public struct InputActivity: Sendable, Hashable, Codable {
         self.source = source
     }
 
-    /// When the idle number is unavailable we must not pretend the user is present.
-    /// Consumers treat `nil` as "unknown" and decline to make a presence claim.
     public var knownIdleSeconds: TimeInterval? {
         source == .unavailable ? nil : idleSeconds
     }
@@ -32,15 +23,9 @@ public struct InputActivity: Sendable, Hashable, Codable {
     public static let unknown = InputActivity(idleSeconds: 0, source: .unavailable)
 }
 
-// MARK: - Session
-
-/// Things the kernel/window server told us. Every field here is an OS fact, which is
-/// the only category permitted to reach `Confidence.certain` (CLAUDE.md §4.1) and the
-/// only category permitted to HARD-BLOCK a prompt.
 public struct SessionState: Sendable, Hashable, Codable {
     public let screenLocked: Bool
     public let displaysAsleep: Bool
-    /// False during fast user switching, someone else is on the console.
     public let sessionActive: Bool
 
     public init(screenLocked: Bool = false, displaysAsleep: Bool = false, sessionActive: Bool = true) {
@@ -49,7 +34,6 @@ public struct SessionState: Sendable, Hashable, Codable {
         self.sessionActive = sessionActive
     }
 
-    /// True when the OS says the human cannot be looking at this screen.
     public var userDefinitelyAway: Bool {
         screenLocked || displaysAsleep || !sessionActive
     }
@@ -57,10 +41,6 @@ public struct SessionState: Sendable, Hashable, Codable {
     public static let active = SessionState()
 }
 
-// MARK: - Power
-
-/// A local mirror of `ProcessInfo.ThermalState` so the signal model does not depend on
-/// the Sendable-conformance of a Foundation enum we do not control.
 public enum ThermalLevel: Int, Sendable, Codable, Hashable, Comparable, CaseIterable {
     case nominal = 0
     case fair = 1
@@ -69,7 +49,6 @@ public enum ThermalLevel: Int, Sendable, Codable, Hashable, Comparable, CaseIter
 
     public static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
 
-    /// Above this the sampling subsystem suspends itself entirely (§8.4).
     public var shouldShedLoad: Bool { self >= .serious }
 }
 
@@ -87,56 +66,27 @@ public struct PowerState: Sendable, Hashable, Codable {
     public static let plugged = PowerState()
 }
 
-// MARK: - Audio
-
-/// Four states, not a `Bool`, see docs/ACTIVITY-DETECTION.md §2.3.
-///
-/// `.unreliable` is the important one: on a Mac with Krisp / Loopback / BlackHole /
-/// certain headset daemons, an input device is "running somewhere" permanently. On such
-/// a machine the signal is a constant `true` and contributes NOTHING to meeting
-/// detection. A permanently-on detector is worse than no detector.
 public enum AudioInputState: String, Sendable, Codable, Hashable {
     case running
     case notRunning
     case noInputDevice
     case unreliable
 
-    /// Only `.running` is a usable positive. `.unreliable` deliberately is not.
     public var contributesToMeeting: Bool { self == .running }
 }
 
-// MARK: - Camera
-
-/// Four states, not a `Bool`, for exactly the reasons `AudioInputState` has four.
-///
-/// `kCMIODevicePropertyDeviceIsRunningSomewhere` is the CoreMediaIO twin of the
-/// `kAudioDevicePropertyDeviceIsRunningSomewhere` the audio collector already reads. It
-/// needs **no Camera permission and produces no prompt**: it is a property read on a
-/// device object, and the app never opens a capture session, so it cannot see a frame.
-///
-/// `.unreliable` exists because OBS Virtual Camera, EpocCam and a permanently attached
-/// Continuity Camera are the camera analogue of Krisp: a device that is "running
-/// somewhere" forever tells you nothing, and a permanently-on detector is worse than no
-/// detector.
 public enum CameraInputState: String, Sendable, Codable, Hashable {
     case running
     case notRunning
     case noCameraDevice
     case unreliable
 
-    /// Only `.running` is a usable positive. `.unreliable` deliberately is not.
     public var contributesToMeeting: Bool { self == .running }
 }
 
-// MARK: - Window geometry (garnish only)
-
-/// Geometry from `CGWindowListCopyWindowInfo`, **no titles**, no Screen Recording.
-/// Feature-detected, optional everywhere, and never load-bearing (§2.4).
 public struct WindowGeometrySnapshot: Sendable, Hashable, Codable {
     public let onScreenWindowCount: Int
-    /// Windows owned by the frontmost PID.
     public let frontmostWindowCount: Int
-    /// A layer-0 window covers a whole display. A weak presentation/fullscreen hint.
     public let hasFullscreenWindow: Bool
     public let capturedAt: Date
 
@@ -147,8 +97,6 @@ public struct WindowGeometrySnapshot: Sendable, Hashable, Codable {
         self.capturedAt = capturedAt
     }
 }
-
-// MARK: - App switch history
 
 public struct AppSwitch: Sendable, Hashable, Codable {
     public let app: AppIdentity
@@ -166,17 +114,6 @@ public struct AppSwitch: Sendable, Hashable, Codable {
     }
 }
 
-// MARK: - Tier 2 signal shapes
-
-/// Allowlisted tool names, matched against an executable's own name and nothing else.
-///
-/// `KERN_PROCARGS2` is never called, so argv never enters this process: it is where a
-/// password routinely sits in plain text (`psql "postgres://user:password@…"`). The price
-/// is that the tokens named by their arguments rather than by their executable, `node
-/// --inspect`, `debugpy`, `pytest`, `jest`, `go test` and their kind, cannot be detected
-/// at all. They stay in this enum because the corpus and the docs refer to them and
-/// because `--doctor` names them as undetectable rather than reporting them absent. See
-/// docs/ACTIVITY-DETECTION.md §4.3(b) and `ToolAllowlist`.
 public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
     case lldb, debugserver, gdb, delve, debugpy, nodeInspect
     case pytest, jest, vitest, xctest, goTest, cargoTest, swiftTesting, rspec, phpunit, playwright
@@ -193,7 +130,6 @@ public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
     public static let aiCLIs: Set<ToolToken> = [.claudeCLI, .aider, .codexCLI, .gooseCLI]
     public static let remoteShells: Set<ToolToken> = [.ssh, .mosh, .kubectl]
 
-    /// The token as a human would say it, for evidence summaries.
     public var displayName: String {
         switch self {
         case .nodeInspect:  return "node --inspect"
@@ -212,21 +148,9 @@ public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
 }
 
 public struct ProcessSnapshot: Sendable, Hashable, Codable {
-    /// Allowlist-matched tool tokens only. Raw argv is never stored here.
     public let matchedTools: Set<ToolToken>
-    /// Tools that descend from the frontmost app, a much stronger signal, because it
-    /// distinguishes "I am debugging" from "a debugger is running in another project".
     public let childrenOfFrontmost: Set<ToolToken>
-    /// Something descending from the app in front is under `ptrace` right now.
-    ///
-    /// This is a kernel flag on the process being debugged, not a name, so it says the
-    /// debugging is *happening* rather than that a debugger binary exists. It is the
-    /// strongest thing this tier has and the only one that turns `CODING` into
-    /// `DEBUGGING` on its own.
     public let tracedUnderFrontmost: Bool
-    /// Something elsewhere on this Mac is under `ptrace`. Never enough on its own: it may
-    /// be another project's debugger. It corroborates a debugger this app can also name,
-    /// which is the difference between `lldb` sitting at a prompt and `lldb` attached.
     public let tracedElsewhere: Bool
     public let capturedAt: Date
 
@@ -267,24 +191,12 @@ public struct GitSignal: Sendable, Hashable, Codable {
     }
 }
 
-// MARK: - SignalContext
-
-/// Everything a provider is allowed to look at, for one sample.
-///
-/// This is the *entire* input to classification. Providers are pure functions of this
-/// value: no state, no I/O, no clock reads. That is what makes every rule in
-/// docs/ACTIVITY-DETECTION.md §7 testable by writing a literal, which matters more than
-/// usual here, because there is no Xcode and therefore no UI test harness.
 public struct SignalContext: Sendable {
     public let now: Date
-    /// Which tiers are available *right now*. Tier 1 can be revoked from System Settings
-    /// at any moment with no notification, so this is a runtime value, never a constant.
     public let available: SignalTierSet
 
     public let frontmost: AppIdentity
     public let frontmostSince: Date
-    /// Ring buffer, most recent last. Lets a provider see "this is a 3-second lookup
-    /// inside a 25-minute editor session" instead of treating it as a new session.
     public let recentApps: [AppSwitch]
     public let runningBundleIDs: Set<String>
     public let input: InputActivity
@@ -295,7 +207,6 @@ public struct SignalContext: Sendable {
 
     public let windowTitle: String?
     public let documentURL: URL?
-    /// Tier 1b, separately opted in. HOST ONLY, never a path, never a query string.
     public let browserHost: String?
 
     public let processes: ProcessSnapshot?
@@ -337,13 +248,8 @@ public struct SignalContext: Sendable {
         self.git = git
     }
 
-    // MARK: Derived conveniences
-
     public var frontmostDwell: TimeInterval { max(0, now.timeIntervalSince(frontmostSince)) }
 
-    /// Tier 1 values are only visible when Tier 1 is actually granted. Reading these
-    /// through the accessors (rather than the stored properties) makes it impossible for
-    /// a provider to cite a title that arrived before the grant was revoked.
     public var titleIfPermitted: String? {
         guard available.contains(.tier1) else { return nil }
         guard let t = windowTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else { return nil }
@@ -366,15 +272,11 @@ public struct SignalContext: Sendable {
         available.contains(.tier2) ? git : nil
     }
 
-    /// True when a human demonstrably touched the hardware recently. Unknown idle
-    /// (`.unavailable`) is NOT treated as active.
     public func inputWithin(_ seconds: TimeInterval) -> Bool {
         guard let idle = input.knownIdleSeconds else { return false }
         return idle < seconds
     }
 
-    /// Was any app matching `predicate` frontmost within the last `window` seconds?
-    /// Used for the AI-corroboration rule (§7.6) and for sticky editor sessions.
     public func wasFrontmostRecently(within window: TimeInterval, where predicate: (AppIdentity) -> Bool) -> Bool {
         let cutoff = now.addingTimeInterval(-window)
         if predicate(frontmost) { return true }
@@ -384,8 +286,6 @@ public struct SignalContext: Sendable {
         return false
     }
 
-    /// Number of frontmost-app changes in the last `window` seconds. Feeds the weak
-    /// "rapid alternation" debugging hint and `DeveloperContext.applicationSwitches`.
     public func switchCount(within window: TimeInterval) -> Int {
         let cutoff = now.addingTimeInterval(-window)
         return recentApps.filter { $0.enteredAt >= cutoff }.count

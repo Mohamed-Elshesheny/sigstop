@@ -2,83 +2,22 @@ import Foundation
 import Observation
 import Sparkle
 
-/// The app's one network capability, and the whole of it.
-///
-/// ## Why this exists at all
-///
-/// Shipping outside the App Store means nobody is told a new build landed, and a break
-/// reminder people never update is a break reminder that quietly stops matching their
-/// machine. That was true before this file and is still the reason for it.
-///
-/// ## Why Sparkle rather than a hand-rolled downloader
-///
-/// The previous version of this file was a `URLSession` GET of the GitHub releases API
-/// that read `tag_name` and opened a browser. It was honest but it did not *verify*
-/// anything, and the moment an updater downloads and installs rather than pointing at a
-/// page, verification is the entire security surface.
-///
-/// The build is ad-hoc signed. There is no Developer ID and no Team ID, so Apple's code
-/// signature proves nothing about who produced an update, Gatekeeper would be checking a
-/// signature against nothing. Sparkle closes that with EdDSA: every archive is signed with
-/// a private key that lives only in the maintainer's login keychain, the public half is
-/// compiled into the app as `SUPublicEDKey`, and Sparkle refuses to install anything whose
-/// signature does not verify against it. A compromised GitHub account, a compromised CDN
-/// or an attacker on the network can therefore serve a malicious download and still not
-/// get it run. That property is worth one dependency, and writing the download-and-verify
-/// path by hand to avoid the dependency would have been hand-rolling the one thing nobody
-/// should hand-roll.
-///
-/// ## The shape of the network use, which is the part people will check
-///
-///   * One URL, compiled in: `SUFeedURL` in Info.plist. A static file on GitHub Pages,
-///     byte-identical for everyone, with no query string and nothing to personalise.
-///   * It is fetched when the user presses Check for updates, and at no other time. There
-///     is no launch check and no timer at all. `SUEnableAutomaticChecks` is `<false/>` in
-///     Info.plist, which is only a default, so `start()` below also writes the setting
-///     off on every launch. Sparkle's scheduler reads that value out of `UserDefaults`,
-///     where it survives an app update and where anything on the machine can set it; a
-///     default nobody can see and nobody can clear is not a setting, it is a leak with a
-///     preference key.
-///   * The request carries no identifier: `SUEnableSystemProfiling` is off, so Sparkle
-///     appends no profile parameters, and `userAgentString` below is overridden to a
-///     constant that does not even carry the app version.
-///   * Nothing is downloaded or installed without a second press.
-///
-/// What it cannot claim: an HTTP request reveals the client's IP address and the time of
-/// the request to whoever serves the file, and no client-side choice changes that.
-/// docs/PRIVACY.md §5 states that rather than talking around it.
-///
-/// CLAUDE.md §4.3 and docs/PRIVACY.md §5 describe exactly this. If this file ever grows a
-/// second endpoint, a launch-time check, or anything that sends state upward, both of
-/// those documents are wrong and have to be changed first, in their own commit.
 @MainActor
 @Observable
 final class UpdateChecker {
 
-    /// What the About tab draws. One enum, because "is a button enabled" and "is there a
-    /// progress bar" must never be able to disagree with each other.
     enum State: Equatable {
-        /// Nothing has happened yet, or the last thing that happened was dismissed.
         case idle
         case checking
         case upToDate(current: String)
-        /// A newer version exists and the user has not yet said to fetch it.
         case available(version: String)
-        /// `received` and `expected` are bytes. `expected` is 0 when the server did not
-        /// send a content length, which is a real case and renders as indeterminate.
         case downloading(received: Int64, expected: Int64)
-        /// Unpacking. 0…1, or `nil` before Sparkle reports the first progress.
         case extracting(fraction: Double?)
-        /// Downloaded, verified, and waiting for the user to agree to relaunch.
         case readyToInstall(version: String)
         case installing
         case failed(String)
-        /// Sparkle cannot run here at all, `swift run` with no `.app` around it, or the
-        /// updater refused to start. Distinct from `.failed` because no button the user
-        /// presses will fix it.
         case unavailable(String)
 
-        /// Download fraction, or `nil` when the length is unknown.
         var downloadFraction: Double? {
             guard case .downloading(let received, let expected) = self, expected > 0 else { return nil }
             return min(1, max(0, Double(received) / Double(expected)))
@@ -91,14 +30,6 @@ final class UpdateChecker {
             }
         }
 
-        /// The version the user is being offered, if they are being offered one.
-        ///
-        /// Exists so the menu bar dropdown can mention an update without duplicating the
-        /// state machine. It matters most for a check the user did not initiate: with a
-        /// custom user driver, a scheduled background check has no window of its own, so
-        /// without this the only way to learn about it would be to happen to open
-        /// Settings. Automatic checks are opt-in, but somebody who opted in expects to be
-        /// told.
         var offeredVersion: String? {
             switch self {
             case .available(let version), .readyToInstall(let version): return version
@@ -108,32 +39,19 @@ final class UpdateChecker {
     }
 
     private(set) var state: State = .idle
-    /// Sparkle's own "is a check allowed right now", mirrored so SwiftUI can see it move.
-    ///
-    /// `SPUUpdater.canCheckForUpdates` is false for the length of a check session and true
-    /// again once it closes. It is KVO, not `@Observable`, so reading it straight from a
-    /// view worked exactly once: the view rendered when `state` became `.upToDate`, read
-    /// `false` because the session had not quite closed, and then nothing ever asked
-    /// again. The button stayed dead and the only way back was to relaunch the app.
     private(set) var updaterIsFree = false
     private var freeObservation: NSKeyValueObservation?
 
     private var updater: SPUUpdater?
     private var driver: UserDriver?
 
-    /// Sparkle hands progress and decisions to the driver as escaping blocks. Whichever
-    /// one is outstanding is parked here until the user presses something.
     private var pendingChoice: ((SPUUserUpdateChoice) -> Void)?
     private var cancelInFlight: (() -> Void)?
-    /// Sparkle's way out of a stuck install: it hands this over when the app it is trying to
-    /// replace has not quit. Held so `.installing` is not a dead end.
     private var retryInstall: (() -> Void)?
     private var acknowledge: (() -> Void)?
 
     private var downloadedBytes: Int64 = 0
     private var expectedBytes: Int64 = 0
-    /// Remembered from `showUpdateFound` so the ready-to-install state can name a version;
-    /// Sparkle does not repeat it later in the sequence.
     private var offeredVersion: String?
 
     var currentVersion: String {
@@ -169,8 +87,6 @@ final class UpdateChecker {
         driver.owner = self
         self.driver = driver
         self.updater = updater
-        /// `initial` so the first render is right, and the observation is what makes the
-        /// button come back after a check that found nothing.
         updaterIsFree = updater.canCheckForUpdates
         freeObservation = updater.observe(\.canCheckForUpdates, options: [.initial, .new]) {
             [weak self] updater, _ in
@@ -178,15 +94,11 @@ final class UpdateChecker {
         }
     }
 
-    // MARK: - What the UI calls
-
     var canCheck: Bool {
         guard updater != nil else { return false }
         return updaterIsFree && !state.isBusy
     }
 
-    /// The only entry point that starts a network request. Called from a button and from
-    /// nowhere else, no `onAppear`, no timer, no launch path.
     func checkForUpdates() {
         guard let updater, updater.canCheckForUpdates else { return }
         resetTransfer()
@@ -194,22 +106,16 @@ final class UpdateChecker {
         updater.checkForUpdates()
     }
 
-    /// Agree to whatever Sparkle is currently asking: download the offered update, or
-    /// install the one that is ready.
     func proceed() {
         guard let reply = pendingChoice else { return }
         pendingChoice = nil
         reply(.install)
     }
 
-    /// Nudge a stalled install: the app Sparkle is replacing has not quit, so ask again.
-    /// `.installing` had no control at all, which meant an install that stuck for any reason
-    /// left "Working…" on the screen forever with no way out but relaunching.
     func retryInstalling() {
         retryInstall?()
     }
 
-    /// Back out of the current step. Cancels an in-flight transfer if there is one.
     func dismiss() {
         if let cancel = cancelInFlight {
             cancelInFlight = nil
@@ -239,8 +145,6 @@ final class UpdateChecker {
         offeredVersion = nil
     }
 
-    // MARK: - Callbacks from the user driver
-
     fileprivate func didStartUserInitiatedCheck(cancellation: @escaping () -> Void) {
         cancelInFlight = cancellation
         state = .checking
@@ -254,39 +158,18 @@ final class UpdateChecker {
         cancelInFlight = nil
         offeredVersion = version
         pendingChoice = reply
-        // A button that reinstalls what is already on disk must not be spelled "Download".
-        // Sparkle offers an update it has already fetched with the same callback as a fresh
-        // one, and the label was "Download" for both.
         state = alreadyDownloaded ? .readyToInstall(version: version) : .available(version: version)
     }
 
     fileprivate func didFindInformationOnly(version: String) {
         cancelInFlight = nil
         pendingChoice = nil
-        // `.unavailable`, not `.failed`: this is the one state that draws an "Open releases"
-        // button, and the message pointed the user at a link the `.failed` view does not show.
         state = .unavailable("\(version) is available but installs by hand. Open the releases page:")
     }
 
-    /// "You are on the latest version" has to be something Sparkle said, not something we
-    /// assumed because it did not offer one.
-    ///
-    /// `showUpdateNotFoundWithError:` is the callback for EVERY reason an update is
-    /// unavailable, and only one of them is "you are current". The others include a feed
-    /// that parsed but held nothing for this platform, a minimum OS version the machine
-    /// does not meet, and an item skipped by policy. The `error` argument carries which,
-    /// and this threw it away and printed a green dot saying the user was up to date. That
-    /// is the update path claiming more than the signals support, which is the thing
-    /// CLAUDE.md §4.1 forbids everywhere else in this app.
-    ///
-    /// `SPUNoUpdateFoundReason.onLatestVersion` is the one that earns the sentence. The
-    /// rest go through the same formatter `didFail` already uses, which prefers
-    /// `localizedRecoverySuggestion`: Sparkle populates it here precisely so an app can
-    /// say what happened.
     fileprivate func didFindNothing(error: any Error, acknowledgement: @escaping () -> Void) {
         cancelInFlight = nil
         let reason = (error as NSError).userInfo[SPUNoUpdateFoundReasonKey] as? Int
-        // Nil means Sparkle did not say, which is the old behaviour and the safe reading.
         if reason.map({ $0 == SPUNoUpdateFoundReason.onLatestVersion.rawValue }) ?? true {
             state = .upToDate(current: currentVersion)
         } else {
@@ -346,9 +229,6 @@ final class UpdateChecker {
         if state.isBusy { state = .idle }
     }
 
-    /// Sparkle's errors are `NSError`s with a useful recovery suggestion hanging off the
-    /// user info, and a `localizedDescription` that is often just "An error occurred."
-    /// Preferring the suggestion is the difference between a message and a shrug.
     private static func humanReadable(_ error: any Error) -> String {
         let ns = error as NSError
         let parts = [ns.localizedDescription, ns.localizedRecoverySuggestion]
@@ -359,14 +239,6 @@ final class UpdateChecker {
     }
 }
 
-// MARK: - The driver
-
-/// Sparkle's `SPUUserDriver` is an Objective-C protocol, so this has to be an `NSObject`
-/// and cannot be the `@Observable` model itself. It holds no state and makes no decisions:
-/// every method forwards to `UpdateChecker`, which is where the state machine lives.
-///
-/// `owner` is `weak` and `unowned(unsafe)`-free on purpose, Sparkle retains its driver for
-/// the process lifetime, and a strong reference back would retain the model with it.
 @MainActor
 private final class UserDriver: NSObject, SPUUserDriver {
     weak var owner: UpdateChecker?
@@ -392,8 +264,6 @@ private final class UserDriver: NSObject, SPUUserDriver {
             owner?.didFindInformationOnly(version: appcastItem.displayVersionString)
             return
         }
-        // .downloaded and .installing both mean the bits are already here; only
-        // .notDownloaded is a fresh "Download".
         owner?.didFindUpdate(
             version: appcastItem.displayVersionString,
             alreadyDownloaded: state.stage != .notDownloaded,

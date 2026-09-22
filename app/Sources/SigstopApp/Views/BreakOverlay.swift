@@ -3,41 +3,17 @@ import Foundation
 import SigstopCore
 import SwiftUI
 
-// MARK: - The window
-
-/// A panel that never takes the app to the front.
-///
-/// `.nonactivatingPanel` is the whole trick: the panel can be shown, and its controls can
-/// be clicked, without `NSApp` activating. The build in your terminal keeps its focus,
-/// keeps receiving keystrokes, and does not get yanked out from under a running command.
-/// That is a hard requirement, not a nicety, an overlay that steals focus mid-build is an
-/// overlay people uninstall the app over.
-///
-/// `canBecomeKey` is `true` so that *if* the user clicks the overlay, Escape works from
-/// then on. It is never made key programmatically: the panel is shown with
-/// `orderFrontRegardless()`, which orders without activating and without taking key.
 final class NonActivatingPanel: NSPanel {
     var onCancel: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    /// Escape. `cancelOperation` is the responder-chain name for it, and using it rather
-    /// than sniffing key codes means the standard Cmd-. also works.
     override func cancelOperation(_ sender: Any?) {
         onCancel?()
     }
 }
 
-// MARK: - The controller
-
-/// Owns every overlay window: one full-screen break overlay per screen, plus the small
-/// fallback prompt panel used when notifications are unavailable.
-///
-/// Screens come and go, a cable is pulled, a display sleeps, the user joins a meeting
-/// and mirrors. So the set is rebuilt from `NSScreen.screens` on every
-/// `didChangeScreenParameters`, and torn down completely on dismissal. A leftover panel
-/// on a screen that no longer exists is a window the user cannot reach and cannot close.
 @MainActor
 final class BreakOverlayController {
     private var breakPanels: [NonActivatingPanel] = []
@@ -46,24 +22,10 @@ final class BreakOverlayController {
     private var keyMonitor: Any?
     private weak var model: AppModel?
 
-    /// The virtual key code for Escape.
     private static let escapeKeyCode: UInt16 = 53
 
-    /// Both overlays draw on a dimmed screen and already take their text from the fixed
-    /// `Brand.Dark` values for that reason. Their controls did not: `TerminalButton`
-    /// resolves per appearance, so a user running light mode got light-mode ink on black
-    /// for "Ignore it". Pinning the hosting view puts the whole surface in one
-    /// appearance rather than leaving half of it to ask the system.
     private static let overlayAppearance = NSAppearance(named: .darkAqua)
 
-    // MARK: Break overlay
-
-    /// Shows the overlay on every screen and installs a *local* Escape monitor.
-    ///
-    /// Escape works while sigstop happens to be the active application. A global monitor
-    /// would catch it everywhere, but that needs Accessibility or Input Monitoring,
-    /// permissions this app refuses to require for a convenience. So: Escape works when
-    /// the overlay or the app has focus, and the SIGCONT button always works.
     func presentBreak(model: AppModel) {
         self.model = model
         dismissBreak()
@@ -100,9 +62,6 @@ final class BreakOverlayController {
         }
     }
 
-    /// One panel per screen at `.statusBar` level: above the menu bar, and visible over
-    /// another app's fullscreen space without joining it, so leaving the break does not
-    /// shuffle spaces.
     private func buildBreakPanels(model: AppModel) {
         for screen in NSScreen.screens {
             let panel = NonActivatingPanel(
@@ -141,39 +100,6 @@ final class BreakOverlayController {
         breakPanels.removeAll()
     }
 
-    // MARK: The prompt panel
-
-    /// The app drawing a prompt itself, rather than asking macOS to. Two callers:
-    ///
-    ///   * escalation 4, `SIGSTOP`, the ladder's last rung is a panel by design
-    ///     (docs/BREAK-DECISION.md §7.5), not a louder notification;
-    ///   * the notification fallback of docs/PRIVACY.md §3.2, when there is no bundle or
-    ///     the user declined notifications.
-    ///
-    /// It needs no permission and it does **not** respect Do Not Disturb.
-    ///
-    /// **Every rung is full screen, on every display, and that is the owner's decision
-    /// rather than a consequence of the code.** It was made once, reverted by someone
-    /// reading the old version of this comment as though it were the specification, and
-    /// made again. A corner card is the thing that gets waved off without being read,
-    /// which is the failure this whole product exists to avoid: the prompt has to cost a
-    /// glance. If you are about to shrink it back, that is a question for the owner and
-    /// not for this file.
-    ///
-    /// That sentence used to be a lie. Every rung was drawn as a 78% black panel across
-    /// every display, because `deliver()` routes all four channels here whenever system
-    /// notifications are off, and this method sized every panel at `screen.frame`. An L1
-    /// `SIGTSTP`, documented as passive and silent and costing no notification budget,
-    /// blacked out the machine. That is the warden tone CLAUDE.md §0 warns against, and
-    /// it is the most likely reason a prompt gets waved off within one tick.
-    ///
-    /// `SIGSTOP` still takes the whole screen on every display, because that rung is the
-    /// one the product says cannot be ignored and the bluff has to be worth something.
-    ///
-    /// Returns `false` only when there is no screen to draw on at all. Ordering the panel
-    /// front is a request to the window server, not a fact about pixels: the caller
-    /// confirms delivery afterwards with `promptPanelIsOnScreen` and re-asserts with
-    /// `reassertPromptPanel()` if the request was not honoured.
     @discardableResult
     func presentPromptPanel(_ request: PromptRequest, message: RenderedMessage, model: AppModel) -> Bool {
         dismissPromptPanel()
@@ -219,33 +145,16 @@ final class BreakOverlayController {
         return !fallbackPanels.isEmpty
     }
 
-    /// Whether the prompt panel is composited on screen right now, according to the
-    /// window server rather than to AppKit.
-    ///
-    /// `NSWindow.isVisible` reports what the app *asked for*. The status item's placeholder
-    /// window on macOS 27 taught this project that the two can differ: a popover can be
-    /// shown, sized, placed, opaque, and never drawn. The only report the app trusts is
-    /// `kCGWindowIsOnscreen` for the panel's own window number, which is the same bit a
-    /// screenshot sees. It needs no permission for the process's own windows.
     var promptPanelIsOnScreen: Bool {
         return fallbackPanels.contains { Self.isOnScreen(windowNumber: $0.windowNumber) }
     }
 
-    /// Puts the prompt panel back where it belongs and orders it front again. Idempotent
-    /// and cheap, so the model can call it on every tick until the window server agrees.
-    ///
-    /// The frame each panel was built with is re-applied rather than recomputed from
-    /// `NSScreen.screens`, which is what a corner-anchored panel needs and what a
-    /// fullscreen one needed anyway: zipping panels against a screen list that may have
-    /// changed length put a panel on the wrong display.
     func reassertPromptPanel() {
         for panel in fallbackPanels {
             panel.orderFrontRegardless()
         }
     }
 
-    /// Top-right of the screen with the menu bar, inset from the visible frame so it
-    /// clears the menu bar and the notch without overlapping either.
     private static func cornerFrame(on screen: NSScreen) -> NSRect {
         let size = NSSize(width: 400, height: 208)
         let inset: CGFloat = 16
@@ -258,13 +167,9 @@ final class BreakOverlayController {
         )
     }
 
-    /// The screen with the menu bar. `NSScreen.main` is the screen of this app's key
-    /// window, which a menu bar app rarely has; it falls back to the first screen, and
-    /// only a machine with no display at all yields `nil`.
     private static func promptScreen() -> NSScreen? {
         NSScreen.main ?? NSScreen.screens.first
     }
-
 
     private static func isOnScreen(windowNumber: Int) -> Bool {
         guard windowNumber > 0,
@@ -289,15 +194,6 @@ final class BreakOverlayController {
     }
 }
 
-// MARK: - The break view
-
-/// The screen while the process is in state T.
-///
-/// Dimmed, not opaque: the work is still there, and the point of the name is that
-/// nothing was lost. The palette is the fixed dark one because the backdrop is black
-/// whatever the system appearance is. The countdown is the hero; under it a bar fills
-/// with the break as it elapses, which is the mark's own idea, outline for the whole,
-/// fill for how much has passed, turned on its side for a five-minute span.
 struct BreakOverlayView: View {
     let model: AppModel
 
@@ -347,9 +243,6 @@ struct BreakOverlayView: View {
         }
     }
 
-    /// Driven by a timeline, not by a stored counter that something has to remember to
-    /// advance. It reads `breakEndsAt`, a real timestamp, so a screen that was asleep
-    /// for a minute shows the truth when it comes back.
     private var countdown: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let total = max(1, TimeInterval(model.settings.breakDurationMinutes * 60))
@@ -379,8 +272,6 @@ struct BreakOverlayView: View {
         }
     }
 
-    /// `SIGCONT`, filled amber with black text. The one action the screen exists for,
-    /// and never labelled "Dismiss".
     private var resume: some View {
         Button(action: { model.endBreak() }) {
             Text("SIGCONT")
@@ -400,29 +291,6 @@ struct BreakOverlayView: View {
     }
 }
 
-// MARK: - The fallback prompt view
-
-/// The prompt: the signal this rung is named after, the joke, and three monospaced
-/// buttons. The signal is amber at levels 1 to 3 and red at level 4, which is the only
-/// red in the product, `SIGSTOP` is the one rung that cannot be ignored, and the colour
-/// says so once.
-///
-/// `compact` is the ordinary case: a card in the corner of one screen. Only `SIGSTOP`
-/// gets the full screen, on every display.
-///
-/// Two choices, and the second one is now honest rather than merely short.
-///
-/// "Ignore it" used to call `skip()`, the most expensive response the state machine has:
-/// it ends the opportunity and re-arms twenty minutes late. Escape did the same. So a
-/// prompt waved off inside a second bought twenty minutes of silence nobody asked for,
-/// and the owner reported exactly that, as the app appearing to be broken.
-///
-/// A third button labelled with the cost was tried and removed. The cheaper fix is that
-/// the expensive answer is not on this screen at all: "Ignore it" leaves the prompt
-/// standing in the engine, where it times out after ninety seconds and climbs a rung,
-/// which is precisely what CLAUDE.md §0 means by a signal you are allowed to ignore.
-/// Someone who genuinely wants quiet has `Pause` in the menu, which says how long it is
-/// for. Nothing here can cost twenty minutes by accident.
 struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage

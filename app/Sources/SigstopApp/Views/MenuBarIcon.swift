@@ -2,37 +2,10 @@ import AppKit
 import SigstopCore
 import SwiftUI
 
-/// The menu bar label. Two bars, which is the `SIGSTOP` glyph and the product's whole
-/// idea in fourteen points: a process paused, intact, ready to continue.
-///
-/// Drawn with shapes rather than an SF Symbol for two reasons. The first is that the
-/// symbol set has nothing that fills continuously, and the fill *is* the information:
-/// the bars rise with real continuous work, so the icon answers "how long have I been at
-/// this" without opening anything. The second is that a symbol would have to be swapped
-/// for a different symbol at each state, and swapping glyphs in the menu bar reads as a
-/// glitch where a level rising reads as a measurement.
-///
-/// The colour is resolved per menu bar appearance rather than baked in, which is what
-/// gives it the property a template image would have had: legible on a light menu bar and
-/// on a dark one, and correct when the menu is open and the bar inverts. It is a dynamic
-/// `NSColor` rather than `Color.primary` because the mark is the same amber here as on the
-/// site, and one mark everywhere is worth more than automatic monochrome.
 struct MenuBarIcon: View {
     let fraction: Double
     let indicator: IndicatorState
 
-    /// The brand amber, so the menu bar and the website are visibly the same mark.
-    ///
-    /// It has to resolve per appearance rather than being one hex value: #f5a524 is the
-    /// site's amber and reads well on a dark menu bar, but it is roughly 1.9:1 against a
-    /// light one, which is illegible for a 1pt stroke. The light appearance therefore gets
-    /// the darker amber the site already uses for amber-on-white text.
-    /// Passed in rather than resolved from the environment.
-    ///
-    /// `ImageRenderer` draws outside any window, so a dynamic `NSColor` has no appearance
-    /// to resolve against and silently falls back to its light variant. That is why the
-    /// icon rendered as a muddy brown in a dark menu bar. The controller knows the menu
-    /// bar's appearance and passes it.
     var dark: Bool = true
 
     private var brand: Color {
@@ -41,16 +14,6 @@ struct MenuBarIcon: View {
             : Color(.sRGB, red: 0.541, green: 0.306, blue: 0.000, opacity: 1)
     }
 
-    /// Always the brand colour. State is carried by the FILL LEVEL, not by hue: a full
-    /// pair of bars means a break is due, a half pair means half a session. Swapping the
-    /// colour as well would be saying the same thing twice and would cost the mark its
-    /// identity at the one moment people actually look at it.
-    ///
-    /// Opacity is the second channel and it says one thing: IS THE APP GOING TO ASK.
-    /// `.backedOff` joins the two that already dimmed, so dim-and-full reads as "owed,
-    /// but it has stood down" and a user who never opens the panel can still tell a
-    /// deliberate quiet from a break that is genuinely imminent. No new hue, no new
-    /// glyph, no motion: this is the same 0.4 that has shipped in both appearances.
     private var tint: Color {
         switch indicator {
         case .idle, .quiet, .backedOff: return brand.opacity(0.4)
@@ -58,8 +21,6 @@ struct MenuBarIcon: View {
         }
     }
 
-    /// On a break the bars read empty: the clock is stopped, so claiming a level would be
-    /// claiming work that is not happening.
     private var level: Double {
         switch indicator {
         case .onBreak: return 0

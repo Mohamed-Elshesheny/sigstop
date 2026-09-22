@@ -1,20 +1,15 @@
 import Foundation
 
-// MARK: - Slots
-
 public enum SlotKey: String, Codable, Sendable, CaseIterable, Hashable {
-    case app        // "Cursor"         , display name of the foreground app
-    case minutes    // "94"             , continuous work minutes
-    case project    // "payments-api"   , workspace / repo name
-    case branch     // "fix/retry-loop" , current git branch
-    case activity   // "debugging"      , human-readable activity noun
-    case streak     // "3"              , skipped-breaks count
-    case count      // "41"             , generic counter the collector supplies
-    case hour       // "2:14 AM"        , localized time of day
+    case app
+    case minutes
+    case project
+    case branch
+    case activity
+    case streak
+    case count
+    case hour
 
-    /// Slots that must never degrade, because a wrong value is worse than no line at all.
-    /// There is no "your branch" that is funny, and a wrong skip count destroys the
-    /// joke's entire premise. See docs/MESSAGE-ENGINE.md §2.3.
     public var canDegrade: Bool {
         switch self {
         case .branch, .streak, .minutes, .count, .hour: return false
@@ -29,10 +24,10 @@ public struct SlotValue: Sendable, Hashable, Codable {
     public let provenance: Provenance
 
     public enum Provenance: String, Sendable, Codable, Hashable {
-        case exact     // read directly (git HEAD, window title, an OS API)
-        case derived   // computed from an exact value (minutes from a timestamp)
-        case degraded  // family-level substitute ("your editor")
-        case generic   // neutral filler ("this")
+        case exact
+        case derived
+        case degraded
+        case generic
     }
 
     public init(text: String, confidence: Double, provenance: Provenance) {
@@ -41,29 +36,17 @@ public struct SlotValue: Sendable, Hashable, Codable {
         self.provenance = provenance
     }
 
-    /// Treated as exact for gating purposes, a derived value is arithmetic on a fact.
     public var isHardEnoughForRequiredSlot: Bool {
         provenance == .exact || provenance == .derived
     }
 }
 
-// MARK: - Resolver
-
-/// Builds the slot table from the context and renders a template's text.
-///
-/// Pure: it reads the context and nothing else. No clock, no I/O, no AppKit.
 public struct SlotResolver: Sendable {
     public static let requiredFloor: Double = 0.70
     public static let optionalFloor: Double = 0.50
 
     public init() {}
 
-    // MARK: Table
-
-    /// Every slot value the engine can offer for this context, before any degradation.
-    /// Absent means absent: a slot with no honest value simply is not in the table, which
-    /// is what makes "a {branch} line is unselectable when branch is nil" a hard gate in
-    /// step 1 rather than a string check at render time.
     public func table(for ctx: MessageContext) -> [SlotKey: SlotValue] {
         var out: [SlotKey: SlotValue] = [:]
 
@@ -98,16 +81,10 @@ public struct SlotResolver: Sendable {
         }
 
         for (k, v) in ctx.slotOverrides { out[k] = v }
-        /// Last, and after the overrides on purpose: a withheld slot is a property of
-        /// where this line is going, and nothing upstream may put the value back.
         for key in ctx.withheldSlots { out.removeValue(forKey: key) }
         return out
     }
 
-    // MARK: Gate
-
-    /// Hard gate, evaluated in step 1: can every required slot be satisfied exactly or by
-    /// derivation, at or above the required floor?
     public func canSatisfyRequired(_ t: MessageTemplate, in ctx: MessageContext) -> Bool {
         canSatisfyRequired(t, table: table(for: ctx))
     }
@@ -120,12 +97,6 @@ public struct SlotResolver: Sendable {
         }
     }
 
-    // MARK: Render
-
-    /// Returns the filled text, or nil when the line cannot be rendered honestly.
-    ///
-    /// Never returns a string containing an unfilled `{slot}`, if a placeholder would
-    /// survive, the template is dropped instead.
     public func fill(_ t: MessageTemplate, in ctx: MessageContext) -> String? {
         fill(t, table: table(for: ctx), family: ctx.appFamily)
     }
@@ -162,7 +133,6 @@ public struct SlotResolver: Sendable {
         return rendered
     }
 
-    /// The fallback chain from §2.3: exact -> derived -> degraded -> generic.
     private func resolve(
         _ key: SlotKey, table: [SlotKey: SlotValue], family: AppFamily, required: Bool
     ) -> String? {
@@ -180,8 +150,6 @@ public struct SlotResolver: Sendable {
         default:        return nil
         }
     }
-
-    // MARK: Formatting
 
     private func format(integer: Int, locale: Locale) -> String {
         integer.formatted(.number.locale(locale))

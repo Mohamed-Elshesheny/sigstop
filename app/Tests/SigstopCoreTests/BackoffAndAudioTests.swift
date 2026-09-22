@@ -3,7 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// Why the app went quiet for an hour, and why it no longer does.
 @Suite("backing off, and the ladder that was already switched off")
 struct BackoffTests {
 
@@ -20,12 +19,6 @@ struct BackoffTests {
         }
     }
 
-    /// The 36 dead minutes, pinned.
-    ///
-    /// Under the backoff the ceiling is capped to `.second` and `.second` is refused by
-    /// `ignoreBackoff` for the rest of the cycle, so nothing could ever be delivered and
-    /// the engine sat running `ladderLevel4`'s timer anyway. It now closes as soon as it
-    /// enters the ladder, because that is when the fact becomes true.
     @Test("a capped ladder ends when it has nothing left, not 35 minutes later")
     func cappedLadderEndsAtOnce() {
         var session = EngineHarness.Session()
@@ -45,8 +38,6 @@ struct BackoffTests {
         #expect(waited < policy.ladderLevel4, "this is the wait that produced the 63 minute gap")
     }
 
-    /// The regression guard for the other side of it: an uncapped ladder still climbs all
-    /// four rungs and still ends `promptTimeout` after the last one, exactly as before.
     @Test("an uncapped ladder still runs every rung")
     func uncappedLadderIsUnchanged() {
         var session = EngineHarness.Session()
@@ -68,9 +59,6 @@ struct BackoffTests {
         #expect(levels.contains(.incident), "SIGSTOP must still be reached when nothing caps the ladder")
     }
 
-    /// The indicator during the cooldown. `escalating` while the ladder is switched off
-    /// is a positive claim that the opposite of the truth is happening, which is worse
-    /// than the `working` it was paired with.
     @Test("the cooldown says it has stood down, and never that it is escalating")
     func cooldownIndicatorIsHonest() {
         var session = EngineHarness.Session()
@@ -89,7 +77,6 @@ struct BackoffTests {
         #expect(!during.contains(.working))
     }
 
-    /// The cooldown carries why, so the panel does not have to guess it from a threshold.
     @Test("the cooldown records that it was the backoff, not just an unanswered one")
     func cooldownCarriesItsCause() {
         var session = EngineHarness.Session()
@@ -105,14 +92,6 @@ struct BackoffTests {
         #expect(w.cooldownUntilMono != nil)
     }
 
-    /// The way out of the backoff, which for a while there was not one.
-    ///
-    /// A capped cycle closes `promptTimeout` after its single prompt, which is the point
-    /// of capping it. That also takes the cycle away, so a break the user starts even a
-    /// minute later begins with `cycle == nil` - and the reset used to live inside
-    /// `if let cycle`. Two ignored opportunities therefore put the app into single-prompt
-    /// mode for the rest of the day unless the user answered inside ninety seconds, while
-    /// `PromptOutlook` told them a break would clear it.
     @Test("a break after a capped cycle has closed still clears the backoff")
     func aLateBreakStillClearsTheBackoff() {
         var session = EngineHarness.Session()
@@ -122,7 +101,6 @@ struct BackoffTests {
         #expect(session.driver.day.consecutiveIgnoredCycles == 3)
         #expect(session.driver.state.openCycle == nil, "the capped cycle is gone, which is the point")
 
-        // Three minutes late, which is what "I saw it, let me finish this line" looks like.
         session.step(times: 36)
         session.step(action: .startBreakNow)
         guard case .breakActive(let active) = session.driver.state else {
@@ -140,8 +118,6 @@ struct BackoffTests {
         )
     }
 
-    /// The other half of it: the break has to be a real one. A break shorter than
-    /// `qualifyingBreak` buys the same nothing a snooze does.
     @Test("a break too short to qualify clears nothing")
     func aShortBreakClearsNothing() {
         var session = EngineHarness.Session()
@@ -155,10 +131,6 @@ struct BackoffTests {
         #expect(session.driver.day.consecutiveIgnoredCycles == 3)
     }
 
-    /// Compliance is not cleared by it, and deliberately. The counter the backoff reads
-    /// means "opportunities in a row that went unanswered by a break"; the denominator
-    /// the panel divides by only grows when an opportunity was actually opened, so
-    /// crediting a break nobody asked for would be a percentage of nothing.
     @Test("a break with no opportunity behind it earns no compliance credit")
     func aSpontaneousBreakIsNotAnHonoredOpportunity() {
         var session = EngineHarness.Session()
@@ -171,8 +143,6 @@ struct BackoffTests {
         #expect(session.driver.day.honoredOpportunities == 0)
     }
 
-    /// One rule, learnable without a legend: a dim mark means the app is not going to
-    /// ask. The predicate lives in `Core` because the view layer has no test target.
     @Test("the dim set is exactly the states where nothing is coming")
     func theDimSetIsPinned() {
         #expect(IndicatorState.backedOff.isStoodDown)
@@ -185,8 +155,6 @@ struct BackoffTests {
         #expect(!IndicatorState.onBreak.isStoodDown)
     }
 
-    /// A terminal limit is one built only from counters that grow. `minimumSpacing` is
-    /// not one, and reading it as one would cut a perfectly live ladder short.
     @Test("only the limits that cannot lift are terminal")
     func terminalLimitsAreTheOnesThatCannotLift() {
         #expect(RateLimit.ignoreBackoff.isTerminalForCycle)
@@ -197,8 +165,6 @@ struct BackoffTests {
     }
 }
 
-/// An input device that never closes, which is what Krisp, BlackHole, an aggregate device
-/// and some headset daemons look like from here.
 @Suite("a microphone is a fact, but it is not a call")
 struct UncorroboratedAudioTests {
 
@@ -237,8 +203,6 @@ struct UncorroboratedAudioTests {
         #expect(Self.policy.hardBlock(input, budget: budget) == .audioInputInUse)
     }
 
-    /// The whole of bug two: on a Mac with a virtual audio device this used to be true
-    /// forever, and the only escape was a collector calibration an hour away.
     @Test("past the ceiling, with nothing corroborating it, it stops blocking")
     func pastTheCeilingItStopsBlocking() {
         let (input, budget) = Self.input(held: 21 * 60)
@@ -246,8 +210,6 @@ struct UncorroboratedAudioTests {
         #expect(Self.policy.softDefer(input) == .liveCaptureUnattributed)
     }
 
-    /// The regression guard, and the more important of the two. A real call is not
-    /// interrupted at twenty minutes, because a real call corroborates.
     @Test(
         "corroborated capture is not bounded at all",
         arguments: [
@@ -274,8 +236,6 @@ struct UncorroboratedAudioTests {
         #expect(Self.policy.audioIsCorroborated(input), "\(what) must count as corroboration")
     }
 
-    /// A run of real short calls must never accumulate towards the bound, which is why
-    /// the counter is continuous rather than a total.
     @Test("the counter resets the moment the device releases")
     func theCounterResetsOnRelease() {
         var session = EngineHarness.Session()
@@ -290,7 +250,6 @@ struct UncorroboratedAudioTests {
         #expect(session.driver.state.uncorroboratedAudioElapsed == 0)
     }
 
-    /// The two hours a stuck Mac used to spend in complete silence.
     @Test("a stuck input device no longer silences the app for hours")
     func aStuckDeviceIsNotSilenceForever() {
         var session = EngineHarness.Session()
@@ -308,8 +267,6 @@ struct UncorroboratedAudioTests {
         )
     }
 
-    /// A rung that arrives while a device is capturing arrives silently. The prompt still
-    /// lands; it just does not chime into somebody's recording.
     @Test("live capture suppresses the sound channel")
     func liveCaptureIsSilent() {
         var session = EngineHarness.Session()

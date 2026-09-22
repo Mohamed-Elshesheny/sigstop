@@ -1,18 +1,7 @@
 import Foundation
 
-/// The answer to "why has it not prompted me", read off the event log.
-///
-/// This exists because the owner could not get that answer any other way. The panel said
-/// RUNNING, the log had two lines and then nothing, and the real reason, that a dismissed
-/// prompt had re-armed the engine twenty minutes late, was recoverable only by noticing
-/// that 1205 seconds is exactly `rearmAfterSkip` minus the work interval.
-///
-/// Pure, so it runs in `--doctor` without a window server and can be unit tested against
-/// a literal array of events.
 public struct PromptOutlook: Sendable, Hashable {
-    /// One sentence a person can read out loud.
     public let headline: String
-    /// The supporting facts, each one traceable to a line in the file.
     public let detail: [String]
 
     public init(headline: String, detail: [String] = []) {
@@ -20,12 +9,6 @@ public struct PromptOutlook: Sendable, Hashable {
         self.detail = detail
     }
 
-    /// Reads the outlook from a day's events.
-    ///
-    /// The events are sorted first rather than trusted in file order: `idle_begin` is
-    /// backdated to when the idle period actually started, so a log can and does contain
-    /// lines out of order, and a reader that assumes otherwise reports the wrong last
-    /// event.
     public static func read(
         events: [LoggedEvent],
         now: Date,
@@ -130,24 +113,8 @@ public struct PromptOutlook: Sendable, Hashable {
         }
     }
 
-    /// How long an open cycle may go without a line before the file is evidence that the
-    /// app stopped rather than evidence about now.
-    ///
-    /// `VerdictLedger` writes at least once per `heartbeat` for as long as a cycle is
-    /// open, whatever state holds it, so a longer gap than that cannot happen while the
-    /// app is running. One tick of slack for a heartbeat that landed late.
     static let silenceCeiling: TimeInterval = VerdictLedger.defaultHeartbeat + 60
 
-    /// A cycle that is open in the file, which is a claim about *now* and therefore has to
-    /// be bounded by what the file can actually support.
-    ///
-    /// This said "A break is due right now" for any unclosed `break_open`, no matter how
-    /// old, and no matter what the user had already done about it. On the log it was
-    /// designed from it was wrong three ways at once: a `start` had orphaned the cycle, a
-    /// `break_response` had answered it, and the newest line was a day old.
-    /// Consecutive opportunities closed `ignoredExhausted` since the last one that was
-    /// honored. The engine's own `consecutiveIgnoredCycles`, recovered from the file,
-    /// because a separate process cannot read the running counter.
     private static func ignoredRun(in sorted: [LoggedEvent]) -> Int {
         sorted.reduce(into: 0) { run, event in
             guard event.kind == .cycleClose, let outcome = event.outcome else { return }
@@ -166,9 +133,6 @@ public struct PromptOutlook: Sendable, Hashable {
         policy: BreakPolicy,
         clock: (Date) -> String
     ) -> PromptOutlook {
-        // Engine state is deliberately not persisted, so a relaunch forgets an open cycle.
-        // A `start` after the open is therefore the end of it, and the only record there
-        // will ever be of the end of it.
         if let restart = sorted.last(where: { $0.kind == .start }), restart.at > opened.at {
             return PromptOutlook(
                 headline: "The break opportunity from \(clock(opened.at)) was dropped by a restart"
@@ -181,18 +145,10 @@ public struct PromptOutlook: Sendable, Hashable {
             )
         }
 
-        // Everything below this line except the two past-tense answers is a claim about
-        // now, and a claim about now needs a live file under it. An open cycle writes at
-        // least one line per heartbeat for as long as it is open, whatever state holds it,
-        // so a longer gap than that is the process being gone: a rebuild, a crash, a quit
-        // that never reached its `stop`.
         let stopped: Bool = sorted.last.map {
             now.timeIntervalSince($0.at) > silenceCeiling
         } ?? false
 
-        // What the user already did about it. The answer is in the file; not reading it is
-        // what let the reader tell somebody who had just pressed SIGALRM that a break was
-        // due right now and nothing was holding it.
         let response = sorted.last { $0.kind == .breakResponse && $0.at >= opened.at }
         if let response, let action = response.action {
             switch action {
@@ -215,11 +171,6 @@ public struct PromptOutlook: Sendable, Hashable {
                     $0.kind == .breakPrompt && $0.at >= opened.at && $0.reason != nil
                 }?.reason
                 let named = rung.map { " The last rung delivered was \($0.rawValue)." } ?? ""
-                /// Both of the sentences below are false once the backoff has capped the
-                /// ladder: nothing further can be delivered in this cycle, so it is not
-                /// climbing and four escalations are not coming. Saying so anyway is
-                /// exactly the confident wrong claim CLAUDE.md §4.1 forbids, in the one
-                /// file written to answer "why has it not prompted me".
                 if ignoredRun(in: sorted) >= policy.ignoreBackoffThreshold {
                     return PromptOutlook(
                         headline: "The prompt from \(clock(opened.at)) went unanswered.\(named)",
@@ -258,8 +209,6 @@ public struct PromptOutlook: Sendable, Hashable {
                     )
                 }
             case .ignored:
-                // Stale, so the log-stopped answer below is the honest one: a ladder that
-                // was climbing when the process died is not a ladder that is climbing.
                 break
             case .skipped:
                 return PromptOutlook(

@@ -2,21 +2,6 @@ import Foundation
 import SigstopCore
 import SigstopSensors
 
-/// `sigstop --doctor`, what the app can observe **right now**, printed plainly.
-///
-/// This is the file a sceptic runs instead of believing the privacy page. So it is held
-/// to a different standard than the rest of the UI:
-///
-///   * every signal is listed, including the ones that are unavailable, with the reason;
-///   * "unavailable" is never printed as `false`, `0 s` idle and *cannot read idle* are
-///     different facts, and collapsing them is exactly the lie a time tracker tells;
-///   * the confidence number is shown with the log-odds that produced it, so the column
-///     can be added up by hand and checked against the total;
-///   * no colour codes, no spinners, no progress bars. It is meant to be piped, diffed,
-///     and pasted into an issue.
-///
-/// It does not start the UI, does not post a notification, does not write to the event
-/// log, and cannot reach a permission prompt.
 @MainActor
 enum Doctor {
 
@@ -43,17 +28,9 @@ enum Doctor {
         var out: [String] = []
         out.append(contentsOf: headerSection(settings: settings))
         out.append(contentsOf: permissionSection(sensors.permissions.status()))
-        /// Read here, in the one async context, so the row stays a plain function.
         let browserHost = sensors.permissions.browserHostPermitted()
             ? await sensors.accessibility.read(pid: raw.frontmost.frontmost.pid).browserHost
             : nil
-        /// The corpus, counted, because a `--doctor` that never touches it cannot prove
-        /// the app can read its own resources.
-        ///
-        /// That is not a hypothetical: the first version of the "starts without a build
-        /// directory" check in verify.sh probed with `--doctor` and passed while the bug
-        /// was present, for exactly this reason. The number is also the honest answer to
-        /// "how many different things can it say", which a reader of this output wants.
         let corpusCount = Corpus.bundled.packs.reduce(0) { $0 + $1.messages.count }
         out.append("")
         out.append("CORPUS")
@@ -73,8 +50,6 @@ enum Doctor {
         out.append("")
         return out
     }
-
-    // MARK: Sections
 
     private static func headerSection(settings: SigstopSettings) -> [String] {
         [
@@ -195,9 +170,6 @@ enum Doctor {
                 ? "readable, parsed, then discarded; never written to disk"
                 : "not readable, see PERMISSIONS above"
         )
-        /// Tier 1b, printed whether it is on or off. CLAUDE.md 4.1: the app must always be
-        /// able to answer "why do you think that?", and a signal that cannot be checked from
-        /// a terminal is one the reader has to take on trust.
         row(
             "1b", "browser host",
             browserHost.map { "\($0), the host only, the path and query are dropped" }
@@ -221,9 +193,6 @@ enum Doctor {
         return out
     }
 
-    /// The Tier 2 process row. Four outcomes and not a count, because "off", "not this
-    /// sample", "could not read the table" and "read it, nothing matched" are four facts
-    /// and only the last one means no debugger is running.
     private static func toolText(_ sensors: SensorStack) -> String {
         switch sensors.processes.lastOutcome {
         case .optedOut:
@@ -270,13 +239,6 @@ enum Doctor {
         }
     }
 
-    /// What the call latch would do with the signals above.
-    ///
-    /// `--doctor` is a separate process (`AppMain`) that builds a fresh `SensorStack`. It
-    /// therefore starts with the latch closed and **cannot** see the latch the running app
-    /// is holding. Printing "not holding" would be exactly the kind of lie this file
-    /// exists to prevent, so it prints what it can observe and what the latch would make
-    /// of it, and says which is which.
     private static func callHoldSection(_ raw: RawSignals, settings: SigstopSettings) -> [String] {
         let policy = BreakPolicy(settings: settings)
         var out = [
@@ -289,12 +251,6 @@ enum Doctor {
         out.append("  arms after           \(Int(policy.latchArmDwell))s of continuous microphone or camera use")
         let capture = raw.micLiveForLatch || raw.camera.contributesToMeeting
         out.append("  capture live now     " + (capture ? "yes" : "no"))
-        /// Which block covers a call while it is actually running. On most Macs it is the
-        /// device fact and the latch only ever handles the trailing edge. On a Mac with a
-        /// virtual audio driver the device fact is not a usable positive at all, so the
-        /// latch is the only thing left and it has to block during the call itself. That
-        /// is a real difference in behaviour between two Macs and it is printed, not
-        /// smoothed over.
         if raw.audio == .unreliable || raw.camera == .unreliable {
             out.append("  live call blocked by the latch itself. The device signal on this Mac is not a")
             out.append("                       usable positive, so audioInputInUse and cameraInUse stay")
@@ -340,9 +296,6 @@ enum Doctor {
         var out = ["INFERENCE"]
 
         let label = sample.honestLabel ?? context.claimableActivity.displayName
-        /// The same property the panel prints beside the activity, so this row and the
-        /// panel cannot disagree. The 1b row above is the collector's reading; this is
-        /// what survived the engine.
         out.append("  named as         \(context.siteOrAppName)")
         out.append("  activity         \(label)")
         if context.claimableActivity != context.activity {
@@ -390,17 +343,7 @@ enum Doctor {
 
         out.append("")
         out.append("  PROMPTS")
-        /// The engine's own verdict, not the sensors-layer gate that used to be printed
-        /// here. The two can disagree, and after the call latch they will: the gate knows
-        /// nothing about it. Hard blocks depend only on the signals and on when the last
-        /// break ended, so this line is the truth. Soft deferrals and rate limits depend
-        /// on cycle state that lives in the running app and is not visible from here, so
-        /// they are not printed at all rather than printed wrong.
         var signals = raw.systemSignals
-        /// The same attributed question the running app asks. A device that is running
-        /// while nothing at all on this Mac has input open is a virtual device, and the
-        /// doctor used to print BLOCKED for it with the row two screens up saying nobody
-        /// had the microphone.
         signals.audioInputRunning = raw.audioDeviceHold == .held
         signals.frontmostIsFullscreen = context.concurrent.fullscreen
         let policy = BreakPolicy(settings: settings)
@@ -429,12 +372,6 @@ enum Doctor {
         return out
     }
 
-    /// The Tier 2 git row, which prints the branch's LENGTH and never the branch.
-    ///
-    /// `--doctor` is what a sceptic runs and what the bug report form asks people to paste
-    /// whole, and a branch name routinely carries a ticket id, a customer, or a product
-    /// nobody has announced. Settings shows the name, on the machine it came from, where
-    /// it is not going anywhere. docs/PRIVACY.md §8.12 is the argument in full.
     private static func gitText(_ sensors: SensorStack) -> String {
         switch sensors.git.lastOutcome {
         case .optedOut:
@@ -490,8 +427,6 @@ enum Doctor {
         }
     }
 
-    /// Rendered from `ToolAllowlist.undetectable` rather than retyped, so the list a user
-    /// reads here cannot drift from the list the collector actually skips.
     private static var undetectableTools: [String] {
         let names = ToolAllowlist.undetectable.map(\.displayName)
         return stride(from: 0, to: names.count, by: 5).map {
@@ -499,8 +434,6 @@ enum Doctor {
         }
     }
 
-    /// The honest list. Every row here is something the app could plausibly be expected to
-    /// know and does not, with the reason it does not.
     private static func unavailableSection(_ raw: RawSignals) -> [String] {
         [
             "UNAVAILABLE, AND WHY",
@@ -553,18 +486,6 @@ enum Doctor {
         ]
     }
 
-    /// "Why has it not prompted me", answered without anyone reading JSON.
-    ///
-    /// This section exists because that question had no answer. The owner watched a panel
-    /// read RUNNING for eighteen minutes against a five minute interval; the real cause,
-    /// a dismissed prompt that re-armed the engine twenty minutes late, was recoverable
-    /// only by noticing that the gap between two cycles was exactly `rearmAfterSkip` minus
-    /// the work interval. A `--doctor` that cannot answer the app's own central question
-    /// is not doing the job §4.1 gives it.
-    ///
-    /// It reads the log rather than the running engine, because `--doctor` is a separate
-    /// process from the menu bar app and pretending otherwise would be the same class of
-    /// lie the rest of this file exists to avoid.
     private static func outlookSection(settings: SigstopSettings) -> [String] {
         var out = ["WHY IT HAS NOT PROMPTED YOU"]
         let policy = BreakPolicy(settings: settings)
@@ -589,7 +510,6 @@ enum Doctor {
         return out
     }
 
-    /// A logical day straddles up to three UTC files, so all three are read and merged.
     private static func loadToday(store: FileEventStore, policy: BreakPolicy) throws -> [LoggedEvent] {
         let today = CalendarDay.local(
             of: Date(), calendar: .current, boundaryHour: policy.dayBoundaryHour
@@ -630,8 +550,6 @@ enum Doctor {
         out.append("  field in the log's type that could hold one.")
         return out
     }
-
-    // MARK: Small renderings
 
     private static func cameraText(_ state: CameraInputState) -> String {
         switch state {

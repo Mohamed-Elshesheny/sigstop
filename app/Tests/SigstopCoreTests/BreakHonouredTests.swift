@@ -3,17 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// A break the app asked for, taken in full, has to count.
-///
-/// Reported from a real log: `break_begin` accepted, `break_end` after the full planned
-/// sixty seconds, and then `cycle_close {outcome: "skipped"}`. The panel read "0 of 1
-/// kept" and "no break recorded yet" to a user who had done exactly what he was asked.
-///
-/// The cause was two numbers from two different settings being compared: the break ran
-/// for `breakDurationMinutes` and was then judged against `qualifyingBreak`, which comes
-/// from `idleCountsAsBreakMinutes` and exists to decide whether an *unscheduled* gap in
-/// the input stream was a real break. Nothing tied them together, so any break shorter
-/// than the idle threshold could never be honoured.
 @Suite("A completed break is honoured")
 struct BreakHonouredTests {
 
@@ -25,7 +14,6 @@ struct BreakHonouredTests {
         return s
     }
 
-    /// Runs one full cycle: work until prompted, accept, sit through the whole break.
     private static func takeOneBreak(_ settings: SigstopSettings) -> [Effect] {
         var driver = EngineHarness.Driver(settings: settings)
         var accepted = false
@@ -69,9 +57,6 @@ struct BreakHonouredTests {
         }
     }
 
-    /// The defaults put `plannedDuration` and `qualifyingBreak` at the same 300 seconds,
-    /// so the old comparison sat exactly on its own boundary and a tick landing a fraction
-    /// early lost the break.
     @Test("The default five minute break is not decided on a boundary")
     func defaultsAreNotOnTheBoundary() {
         let effects = Self.takeOneBreak(Self.settings(breakMinutes: 5, idleCountsAs: 5))

@@ -1,31 +1,7 @@
 import Foundation
 
-/// The one line the panel always shows: what the app is waiting for, and roughly when.
-///
-/// Silence by design and silence by defect look identical from the outside. A user who is
-/// not prompted for an hour cannot tell whether the app decided to back off, is blocked,
-/// crashed, or never worked, and they will not file a bug about it. Being quiet is a claim
-/// like any other, and until this file it was the one claim the app made without evidence
-/// (CLAUDE.md §4.1).
-///
-/// So the rule is total: `read` has an answer for every state the engine can be in, and
-/// its last branch names itself as a bug rather than rendering nothing.
-///
-/// The words live in `Core` for the reason `QuietCause.title` already gives: `SigstopApp`
-/// has no test target, so a vocabulary kept there is unchecked. `PromptOutlook` is
-/// deliberately *not* what feeds this. That reads the event log because `--doctor` is a
-/// separate process that cannot see the running engine; in-process `continuousWork`,
-/// `armThreshold` and `cooldownUntilMono` are free, and no `LoggedEvent` carries them.
 public struct WaitingLine: Sendable, Hashable {
 
-    /// Three different claims, kept apart on purpose.
-    ///
-    /// "holding off" means something is blocking or rate-limiting a prompt right now.
-    /// "not asking yet" means nothing is, and the engine is waiting on its own clock.
-    /// "waiting on you" means the ask is already out, or a break is running, so the
-    /// silence is the user's rather than the app's. Collapsing any two of them would put
-    /// the app back where it started, saying RUNNING while it had no intention of
-    /// speaking for an hour.
     public enum Claim: String, Sendable, Codable, CaseIterable, Hashable {
         case holdingOff
         case notAskingYet
@@ -41,7 +17,6 @@ public struct WaitingLine: Sendable, Hashable {
     }
 
     public let claim: Claim
-    /// The middle of the sentence, lower case, no trailing full stop.
     public let body: String
 
     public init(_ claim: Claim, _ body: String) {
@@ -51,39 +26,24 @@ public struct WaitingLine: Sendable, Hashable {
 
     public var text: String { "\(claim.prefix), \(body)." }
 
-    /// The fallback, which has to exist. A state with no words is the failure this whole
-    /// file is about, so it says so rather than rendering an empty line.
     public static let unexplained = WaitingLine(
         .notAskingYet, "and it cannot say why, which is a bug. Run make doctor"
     )
 }
 
-// MARK: - Reading it off the live engine
-
 public extension WaitingLine {
 
-    /// Everything the line is allowed to know. All of it is already in hand on the tick
-    /// the model publishes, so the line costs no wake-up and schedules nothing.
     struct Reading: Sendable {
         public var state: EngineState
-        /// The gate's answer this tick, from the engine's verdict when a cycle is open and
-        /// from the sensor gate when none is. Nil when nothing is holding a prompt.
         public var gate: GateReason?
         public var continuousWork: TimeInterval
-        /// True while the device bit itself is live, which is what makes the manual
-        /// "ignore this input device" answer worth confirming.
         public var audioInputRunning: Bool
-        /// When the user's "ignore this input device" runs out, while it is still live.
         public var micIgnoredUntil: Date?
         public var now: Date
         public var monotonic: Double
         public var policy: BreakPolicy
         public var settings: SigstopSettings
         public var calendar: Calendar
-        /// Notifications already spent today. The line could not see this, so while the
-        /// budget was gone and the engine was between re-arms it still said "the next one
-        /// is 5m of work away" — counting down to a prompt that was never going to be
-        /// sent.
         public var notificationsDelivered: Int
 
         public init(
@@ -113,16 +73,6 @@ public extension WaitingLine {
         }
     }
 
-    /// Total over the engine's state space. Every branch returns a line.
-    ///
-    /// Nothing is checked ahead of the state. The "ignore this input device" confirmation
-    /// used to be, and it therefore outranked every state for the full half hour of the
-    /// inhibit: on the stuck-device Mac the button exists for, `audioInputRunning` is
-    /// always true, so the panel said "the mic will not hold your break" while the header
-    /// said STOPPED and the user was on a break, or PAUSED, or snoozed, or past the daily
-    /// cap. The one line that exists to end the ambiguity was the thing creating it. It
-    /// now lives in `working`, where a live-but-ignored device is the only thing the
-    /// reader could otherwise be wondering about.
     static func read(_ r: Reading) -> WaitingLine {
         switch r.state {
         case .breakActive(let b):
@@ -145,8 +95,6 @@ public extension WaitingLine {
         }
     }
 
-    // MARK: Branches
-
     private static func quiet(_ q: QuietState, _ r: Reading) -> WaitingLine {
         switch q.cause {
         case .userPaused:
@@ -155,12 +103,6 @@ public extension WaitingLine {
         case .scheduledQuietHours:
             let ends = minuteOfDay(r.settings.quietHours.endMinute)
             return WaitingLine(.notAskingYet, "you are inside your quiet hours until \(ends)")
-        /// `holdingOff`, per this file's own definition twenty lines up: "holding off"
-        /// means something is blocking or rate-limiting a prompt *right now*, and "not
-        /// asking yet" means nothing is. The daily cap is the rate limit. The rendered
-        /// sentence was "not asking yet, today's notification budget is spent, so nothing
-        /// more until the day rolls over", which denies and asserts the same fact in one
-        /// line. A Focus mode long enough to read as deliberate is a hold too.
         case .dailyCapReached, .sustainedFocusMode:
             return WaitingLine(.holdingOff, q.cause.summary)
         }
@@ -177,26 +119,12 @@ public extension WaitingLine {
             let why = (w.standDown ?? .skipped).summary
             return WaitingLine(.notAskingYet, "\(why), so the next is \(extra) later than usual")
         }
-        /// Below the stand-downs on purpose. A cooldown or a pushed-out threshold is the
-        /// reason the app is quiet; the ignored input device is not the reason for
-        /// anything, it is the confirmation that a button worked. Pressing something and
-        /// seeing nothing change is how a user concludes an app is broken, so it still
-        /// gets said - just never over a sentence that explains the silence.
         if let until = r.micIgnoredUntil, until > r.now, r.audioInputRunning {
             return WaitingLine(
                 .notAskingYet,
                 "taking your word for it, the mic will not hold your break until \(clock(until, r))"
             )
         }
-        /// Deliberately no block reason here. Nothing is being held while the engine is
-        /// working, because no break is due yet, and the panel used to borrow the sensor
-        /// gate's answer anyway: on a Mac with a stuck input device it therefore asserted
-        /// "you may be on a call" for an hour, with the app's own process table in the
-        /// same process saying nobody had the microphone.
-        /// Above the countdown, because a countdown to a prompt that cannot be sent is
-        /// the most confident wrong thing the panel can say. `handleWorking` now returns
-        /// straight to quiet when the budget is gone, so this covers the tick in between
-        /// and any state that reaches here with the day already spent.
         if r.notificationsDelivered >= r.policy.dailyNotificationCap {
             return WaitingLine(.holdingOff, QuietCause.dailyCapReached.summary)
         }
@@ -206,19 +134,8 @@ public extension WaitingLine {
     }
 
     private static func pending(_ r: Reading) -> WaitingLine {
-        /// A hard block is a fact about the machine and outranks everything: the user
-        /// cannot answer a prompt that is not allowed to exist.
         if let gate = r.gate, gate.isHardBlock { return blocked(gate, r) }
 
-        /// Once the ask is out, the silence belongs to the user, and the line has to say
-        /// so even when a rate limit is also in force.
-        ///
-        /// The gate was being read first, so a prompt the owner had just waved off
-        /// produced "holding off, too soon after the last one": true of the engine's own
-        /// spacing rule, and read from outside as though something external were in the
-        /// way. Minimum spacing is a decision about how often to ask, not a reason the
-        /// break is not due, and the difference is the whole point of keeping these three
-        /// claims apart.
         if case .ignored(let e) = r.state {
             let overdue = DurationText.short(r.now.timeIntervalSince(e.dueSince))
             return WaitingLine(.waitingOnYou, "you waved the last one off, and it has been due \(overdue)")
@@ -239,11 +156,6 @@ public extension WaitingLine {
         return .unexplained
     }
 
-    /// A block, with its deadline where the app has one.
-    ///
-    /// The microphone is the case worth spelling out: it is the only hard block that can
-    /// last for hours on a perfectly healthy machine, because a virtual audio device holds
-    /// the input open and the app used to read that as "you may be on a call" forever.
     private static func blocked(_ gate: GateReason, _ r: Reading) -> WaitingLine {
         guard gate == .audioInputInUse, let held = r.state.uncorroboratedAudioElapsed, held >= 60 else {
             return WaitingLine(.holdingOff, gate.summary)
@@ -257,19 +169,6 @@ public extension WaitingLine {
         )
     }
 
-    // MARK: Formatting
-
-    /// A wall-clock time rather than a countdown, deliberately: a duration is something
-    /// the reader has to re-check, and a string that changes every second would turn the
-    /// menu bar's observation loop into a per-second redraw.
-    ///
-    /// Short and locale-aware, which is the same style the panel's own subtitle uses one
-    /// row above this line. It was `HH:mm`, borrowed from `minuteOfDay` below, and on a
-    /// twelve-hour Mac the two rows disagreed in the same glance: "asking again at
-    /// 2:22 pm" directly over "you snoozed it, asking again at 14:22". `minuteOfDay` has
-    /// a reason to stay 24-hour - it mirrors the quiet-hours settings field, where the
-    /// reader is comparing two ends of a window - and a one-off deadline in prose has
-    /// none.
     private static func clock(_ date: Date, _ r: Reading) -> String {
         var style = Date.FormatStyle(date: .omitted, time: .shortened)
         style.timeZone = r.calendar.timeZone

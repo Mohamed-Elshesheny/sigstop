@@ -1,21 +1,6 @@
 import Foundation
 
-/// Why the app was, or was not, allowed to speak. One closed vocabulary.
-///
-/// `InterruptionVerdict` is the engine's answer and carries three different payload types.
-/// This is that answer flattened into a single fixed enum so it can be written to the
-/// event log as one short field. Nothing here is free text and nothing here is derived
-/// from a window title, a URL or a file path: there are twenty-nine values, they are
-/// listed below, and a reader can check that by reading this file (CLAUDE.md §4.4).
-///
-/// The initialiser is an exhaustive switch, so adding a `HardBlock`, `SoftDeferReason` or
-/// `RateLimit` case stops this file compiling until the vocabulary is extended to match.
-///
-/// Three of the values are **not** verdicts and `init(_:)` never returns them. They name
-/// the states that hold a cycle open while the gate is not being asked at all, so that
-/// those states can still break the silence on the heartbeat. See `silence`.
 public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
-    /// Nothing is holding a prompt.
     case delivered
 
     case audioInputInUse
@@ -46,8 +31,6 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
     case minimumSpacing
     case ignoreBackoff
 
-    // Not verdicts. A cycle is open and the gate was never asked, because the user
-    // answered, walked away, or is on the break already.
     case userSnoozed
     case userAway
     case breakRunning
@@ -93,8 +76,6 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
         }
     }
 
-    /// True when the reason is an OS fact rather than something inferred. Only these may
-    /// suppress a prompt outright (CLAUDE.md §4.1).
     public var isHardBlock: Bool {
         switch self {
         case .audioInputInUse, .cameraInUse, .recentCallContinuing, .screenBeingShared, .presentationFullscreen,
@@ -106,11 +87,6 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
         }
     }
 
-    /// The reason in the user's words, for the dropdown and for `--doctor`.
-    ///
-    /// It lives here rather than in the app layer because the vocabulary is the engine's
-    /// and two copies of it would drift. Never a raw enum case: the menu's "why do you
-    /// think that?" is the same promise `--doctor` makes.
     public var summary: String {
         switch self {
         case .delivered:              return "nothing is holding it"
@@ -139,9 +115,6 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
         case .dailyCapReached:        return "today's notification budget is spent, passive only from here"
         case .cycleNotificationCap:   return "this cycle has had its notifications"
         case .minimumSpacing:         return "too soon after the last one"
-        /// "a single prompt", not "one or two". The ladder cannot reach rung two under
-        /// backoff: the cycle closes exhausted on the first ignored tick, so the rung
-        /// never leaves `.first`. The old wording matched a ceiling that never ran.
         case .ignoreBackoff:          return "these have been going unanswered, so each one now gets a single prompt"
         case .userSnoozed:            return "you snoozed it"
         case .userAway:               return "you are away from the keyboard"
@@ -150,30 +123,6 @@ public enum GateReason: String, Sendable, Codable, CaseIterable, Hashable {
     }
 }
 
-/// Decides when the gate's answer is worth a line in the event log.
-///
-/// The verdict is recomputed every five seconds and is the same value for minutes at a
-/// time. Writing it on every tick would turn a 555 line day into a 17,000 line one and
-/// stop `cat` being an audit tool; writing it never, which is what the app did, meant a
-/// fourteen minute hold produced 168 identical answers and kept none of them.
-///
-/// So: on transition, debounced, with a floor.
-///
-///   * a change is written only once it has survived `debounce` consecutive observations,
-///     so a verdict that flickers between two values for one tick writes nothing;
-///   * the first answer after a reset is written immediately, because the opening of a
-///     cycle is exactly when a reader wants to know;
-///   * and while a cycle is open the ledger writes at least once every `heartbeat`, so an
-///     open cycle can never be silent for longer than that. A log that goes quiet must
-///     mean the app stopped, and nothing else.
-///
-/// That last rule needs `holding`, and needed it to be true rather than documented. Three
-/// states hold a cycle open and ask the gate nothing — snoozed, idle-suspended, and on a
-/// break — so `reason` is nil on every one of their ticks and the ledger used to write
-/// nothing for the whole thirty minutes a snooze can last. `holding` is the name of that
-/// silence, and it is written on the heartbeat only: the transition into those states
-/// already has a line of its own (`break_response`, `idle_begin`, `break_begin`) and does
-/// not need a second one.
 public struct VerdictLedger: Sendable, Hashable {
     public var debounce: Int
     public var heartbeat: TimeInterval
@@ -183,8 +132,6 @@ public struct VerdictLedger: Sendable, Hashable {
     private var written: GateReason?
     private var writtenAtMono: Double?
 
-    /// The shipping heartbeat. Named, because `PromptOutlook` bounds its present-tense
-    /// claims by it: a gap longer than this with a cycle open is the app not running.
     public static let defaultHeartbeat: TimeInterval = 10 * 60
 
     public init(debounce: Int = 2, heartbeat: TimeInterval = VerdictLedger.defaultHeartbeat) {
@@ -192,11 +139,6 @@ public struct VerdictLedger: Sendable, Hashable {
         self.heartbeat = heartbeat
     }
 
-    /// Feed the ledger one tick's answer.
-    ///
-    /// `reason` is nil when the engine computed no verdict. `holding` is `EngineState`'s
-    /// name for why it computed none while a cycle was open, and is nil when there is no
-    /// cycle to keep speaking for.
     public mutating func observe(
         _ reason: GateReason?,
         holding: GateReason? = nil,
@@ -235,8 +177,6 @@ public struct VerdictLedger: Sendable, Hashable {
         return emit(reason, cycle: cycle, at: now, monotonic: monotonic)
     }
 
-    /// Forget what was written. Called when a cycle closes, so the next cycle states its
-    /// opening position rather than inheriting the last one's.
     public mutating func reset() {
         candidate = nil
         candidateCount = 0

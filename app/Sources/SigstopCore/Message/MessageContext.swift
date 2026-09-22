@@ -1,14 +1,5 @@
 import Foundation
 
-// MARK: - Why this file exists
-
-// MARK: - Application vocabulary
-
-/// The applications the corpus is allowed to name out loud.
-///
-/// Resolved from the bundle identifier, which is a Tier 0 OS fact, no permission, no
-/// prompt, no inference. That is why `appConfidence` may legitimately be high while
-/// `activityConfidence` is not.
 public enum AppKey: String, Codable, Sendable, CaseIterable, Hashable {
     case cursor, vscode, zed, xcode, jetbrains, terminal, browser
     case figma, docker, slack, discord, unknown
@@ -78,9 +69,9 @@ public enum AppKey: String, Codable, Sendable, CaseIterable, Hashable {
 }
 
 public enum AppFamily: String, Codable, Sendable, CaseIterable, Hashable {
-    case aiEditor      // completion-forward editors
-    case editor        // vscode, zed, sublime
-    case ide           // xcode, jetbrains
+    case aiEditor
+    case editor
+    case ide
     case terminal
     case browser
     case design
@@ -88,8 +79,6 @@ public enum AppFamily: String, Codable, Sendable, CaseIterable, Hashable {
     case chat
     case other
 
-    /// The family-level substitute for `{app}` when the exact name is not available.
-    /// Never wrong, which is the whole point, see docs/MESSAGE-ENGINE.md §2.3.
     public var degradedAppName: String {
         switch self {
         case .aiEditor, .editor, .ide: return "your editor"
@@ -103,14 +92,12 @@ public enum AppFamily: String, Codable, Sendable, CaseIterable, Hashable {
     }
 }
 
-// MARK: - Bands
-
 public enum WorkBand: String, Codable, Sendable, CaseIterable, Hashable {
-    case short      // < 25
-    case focused    // 25 ..< 50
-    case deep       // 50 ..< 90
-    case marathon   // 90 ..< 150
-    case absurd     // >= 150
+    case short
+    case focused
+    case deep
+    case marathon
+    case absurd
 
     public init(minutes: Int) {
         switch minutes {
@@ -124,12 +111,12 @@ public enum WorkBand: String, Codable, Sendable, CaseIterable, Hashable {
 }
 
 public enum TimeBand: String, Codable, Sendable, CaseIterable, Hashable {
-    case earlyMorning   // 05:00 ..< 08:00
-    case morning        // 08:00 ..< 12:00
-    case afternoon      // 12:00 ..< 17:00
-    case evening        // 17:00 ..< 21:00
-    case night          // 21:00 ..< 01:00
-    case lateNight      // 01:00 ..< 05:00
+    case earlyMorning
+    case morning
+    case afternoon
+    case evening
+    case night
+    case lateNight
 
     public init(hour: Int) {
         switch hour {
@@ -146,7 +133,6 @@ public enum TimeBand: String, Codable, Sendable, CaseIterable, Hashable {
 public enum Weekday: String, Codable, Sendable, CaseIterable, Hashable {
     case mon, tue, wed, thu, fri, sat, sun
 
-    /// `Calendar` numbers weekdays 1 = Sunday ... 7 = Saturday.
     public init(calendarWeekday: Int) {
         switch calendarWeekday {
         case 1:  self = .sun
@@ -160,16 +146,13 @@ public enum Weekday: String, Codable, Sendable, CaseIterable, Hashable {
     }
 }
 
-// MARK: - Counters and facts
-
-/// Counters the collectors maintain across the day or the session.
 public enum StreakKey: String, Codable, Sendable, CaseIterable, Hashable {
-    case skippedToday          // breaks dismissed or snoozed today
-    case skippedConsecutive    // dismissed in a row, resets on a taken break
+    case skippedToday
+    case skippedConsecutive
     case takenToday
     case snoozeSecondsToday
     case buildsWatchedInSession
-    case sameCommandRepeats    // terminal: identical command re-run count
+    case sameCommandRepeats
 }
 
 public enum FactKey: String, Codable, Sendable, CaseIterable, Hashable {
@@ -197,34 +180,16 @@ public enum FactMatch: Sendable, Hashable, Codable {
     case equalsString(String)
 }
 
-// MARK: - The selection context
-
-/// Everything the engine may read at selection time. Nothing else is consulted, which is
-/// what makes `select` a pure function of this value plus the ledger and the RNG.
 public struct MessageContext: Sendable, Hashable {
-    /// The contract value produced by the context engine. Untouched.
     public var developer: DeveloperContext
     public var escalation: EscalationLevel
-    /// User preference. A hard ceiling, never a floor.
     public var toneCeiling: Tone
     public var streaks: [StreakKey: Int]
     public var facts: [FactKey: FactValue]
-    /// Values only a collector can know (`{count}`), or a test wants to pin.
     public var slotOverrides: [SlotKey: SlotValue]
     public var calendar: Calendar
     public var locale: Locale
-    /// Override for how sure we are *which app is in front*. Normally derived from the
-    /// bundle identifier, which is an OS fact rather than an inference.
     public var appConfidenceOverride: Double?
-    /// Slots this particular delivery may not carry, whatever the corpus says.
-    ///
-    /// The one user of it today is the branch name on the way to a system notification.
-    /// A line the app draws itself stays inside the process; a line handed to
-    /// `UNUserNotificationCenter` is copied into notificationd's own store, rendered on
-    /// the lock screen and mirrored to whatever display is attached, and the app cannot
-    /// take it back. docs/PRIVACY.md row 31 says the branch is memory-only, so the branch
-    /// does not go down that route. A slot listed here is dropped from the table, which
-    /// makes every line that needs it unselectable rather than rendered without it.
     public var withheldSlots: Set<SlotKey>
 
     public init(
@@ -251,7 +216,6 @@ public struct MessageContext: Sendable, Hashable {
         self.withheldSlots = withheldSlots
     }
 
-    /// Convenience: the tone ceiling is a setting, so read it from the settings.
     public init(
         developer: DeveloperContext,
         escalation: EscalationLevel,
@@ -276,21 +240,17 @@ public struct MessageContext: Sendable, Hashable {
         )
     }
 
-    // MARK: Derived
-
     public var now: Date { developer.timestamp }
 
     public var app: AppKey { AppKey(bundleID: developer.application.bundleID) }
 
     public var appFamily: AppFamily { app.family }
 
-    /// The name we are willing to print. `AppIdentity.localizedName` comes from the OS.
     public var appDisplayName: String? {
         let name = developer.application.localizedName
         return name.isEmpty ? nil : name
     }
 
-    /// How sure we are *which app is frontmost*, not what is happening inside it.
     public var appConfidence: Double {
         if let override = appConfidenceOverride { return min(max(override, 0), 1) }
         guard let bundleID = developer.application.bundleID, !bundleID.isEmpty else {
@@ -299,16 +259,12 @@ public struct MessageContext: Sendable, Hashable {
         return app == .unknown ? 0.50 : 0.95
     }
 
-    /// The activity the app is *allowed to name*. Already degraded to the parent class
-    /// below the specific-claim threshold by the contract type. See CLAUDE.md §4.1.
     public var activity: Activity { developer.claimableActivity }
 
     public var activityConfidence: Double { developer.confidence.value }
 
     public var continuousWorkMinutes: Int { developer.continuousWorkMinutes }
 
-    /// Falls back to continuous work when no break has ever been recorded: a session with
-    /// no break yet is not a session with a *recent* break.
     public var minutesSinceLastBreak: Int {
         Int((developer.timeSinceLastBreak ?? developer.continuousWork) / 60)
     }

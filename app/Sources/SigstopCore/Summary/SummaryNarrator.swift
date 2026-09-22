@@ -1,11 +1,5 @@
 import Foundation
 
-// MARK: - Deterministic selection
-
-// MARK: - Duration formatting
-
-/// `"8h 12m"`, `"47m"`, `"0m"`. Minute resolution, because a summary that reports
-/// seconds is inviting someone to optimise seconds.
 public enum DurationText {
     public static func short(_ seconds: TimeInterval) -> String {
         let totalMinutes = max(0, Int((seconds / 60).rounded()))
@@ -16,8 +10,6 @@ public enum DurationText {
         return "\(hours)h \(minutes)m"
     }
 
-    /// `"8 hours"`, `"1 hour 12 minutes"`, `"47 minutes"`. For the opening clause of a
-    /// sentence, where `8h 12m` reads like a log line.
     public static func long(_ seconds: TimeInterval) -> String {
         let totalMinutes = max(0, Int((seconds / 60).rounded()))
         let hours = totalMinutes / 60
@@ -29,29 +21,10 @@ public enum DurationText {
     }
 }
 
-// MARK: - Narrator
-
-/// Turns a `DailySummary` into the one line a developer actually reads.
-///
-/// This is the voice of `jobs`: everything you had suspended today, reported once, in
-/// the tone the user chose. It reports; it does not grade (docs/BREAK-DECISION.md §16)
-/// there are no streaks and no red numbers anywhere in this file.
-///
-/// This used to say "no badges" too. There are badges now, ten of them, in
-/// `Badges/Badge.swift`, shown in Settings and nowhere near this file, so the sentence
-/// was rewritten rather than quietly deleted. The line it drew is still the real one and
-/// it moved by one word: **the daily summary does not grade a day.** A badge is a record
-/// of something that already happened, it cannot go down, nothing expires, and none of
-/// the ten rewards working longer. A streak would be the opposite of all four, which is
-/// why there still is not one.
 public struct SummaryNarrator: Sendable {
     public let tone: Tone
     private let appName: @Sendable (String) -> String
 
-    /// - Parameter appName: how a bundle identifier is spoken. The default takes the
-    ///   last dotted component, which turns `com.apple.dt.Xcode` into `Xcode` without
-    ///   asking the operating system anything, `SigstopCore` has no way to look up a
-    ///   localized name and must not acquire one.
     public init(
         tone: Tone = .sarcastic,
         appName: @escaping @Sendable (String) -> String = SummaryNarrator.defaultAppName
@@ -65,8 +38,6 @@ public struct SummaryNarrator: Sendable {
         let last = bundleID.split(separator: ".").last.map(String.init) ?? bundleID
         return last.isEmpty ? bundleID : last
     }
-
-    // MARK: Slots
 
     enum Slot: String, CaseIterable {
         case work
@@ -92,14 +63,6 @@ public struct SummaryNarrator: Sendable {
         }
     }
 
-    // MARK: Public API
-
-    /// The single developer-voice line.
-    ///
-    /// Deterministic in `seed`: the same seed and the same day always produce the same
-    /// sentence. Callers pass something stable per day (a hash of the date, say), so the
-    /// line does not change if the popover is reopened, and varies from day to day so it
-    /// does not go stale.
     public func line(for summary: DailySummary, seed: UInt64) -> String {
         var rng = SeededGenerator(seed: seed)
         let values = slots(for: summary)
@@ -115,9 +78,6 @@ public struct SummaryNarrator: Sendable {
         return kicker.isEmpty ? opener : "\(opener) \(kicker)"
     }
 
-    /// The auditable long form that sits under the line: numbers, no voice.
-    /// Always rendered with the parenthetical, per docs/BREAK-DECISION.md §14.2, a bare
-    /// percentage invites optimising a number.
     public func detail(for summary: DailySummary) -> String {
         var parts: [String] = []
         parts.append("Active work \(DurationText.short(summary.totalActiveWork))")
@@ -135,13 +95,9 @@ public struct SummaryNarrator: Sendable {
         return parts.joined(separator: " · ")
     }
 
-    /// How many distinct lines this tone can produce for a day with every slot filled.
-    /// Exposed so a test can assert the corpus has not quietly shrunk to one variant.
     public func variantCount() -> Int {
         (Self.openers[tone]?.count ?? 0) * (Self.kickers[tone]?.count ?? 0)
     }
-
-    // MARK: Rendering
 
     private func slots(for summary: DailySummary) -> [String: String] {
         var values: [String: String] = [
@@ -171,11 +127,6 @@ public struct SummaryNarrator: Sendable {
         return values
     }
 
-    /// Picks only among templates whose every slot can actually be filled.
-    ///
-    /// Absence is modelled as absence: a template that needs `{top}` simply cannot be
-    /// selected on a day with no attributed app. This is the same rule the message
-    /// engine follows, and it is why no rendered string ever contains a stray `{...}`.
     private func pick(
         _ pool: [Template], values: [String: String], rng: inout SeededGenerator
     ) -> String? {
@@ -194,12 +145,8 @@ public struct SummaryNarrator: Sendable {
     }
 }
 
-// MARK: - The corpus
-
 extension SummaryNarrator {
 
-    /// Openers carry the facts. The tone changes *what the sentence is about*, not how
-    /// hard it hits, see docs/MESSAGE-ENGINE.md §4.1.
     static let openers: [Tone: [Template]] = [
         .friendly: [
             Template("{workLong} of active work today."),
@@ -264,8 +211,6 @@ extension SummaryNarrator {
         ],
     ]
 
-    /// Kickers carry the voice. Every one of them targets a tool, the clock, the log, or
-    /// a behaviour. None targets a person, a body, or an ability.
     static let kickers: [Tone: [Template]] = [
         .friendly: [
             Template("Everything you suspended today is right where you left it."),
@@ -301,8 +246,6 @@ extension SummaryNarrator {
         ],
     ]
 
-    /// A day with nothing on the clock. Reported plainly, an empty log is a result,
-    /// not a failure, and nothing here implies the reader did something wrong.
     static let emptyDayLines: [Tone: [Template]] = [
         .friendly: [
             Template("No active work recorded today. The log is empty."),
@@ -326,7 +269,6 @@ extension SummaryNarrator {
         ],
     ]
 
-    /// Every template in the file, for the rails test.
     public static var allTemplateTexts: [String] {
         (openers.values.flatMap { $0 } + kickers.values.flatMap { $0 }
             + emptyDayLines.values.flatMap { $0 }).map(\.text)

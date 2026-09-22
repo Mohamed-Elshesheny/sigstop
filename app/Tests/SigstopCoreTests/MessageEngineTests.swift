@@ -2,8 +2,6 @@ import Foundation
 import Testing
 @testable import SigstopCore
 
-// MARK: - Fixtures
-
 private let utc = TimeZone(identifier: "UTC")!
 
 private var fixedCalendar: Calendar {
@@ -13,8 +11,6 @@ private var fixedCalendar: Calendar {
     return c
 }
 
-/// 2024-06-12 is a Wednesday. Every test pins the clock, because a message engine that
-/// reads the wall clock is a message engine that fails at 00:59 on a Tuesday in CI.
 private func date(hour: Int, minute: Int = 0, day: Int = 12) -> Date {
     var c = DateComponents()
     c.year = 2024; c.month = 6; c.day = day
@@ -102,8 +98,6 @@ private func makeEngine(
 ) -> MessageEngine {
     MessageEngine(corpus: corpus, ledger: ledger, rng: SeededRandomSource(seed: seed))
 }
-
-// MARK: - Corpus integrity
 
 @Suite("Corpus")
 struct CorpusTests {
@@ -198,8 +192,6 @@ struct CorpusTests {
         #expect(back == template)
     }
 }
-
-// MARK: - Selection
 
 @Suite("MessageEngine selection")
 struct MessageEngineSelectionTests {
@@ -308,8 +300,6 @@ struct MessageEngineSelectionTests {
     }
 }
 
-// MARK: - Gating
-
 @Suite("Hard gates")
 struct MessageEngineGatingTests {
 
@@ -329,9 +319,6 @@ struct MessageEngineGatingTests {
         #expect(filled.contains("fix/retry-loop"))
     }
 
-    /// Both branch lines were unselectable because nothing ever read a branch. One needed
-    /// the slot and the other needed the slot AND the `branchIsDefault` fact, which nothing
-    /// populated either. This asserts the whole path, not just the slot.
     @Test("Every template that needs a branch is selectable once one is known")
     func branchTemplatesComeAliveWithABranch() throws {
         let needBranch = Corpus.bundled.templates.filter { $0.requiredSlots.contains(.branch) }
@@ -347,8 +334,6 @@ struct MessageEngineGatingTests {
         }
     }
 
-    /// `hasUncommittedChanges` cannot be answered by `.git/HEAD`, so the templates that
-    /// need it must stay unselectable rather than be fed a guess (CLAUDE.md §4.1).
     @Test("Facts the collectors cannot answer keep their templates unselectable")
     func unansweredFactsKeepTheirTemplatesOut() {
         let engine = makeEngine()
@@ -382,11 +367,6 @@ struct MessageEngineGatingTests {
         }
     }
 
-    /// The branch is read into memory and never written anywhere by this app. Handing it
-    /// to `UNUserNotificationCenter` would write it somewhere else's: notificationd keeps
-    /// the body, the lock screen draws it, and nothing here can take it back. So the
-    /// delivery path withholds the slot and the lines that need it become unselectable,
-    /// rather than the app trusting itself to remember at render time.
     @Test("A withheld slot cannot be named, and cannot be reintroduced by an override")
     func withheldSlotsNeverReachARenderedLine() {
         let secret = "acme-4417-billing"
@@ -411,8 +391,6 @@ struct MessageEngineGatingTests {
         }
     }
 
-    /// The same context without the withholding still reaches those lines, so the test
-    /// above is not passing because the branch was unreachable anyway.
     @Test("Nothing else stops a branch line being chosen")
     func branchLinesAreOtherwiseSelectable() {
         let ctx = makeContext(
@@ -548,8 +526,6 @@ struct MessageEngineGatingTests {
     }
 }
 
-// MARK: - Recency
-
 @Suite("Recency ledger")
 struct RecencyLedgerTests {
 
@@ -616,8 +592,6 @@ struct RecencyLedgerTests {
     }
 }
 
-// MARK: - Slots
-
 @Suite("Slot filling")
 struct SlotFillerTests {
 
@@ -677,8 +651,6 @@ struct SlotFillerTests {
         #expect((unsure[.activity]?.confidence ?? 1) < SlotResolver.requiredFloor)
     }
 }
-
-// MARK: - App identification
 
 @Suite("App identification")
 struct AppKeyTests {

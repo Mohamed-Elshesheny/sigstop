@@ -3,9 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// The daily cap is the app's promise not to become the thing you uninstall: a ceiling on
-/// how many times it may interrupt you in one day. These cover the four ways it was
-/// getting that wrong, all of them observed in a real session on 2026-09-21.
 struct DailyCapTests {
 
     @Test("the cap is a floor derived from the interval, not a flat number")
@@ -15,9 +12,6 @@ struct DailyCapTests {
         short.breakDurationMinutes = 5
         short.maxNotificationsPerDay = 14
 
-        // 5 + 5 = a ten minute cycle, so a sixteen hour day has room for 96 of them. The
-        // user's 14 would have been spent in about two hours and the app would then have
-        // said nothing until 4am.
         let policy = BreakPolicy(settings: short)
         #expect(policy.dailyNotificationCap == 96, "got \(policy.dailyNotificationCap)")
 
@@ -25,8 +19,6 @@ struct DailyCapTests {
         normal.workIntervalMinutes = 45
         normal.breakDurationMinutes = 5
         normal.maxNotificationsPerDay = 14
-        // At 50 minutes a cycle there is room for 19, which is above the user's 14, so at a
-        // sane interval the number they set is the number that governs.
         #expect(BreakPolicy(settings: normal).dailyNotificationCap == 19)
 
         var generous = SigstopSettings()
@@ -38,8 +30,6 @@ struct DailyCapTests {
 
     @Test("the literal defaults match the settings defaults")
     func literalsAgreeWithSettings() {
-        // `BreakPolicy()` is what a caller gets by omission, so a literal that disagrees
-        // with the settings default means tests run a policy the app never uses.
         #expect(BreakPolicy().dailyNotificationCap == SigstopSettings.default.maxNotificationsPerDay)
         #expect(BreakPolicy().maxSnoozesPerCycle == SigstopSettings.default.maxSnoozesPerBreak)
     }
@@ -50,10 +40,7 @@ struct DailyCapTests {
         settings.maxNotificationsPerDay = 1
         var session = EngineHarness.Session(settings: settings)
 
-        // One tick first: `step` rolls the day over on its first pass, because a fresh
-        // `DailyCounters` has no day index yet, and a rollover zeroes the budget.
         session.step()
-        // Spend the whole budget.
         session.driver.day.notificationsDelivered = session.driver.engine.policy.dailyNotificationCap
         let before = session.driver.day.nextCycle
 
@@ -72,7 +59,6 @@ struct DailyCapTests {
         var session = EngineHarness.Session(settings: settings)
         session.stepToPrompt()
 
-        // The prompt is up. Now spend the budget under it, the way a second cycle would.
         session.driver.day.notificationsDelivered = session.driver.engine.policy.dailyNotificationCap
         session.step(times: 40)
 
@@ -90,8 +76,6 @@ struct DailyCapTests {
 
     @Test("the panel says it is holding off, not that nothing is holding it")
     func theLineDoesNotContradictItself() {
-        // WaitingLine's own doc: "holding off" means something is blocking or rate-limiting
-        // a prompt right now; "not asking yet" means nothing is. The cap is the rate limit.
         let capped = WaitingLine.read(
             WaitingLine.Reading(
                 state: .quiet(QuietState(cause: .dailyCapReached)),
@@ -101,8 +85,6 @@ struct DailyCapTests {
         #expect(capped.claim == .holdingOff, "got \(capped.claim)")
         #expect(capped.text.hasPrefix("holding off,"))
 
-        // And while working with the budget gone, it must not count down to a prompt that
-        // is never going to be sent.
         let policy = BreakPolicy()
         let spent = WaitingLine.read(
             WaitingLine.Reading(

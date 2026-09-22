@@ -1,25 +1,6 @@
 import Foundation
 import SigstopCore
 
-/// Drives the real `BreakDecisionEngine` through scripted days and prints what it did.
-///
-/// The unit tests answer "does this branch do what it says". This answers a different and,
-/// on the evidence, more urgent question: **across a whole scripted day, does the user ever
-/// get prompted, and when.** The bug that motivated this was not a wrong branch. Every
-/// branch was individually defensible. The engine simply went quiet for fourteen minutes
-/// and no test noticed, because no test ran a timeline.
-///
-/// Nothing here is mocked except the clock and the signals, which is the point: this is the
-/// shipping engine and the shipping policy, stepped at the real tick interval, reading the
-/// real settings type. `SigstopCore` takes its time from the caller, so a scripted day runs
-/// in microseconds.
-///
-///     swift run -c release scenarios          # every scenario
-///     swift run -c release scenarios ignored  # one, with its full timeline
-
-// MARK: - The world
-
-/// One scripted moment: what the machine looks like for a stretch of time.
 struct Conditions {
     var working = true
     var idleSeconds: TimeInterval = 0
@@ -28,7 +9,6 @@ struct Conditions {
     var screenLocked = false
     var sleeping = false
     var fullscreen = false
-    /// A conferencing app is running, which is what lets the latch adopt an anchor.
     var callAppRunning = false
     var action: UserAction?
     var seams: [Seam] = []
@@ -38,7 +18,6 @@ struct Conditions {
     static let inMeeting = Conditions(micRunning: true, callAppRunning: true)
 }
 
-/// A step in a script: hold these conditions for this long.
 struct Beat {
     let seconds: TimeInterval
     let conditions: Conditions
@@ -51,7 +30,6 @@ struct Beat {
     }
 }
 
-/// Runs a script against the engine and records everything that happened.
 struct World {
     static let tick: TimeInterval = 5
 
@@ -65,12 +43,8 @@ struct World {
     var lastBreakEndedAt: Date?
     var latch = MeetingLatch()
 
-    /// Everything the engine emitted, stamped with when.
     private(set) var trace: [(at: TimeInterval, line: String)] = []
     private(set) var prompts: [(at: TimeInterval, level: EscalationLevel)] = []
-    /// What the panel would have said, and when it changed. A timeline of an app going
-    /// quiet is only half the story: the bug these scenarios describe is that the quiet
-    /// was never explained, so the explanation is recorded beside it.
     private(set) var says: [(at: TimeInterval, line: String)] = []
     private var lastStateName = ""
     private var lastVerdictName = ""
@@ -206,8 +180,6 @@ struct World {
             )
         ).text
         says.append((monotonic, line))
-        /// Numbers are stripped before comparing, so a countdown ticking down one minute
-        /// is not a new claim and does not bury the timeline it is meant to annotate.
         let shape = line.filter { !$0.isNumber }
         if shape != lastSaid {
             lastSaid = shape
@@ -241,14 +213,11 @@ struct World {
     }
 }
 
-// MARK: - Scenarios
-
 struct Scenario {
     let name: String
     let question: String
     let settings: SigstopSettings
     let beats: [Beat]
-    /// Returns nil if the world behaved, or the reason it did not.
     let check: (World) -> String?
 }
 
@@ -437,9 +406,6 @@ let scenarios: [Scenario] = [
                     + "before it downgrades the signal. So the honest reading is not that this is "
                     + "broken, it is that recovery takes an hour and nothing tells the user why"
             }
-            /// While it is still holding, the panel has to say what it is doubting and
-            /// until when, because the wait before the first prompt is exactly the window
-            /// in which a new user decides the app does not work.
             let doubted = w.says.contains { $0.line.contains("nothing call-shaped") }
             if !doubted {
                 return "it prompts eventually, but nothing the panel would show says why it "
@@ -465,9 +431,6 @@ let scenarios: [Scenario] = [
                 return "longest silence \(Int(worst / 60)) minutes against a 5 minute target, and "
                     + "nothing in the interface says the app has backed off"
             }
-            /// The second half of the same sentence, which used to live only in the
-            /// failure message above. A shorter silence that is still unexplained is the
-            /// same bug wearing a smaller number.
             let backedOff = w.says.contains { $0.line.contains("went unanswered") }
             if !backedOff {
                 return "the gaps are short enough now, but nothing the panel would show "
@@ -514,8 +477,6 @@ let scenarios: [Scenario] = [
         }
     ),
 ]
-
-// MARK: - Run
 
 let wanted = CommandLine.arguments.dropFirst().first
 let selected = wanted.map { name in scenarios.filter { $0.name.contains(name) } } ?? scenarios

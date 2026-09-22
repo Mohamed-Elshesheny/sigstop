@@ -1,19 +1,7 @@
 import Foundation
 
-// MARK: - One day, as the evaluator sees it
-
-/// A logical day's summary, plus the events behind it when the log still has them.
-///
-/// Six of the ten conditions are arithmetic over `DailySummary` alone, so a day that
-/// survives only as a stored summary still counts towards them. The four that need the
-/// raw log, the fifteen-second accepts, the prompt that reached `SIGSTOP`, and the two
-/// clock badges, can only be seen inside the retention window, which is exactly why
-/// `BadgeLedger` is the durable record and this type is not.
 public struct BadgeDay: Sendable, Hashable {
     public let summary: DailySummary
-    /// The logical day's events. May carry the one event from *before* the interval that
-    /// `EventStore.events(forLogicalDay:)` deliberately includes; the evaluator clips,
-    /// so a caller never has to.
     public let events: [LoggedEvent]
 
     public init(summary: DailySummary, events: [LoggedEvent] = []) {
@@ -23,8 +11,6 @@ public struct BadgeDay: Sendable, Hashable {
 
     public var day: CalendarDay { summary.day }
 
-    /// Reduce a day out of its events, then keep the events for the four conditions the
-    /// summary cannot answer.
     public static func from(
         day: CalendarDay,
         events: [LoggedEvent],
@@ -40,26 +26,8 @@ public struct BadgeDay: Sendable, Hashable {
     }
 }
 
-// MARK: - The evaluator
-
-/// Days in, unlocked badges out. A pure function, and nothing else.
-///
-/// **There is no clock here and no `TimeSource` parameter, because there is nothing to
-/// ask one.** A badge unlocks on the day whose evidence completed it, which the fold
-/// below reads off the day it is currently accumulating, so the same days in the same
-/// order always produce the same ledger with the same dates, whatever time it is when
-/// the app happens to run this. The rest of `SigstopCore` injects a clock; this is the
-/// stronger position of not needing one (CLAUDE.md §3.2).
-///
-/// The fold is also what makes the dates honest. Evidence accumulates day by day in
-/// ascending order, and after each day every still-locked badge is asked its question
-/// once. The first day on which a badge says yes is the day recorded, not "today",
-/// which is what a naive recompute would stamp on a badge that was actually earned last
-/// Tuesday.
 public enum BadgeEvaluator {
 
-    /// The union of `knownUnlocked` and everything `days` proves. Never smaller than
-    /// what it was handed (`BadgeLedger.merging`).
     public static func evaluate(
         days: [BadgeDay],
         calendar: Calendar = .current,
@@ -77,9 +45,6 @@ public enum BadgeEvaluator {
         return ledger
     }
 
-    /// The tally `days` adds up to. Exposed because the same arithmetic answers "how far
-    /// along am I" and a test should be able to check the count without going through
-    /// ten predicates.
     public static func evidence(
         for days: [BadgeDay],
         calendar: Calendar = .current,
@@ -91,8 +56,6 @@ public enum BadgeEvaluator {
         }
         return evidence
     }
-
-    // MARK: One day's contribution
 
     private static func accumulate(
         _ day: BadgeDay,
@@ -138,7 +101,6 @@ public enum BadgeEvaluator {
         }
     }
 
-    /// The events that belong to this logical day, ascending.
     private static func clip(
         _ day: BadgeDay,
         calendar: Calendar,
@@ -151,13 +113,6 @@ public enum BadgeEvaluator {
         return ordered.filter { $0.at >= interval.start && $0.at < interval.end }
     }
 
-    /// Breaks that began within `reflexWindow` of the prompt that asked for them.
-    ///
-    /// Matched by cycle, against the most recent prompt in that cycle that was actually
-    /// *delivered*: a prompt withheld for a meeting never reached anyone, so accepting
-    /// "quickly" after one would be measuring the app's silence rather than a reflex.
-    /// Only `.accepted` breaks count, walking away and hitting "take a break now" are
-    /// both breaks, but neither is a default disposition.
     private static func reflexAccepts(in events: [LoggedEvent]) -> Int {
         var promptedAt: [Int: Date] = [:]
         var count = 0

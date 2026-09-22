@@ -4,11 +4,6 @@ import Testing
 @testable import SigstopCore
 @testable import SigstopSensors
 
-/// Tier 1b keeps the host and nothing else.
-///
-/// The privacy claim is structural rather than a promise: `host(from:)` is the only place
-/// a remote URL is ever parsed, `URL` is a local inside it, and only `host` is returned.
-/// These assert the claim the Settings copy makes, in the function that has to keep it.
 struct BrowserHostTests {
 
     @Test("the path, the query and the fragment never come back")
@@ -55,14 +50,6 @@ struct BrowserHostTests {
     }
 }
 
-// MARK: - The host survives to the published observation
-
-/// The read is only half the feature. What the panel draws is
-/// `ActivityObservation.context.browserHost`, and that is built by
-/// `ConfidenceEngine.observation`, which strips Tier 1 context from any observation whose
-/// evidence happens not to cite Tier 1. Plain browsing cites only "Chrome is frontmost",
-/// a Tier 0 fact, so the host the collector read correctly was thrown away on the way to
-/// the panel, and the panel said "Google Chrome" while `--doctor` said "theboring.name".
 struct BrowserHostPublicationTests {
 
     private static let chrome = AppIdentity(bundleID: BundleIDs.chrome, localizedName: "Google Chrome", pid: 103)

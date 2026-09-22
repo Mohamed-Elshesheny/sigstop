@@ -3,7 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// The day panel has to be built out of breaks that happened.
 struct RollupHonestyTests {
     static let day = Date(timeIntervalSince1970: 1_700_000_000)
     static func at(_ offset: TimeInterval) -> Date { day.addingTimeInterval(offset) }
@@ -14,8 +13,6 @@ struct RollupHonestyTests {
 
     @Test("a break the process died in the middle of cannot qualify")
     func unterminatedBreakDoesNotQualify() {
-        // One begin, no end. The old scorer closed it at the end of the day and called the
-        // whole gap a break, so quitting during a break minted a qualifying one.
         let spans = DailyRollup.breakSpans(
             [Self.event(.breakBegin, 100, cycle: 0)],
             dayEnd: Self.at(8 * 3600),
@@ -28,8 +25,6 @@ struct RollupHonestyTests {
 
     @Test("a break that ended without dur_s is still judged on its timestamps")
     func endWithoutDurationStillCounts() {
-        // `measured` is nil here too, which is why termination has to be passed rather than
-        // inferred from it.
         let spans = DailyRollup.breakSpans(
             [Self.event(.breakBegin, 0, cycle: 0), Self.event(.breakEnd, 6 * 60, cycle: 0)],
             dayEnd: Self.at(8 * 3600),
@@ -51,10 +46,8 @@ struct RollupHonestyTests {
                 "rollup \(rollup.qualifyingBreak) vs engine \(engine.qualifyingBreak)")
         #expect(rollup.microIdleGrace == engine.microIdleGrace)
 
-        // And the floor is the same one: 2 minutes is above 45 + 30, so it stands.
         #expect(rollup.qualifyingBreak == 120)
 
-        // A two minute break is honoured by the engine, so the summary must agree.
         let spans = DailyRollup.breakSpans(
             [Self.event(.breakBegin, 0, cycle: 0), Self.event(.breakEnd, 130, cycle: 0)],
             dayEnd: Self.at(8 * 3600),

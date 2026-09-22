@@ -1,24 +1,9 @@
 import ApplicationServices
 import Foundation
 
-// MARK: - Public shapes
-
-/// What Tier 1 can see. Deliberately two fields, both optional, both `Sendable`.
-///
-/// `documentURL` is a *real path* (`kAXDocument`) and is worth far more than the title,
-/// but Electron apps (VS Code, Cursor, Slack, Discord, Figma) never provide it, so it is
-/// a bonus, never a requirement.
 public struct AXWindowInfo: Sendable, Hashable {
     public let title: String?
     public let documentURL: URL?
-    /// The host of a remote `kAXDocument`, and only ever the host: `github.com`.
-    ///
-    /// Tier 1b. It costs no new read — `kAXDocument` was already being fetched for file
-    /// URLs and a browser answers it with the page URL, measured on Chrome 2026-09-21 as
-    /// `https://github.com/Mohamed-Elshesheny/sigstop`. What used to happen to that string
-    /// is that `fileURL(from:)` returned nil and it fell on the floor. The path and query
-    /// still do: they are dropped inside `host(from:)` and never reach this type, so there
-    /// is no field here that could hold them and nothing downstream to redact.
     public let browserHost: String?
 
     public init(title: String? = nil, documentURL: URL? = nil, browserHost: String? = nil) {
@@ -31,19 +16,11 @@ public struct AXWindowInfo: Sendable, Hashable {
     public var isEmpty: Bool { title == nil && documentURL == nil && browserHost == nil }
 }
 
-/// Why a Tier 1 read produced nothing. Kept so `--doctor` can explain a blank instead of
-/// the UI silently showing less context with no reason given.
 public enum AXFailure: Sendable, Hashable {
-    /// `AXIsProcessTrusted() == false`. The normal, expected state at zero permissions.
     case notTrusted
-    /// `kAXErrorAPIDisabled` (-25211). What the API returns once we ask anyway.
     case apiDisabled
-    /// The target app did not answer inside the 0.25 s messaging timeout, beachballed,
-    /// or simply slow. Not an error worth surfacing loudly.
     case timedOut
-    /// The app has no focused window (a menu-bar-only app, or mid-switch).
     case noFocusedWindow
-    /// The attribute is not supported by this app. Normal for Electron + `kAXDocument`.
     case attributeUnsupported
     case other(Int32)
 
@@ -63,38 +40,13 @@ public enum AXFailure: Sendable, Hashable {
     }
 }
 
-/// Accessibility-related change notifications, as an event stream rather than a poll.
 public enum AXEvent: Sendable, Hashable {
     case focusedWindowChanged(pid: pid_t)
     case titleChanged(pid: pid_t)
     case observationFailed(pid: pid_t, failure: AXFailure)
 }
 
-// MARK: - Collector
-
-/// Tier 1. The focused window's **title**, and `kAXDocument` where the app provides it.
-///
-/// This type is an *upgrade*, never a gate. With no Accessibility grant every method here
-/// returns `nil` cleanly and the app keeps working at Tier 0, which is the entire privacy
-/// promise, so the failure path below is load-bearing, not an afterthought.
-///
-/// Three rules encoded structurally rather than by convention:
-///
-/// 1. **Never on the main actor.** AX calls are synchronous IPC into the target process
-///    and block until they answer or time out. Everything here runs on a dedicated serial
-///    queue; the async API bridges to it.
-/// 2. **Always a messaging timeout.** `AXUIElementSetMessagingTimeout(_, 0.25)` on every
-///    element we create, so a beachballed target costs us 250 ms, not a hang.
-/// 3. **No API can return the value of a text element.** Reading `kAXValue` of a text area
-///    would hand us the user's source code and message drafts. There is no method here
-///    that does it, the capability is absent, not merely unused. This is the source-level
-///    form of "this watches your workflow, not your code" (CLAUDE.md §4.4).
-///
-/// Electron note: VS Code and Cursor expose a shallow, sometimes-empty AX tree unless the
-/// user turns on their own accessibility support, but the **window title on `AXWindow` is
-/// always present**. So this collector reads titles and never walks an app's AX tree.
 public final class AccessibilityCollector: @unchecked Sendable {
-    /// Per docs/ACTIVITY-DETECTION.md §2.2. Non-negotiable.
     public static let messagingTimeout: Float = 0.25
 
     private let queue = DispatchQueue(label: "dev.sigstop.ax", qos: .utility)
@@ -112,13 +64,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
         for c in continuations.values { c.finish() }
     }
 
-    // MARK: - Trust
-
-    /// The poll-safe, **non-prompting** check. `AXAPIEnabled()` is deprecated; do not use it.
-    ///
-    /// Cheap enough to call on every app-activation event, which is exactly what we do:
-    /// the user can revoke Tier 1 from System Settings at any moment with no notification,
-    /// and continuing to emit stale high-confidence observations after that would be a lie.
     public nonisolated func isTrusted() -> Bool { AXIsProcessTrusted() }
 
     public var lastFailure: AXFailure? {
@@ -126,9 +71,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
         return _lastFailure
     }
 
-    // MARK: - Reads
-
-    /// Title and document URL in one pass, so a focused-window lookup is not paid twice.
     public func read(pid: pid_t) async -> AXWindowInfo {
         guard isTrusted() else {
             record(.notTrusted)
@@ -168,8 +110,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
         AXUIElementSetMessagingTimeout(window, Self.messagingTimeout)
 
         let title = copyString(window, kAXTitleAttribute)
-        /// One read, two readings. A local editor answers `kAXDocument` with a file, a
-        /// browser answers it with the page URL; the second used to be discarded entirely.
         let document = copyString(window, kAXDocumentAttribute)
         return AXWindowInfo(
             title: title,
@@ -178,9 +118,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
         )
     }
 
-    /// The ONLY attribute reader in this type, and it is used exclusively for `kAXTitle`
-    /// and `kAXDocument`. It is deliberately `private`: there is no public path that could
-    /// be pointed at `kAXValue`.
     private func copyString(_ element: AXUIElement, _ attribute: String) -> String? {
         var ref: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &ref)
@@ -195,14 +132,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    // MARK: - Observation
-
-    /// Subscribe to focus and title changes for a pid.
-    ///
-    /// This is the single biggest reason the subsystem can be energy-negligible: with an
-    /// `AXObserver` attached, tracking a window title costs zero wakeups until the title
-    /// actually changes. The engine still reconciles on a slow timer, because a missed
-    /// notification is a stale context and staleness is indistinguishable from a lie.
     public func startObserving(pid: pid_t) {
         guard isTrusted(), pid > 0 else { return }
         queue.async { [self] in
@@ -284,8 +213,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
         }
     }
 
-    // MARK: - Internals
-
     fileprivate func emit(_ event: AXEvent) {
         lock.lock()
         let sinks = Array(continuations.values)
@@ -308,28 +235,16 @@ public final class AccessibilityCollector: @unchecked Sendable {
 
     static func failure(for status: AXError) -> AXFailure {
         switch status {
-        case .apiDisabled:           return .apiDisabled          // -25211
-        case .cannotComplete:        return .timedOut             // -25204
-        case .noValue:               return .noFocusedWindow      // -25212
-        case .attributeUnsupported:  return .attributeUnsupported // -25205
-        case .invalidUIElement:      return .noFocusedWindow      // -25202
-        case .notImplemented:        return .attributeUnsupported // -25208
+        case .apiDisabled:           return .apiDisabled
+        case .cannotComplete:        return .timedOut
+        case .noValue:               return .noFocusedWindow
+        case .attributeUnsupported:  return .attributeUnsupported
+        case .invalidUIElement:      return .noFocusedWindow
+        case .notImplemented:        return .attributeUnsupported
         default:                     return .other(status.rawValue)
         }
     }
 
-    /// `kAXDocument` is documented as a URL string but real apps hand back both
-    /// `file:///…` and bare POSIX paths. Anything that is not a local file is discarded:
-    /// we are not in the business of collecting remote URLs.
-    /// The host of an `http`/`https` URL, lowercased, with a leading `www.` removed.
-    ///
-    /// Everything else about the URL is dropped here, in the one function that ever sees
-    /// it: no path, no query, no fragment, no credentials, no port. `URL` is a local and
-    /// only `host` escapes, so the rest is not "redacted later", it never has a later.
-    ///
-    /// Schemes other than http and https return nil, which keeps `file:` on the
-    /// `documentURL` path where it belongs and refuses anything exotic outright rather
-    /// than trying to understand it.
     static func host(from raw: String) -> String? {
         guard let url = URL(string: raw),
               let scheme = url.scheme?.lowercased(),
@@ -347,9 +262,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
     }
 }
 
-// MARK: - Observer plumbing
-
-/// Retained by the `void *` refcon of an `AXObserver`. Holds only `Sendable` values.
 private final class AXObserverToken: @unchecked Sendable {
     let pid: pid_t
     let sink: @Sendable (AXEvent) -> Void
@@ -360,7 +272,6 @@ private final class AXObserverToken: @unchecked Sendable {
     }
 }
 
-/// C callback. Runs on the AX run-loop thread, never on the main actor.
 private let axObserverCallback: AXObserverCallback = { _, _, notification, refcon in
     guard let refcon else { return }
     let token = Unmanaged<AXObserverToken>.fromOpaque(refcon).takeUnretainedValue()
@@ -391,8 +302,6 @@ private struct ObserverRegistration: @unchecked Sendable {
     }
 }
 
-/// A background thread that owns a `CFRunLoop`, because `AXObserver` requires one and the
-/// main run loop is not an acceptable host for IPC that can block.
 private final class AXRunLoopThread: @unchecked Sendable {
     private let lock = NSLock()
     private var _runLoop: CFRunLoop?

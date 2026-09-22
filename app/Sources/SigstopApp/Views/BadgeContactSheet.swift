@@ -2,39 +2,16 @@ import AppKit
 import SigstopCore
 import SwiftUI
 
-/// A contact sheet of every mark in every state, rendered to a file by
-/// `sigstop --render-badges <path>`.
-///
-/// Badge art is the one part of this app that cannot be judged from source. A polygon
-/// with a letter knocked out of it reads fine in a diff and looks like a sticker on
-/// screen, and the only way anyone found that out was by looking. So looking is a
-/// command now rather than a favour: build, run one line, open a PNG, and see all
-/// twenty states at both sizes next to the real row layout they ship in.
-///
-/// The two sections at 28pt are the important ones, because 28 is what ships and because
-/// ten objects laid side by side is the only view that answers the question the set has
-/// to pass: can you tell them apart without reading the titles under them.
-///
-/// It renders through a real off-screen window rather than `ImageRenderer` because
-/// `Brand`'s colours are `NSColor` values that resolve per appearance, and an
-/// `ImageRenderer` has no appearance to resolve against: it silently picks one and the
-/// light sheet comes out wearing the dark palette. A window has an `appearance`, and
-/// `cacheDisplay` draws the hierarchy under it.
 struct BadgeContactSheet: View {
 
-    /// A pair of badges, one earned and one not, for the row-layout section.
     private static let rowSamples: [(Badge, Bool)] = [
         (Badge.badge(.stoppedOnce), true),
         (Badge.badge(.sigDFL), true),
         (Badge.badge(.provablyHalts), false),
         (Badge.badge(.stoppedHundred), false),
-        /// Locked and countable towards nothing the app can still see, so this row is
-        /// here to prove the counter's absence looks deliberate rather than broken.
         (Badge.badge(.earlyReturn), false),
     ]
 
-    /// A plausible mid-way tally, so the locked rows render their counters instead of
-    /// their empty case. Three clean days and thirty-seven breaks is a fortnight in.
     private static let sampleEvidence = BadgeEvidence(
         breaksTaken: 37, cleanDays: 3, reflexAccepts: 2, earlyDays: 2
     )
@@ -101,9 +78,6 @@ struct BadgeContactSheet: View {
     }
 }
 
-/// Renders the menu bar panel to a file. Same reason as the others: it is the surface the
-/// user sees most and the hardest one to look at, because it only exists while the status
-/// item is clicked.
 enum PanelRenderer {
 
     @MainActor
@@ -125,17 +99,10 @@ enum PanelRenderer {
     }
 }
 
-/// Renders a Settings pane to a file, the same way and for the same reason.
-///
-/// The About pane shipped two thirds empty with two of its own URLs rendered nowhere, and
-/// nobody noticed because looking at it meant launching the app, clicking through to the
-/// last tab and taking a screenshot by hand. One command is cheap enough to do every time.
 enum SettingsPaneRenderer {
 
     @MainActor
     static func runAndExit(pane: String, stem: String) -> Never {
-        /// A typo used to render About, and a reviewer who asked for "signal" then
-        /// reviewed the wrong pane without being told.
         guard let chosen = SettingsView.Pane(rawValue: pane) else {
             let names = SettingsView.Pane.allCases.map(\.rawValue).joined(separator: ", ")
             FileHandle.standardError.write(Data("no pane named '\(pane)'; one of: \(names)\n".utf8))
@@ -161,11 +128,8 @@ enum SettingsPaneRenderer {
     }
 }
 
-/// Renders the contact sheet in both appearances and writes two PNGs.
 enum BadgeSheetRenderer {
 
-    /// `--render-badges <path>` writes `<path>-light.png` and `<path>-dark.png`, or, if
-    /// the path already ends in `.png`, `<stem>-light.png` and `<stem>-dark.png`.
     @MainActor
     static func runAndExit(stem: String) -> Never {
         let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem

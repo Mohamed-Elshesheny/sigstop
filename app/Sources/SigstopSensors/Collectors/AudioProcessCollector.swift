@@ -2,25 +2,9 @@ import CoreAudio
 import Foundation
 import SigstopCore
 
-/// One reading of CoreAudio's process table.
 public struct AudioProcessSnapshot: Sendable, Hashable {
-    /// Bundle identifiers of the processes reporting `IsRunningInput`.
-    ///
-    /// `nil` means the process table could not be read at all, which is **not** the same
-    /// as empty. Empty means the table *was* read and nobody is running input, which is
-    /// evidence of absence and is treated as such. A collector that collapsed those two
-    /// into `[]` would turn "I could not look" into "I looked and there was nothing".
     public let inputBundleIDs: Set<String>?
-    /// Processes that ARE running input but report no bundle id at all.
-    ///
-    /// They exist: three CoreAudio process objects on the development machine have empty
-    /// bundle ids right now, and every command-line recorder (`ffmpeg`, `sox`, a Python
-    /// `sounddevice` script) is in the same class. They used to be dropped, which made an
-    /// empty `inputBundleIDs` say "I looked and nobody has the microphone" while somebody
-    /// did. That is harmless while the set is only used to name a call, and not harmless
-    /// at all now that an empty set is evidence of absence for the hard block.
     public let unnamedInputHolders: Int
-    /// How many process objects CoreAudio knows about, for `--doctor`.
     public let processCount: Int
     public let readAt: Date
 
@@ -40,53 +24,18 @@ public struct AudioProcessSnapshot: Sendable, Hashable {
         self.readAt = readAt
     }
 
-    /// nil when the table could not be read; otherwise whether anything at all has input
-    /// open, named or not. This is the only form of the question that may carry weight.
     public var anyInputRunning: Bool? {
         guard let ids = inputBundleIDs else { return nil }
         return !ids.isEmpty || unnamedInputHolders > 0
     }
 }
 
-/// Tier 0. "Which processes have the microphone open right now."
-///
-/// **No Microphone permission is required and none is requested.** This reads
-/// `kAudioHardwarePropertyProcessObjectList` on the system object and then
-/// `kAudioProcessPropertyBundleID` / `kAudioProcessPropertyIsRunningInput` per process
-/// object. It is the per-process analogue of the device property `AudioDeviceCollector`
-/// already reads, it opens no stream, and it produced no `tccd` activity when probed.
-///
-/// It exists for two jobs, and for nothing else:
-///
-///  1. **Naming.** The device bit says "something on this machine has the microphone".
-///     The process table says *which bundle*, which is what lets the call latch adopt an
-///     anchor honestly instead of guessing from which window is in front.
-///  2. **Not being fooled.** Siri's wake word (`com.apple.CoreSpeech`) trips the device
-///     bit for a second at a time. Krisp, Loopback and BlackHole trip it permanently,
-///     which currently forces the whole microphone signal to `.unreliable` and switches
-///     meeting detection off on that Mac entirely. Attribution lets the app discount the
-///     offender instead of discarding the signal.
-///
-/// What this does NOT give us, stated rather than papered over:
-///
-/// * Audio attributes to helper processes, not to apps: Chrome's is
-///   `com.google.Chrome.helper` and Teams' media path is `com.microsoft.vcxpc`, which is
-///   not even under the `com.microsoft.teams2` prefix. Matching is therefore by prefix
-///   against a hand-checked list, and it will age: a vendor reshuffling helpers degrades
-///   this to the unattributed device bit. `--doctor` prints what matched, so the
-///   degradation is visible rather than silent.
-/// * Safari routes page audio through `com.apple.WebKit.GPU`, which serves every WebKit
-///   client on the machine and therefore names no app at all.
-/// * A process appears here only once it has touched CoreAudio. This is not a roster of
-///   running apps and must never be used as one.
 public final class AudioProcessCollector: @unchecked Sendable {
     private let time: any TimeSource
     private let lock = NSLock()
     private let queue = DispatchQueue(label: "dev.sigstop.audioproc", qos: .utility)
 
     private var started = false
-    /// Object id to bundle id. Cached because a bundle-id read is an IPC to `coreaudiod`
-    /// and reading all of them costs about 13 ms; the ids do not change under an object.
     private var bundleIDs: [AudioObjectID: String] = [:]
     private var snapshotValue: AudioProcessSnapshot = .unreadable
     private var objectListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
@@ -97,8 +46,6 @@ public final class AudioProcessCollector: @unchecked Sendable {
     }
 
     deinit { removeAllListeners() }
-
-    // MARK: - Lifecycle
 
     public func start() {
         lock.lock()
@@ -117,8 +64,6 @@ public final class AudioProcessCollector: @unchecked Sendable {
         removeAllListeners()
     }
 
-    /// Re-enumerates the process table, re-caches bundle ids, re-registers listeners and
-    /// recomputes the snapshot. Runs at start, on process-list changes, and on wake.
     public func refresh() {
         let objects = Self.processObjects()
         guard !objects.isEmpty else {
@@ -148,15 +93,11 @@ public final class AudioProcessCollector: @unchecked Sendable {
         recompute(objects: objects, cache: cache)
     }
 
-    // MARK: - Reading
-
     public func snapshot() -> AudioProcessSnapshot {
         lock.lock()
         defer { lock.unlock() }
         return snapshotValue
     }
-
-    // MARK: - Recompute
 
     private func recompute(objects: [AudioObjectID], cache: [AudioObjectID: String]) {
         var holders: Set<String> = []
@@ -181,8 +122,6 @@ public final class AudioProcessCollector: @unchecked Sendable {
         )
         lock.unlock()
     }
-
-    // MARK: - CoreAudio listeners
 
     private func registerListListener() {
         var address = Self.listAddress()
@@ -258,8 +197,6 @@ public final class AudioProcessCollector: @unchecked Sendable {
         AudioObjectRemovePropertyListenerBlock(object, &address, queue, block)
     }
 
-    // MARK: - CoreAudio reads
-
     private static func listAddress() -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyProcessObjectList,
@@ -295,8 +232,6 @@ public final class AudioProcessCollector: @unchecked Sendable {
         return ids
     }
 
-    /// The bundle identifier, and nothing else about the process. No name, no path, no
-    /// pid is kept: the identifier is matched against a fixed list and discarded.
     static func bundleID(of object: AudioObjectID) -> String? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioProcessPropertyBundleID,
@@ -311,7 +246,6 @@ public final class AudioProcessCollector: @unchecked Sendable {
         return id.isEmpty ? nil : id
     }
 
-    /// `nil` when the property cannot be read, which is "no information", never `false`.
     static func isRunningInput(_ object: AudioObjectID) -> Bool? {
         var address = inputAddress()
         var value: UInt32 = 0

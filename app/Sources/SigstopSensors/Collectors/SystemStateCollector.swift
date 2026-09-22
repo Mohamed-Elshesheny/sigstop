@@ -4,18 +4,12 @@ import Foundation
 import IOKit.ps
 import SigstopCore
 
-/// OS facts and state transitions. Every event here is something the kernel or the
-/// window server told us, not an inference, which is why these are the only signals
-/// permitted to reach `Confidence.certain` or to hard-block a prompt.
 public enum SystemEvent: Sendable, Hashable {
     case screenLocked(at: Date)
     case screenUnlocked(at: Date)
     case displaysSlept(at: Date)
     case displaysWoke(at: Date)
-    /// The machine is about to suspend. Everything periodic must be cancelled here.
     case willSleep(at: Date)
-    /// Back from suspend. Elapsed-time accounting from before this point is void: the
-    /// work clock must diff real timestamps and classify the gap, never trust its ticks.
     case didWake(at: Date)
     case sessionResignedActive(at: Date)
     case sessionBecameActive(at: Date)
@@ -31,7 +25,6 @@ public enum SystemEvent: Sendable, Hashable {
         }
     }
 
-    /// True for events after which every accumulated duration is untrustworthy.
     public var invalidatesElapsedTime: Bool {
         switch self {
         case .didWake, .sessionBecameActive, .screenUnlocked, .displaysWoke: return true
@@ -40,11 +33,6 @@ public enum SystemEvent: Sendable, Hashable {
     }
 }
 
-/// Tier 0. Screen lock, display/system sleep, fast user switching, thermal pressure,
-/// power source, and (as garnish only) coarse window geometry.
-///
-/// Event-driven for everything except `thermalState` / `isLowPowerModeEnabled`, which are
-/// cheap property reads taken on the notifications that announce they changed.
 @MainActor
 public final class SystemStateCollector {
     private let time: any TimeSource
@@ -58,12 +46,6 @@ public final class SystemStateCollector {
     private var sessionActive = true
     private var systemAsleep = false
 
-    /// `CGWindowListCopyWindowInfo` is feature-detected once: if it returns no windows
-    /// while windows are demonstrably on screen, the whole geometry signal is marked
-    /// unavailable and every consumer treats it as optional. It is garnish, it is on the
-    /// same deprecation trajectory as `CGWindowListCreateImage` (removed in favour of
-    /// ScreenCaptureKit in 14.4), and ScreenCaptureKit needs the Screen Recording grant
-    /// we refuse. Nothing may become load-bearing on it.
     public private(set) var windowGeometryAvailable = true
 
     public init(time: any TimeSource = SystemTimeSource()) {
@@ -75,8 +57,6 @@ public final class SystemStateCollector {
     deinit {
         for c in continuations.values { c.finish() }
     }
-
-    // MARK: - Lifecycle
 
     public func start() {
         guard workspaceObservers.isEmpty else { return }
@@ -139,14 +119,10 @@ public final class SystemStateCollector {
         defaultObservers.removeAll()
     }
 
-    /// Re-reads lock and console state directly. A lock notification posted while we were
-    /// suspended is a notification we did not receive, so wake always reconciles.
     public func reconcile() {
         if let locked = Self.readScreenLockedFromSession() { screenLocked = locked }
         if let onConsole = Self.readSessionOnConsole() { sessionActive = onConsole }
     }
-
-    // MARK: - Reading
 
     public func sessionState() -> SessionState {
         SessionState(
@@ -170,11 +146,6 @@ public final class SystemStateCollector {
         }
     }
 
-    // MARK: - Window geometry (garnish)
-
-    /// On-demand only, called on app-activation events, never on a timer. Titles are
-    /// **not** read: `kCGWindowName` is omitted without Screen Recording, and we do not
-    /// want it. This returns counts and a fullscreen hint, nothing more.
     public func windowGeometry(frontmostPID: pid_t) -> WindowGeometrySnapshot? {
         guard windowGeometryAvailable else { return nil }
         guard let raw = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]],
@@ -209,8 +180,6 @@ public final class SystemStateCollector {
             capturedAt: time.now
         )
     }
-
-    // MARK: - Internals
 
     private func emit(_ event: SystemEvent) {
         for c in continuations.values { c.yield(event) }
@@ -247,20 +216,15 @@ public final class SystemStateCollector {
         )
     }
 
-    /// `kIOPSTimeRemainingUnlimited` means "unlimited time remaining", i.e. plugged in.
-    /// Cheapest correct check, and it needs no permission.
     static func readOnACPower() -> Bool {
         IOPSGetTimeRemainingEstimate() == kIOPSTimeRemainingUnlimited
     }
 
-    /// Cross-check for the undocumented lock notifications. `nil` when the session
-    /// dictionary is unavailable, which is "no information", not "unlocked".
     static func readScreenLockedFromSession() -> Bool? {
         guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return nil }
         return dict["CGSSessionScreenIsLocked"] as? Bool
     }
 
-    /// False during fast user switching: someone else owns the console.
     static func readSessionOnConsole() -> Bool? {
         guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return nil }
         return dict["kCGSSessionOnConsoleKey"] as? Bool

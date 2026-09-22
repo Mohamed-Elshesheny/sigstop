@@ -6,10 +6,6 @@ import Testing
 @Suite("the tick that ends a break")
 struct BreakEndTests {
 
-    /// The regression the user hit twice: accept a break, sit through it, and a second
-    /// prompt arrives the instant it ends. `input` is built before the break ends, so it
-    /// still carries the pre-break continuous work; evaluating the working state on the
-    /// same tick opened a fresh cycle immediately.
     @Test("Ending a break does not open a new cycle in the same tick")
     func endingABreakDoesNotImmediatelyReprompt() {
         var settings = SigstopSettings()
@@ -31,8 +27,6 @@ struct BreakEndTests {
         )
         var day = DailyCounters()
 
-        /// Work still reads above the interval because the session clock is reset by the
-        /// app when it executes `.endBreak`, which has not happened yet.
         let input = EngineInput(
             now: start.addingTimeInterval(302),
             monotonic: 302,

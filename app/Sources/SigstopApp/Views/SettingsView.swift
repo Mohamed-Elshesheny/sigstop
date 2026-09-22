@@ -4,27 +4,15 @@ import SigstopCore
 import SigstopSensors
 import SwiftUI
 
-/// Settings, as a sidebar and a page rather than a `TabView` of `Form`s.
-///
-/// The previous version was five grouped forms behind a toolbar tab strip, and it looked
-/// like a System Settings pane someone had wandered into: rounded grey cards, system-blue
-/// switches, no hierarchy, 640 points of it. This is the same settings in the app's own
-/// vocabulary, a monospaced nav on the left, one headline per page, sections marked by
-/// a kicker and ruled rows, controls drawn in the palette. The window is wider so the
-/// help text can sit beside its control instead of under it.
 struct SettingsView: View {
     let model: AppModel
 
-    /// The window's content size. `AppMain` sizes the `NSWindow` to match; the two
-    /// numbers have to agree or the hosting view fights the frame.
     static let size = CGSize(width: 800, height: 620)
 
     @State private var pane: Pane
     @State private var launchAtLoginFailure: String?
     @State private var dataReport: String?
 
-    /// `initialPane` is the page shown first. The window always opens on Rhythm; the
-    /// parameter exists so a preview or a render check can start on any page.
     init(model: AppModel, initialPane: Pane = .rhythm) {
         self.model = model
         _pane = State(initialValue: initialPane)
@@ -64,8 +52,6 @@ struct SettingsView: View {
         Binding(get: { model.settings }, set: { model.update(settings: $0) })
     }
 
-    // MARK: Sidebar
-
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
@@ -88,8 +74,6 @@ struct SettingsView: View {
         .frame(maxHeight: .infinity)
         .background(Brand.surface)
     }
-
-    // MARK: Content
 
     private var content: some View {
         ScrollView(.vertical) {
@@ -128,8 +112,6 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    // MARK: Rhythm
 
     private var rhythm: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -222,13 +204,6 @@ struct SettingsView: View {
         }
     }
 
-    /// What the number actually buys at the interval that is set, because a cap is
-    /// meaningless without one.
-    ///
-    /// It is a floor rather than a ceiling, and saying so here is the point: at a five
-    /// minute interval a flat 14 is spent in about two hours, which is a setting one
-    /// screen away quietly switching the app off for the day. `BreakPolicy` raises it to
-    /// what the interval would really ask for, and this line says what that came to.
     private var capDetail: String {
         let effective = model.policy.dailyNotificationCap
         let chosen = model.settings.maxNotificationsPerDay
@@ -243,8 +218,6 @@ struct SettingsView: View {
         return "About \(covers) hours of work at the current interval. After that the app goes quiet until 4am."
     }
 
-    /// Writing it goes through `model.update`, like every other setting, so the change is
-    /// persisted and applied by the same path rather than by the view reaching for AppKit.
     private var appearance: Binding<AppearancePreference> {
         Binding(
             get: { model.settings.appearance },
@@ -256,9 +229,6 @@ struct SettingsView: View {
         )
     }
 
-    /// `SMAppService.mainApp`, which needs a real `.app` bundle. Run as a bare executable
-    /// there is nothing for launchd to register, so the switch says so instead of failing
-    /// silently.
     private var launchAtLogin: Binding<Bool> {
         Binding(
             get: { AppPaths.isBundled ? SMAppService.mainApp.status == .enabled : model.settings.launchAtLogin },
@@ -284,8 +254,6 @@ struct SettingsView: View {
             }
         )
     }
-
-    // MARK: Voice
 
     private var voice: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -324,14 +292,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: Badges
-
-    /// The ten, in catalogue order, unlocked and locked in the same list.
-    ///
-    /// One list rather than an "earned" section and a "locked" section: splitting them
-    /// turns the locked half into a to-do list, and these are not tasks. The order never
-    /// changes, so the pane looks the same on the first day as on the hundredth and the
-    /// shapes read as the progression they are.
     private var badges: some View {
         VStack(alignment: .leading, spacing: 0) {
             SettingsSection(earnedKicker) {
@@ -363,27 +323,6 @@ struct SettingsView: View {
         "\(model.badges.count) of \(Badge.all.count) earned"
     }
 
-    // MARK: Access
-
-    /// One ledger, not a status list followed by a settings list.
-    ///
-    /// The previous pane said every signal twice: once as a sentence under "visible now"
-    /// and again as a switch with three sentences of reasoning under it, with the same
-    /// three cost headings printed in both halves. To learn whether titles were being
-    /// read you looked in one place; to change it you scrolled to another. Here each
-    /// signal is one row: its name, what it reads in a sentence, whether it is being read
-    /// right now, and the control that changes that, all on one line. The rows come from
-    /// `PermissionStatus.signals`, which `--doctor` prints too, so the words are the same
-    /// in a terminal and here.
-    ///
-    /// The state word sits above the switch on purpose. A switch is what you asked for
-    /// and the word is what you got, and the page exists for the cases where those differ:
-    /// titles switched on and still not read because the grant is missing, a branch
-    /// switched on with no folder to read it from. Printing that as "off" would hide the
-    /// one thing the reader has to do next.
-    ///
-    /// The reasoning that used to fill each row is in `docs/PRIVACY.md`, linked at the
-    /// foot. A settings row states what is true; it does not argue.
     private var access: some View {
         let status = model.permissionStatus
         return VStack(alignment: .leading, spacing: 0) {
@@ -392,8 +331,6 @@ struct SettingsView: View {
             }
 
             SettingsSection(PermissionStatus.Cost.needsAccessibility.label) {
-                /// docs/PRIVACY.md §3.4 promises this sentence is on screen before anyone
-                /// grants. It is the one thing an adversarial reader is scanning for.
                 Note(
                     "macOS cannot limit this permission to window titles. Granting it means "
                         + "trusting this code, not the operating system. The app works without "
@@ -446,8 +383,6 @@ struct SettingsView: View {
                 }
             }
 
-            /// Requirement one is "including what it cannot see". `--doctor` has always
-            /// said this; the pane never did.
             SettingsSection("cannot see") {
                 SignalRow(
                     "Screen sharing",
@@ -490,7 +425,6 @@ struct SettingsView: View {
         .onAppear { model.refreshPermissions() }
     }
 
-    /// A row for one of the five signals, titled and worded by the sensors layer.
     private func signalRow<Control: View, Extra: View>(
         _ signal: PermissionStatus.Signal,
         @ViewBuilder extra: () -> Extra,
@@ -512,19 +446,10 @@ struct SettingsView: View {
         signalRow(signal, extra: { EmptyView() }, control: control)
     }
 
-    /// `--doctor` prints the name in lower case mid-line; a row title starts a line.
     private static func title(for signal: PermissionStatus.Signal) -> String {
         signal.name.prefix(1).uppercased() + signal.name.dropFirst()
     }
 
-    /// The branch, in full, under the row that read it.
-    ///
-    /// `--doctor` prints the length of the branch name and not the name, because the bug
-    /// form asks people to paste `--doctor` into public issues (docs/PRIVACY.md §8.12).
-    /// That redaction is only honest if there is somewhere the user can see what was
-    /// actually read, on their own machine. This line is that place, and the doc names it,
-    /// so it is part of the claim rather than a nicety. Every branch that produces no
-    /// reading says why, because "blank" and "off" look identical otherwise.
     @ViewBuilder
     private var branchReading: some View {
         if model.settings.gitContextEnabled {
@@ -561,19 +486,10 @@ struct SettingsView: View {
         }
     }
 
-    /// `AppModel.gitStatusLine` starts life as "off, nothing is read" and is replaced by
-    /// the first sample, about five seconds after launch. Until then this branch of the
-    /// row is only reached with the switch on, so that sentence would sit under a state
-    /// that says "on" and contradict it on screen. The sentinel is matched here rather
-    /// than fixed at its source because `AppModel` is being edited elsewhere; the honest
-    /// initial value is "not sampled yet", and it belongs there.
     private static func gitOutcome(_ line: String) -> String {
         line == "off, nothing is read" ? "not sampled yet" : line
     }
 
-    /// Each folder by its last path component, with its own Remove. Boxed rather than
-    /// quiet: `Brand` says a quiet control outside the panel is caption text standing next
-    /// to a real button, and this one sits next to a real button.
     @ViewBuilder
     private var folderList: some View {
         if !model.settings.projectFolders.isEmpty {
@@ -592,8 +508,6 @@ struct SettingsView: View {
             .padding(.top, 8)
         }
     }
-
-    // MARK: Data
 
     private var data: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -633,9 +547,6 @@ struct SettingsView: View {
                         + "no tombstone and no copy kept anywhere, which is the point and also means "
                         + "there is no undo."
                 )
-                /// Boxed, while every other secondary control in this window is not.
-                /// There is no undo behind this one, and a border is cheap next to the
-                /// cost of it reading as the heading of the paragraph above it.
                 TerminalButton("Delete my data…") { confirmDelete() }
                     .fixedSize()
                     .padding(.top, 12)
@@ -647,10 +558,6 @@ struct SettingsView: View {
         }
     }
 
-    /// The open panel IS the grant, which is the whole reason the git collector takes a
-    /// list of folders rather than going looking for repositories. A path discovered from
-    /// a window title carries no Files-and-Folders exception, and a repository under
-    /// ~/Desktop, ~/Documents or ~/Downloads is behind that service.
     private func addFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -696,8 +603,6 @@ struct SettingsView: View {
         dataReport = model.deleteEverything()
     }
 
-    // MARK: About
-
     private var version: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
         let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
@@ -708,18 +613,10 @@ struct SettingsView: View {
         }
     }
 
-    /// The release codename, from `SGReleaseName` in Info.plist.
-    ///
-    /// A number tells you whether you are behind. A name tells you which release people
-    /// are talking about, which is the thing you actually need when you are reading an
-    /// issue or a changelog. Both are shown, because they answer different questions.
     private var releaseName: String? {
         Bundle.main.infoDictionary?["SGReleaseName"] as? String
     }
 
-    /// The mark, the wordmark and one dense machine-shaped line instead of four labelled
-    /// rows. Selectable, because the first thing anyone does with a version string is
-    /// paste it into an issue.
     private var identity: some View {
         HStack(alignment: .top, spacing: 18) {
             BrandMark(size: 48, fill: 0.5)
@@ -758,11 +655,6 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The four places a curious or suspicious reader goes next.
-    ///
-    /// Two of these URLs were already defined and rendered nowhere, which is the shape of
-    /// a pane that was built and never looked at: the constants existed, the page was two
-    /// thirds empty, and nothing connected the two facts.
     private var links: some View {
         SettingsSection("links") {
             VStack(alignment: .leading, spacing: 0) {
@@ -775,10 +667,6 @@ struct SettingsView: View {
         }
     }
 
-    /// Credit where the app is not its own work.
-    ///
-    /// Short, and specific about what each thing is doing here, because "acknowledgements"
-    /// as a wall of names tells a reader nothing about what is running on their machine.
     private var builtOn: some View {
         SettingsSection("built on") {
             VStack(alignment: .leading, spacing: 10) {
@@ -798,24 +686,6 @@ struct SettingsView: View {
         }
     }
 
-    /// The one piece of the interface that is not about the user.
-    ///
-    /// It was a bar pinned across the bottom of the window, drawn only on About. That
-    /// meant it appeared the instant that pane was selected and vanished again on the way
-    /// out, so a byline announced itself by shoving the window's contents around. A credit
-    /// that interrupts is worse than no credit.
-    ///
-    /// It lives under the tagline instead, in the block that is already the app introducing
-    /// itself. Nothing moves when it appears, because it is only ever on the page that is
-    /// about the app. The heart is the only non-amber colour in the interface and it is
-    /// four millimetres wide, which is about the right amount of sentiment for a utility
-    /// that otherwise refuses to be warm at you.
-    ///
-    /// The name is text and not a link on purpose. Linking it needs an account-root URL in
-    /// the binary, and `verify.sh` allowlists only this repository, which is the narrower
-    /// promise `docs/PRIVACY.md` makes: every URL in here goes to one known place.
-    /// Widening that to the whole account so a byline could be clicked would be paying a
-    /// real boundary for a small convenience.
     private var madeBy: some View {
         HStack(spacing: 5) {
             Text("Made with")
@@ -832,8 +702,6 @@ struct SettingsView: View {
         .accessibilityLabel("Made with love by Mohamed Elshesheny")
     }
 
-    /// One line that always says what is true right now, a bar underneath it only while
-    /// bytes are actually moving, and the buttons that state allows.
     @ViewBuilder
     private var updates: some View {
         let updater = model.updates
@@ -872,9 +740,6 @@ struct SettingsView: View {
                     case .extracting:
                         TerminalButton("Working…", enabled: false) {}.fixedSize()
                     case .installing:
-                        // Not a dead end. Installing waits for this app to quit, and if it
-                        // does not, "Working…" would sit there forever with no way out but
-                        // relaunching. Try again re-asks; the button is idle the rest of the time.
                         TerminalButton("Working…", enabled: false) {}.fixedSize()
                         TerminalButton("Try again") { updater.retryInstalling() }.fixedSize()
                     case .unavailable:
@@ -910,8 +775,6 @@ struct SettingsView: View {
         }
     }
 
-    /// Amber while something is happening or waiting for the user, off otherwise. The
-    /// text beside it always says the same thing; the dot never carries meaning alone.
     private static func dot(for state: UpdateChecker.State) -> StateDot.State {
         switch state {
         case .available, .readyToInstall, .checking, .downloading, .extracting, .installing:
@@ -948,8 +811,6 @@ struct SettingsView: View {
         }
     }
 
-    /// `1.2 of 4.8 MB`. Megabytes, not a percentage: a percentage of an unknown total is a
-    /// number the app does not actually have.
     private static func bytes(_ received: Int64, of expected: Int64) -> String {
         func mb(_ value: Int64) -> String {
             String(format: "%.1f", Double(value) / 1_048_576)
@@ -966,20 +827,12 @@ struct SettingsView: View {
             string: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs")!
         static let issues = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/issues/new/choose")!
-        /// The only file that reads a window. docs/PRIVACY.md §3.4 promises the Access
-        /// pane says "here is where to read it" and points at the file; this is the
-        /// pointer. Inside the repository, so `verify.sh`'s allowlist admits it.
         static let collector = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/app/Sources/"
                 + "SigstopSensors/Collectors/AccessibilityCollector.swift")!
     }
 }
 
-// MARK: - Navigation
-
-/// A sidebar entry. The selected one gets a 2pt amber rail on the window's edge and the
-/// primary text colour; the others are muted. No icons: five monospaced words are
-/// scanned faster than five glyphs that have to be learned.
 private struct NavRow: View {
     let title: String
     let selected: Bool
@@ -1014,10 +867,6 @@ private struct NavRow: View {
     }
 }
 
-// MARK: - Page structure
-
-/// One row in the About pane's link list: a label, a line saying what is on the other
-/// side, and an arrow. The whole row is the target, not just the text.
 private struct LinkRow: View {
     let title: String
     let detail: String
@@ -1064,7 +913,6 @@ private struct LinkRow: View {
     }
 }
 
-/// A thing the app did not write, and what it is doing here.
 private struct CreditRow: View {
     let name: String
     let role: String
@@ -1087,8 +935,6 @@ private struct CreditRow: View {
     }
 }
 
-/// One file in the storage root, and what is in it. A name in mono against a sentence in
-/// prose, so the list scans as a directory listing rather than as more paragraphs.
 private struct FileRow: View {
     let name: String
     let role: String
@@ -1113,7 +959,6 @@ private struct FileRow: View {
     }
 }
 
-/// A kicker, a rule, and rows. Sections are separated by air, not by cards.
 private struct SettingsSection<Content: View>: View {
     let kicker: String
     let content: Content
@@ -1134,9 +979,6 @@ private struct SettingsSection<Content: View>: View {
     }
 }
 
-/// Title and help on the left, the control on the right, a rule underneath. The help
-/// text is set in the sans at 11pt so it reads as a sentence next to a monospaced value,
-/// which is the same split the site makes between chrome and prose.
 private struct SettingRow<Control: View>: View {
     let title: String
     let detail: String?
@@ -1164,16 +1006,6 @@ private struct SettingRow<Control: View>: View {
                     }
                 }
                 Spacer(minLength: 16)
-                /// The row's title names the control, for anyone who cannot see that they
-                /// are on the same line.
-                ///
-                /// `TerminalSwitch` represents itself as `Toggle("", isOn:)` — an empty
-                /// label — so a screen reader announced five identical "switch, on" down
-                /// this page with nothing to tell them apart. Sighted readers get the
-                /// association from the layout; this is the same association, said out
-                /// loud. Applied here rather than inside the switch because the row is
-                /// what knows the name, and it fixes every control the row can hold, not
-                /// just the toggles.
                 control
                     .padding(.top, 1)
                     .accessibilityLabel(title)
@@ -1184,7 +1016,6 @@ private struct SettingRow<Control: View>: View {
     }
 }
 
-/// A paragraph of help under a section, in the sans.
 private struct Note: View {
     let text: String
     init(_ text: String) { self.text = text }
@@ -1199,7 +1030,6 @@ private struct Note: View {
     }
 }
 
-/// Monospaced text in a bordered block, selectable. Paths and reports.
 private struct CodeBlock: View {
     let text: String
     init(_ text: String) { self.text = text }
@@ -1221,23 +1051,13 @@ private struct CodeBlock: View {
     }
 }
 
-/// One badge: the mark, its name, and one line that is either what it means or what it
-/// takes. The date sits on the right in the same column the rest of the window puts its
-/// values in.
-///
-/// A locked row is the same row — same height, same type, same position — with the
-/// outline mark and its hint. Nothing is struck through, greyed to illegibility, or
-/// marked with a symbol that could be read as a failure: a badge that has not happened
-/// yet is not a problem, and the row must not imply it is one.
 struct BadgeRow: View {
     let badge: Badge
     let earned: CalendarDay?
-    /// Nil for a badge that has nothing countable to report. See `BadgeProgress`.
     let progress: BadgeProgress?
 
     private var unlocked: Bool { earned != nil }
 
-    /// The right-hand column: the day it happened, else how far along, else "not yet".
     private var trailing: String {
         if let earned { return earned.description }
         if let progress { return "\(progress.have) / \(progress.need)" }
@@ -1283,13 +1103,6 @@ struct BadgeRow: View {
     }
 }
 
-/// The thin line under a locked badge that is counting towards something.
-///
-/// Drawn only once there is something to show: a bar sitting at zero on every unstarted
-/// badge turns the pane into a wall of empty troughs, which reads as a list of things you
-/// have failed to do rather than a list of things that can happen. It is two points tall
-/// and the same amber as the rest of the app, at the weight the hairlines use, because it
-/// is a detail of the row and not the point of it.
 private struct ProgressTrack: View {
     let fraction: Double
 
@@ -1307,10 +1120,6 @@ private struct ProgressTrack: View {
     }
 }
 
-// MARK: - Controls specific to this window
-
-/// One tone, as the site's tone switch draws it: the name in small caps mono, a
-/// two-word gloss under it, amber border and tint when selected.
 private struct ToneCard: View {
     let tone: Tone
     let selected: Bool
@@ -1357,13 +1166,6 @@ private struct ToneCard: View {
     }
 }
 
-/// One row of the Access ledger: a name and one sentence of what it reads on the left,
-/// the state word over its control on the right, a rule underneath.
-///
-/// It is `SettingRow` with a state column, and a separate type rather than a parameter
-/// because the state is the point of this pane and an optional slot on every other
-/// pane's rows would invite the About pane to grow one. `extra` is a third line under
-/// the sentence, full width, for the folder list and the branch that was read.
 private struct SignalRow<Control: View, Extra: View>: View {
     let title: String
     let reads: String
@@ -1423,15 +1225,6 @@ extension SignalRow where Extra == EmptyView {
     }
 }
 
-/// The state word with its dot: `on`, `off`, `on · not granted`, `granted`.
-///
-/// "On" and not "reading", because the column describes permission, not outcome: the
-/// switch is on and nothing stands in its way. Whether a read then produced anything is
-/// a different fact, and where it matters the row prints it underneath, on the READ line.
-/// Green only for that unobstructed state. A held signal gets the off dot, because
-/// nothing is being read; the word says why. Amber is not spent here: it means a break
-/// is owed, and a missing grant is not that. The dot is hidden from VoiceOver and the
-/// word carries the meaning, as `StateDot` requires.
 private struct StateLabel: View {
     let dot: StateDot.State?
     let text: String
@@ -1453,7 +1246,6 @@ private struct StateLabel: View {
         self.init(dot: granted ? .running : .off, text: granted ? "granted" : "not granted")
     }
 
-    /// A count rather than a state, for the folder list: it is the grant, not a signal.
     init(count: Int) {
         self.init(dot: nil, text: count == 0 ? "none yet" : "\(count) added")
     }
@@ -1511,7 +1303,6 @@ private struct TimeField: View {
         text = Format.minuteOfDay(minutes)
     }
 
-    /// Accepts `22:00`, `8:30`, `2200`, `830` and a bare hour.
     static func parse(_ raw: String) -> Int? {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         let hour: Int?

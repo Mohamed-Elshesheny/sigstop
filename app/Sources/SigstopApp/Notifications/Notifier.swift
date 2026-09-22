@@ -1,40 +1,16 @@
 import Foundation
 import SigstopCore
-/// `@preconcurrency` because `UNNotificationSettings` is not `Sendable` in the macOS 15
-/// SDK, so `await center.notificationSettings()` is an error on Xcode 16.4 and compiles
-/// clean on newer toolchains. This built here and failed in CI on its first run, which is
-/// the whole reason CI builds against the SDK most people actually have.
 @preconcurrency import UserNotifications
 
-/// What the developer did with a delivered notification.
 enum PromptResponse: Sendable, Hashable {
     case take
     case snooze
     case skip
 }
 
-/// `UNUserNotificationCenter`, and nothing else.
-///
-/// Three things this type deliberately does **not** do:
-///
-/// 1. **It does not cap anything.** The daily cap, the per-cycle cap, the minimum spacing
-///    and the ignore backoff are all enforced by `InterruptionPolicy` before a
-///    `deliverPrompt` effect is ever produced. A second cap here would be a second,
-///    disagreeing source of truth, and the one that silently won would be this one.
-/// 2. **It does not ask for authorization at launch.** docs/PRIVACY.md §3.2 says the
-///    prompt appears at the first break, not at startup, and that is a promise about the
-///    first ten seconds of the app's life.
-/// 3. **It does not decide anything.** It renders a `PromptRequest` the engine produced
-///    and reports what the user pressed.
-///
-/// When notifications are unavailable, no bundle (a `swift run` build), or the user said
-/// no, `onFallbackNeeded` fires and the app draws its own panel instead. That fallback is
-/// documented in §3.2 and needs no permission at all.
 @MainActor
 final class Notifier: NSObject {
 
-    /// Category identifiers, one per escalation rung, because the action set narrows as
-    /// the ladder climbs: snooze stops being offered once the engine stops offering it.
     private enum Category {
         static let full = "dev.sigstop.prompt.full"
         static let noSnooze = "dev.sigstop.prompt.nosnooze"
@@ -58,8 +34,6 @@ final class Notifier: NSObject {
     override init() {
         super.init()
     }
-
-    // MARK: - Delivery
 
     func deliver(_ request: PromptRequest, message: RenderedMessage) {
         guard let center = resolveCenter() else {
@@ -113,13 +87,6 @@ final class Notifier: NSObject {
         }
     }
 
-    /// The escalation ladder, mapped onto what macOS is willing to do about it.
-    ///
-    /// `.timeSensitive` additionally requires the time-sensitive entitlement; without it
-    /// macOS silently treats the notification as `.active`, which is the correct
-    /// degradation and not an error. The app never asks for `.critical`, which would
-    /// bypass Do Not Disturb, a menu bar app that overrides Focus has misunderstood what
-    /// it is for.
     static func interruptionLevel(for level: EscalationLevel) -> UNNotificationInterruptionLevel {
         switch level {
         case .first:            return .passive
@@ -127,8 +94,6 @@ final class Notifier: NSObject {
         case .incident:         return .timeSensitive
         }
     }
-
-    // MARK: - Withdrawal
 
     func withdraw(cycle: CycleID) {
         guard let center, let identifiers = delivered.removeValue(forKey: cycle) else { return }
@@ -143,8 +108,6 @@ final class Notifier: NSObject {
         center.removeDeliveredNotifications(withIdentifiers: identifiers)
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
-
-    // MARK: - Plumbing
 
     private func identifier(for request: PromptRequest) -> String {
         "dev.sigstop.\(request.cycle.rawValue).\(request.level.rawValue)"
@@ -183,8 +146,6 @@ final class Notifier: NSObject {
         ])
     }
 
-    /// Asks once, at the first break. A refusal is remembered by macOS, so re-asking is
-    /// both impossible and pointless, the fallback panel takes over instead.
     private func ensureAuthorized(_ center: UNUserNotificationCenter) async -> Bool {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
@@ -213,8 +174,6 @@ final class Notifier: NSObject {
     }
 }
 
-// MARK: - Responses
-
 extension Notifier: UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -235,9 +194,6 @@ extension Notifier: UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Show the banner even while sigstop is frontmost. The app is a menu bar item, so
-    /// "frontmost" usually means its own popover is open, precisely when the prompt is
-    /// still worth seeing.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification

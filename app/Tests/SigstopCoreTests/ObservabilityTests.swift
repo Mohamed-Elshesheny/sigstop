@@ -3,23 +3,9 @@ import Testing
 
 @testable import SigstopCore
 
-/// The deeper defect behind the 20:06:51Z incident: a state machine that can go silent
-/// without recording why.
-///
-/// CLAUDE.md §4.1 requires the app to always be able to answer "why do you think that",
-/// and `--doctor` exists so a sceptic can check. A cycle that closes without a trace, and
-/// a fourteen minute hold that computes 168 identical verdicts and keeps none of them,
-/// are both that invariant broken rather than a missing feature.
 @Suite("the log can explain the silence")
 struct ObservabilityTests {
 
-    // MARK: - Nothing may be added unlogged
-
-    /// Names every `Effect` case in an exhaustive switch with no `default`.
-    ///
-    /// This is the compile-time half of the guarantee: a fifteenth effect stops the test
-    /// target building until somebody comes here and says what it is. The assertion below
-    /// is the run-time half, and checks that the sample list was extended too.
     private static func name(_ effect: Effect) -> String {
         switch effect {
         case .openCycle:           return "openCycle"
@@ -87,9 +73,6 @@ struct ObservabilityTests {
         }
     }
 
-    /// Three files state the size of this vocabulary in words: `GateReason` itself,
-    /// `LoggedEvent.gate`, and docs/PRIVACY.md §4.3. A count in prose drifts silently, so
-    /// it is asserted here.
     @Test("the gate vocabulary is the size the docs say it is")
     func gateVocabularyIsTwentyNine() {
         #expect(
@@ -101,15 +84,6 @@ struct ObservabilityTests {
         }
     }
 
-    /// Persisting the daily counters made `.quiet(.dailyCapReached)` reachable for the
-    /// first time: before it, every rebuild reset the counter, so the state existed and
-    /// nobody ever sat in it. It is terminal until the day boundary, emits no verdict and
-    /// therefore no `gate` line, and the panel drew every quiet state with the literal
-    /// title "quiet hours" — so the app could go silent for the rest of the day and
-    /// explain it with a lie, to a user whose quiet hours are switched off.
-    ///
-    /// The words live here rather than in the view for the usual reason: `SigstopApp` has
-    /// no test target, so a vocabulary kept there cannot be checked at all.
     @Test("every quiet state says which quiet it is")
     func everyQuietCauseHasItsOwnWords() {
         let causes = QuietCause.allCases
@@ -128,8 +102,6 @@ struct ObservabilityTests {
         #expect(QuietCause.dailyCapReached.summary.contains("budget"))
     }
 
-    // MARK: - Every cycle says how it ended
-
     @Test("every cycle outcome produces exactly one line that carries it", arguments: [
         CycleOutcome.honored, .skipped, .ignoredExhausted, .expired, .quietSuppressed, .dailyCapReached,
     ])
@@ -143,7 +115,6 @@ struct ObservabilityTests {
         #expect(lines.first?.cycle == 7)
     }
 
-    /// The outcome round-trips through the file as a typed value, not a sentence.
     @Test("a cycle close survives the codec with its outcome typed")
     func cycleCloseRoundTrips() throws {
         let line = LoggedEvent.cycleClose(at: Self.epoch, cycle: CycleID(rawValue: 3), outcome: .ignoredExhausted)
@@ -155,9 +126,6 @@ struct ObservabilityTests {
         #expect(encoded.contains("\"outcome\":\"ignoredExhausted\""))
     }
 
-    /// The whole reason the incident was undiagnosable: five cycles in the owner's day
-    /// stop existing mid-file. Run a skip and an exhausted ladder and assert both leave a
-    /// close behind.
     @Test("a skipped cycle and an exhausted ladder both leave a close")
     func closesAreWrittenInAnActualRun() {
         var skipped = EngineHarness.Session()
@@ -175,8 +143,6 @@ struct ObservabilityTests {
         }
         #expect(ignored.log.lines.contains { $0.kind == .cycleClose && $0.outcome == .ignoredExhausted })
     }
-
-    // MARK: - The verdict, on transition
 
     @Test("the gate writes on change, not on sample")
     func gateWritesOnChange() {
@@ -225,7 +191,6 @@ struct ObservabilityTests {
         #expect(line?.gate == .audioInputInUse)
     }
 
-    /// The longest the file goes without a line, `now` included as the closing bound.
     private static func longestSilence(_ lines: [LoggedEvent], now: Date) -> TimeInterval {
         var worst: TimeInterval = 0
         var previous: Date?
@@ -237,13 +202,6 @@ struct ObservabilityTests {
         return worst
     }
 
-    /// The property the incident actually violated. Hold the microphone on for the whole
-    /// fourteen minutes the owner sat there and assert the file is never silent for longer
-    /// than the heartbeat.
-    ///
-    /// Before this, those ticks produced only `setIndicator` and `recordVerdict`, neither
-    /// of which the log could carry, so a held cycle and a crashed tick loop looked
-    /// identical on disk.
     @Test("an open cycle never goes ten minutes without writing something")
     func anOpenCycleIsNeverSilent() {
         var session = EngineHarness.Session()
@@ -258,15 +216,6 @@ struct ObservabilityTests {
         #expect(session.log.lines.filter { $0.kind == .gate }.count >= 2)
     }
 
-    /// `anOpenCycleIsNeverSilent` above only exercises the microphone, and a hard-blocked
-    /// cycle stays in `breakDue`, which *does* compute a verdict every tick. `snoozed`
-    /// holds the cycle open and computes none, so the ledger reset its candidate and wrote
-    /// nothing at all.
-    ///
-    /// A snooze clamps at thirty minutes per cycle, so the documented rule — an open cycle
-    /// is never silent for longer than the heartbeat, and a log that goes quiet means the
-    /// app stopped and nothing else — was false for half an hour at a stretch, on the one
-    /// path the user reaches by pressing a button.
     @Test("a snooze does not make an open cycle go silent")
     func aSnoozedCycleIsNeverSilent() {
         var settings = EngineHarness.ownerSettings
@@ -274,7 +223,7 @@ struct ObservabilityTests {
         var session = EngineHarness.Session(settings: settings)
         session.stepToPrompt()
         session.step(action: .snooze)
-        session.step(times: 300) // 25 minutes, still inside the snooze
+        session.step(times: 300)
 
         #expect(session.driver.state.name == "snoozed", "the snooze must still be running")
         #expect(session.driver.state.openCycle != nil, "and it must still hold the cycle")
@@ -282,8 +231,6 @@ struct ObservabilityTests {
         #expect(worst <= 600, "the log was silent for \(Int(worst))s with a cycle open")
     }
 
-    /// The same hole, reached by walking away rather than by pressing SIGALRM. `idle` also
-    /// holds a suspended cycle and also computes no verdict.
     @Test("an idle-suspended cycle does not make the log go silent")
     func anIdleSuspendedCycleIsNeverSilent() {
         var session = EngineHarness.Session()
@@ -296,13 +243,6 @@ struct ObservabilityTests {
         #expect(worst <= 600, "the log was silent for \(Int(worst))s with a cycle open")
     }
 
-    /// The counterfactual that ruled out the hard-block reading, kept so it stays ruled
-    /// out. A hard-blocked `breakDue` returns itself every tick and never reaches
-    /// `handleWorking`, which is the only place a cycle id is taken. A second `break_open`
-    /// in the owner's file is therefore proof the engine was back in `.working`.
-    ///
-    /// Corroborated, because this is a claim about what a HARD BLOCK does and a lone
-    /// microphone stops being one after `uncorroboratedAudioCeiling`.
     @Test("a sustained call block never opens a second cycle")
     func sustainedBlockNeverOpensASecondCycle() {
         var session = EngineHarness.Session()
@@ -315,15 +255,6 @@ struct ObservabilityTests {
         #expect(session.driver.state.isBreakDue)
     }
 
-    /// An escalating cycle under a sustained block used to be unbounded: `ladderElapsed`
-    /// accrues below the hard-block early return, so the ladder froze and `exhausted`
-    /// could never become true, and unlike `breakDue` this state had no ceiling at all.
-    ///
-    /// The block here is a *corroborated* one, mic and camera together, because that is
-    /// the only kind that is still unbounded and therefore the only kind the stale
-    /// ceiling has to catch. A microphone on its own now stops blocking after
-    /// `uncorroboratedAudioCeiling`, which is what a virtual audio device looks like and
-    /// is covered by `uncorroboratedMicrophoneStopsBlocking` below.
     @Test("an escalating cycle cannot outlive the stale ceiling")
     func escalatingCycleIsBounded() {
         var session = EngineHarness.Session()

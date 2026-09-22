@@ -3,12 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// The first coverage `InterruptionPolicy` has ever had.
-///
-/// Before this file nothing in the test target constructed a `SystemSignals`, called the
-/// policy, or exercised a seam, the cycle budget or the escalation ladder. That mattered
-/// less while every meeting-shaped block was unreachable; it is the whole game now that
-/// one of them fires.
 @Suite("a call blocks a prompt")
 struct InterruptionPolicyMeetingTests {
 
@@ -38,13 +32,8 @@ struct InterruptionPolicyMeetingTests {
         )
     }
 
-    // MARK: The hard block, and everything it has to beat
-
     @Test("A holding latch beats a seam, which is how a prompt reached a meeting most often")
     func beatsASeam() {
-        /// Alt-tabbing out of the call for two seconds is the single most common thing
-        /// anyone does in a meeting, and `verdict` returns `.deliver` for any non-empty
-        /// seam before the soft reasons are even consulted. Only a hard block survives it.
         let verdict = Self.interruption.verdict(
             Self.input(signals: SystemSignals(meetingLatch: Self.holding), seams: [.applicationSwitch]),
             budget: CycleBudget()
@@ -85,9 +74,6 @@ struct InterruptionPolicyMeetingTests {
 
     @Test("A running camera hard-blocks on its own")
     func cameraBlocks() {
-        /// One line, and it is the first assertion in this repository's history that
-        /// would have failed before this change: `cameraRunning` was hardcoded false and
-        /// `HardBlock.cameraInUse` was unreachable.
         #expect(
             Self.interruption.hardBlock(Self.input(signals: SystemSignals(cameraRunning: true)))
                 == .cameraInUse
@@ -113,11 +99,6 @@ struct InterruptionPolicyMeetingTests {
 
     @Test("The latch's weak states defer, at tier 0, where nothing else can")
     func suspicionDefers() {
-        /// `ConcurrentStates.inMeeting` is structurally false without Accessibility,
-        /// because `meetingConfidence` is clamped to the tier 0 ceiling and that ceiling
-        /// sits below the specific-claim threshold. So this is the ONLY meeting deferral
-        /// a zero-permission user can ever receive, and it is derived from a capture fact
-        /// rather than from a confidence number.
         let signals = SystemSignals(meetingLatch: MeetingLatchSignal(suspectsCall: true))
         let verdict = Self.interruption.verdict(Self.input(signals: signals), budget: CycleBudget())
         #expect(verdict == .softDeferred(.inferredMeeting))
@@ -189,11 +170,6 @@ struct BreakDecisionCallBlockTests {
 
     @Test("Leaving a meeting does not charge the user an ignored prompt")
     func noUnearnedIgnore() {
-        /// `promptedAtMono` is an absolute stamp and the ninety-second prompt timeout is
-        /// only gated on not being hard-blocked, so before this change the first tick
-        /// after a call had already satisfied the timeout: the user was recorded as
-        /// having ignored a prompt they were never allowed to answer during, and two of
-        /// those silently truncate the ladder to L1 and L2.
         var state = EngineState.breakDue(Self.due(prompted: true))
         var day = DailyCounters()
         var mono = 5.0
@@ -240,10 +216,6 @@ struct BreakDecisionCallBlockTests {
 
     @Test("The owner's complaint, end to end")
     func theOwnersScenario() {
-        /// Forty-five minutes of work, then a call: the microphone runs long enough to
-        /// arm the latch, the user mutes, alt-tabs twice to keep working, and sits there.
-        /// Nothing may be delivered. Then the hold runs out and the prompt arrives,
-        /// because politeness is not allowed to become silence.
         let policy = BreakPolicy.default
         var latch = MeetingLatch.started(at: 0, wall: Self.now, dayIndex: 0)
         let slack = CallCapableApp(
@@ -272,7 +244,6 @@ struct BreakDecisionCallBlockTests {
             signals.meetingLatch = latch.signal(
                 at: mono, wall: Self.now.addingTimeInterval(mono), policy: policy
             )
-            /// Two alt-tabs during the call, at the moments that used to deliver.
             let seams: [Seam] = (mono == 120 || mono == 400) ? [.applicationSwitch] : []
             let outcome = Self.engine.step(
                 state,
@@ -297,14 +268,6 @@ struct BreakDecisionCallBlockTests {
 
     @Test("The same scenario on a Mac with a virtual audio driver installed")
     func theOwnersScenarioOnAnUnreliableMac() {
-        /// Krisp / Loopback / BlackHole downgrade the device signal to `.unreliable`, so
-        /// `audioInputRunning` is false for the whole of a genuinely live call and the
-        /// `audioInputInUse` hard block never fires. Attribution still names the app.
-        ///
-        /// Before the latch blocked in `.live` this delivered: the call's forty-five
-        /// minutes produced only `SoftDeferReason.inferredMeeting`, soft deferrals are
-        /// capped at fifteen minutes, and the prompt landed in the meeting — which is
-        /// the one state this whole feature exists to prevent.
         let policy = BreakPolicy.default
         var latch = MeetingLatch.started(at: 0, wall: Self.now, dayIndex: 0)
         let teams = CallCapableApp(
@@ -329,7 +292,6 @@ struct BreakDecisionCallBlockTests {
                 ),
                 policy: policy
             )
-            /// Both device-level facts stay false for the whole call. That is the bug.
             var signals = SystemSignals(audioInputRunning: false)
             signals.meetingLatch = latch.signal(
                 at: mono, wall: Self.now.addingTimeInterval(mono), policy: policy

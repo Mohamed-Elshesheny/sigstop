@@ -4,9 +4,6 @@ import Testing
 @testable import SigstopCore
 @testable import SigstopSensors
 
-/// The Tier 2 process snapshot, tested the way §3.3 says providers must be: by building a
-/// `SignalContext` literal and calling a pure function. Nothing here starts a run loop,
-/// opens a window, or reads the real process table.
 private let editor = AppIdentity(bundleID: BundleIDs.vscode, localizedName: "Code", pid: 101)
 private let terminal = AppIdentity(bundleID: BundleIDs.terminal, localizedName: "Terminal", pid: 102)
 private let browser = AppIdentity(bundleID: BundleIDs.chrome, localizedName: "Google Chrome", pid: 103)
@@ -53,8 +50,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     )
 }
 
-// MARK: - The allowlist
-
 @Test func allowlistMatchesOnlyWholeNames() {
     #expect("lldb".withCString { ToolAllowlist.token(comm: $0) } == .lldb)
     #expect("debugserver".withCString { ToolAllowlist.token(comm: $0) } == .debugserver)
@@ -64,9 +59,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect("".withCString { ToolAllowlist.token(comm: $0) } == nil)
 }
 
-/// `node` and `python3` are on nobody's allowlist on purpose: eleven `node` processes were
-/// running on the development machine and every one of them was an editor helper. Matching
-/// bare `node` would fire constantly in any editor that ships an extension host.
 @Test func interpretersAreNotOnTheAllowlist() {
     #expect("node".withCString { ToolAllowlist.token(comm: $0) } == nil)
     #expect("python3".withCString { ToolAllowlist.token(comm: $0) } == nil)
@@ -79,7 +71,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     }
 }
 
-/// The tokens that need argv are named as undetectable rather than quietly reported absent.
 @Test func argvShapedTokensAreDeclaredUndetectable() {
     let allowed = Set(ToolAllowlist.entries.map(\.token))
     for token in ToolAllowlist.undetectable {
@@ -90,11 +81,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(ToolAllowlist.undetectable.contains(.pytest))
 }
 
-// MARK: - Ancestry
-
-/// A terminal's shell sits under a root-owned `login`, so the walk must not stop at a
-/// process whose own details are unreadable. Only the parent link is needed, and the
-/// kernel supplies it for every process regardless of owner.
 @Test func ancestryWalksThroughAnIntermediateProcess() {
     let parents: [pid_t: pid_t] = [900: 800, 800: 102, 102: 1]
     #expect(ProcessCollector.descends(900, from: 102, parents: parents))
@@ -109,8 +95,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(!ProcessCollector.descends(900, from: 0, parents: [900: 0]))
 }
 
-// MARK: - The opt-in
-
 @Test func theCollectorReadsNothingWhenTheSwitchIsOff() {
     let broker = PermissionBroker(settings: .default, trustCheck: { false })
     let collector = ProcessCollector(permissions: broker)
@@ -124,8 +108,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(collector.lastOutcome == .optedOut)
 }
 
-/// The two Tier 2 switches are independent. Opting into a branch name must not enumerate
-/// the process table, which is the whole reason `processContextPermitted()` exists.
 @Test func theGitOptInDoesNotTurnOnProcessScanning() {
     var settings = SigstopSettings.default
     settings.gitContextEnabled = true
@@ -152,8 +134,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(broker.processContextPermitted())
     #expect(!broker.gitContextPermitted())
 }
-
-// MARK: - The gate
 
 @Test func theGateDeclinesWhenTheFrontmostAppIsNotAnEditorOrTerminal() {
     var settings = SigstopSettings.default
@@ -204,10 +184,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     ) == nil)
 }
 
-// MARK: - What the providers do with it
-
-/// The state before this change, and it must remain the answer when the snapshot is
-/// absent: CODING, never DEBUGGING, because guessing between siblings is what §4.1 forbids.
 @Test func withoutAProcessSnapshotAnEditorStaysCoding() {
     let observation = classify(context(processes: nil))
     #expect(observation.activity == .coding)
@@ -239,14 +215,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(observation.confidence.value <= ConfidenceEngine.debuggingCeiling)
 }
 
-/// A debugger sitting at a prompt with no target looks exactly like one attached, which is
-/// the failure docs/ACTIVITY-DETECTION.md §7.2 names. `P_TRACED` elsewhere is the thing
-/// that tells them apart, so it decides between CODING and DEBUGGING rather than being
-/// cited under a verdict a bare name already made.
-///
-/// This test used to assert the opposite: that `snapshot(matched: [.lldb])` alone reached
-/// DEBUGGING at the ceiling. It pinned the bug. A debugger left running anywhere on the
-/// machine is not evidence about the window in front of you.
 @Test func tracingElsewhereDecidesWhetherANamedDebuggerIsAVerdict() {
     let bare = classify(context(processes: snapshot(matched: [.lldb])))
     let attached = classify(context(processes: snapshot(matched: [.lldb], tracedElsewhere: true)))
@@ -255,9 +223,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(bare.evidence.contains { $0.id.rawValue == "process.debuggerElsewhere" })
     #expect(!bare.evidence.contains { $0.id.rawValue == "process.tracedElsewhere" })
     #expect(attached.evidence.contains { $0.id.rawValue == "process.tracedElsewhere" })
-    /// And the corroboration now changes a number somebody can read, which is the whole
-    /// reason to cite it. It stays below the ancestry route: what that debugger is
-    /// attached to is, by definition, not under the app you are in.
     #expect(attached.confidence.value <= ConfidenceEngine.debuggerElsewhereCeiling)
     #expect(ConfidenceEngine.debuggerElsewhereCeiling < ConfidenceEngine.debuggingCeiling)
 
@@ -265,9 +230,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(nothingNamed.activity == .coding)
 }
 
-/// The measured case from the review, kept as a test because it is the one CLAUDE.md §4.1
-/// names by hand: a README open in the editor, `lldb` alive in some other project, and the
-/// app announcing fifty minutes of chasing one bug.
 @Test func aDebuggerElsewhereDoesNotOverrideWhatTheTitleSays() {
     let docs = classify(context(
         processes: snapshot(matched: [.lldb]), title: "README.md — sigstop"
@@ -280,8 +242,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(tests.activity == .testing)
 }
 
-/// Ancestry, not a name, is what makes a debugger yours, and it is worth more than
-/// `P_TRACED` on a process the app in front did not start.
 @Test func aDebuggerDescendingFromTheAppInFrontOutranksOneThatDoesNot() {
     let mine = classify(context(processes: snapshot(matched: [.lldb], children: [.lldb])))
     let theirs = classify(context(processes: snapshot(matched: [.lldb], tracedElsewhere: true)))
@@ -300,12 +260,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(debugging.activity == .debugging)
 }
 
-/// `claude` is marked `verifiedHere` in the allowlist and is very nearly always running
-/// on the machine this was written on. Matching it by name alone meant every Terminal and
-/// iTerm window read AI_CODING at the tier 2 ceiling, permanently, with the reasoning line
-/// "claude is running in this terminal" while it was running in VS Code's integrated one.
-/// A detector that is always on is worse than no detector, which is the argument this
-/// codebase already makes about Krisp and OBS.
 @Test func anAICLIInSomeOtherTerminalIsNotThisTerminalsWork() {
     let elsewhere = classify(context(
         app: terminal, processes: snapshot(matched: [.claudeCLI]), title: "zsh"
@@ -323,7 +277,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(here.evidence.contains { $0.summary == "claude is running in this terminal" })
 }
 
-/// The same for a terminal editor: `vim` open in another window is not this window.
 @Test func aTerminalEditorSomewhereElseDoesNotMakeThisWindowCoding() {
     let elsewhere = classify(context(
         app: terminal, processes: snapshot(matched: [.vim]), title: "zsh"
@@ -342,15 +295,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(observation.activity == .coding)
 }
 
-// MARK: - The real table
-
-/// The one test here that touches the machine it runs on, because nothing else proves the
-/// syscall path works at all. It asserts only what is true of every Mac: there is at least
-/// one process, and the table can be read without a permission.
-///
-/// A failure here is worth having. `sysctl` returning nothing is exactly what a sandbox
-/// profile without `sysctl-read` produces, silently, and the collector's contract is that
-/// such a result is reported as unknown rather than as "no debugger is running".
 @Test func theRealProcessTableCanBeReadWithNoPermission() {
     var settings = SigstopSettings.default
     settings.processContextEnabled = true
@@ -374,7 +318,6 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(count > 0)
 }
 
-/// The memo, so that a burst of samples in one second is one scan and not five.
 @Test func aSecondSampleInsideTheMemoWindowDoesNotRescan() {
     var settings = SigstopSettings.default
     settings.processContextEnabled = true

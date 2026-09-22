@@ -24,9 +24,6 @@ struct SessionTrackerBreakTests {
         )
     }
 
-    /// The regression: input during a break used to wipe the break's start marker, so the
-    /// break measured as zero, failed the qualifying threshold, and left the work clock
-    /// untouched. The engine then re-prompted the instant the break ended.
     @Test("A break that is long enough resets the clock even with input throughout")
     func inputDuringBreakDoesNotCancelIt() {
         var (tracker, time) = makeTracker()

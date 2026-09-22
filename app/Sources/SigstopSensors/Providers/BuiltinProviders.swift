@@ -1,54 +1,51 @@
 import Foundation
 import SigstopCore
 
-// MARK: - Bundle identifier catalog
 public enum BundleIDs {
-    public static let vscode = "com.microsoft.VSCode"                       // VERIFIED
-    public static let vscodeInsiders = "com.microsoft.VSCodeInsiders"       // UNVERIFIED
-    public static let vscodium = "com.vscodium"                             // UNVERIFIED
-    public static let cursor = "com.todesktop.230313mzl4w4u92"              // VERIFIED, opaque
-    public static let zedPrefix = "dev.zed."                                // UNVERIFIED
-    public static let jetbrainsPrefix = "com.jetbrains."                    // UNVERIFIED
-    public static let androidStudio = "com.google.android.studio"           // UNVERIFIED
-    public static let xcode = "com.apple.dt.Xcode"                          // UNVERIFIED here
-    public static let antigravity = "com.google.antigravity"                // VERIFIED
+    public static let vscode = "com.microsoft.VSCode"
+    public static let vscodeInsiders = "com.microsoft.VSCodeInsiders"
+    public static let vscodium = "com.vscodium"
+    public static let cursor = "com.todesktop.230313mzl4w4u92"
+    public static let zedPrefix = "dev.zed."
+    public static let jetbrainsPrefix = "com.jetbrains."
+    public static let androidStudio = "com.google.android.studio"
+    public static let xcode = "com.apple.dt.Xcode"
+    public static let antigravity = "com.google.antigravity"
 
-    public static let terminal = "com.apple.Terminal"                       // VERIFIED
-    public static let iterm2 = "com.googlecode.iterm2"                      // UNVERIFIED
-    public static let warp = "dev.warp.Warp-Stable"                         // UNVERIFIED
-    public static let ghostty = "com.mitchellh.ghostty"                     // UNVERIFIED
-    public static let alacritty = "org.alacritty"                           // UNVERIFIED
-    public static let kitty = "net.kovidgoyal.kitty"                        // UNVERIFIED
-    public static let termius = "com.termius-dmg.mac"                       // VERIFIED
+    public static let terminal = "com.apple.Terminal"
+    public static let iterm2 = "com.googlecode.iterm2"
+    public static let warp = "dev.warp.Warp-Stable"
+    public static let ghostty = "com.mitchellh.ghostty"
+    public static let alacritty = "org.alacritty"
+    public static let kitty = "net.kovidgoyal.kitty"
+    public static let termius = "com.termius-dmg.mac"
 
-    public static let chrome = "com.google.Chrome"                          // VERIFIED
-    public static let arc = "company.thebrowser.Browser"                    // VERIFIED
-    public static let safari = "com.apple.Safari"                           // VERIFIED
-    public static let brave = "com.brave.Browser"                           // VERIFIED
-    public static let firefox = "org.mozilla.firefox"                       // UNVERIFIED
-    public static let edge = "com.microsoft.edgemac"                        // UNVERIFIED
+    public static let chrome = "com.google.Chrome"
+    public static let arc = "company.thebrowser.Browser"
+    public static let safari = "com.apple.Safari"
+    public static let brave = "com.brave.Browser"
+    public static let firefox = "org.mozilla.firefox"
+    public static let edge = "com.microsoft.edgemac"
 
-    public static let slack = "com.tinyspeck.slackmacgap"                   // VERIFIED
-    public static let discord = "com.hnc.Discord"                           // VERIFIED
-    public static let zoom = "us.zoom.xos"                                  // VERIFIED
-    public static let teams = "com.microsoft.teams2"                        // VERIFIED
-    public static let mail = "com.apple.mail"                               // UNVERIFIED
-    public static let messages = "com.apple.MobileSMS"                      // UNVERIFIED
+    public static let slack = "com.tinyspeck.slackmacgap"
+    public static let discord = "com.hnc.Discord"
+    public static let zoom = "us.zoom.xos"
+    public static let teams = "com.microsoft.teams2"
+    public static let mail = "com.apple.mail"
+    public static let messages = "com.apple.MobileSMS"
 
-    public static let figma = "com.figma.Desktop"                           // VERIFIED
-    public static let postman = "com.postmanlabs.mac"                       // VERIFIED
-    public static let docker = "com.docker.docker"                          // VERIFIED
-    public static let dockerElectronHelper = "com.electron.dockerdesktop"   // VERIFIED (helper)
-    public static let claude = "com.anthropic.claudefordesktop"             // VERIFIED
-    public static let chatgpt = "com.openai.codex"                          // VERIFIED (surprising)
-    public static let chatgptLegacy = "com.openai.chat"                     // UNVERIFIED-legacy
-    public static let gemini = "com.google.GeminiMacOS"                     // VERIFIED
-    public static let notion = "notion.id"                                  // VERIFIED
-    public static let linear = "com.linear"                                 // VERIFIED
-    public static let obsidian = "md.obsidian"                              // UNVERIFIED
+    public static let figma = "com.figma.Desktop"
+    public static let postman = "com.postmanlabs.mac"
+    public static let docker = "com.docker.docker"
+    public static let dockerElectronHelper = "com.electron.dockerdesktop"
+    public static let claude = "com.anthropic.claudefordesktop"
+    public static let chatgpt = "com.openai.codex"
+    public static let chatgptLegacy = "com.openai.chat"
+    public static let gemini = "com.google.GeminiMacOS"
+    public static let notion = "notion.id"
+    public static let linear = "com.linear"
+    public static let obsidian = "md.obsidian"
 
-    /// Apps whose mere presence corroborates a meeting. Being *running* is the signal;
-    /// being frontmost is a separate, additive one.
     public static let conferencing: Set<String> = [zoom, teams, slack, discord]
 
     public static let editors: Set<String> = [
@@ -58,9 +55,6 @@ public enum BundleIDs {
     public static let terminals: Set<String> = [terminal, iterm2, warp, ghostty, alacritty, kitty]
     public static let browsers: Set<String> = [chrome, arc, safari, brave, firefox, edge]
 
-    /// "Was an editor or terminal frontmost recently?", the corroboration test for the
-    /// desktop-AI-app case, and the reason `AI_CODING` is not claimed for someone asking
-    /// an assistant about a recipe.
     public static func isEditorOrTerminal(_ app: AppIdentity) -> Bool {
         guard let id = app.bundleID else { return false }
         if editors.contains(id) || terminals.contains(id) { return true }
@@ -68,28 +62,12 @@ public enum BundleIDs {
     }
 }
 
-// MARK: - Call-capable apps
-
-/// The apps whose audio or camera I/O can genuinely mean a call, for the call latch in
-/// `SigstopCore`.
-///
-/// Matched by **prefix**, not equality, because macOS attributes audio to helper
-/// processes rather than to apps: Chrome's input shows up as `com.google.Chrome.helper`
-/// and Teams' media path is `com.microsoft.vcxpc`, which is not under the
-/// `com.microsoft.teams2` prefix at all. Every entry is marked VERIFIED or UNVERIFIED per
-/// CONTRIBUTING.md; a guess is marked, never invented.
-///
-/// `com.apple.WebKit.GPU` is deliberately absent. Safari routes every WebKit client's
-/// audio through it, so it names no app, and listing it would let any Safari tab playing
-/// a podcast anchor a call. Meet in Safari is therefore a stated false negative rather
-/// than a false positive, and `--doctor` says so.
 public enum CallCapableApps {
 
-    /// prefix to canonical app. Longest match wins, so a helper resolves to its app.
     static let table: [(prefix: String, app: CallCapableApp)] = [
         (BundleIDs.slack, CallCapableApp(bundleID: BundleIDs.slack, name: "Slack", isConferencing: true)),
         (BundleIDs.teams, CallCapableApp(bundleID: BundleIDs.teams, name: "Microsoft Teams", isConferencing: true)),
-        ("com.microsoft.vcxpc", CallCapableApp(bundleID: BundleIDs.teams, name: "Microsoft Teams", isConferencing: true)),  // UNVERIFIED
+        ("com.microsoft.vcxpc", CallCapableApp(bundleID: BundleIDs.teams, name: "Microsoft Teams", isConferencing: true)),
         ("us.zoom.", CallCapableApp(bundleID: BundleIDs.zoom, name: "Zoom", isConferencing: true)),
         (BundleIDs.discord, CallCapableApp(bundleID: BundleIDs.discord, name: "Discord", isConferencing: true)),
         (BundleIDs.chrome, CallCapableApp(bundleID: BundleIDs.chrome, name: "Google Chrome", isConferencing: false)),
@@ -100,17 +78,14 @@ public enum CallCapableApps {
         (BundleIDs.firefox, CallCapableApp(bundleID: BundleIDs.firefox, name: "Firefox", isConferencing: false)),
     ]
 
-    /// Processes that hold the microphone and are definitively not a call. Siri's wake
-    /// word was observed holding input for a single sample and releasing it; that is the
-    /// exact shape of transient this list and the latch's arm dwell exist to reject.
     static let neverAMeetingPrefixes: [String] = [
-        "com.apple.CoreSpeech",                 // VERIFIED, seen live in the process table
-        "com.apple.assistantd",                 // VERIFIED, seen live in the process table
-        "com.apple.Siri",                       // UNVERIFIED
-        "com.apple.speech.",                    // UNVERIFIED
-        "com.apple.SpeechRecognitionCore",      // UNVERIFIED
-        "com.apple.universalaccessd",           // VERIFIED, seen live in the process table
-        "dev.sigstop.app",                      // we are never the reason
+        "com.apple.CoreSpeech",
+        "com.apple.assistantd",
+        "com.apple.Siri",
+        "com.apple.speech.",
+        "com.apple.SpeechRecognitionCore",
+        "com.apple.universalaccessd",
+        "dev.sigstop.app",
     ]
 
     public static func match(_ bundleID: String) -> CallCapableApp? {
@@ -129,8 +104,6 @@ public enum CallCapableApps {
         neverAMeetingPrefixes.contains { bundleID.hasPrefix($0) }
     }
 
-    /// The call-capable apps among a set of bundle identifiers, folded to canonical apps
-    /// and ordered so that the choice of anchor is deterministic.
     public static func resolve(_ bundleIDs: some Sequence<String>) -> [CallCapableApp] {
         var seen: Set<String> = []
         var out: [CallCapableApp] = []
@@ -141,8 +114,6 @@ public enum CallCapableApps {
         return out
     }
 }
-
-// MARK: - Title parsing
 
 public struct ParsedTitle: Sendable, Hashable {
     public var projectName: String?
@@ -159,18 +130,8 @@ public struct ParsedTitle: Sendable, Hashable {
 }
 
 public enum TitleParsing {
-    /// Editors use every dash on the keyboard, and users reconfigure the format freely.
-    /// Parsers must be defensive and must be allowed to return nothing.
-    /// The em dash is first because it is what the editors this app claims actually use:
-    /// `window.titleSeparator` in VS Code, Cursor and every VS Code fork defaults to
-    /// `" \u2014 "` on macOS, which is U+2014, not the U+2013 that used to be the only dash
-    /// here. Without it a real title never split, so `fileName`, `fileExtension` and
-    /// `projectName` were nil for the most common editor on the platform, and with them
-    /// the DOCUMENTATION and test-file branches and the `{project}` slot. Checked against
-    /// the constant inside the shipped app, not remembered.
-    static let separators = [", ", " — ", " – ", " - ", " | "]  // em dash is data
+    static let separators = [", ", " — ", " – ", " - ", " | "]
 
-    /// VS Code prefixes an unsaved buffer with `●`; JetBrains uses `*`.
     static let dirtyMarkers: Set<Character> = ["●", "*", "•"]
 
     static let appNameSuffixes: Set<String> = [
@@ -189,8 +150,6 @@ public enum TitleParsing {
         "proto", "graphql", "gql", "zig", "nim", "jl", "f90", "asm", "s", "mk", "bzl",
     ]
 
-    /// Prose extensions. A `.md` in an editor is the single strongest documentation signal
-    /// available at Tier 1.
     public static let documentExtensions: Set<String> = ["md", "mdx", "rst", "adoc", "txt", "org", "tex"]
 
     public static func isCodeFile(_ ext: String?) -> Bool {
@@ -203,7 +162,6 @@ public enum TitleParsing {
         return documentExtensions.contains(ext.lowercased())
     }
 
-    /// `*.test.*`, `*.spec.*`, `*_test.go`, `test_*.py`, `*Tests.swift`, `*_spec.rb`.
     public static func looksLikeTestFile(_ fileName: String?) -> Bool {
         guard let name = fileName?.lowercased() else { return false }
         if name.contains(".test.") || name.contains(".spec.") { return true }
@@ -214,7 +172,6 @@ public enum TitleParsing {
         return false
     }
 
-    /// Splits a title into components on any of the known separators.
     public static func components(_ title: String) -> [String] {
         var parts = [title]
         for separator in separators {
@@ -234,8 +191,6 @@ public enum TitleParsing {
         return String(result).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// True when a component looks like a bare file name rather than a project or a
-    /// sentence. Deliberately strict: a false file name pollutes every downstream claim.
     public static func fileComponent(_ value: String) -> (name: String, ext: String)? {
         guard !value.contains("/"), !value.contains("\\"), value.count <= 120 else { return nil }
         guard let dot = value.lastIndex(of: "."), dot != value.startIndex else { return nil }
@@ -244,15 +199,11 @@ public enum TitleParsing {
         return (value, ext.lowercased())
     }
 
-    /// Drops the trailing app name ("…, Visual Studio Code") so it is never mistaken for
-    /// a project.
     public static func droppingAppName(_ parts: [String]) -> [String] {
         guard let last = parts.last, appNameSuffixes.contains(last.lowercased()) else { return parts }
         return Array(parts.dropLast())
     }
 
-    /// `<file>, <project> [, <app>]`. The default for VS Code, Cursor and Zed. Users can
-    /// and do change `window.title`, so this is allowed to come back empty.
     public static func fileFirst(_ title: String) -> ParsedTitle? {
         let parts = droppingAppName(components(title))
         guard !parts.isEmpty else { return nil }
@@ -267,7 +218,6 @@ public enum TitleParsing {
         return parsed.isEmpty ? nil : parsed
     }
 
-    /// `<project> [~/path] – <file>`. JetBrains ordering, and Xcode's.
     public static func projectFirst(_ title: String) -> ParsedTitle? {
         let parts = droppingAppName(components(title))
         guard !parts.isEmpty else { return nil }
@@ -286,18 +236,13 @@ public enum TitleParsing {
         return parsed.isEmpty ? nil : parsed
     }
 
-    /// Project names that announce a docs tree.
     public static func looksLikeDocsProject(_ projectName: String?) -> Bool {
         guard let name = projectName?.lowercased() else { return false }
         return name.contains("docs") || name.contains("documentation") || name.contains("wiki")
     }
 }
 
-// MARK: - Browser title patterns
-
 public enum BrowserTitlePatterns {
-    /// GitHub: "Fix the thing by someone · Pull Request #123 · org/repo".
-    /// GitLab: "Some change (!456) · Merge requests · group/project".
     static let reviewPatterns = [
         #"Pull [Rr]equest #\d+"#,
         #"Merge request !\d+"#,
@@ -334,16 +279,12 @@ public enum BrowserTitlePatterns {
         meetingPatterns.contains { RegexCache.shared.matches($0, title) }
     }
 
-    /// Hosts are compared after stripping `www.`, and only ever as hosts. The app never
-    /// retains a path or a query string, at any tier.
     public static func isForge(_ host: String?) -> Bool {
         guard let host = host?.lowercased() else { return false }
         let bare = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
         return forgeHosts.contains(bare)
     }
 }
-
-// MARK: - Evidence catalog
 
 enum Ev {
     static func make(_ id: String, _ tier: SignalTier, _ logOdds: Double, _ summary: String) -> Evidence {
@@ -429,22 +370,12 @@ enum Ev {
         make("communication.title", .tier1, 1.0, "the window title names a channel or a conversation")
     }
 
-    /// The strongest thing Tier 2 has, and the only one that reaches DEBUGGING alone.
-    ///
-    /// `P_TRACED` is a kernel flag on the process being debugged, so this is not "a binary
-    /// called lldb exists somewhere", it is "something started by the app you are looking
-    /// at is stopped under a debugger right now". docs/ACTIVITY-DETECTION.md §7.2 caps
-    /// DEBUGGING at 0.90 anyway, because a traced process can be sitting at a breakpoint
-    /// nobody is looking at.
     static func tracedUnderFrontmost() -> Evidence {
         make(
             "process.traced", .tier2, 3.0,
             "a process this app started is under a debugger right now"
         )
     }
-    /// Never enough on its own: it may be another project's debugger. It earns its weight
-    /// only beside a debugger this app can also name, where it is the difference between
-    /// lldb sitting at a prompt and lldb actually attached to something.
     static func tracedElsewhere() -> Evidence {
         make(
             "process.tracedElsewhere", .tier2, 1.8,
@@ -464,12 +395,6 @@ enum Ev {
     static func childOfFrontmost() -> Evidence {
         make("process.childOfFrontmost", .tier2, 0.8, "that process was started by the app you are in")
     }
-    /// "In this terminal" is a claim about ancestry, so it is only made when ancestry was
-    /// checked. The machine-wide form says what was actually observed and carries almost
-    /// no weight: `claude` is marked `verifiedHere` in the allowlist and is very nearly
-    /// always running on a developer's Mac, so a detector that fired on the bare name
-    /// would read AI_CODING in every terminal window permanently, which is the
-    /// always-on-detector failure this codebase already names about Krisp and OBS.
     static func terminalEditorProcess(_ tool: ToolToken, childOfFrontmost: Bool) -> Evidence {
         childOfFrontmost
             ? make("process.terminalEditor", .tier2, 1.8, "\(tool.displayName) is running in this terminal")
@@ -489,26 +414,12 @@ enum Ev {
     static func remoteShellProcess(_ tool: ToolToken) -> Evidence {
         make("process.remoteShell", .tier2, 0.9, "\(tool.displayName) is running in this terminal")
     }
-    /// A debugger whose ancestry does not reach the app in front, with nothing under
-    /// `ptrace` to corroborate it.
-    ///
-    /// It is a real observation, so it is cited and a sceptic can read it. It is close to
-    /// weightless, because on a developer's Mac a debugger left alive somewhere is very
-    /// nearly a constant, and a permanently-true signal is not a signal.
     static func debuggerElsewhere(_ tool: ToolToken) -> Evidence {
         make(
             "process.debuggerElsewhere", .tier2, 0.3,
             "\(tool.displayName) is running, but not under the app you are in"
         )
     }
-    /// There is deliberately no `Ev.branch`.
-    ///
-    /// A branch name says which branch. It says nothing about which activity, and every
-    /// piece of evidence also lifts the tier ceiling: citing the branch raised the cap
-    /// from 0.85 to 0.93 in exchange for 0.3 log-odds, which is confidence bought with a
-    /// signal that did not earn it and exactly the over-claim CLAUDE.md §4.1 names. The
-    /// branch is a slot value, so it goes into `ActivityContext` and is never cited.
-    /// `repoState` stays, because being mid-rebase IS a fact about what you are doing.
     static func repoState(_ state: RepoState) -> Evidence {
         make("git.repoState", .tier2, 0.6, "the repository is mid-\(state.rawValue)")
     }
@@ -527,13 +438,7 @@ enum Ev {
     }
 }
 
-// MARK: - Shared editor classification
-
 enum EditorClassifier {
-    /// The shared body of every editor/IDE provider.
-    ///
-    /// - Parameter parse: the app-specific title parser. There is no universal title
-    ///   format, that is exactly why providers exist, so each caller supplies its own.
     static func verdict(
         _ signals: SignalContext,
         editorName: String,
@@ -591,9 +496,6 @@ enum EditorClassifier {
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: context)
         }
 
-        /// Ancestry is what makes a debugger *yours*. A name alone is not, which is why
-        /// the machine-wide fallback that used to sit on this line has moved below the
-        /// title branches and lost its right to be a verdict on its own.
         if let tool = processes?.firstChildMatch(in: ToolToken.debuggers) {
             evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: true))
             evidence.append(Ev.childOfFrontmost())
@@ -601,8 +503,6 @@ enum EditorClassifier {
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: context)
         }
 
-        /// A named debugger with no ancestry link to the app in front, kept for the two
-        /// branches below to be consulted after the title has had its say.
         let looseDebugger = processes?.firstMatch(in: ToolToken.debuggers)
 
         if let tool = processes?.firstChildMatch(in: ToolToken.testRunners)
@@ -629,18 +529,6 @@ enum EditorClassifier {
             )
         }
 
-        /// The machine-wide debugger match, last rather than first.
-        ///
-        /// It used to short-circuit everything above: one `dlv dap` left alive by a Go
-        /// extension, or a `debugserver` still attached to yesterday's project, and the
-        /// app said DEBUGGING at the 0.90 ceiling while you were editing a README. That
-        /// is verbatim the failure CLAUDE.md §4.1 names, so a bare name now decides
-        /// nothing that the window in front has already answered.
-        ///
-        /// `P_TRACED` somewhere on this Mac is the one thing that separates a debugger
-        /// sitting at a prompt from one actually attached, so it, and only it, still
-        /// reaches DEBUGGING from here. At a lower cap than the ancestry route, because
-        /// what it is attached to is by definition not under the app you are in.
         if let tool = looseDebugger {
             if processes?.tracedElsewhere == true {
                 evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: false))
@@ -670,8 +558,6 @@ enum EditorClassifier {
     }
 }
 
-// MARK: - Editor providers
-
 public struct VSCodeProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.vscode")
     public let claims = [
@@ -689,9 +575,6 @@ public struct VSCodeProvider: ActivityProvider {
 
 public struct CursorProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.cursor")
-    /// The bundle ID is a ToDesktop-generated opaque string. It is correct today and it is
-    /// not stable across a repackage, so the localized name is claimed as a fallback at
-    /// lower specificity, so the exact ID still wins when it is right.
     public let claims = [
         AppClaim(.bundleID(BundleIDs.cursor)),
         AppClaim(.executableName("Cursor")),
@@ -726,9 +609,6 @@ public struct ZedProvider: ActivityProvider {
 
 public struct JetBrainsProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.jetbrains")
-    /// One provider for the whole family. JetBrains capitalises product bundle IDs
-    /// inconsistently (`com.jetbrains.intellij`, `com.jetbrains.WebStorm`), which is
-    /// precisely why this claims a prefix instead of enumerating products.
     public let claims = [
         AppClaim(.bundleIDPrefix(BundleIDs.jetbrainsPrefix)),
         AppClaim(.bundleID(BundleIDs.androidStudio)),
@@ -752,8 +632,6 @@ public struct XcodeProvider: ActivityProvider {
     }
 }
 
-// MARK: - Terminal
-
 public struct TerminalProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.terminal")
     public let claims = [
@@ -767,9 +645,6 @@ public struct TerminalProvider: ActivityProvider {
     ]
     public init() {}
 
-    /// A terminal is honestly just a terminal until Tier 2 names the tool inside it.
-    /// That yielding order is the whole design: editor child → CODING, test runner →
-    /// TESTING, debugger → DEBUGGING, AI CLI → AI_CODING, otherwise TERMINAL_WORK.
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
         var evidence: [Evidence] = [Ev.terminalFrontmost(name)]
@@ -788,8 +663,6 @@ public struct TerminalProvider: ActivityProvider {
             return ProviderVerdict(activity: .terminalWork, evidence: evidence, context: activityContext)
         }
 
-        /// Child-only, the way `remoteShells` below already is. A `claude` in VS Code's
-        /// integrated terminal is not a `claude` in the window you are looking at.
         if let tool = processes.firstChildMatch(in: ToolToken.aiCLIs) {
             evidence.append(Ev.aiCLIProcess(tool, childOfFrontmost: true))
             return ProviderVerdict(activity: .aiCoding, evidence: evidence, context: activityContext)
@@ -809,9 +682,6 @@ public struct TerminalProvider: ActivityProvider {
             if processes.tracedElsewhere { evidence.append(Ev.tracedElsewhere()) }
             return ProviderVerdict(activity: .debugging, evidence: evidence, context: activityContext)
         }
-        /// The same rule as the editor classifier, for the same reason: a debugger that
-        /// is not a descendant of this terminal is somebody else's session until
-        /// `P_TRACED` says otherwise.
         if let tool = processes.firstMatch(in: ToolToken.debuggers), processes.tracedElsewhere {
             evidence.append(Ev.debuggerProcess(tool, childOfFrontmost: false))
             evidence.append(Ev.tracedElsewhere())
@@ -835,8 +705,6 @@ public struct TerminalProvider: ActivityProvider {
         if let tool = processes.firstChildMatch(in: ToolToken.remoteShells) {
             evidence.append(Ev.remoteShellProcess(tool))
         }
-        /// Cited, not decisive. A sceptic reading "why do you think that?" should see
-        /// every tool the scan matched, including the ones that did not decide anything.
         if let tool = processes.firstMatch(in: ToolToken.debuggers) {
             evidence.append(Ev.debuggerElsewhere(tool))
         }
@@ -849,8 +717,6 @@ public struct TerminalProvider: ActivityProvider {
         return ProviderVerdict(activity: .terminalWork, evidence: evidence, context: activityContext)
     }
 }
-
-// MARK: - Browsers
 
 public struct BrowserProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.browser")
@@ -915,8 +781,6 @@ public struct BrowserProvider: ActivityProvider {
     }
 }
 
-// MARK: - Communication
-
 public struct CommunicationProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.communication")
     public let claims = [
@@ -929,9 +793,6 @@ public struct CommunicationProvider: ActivityProvider {
     ]
     public init() {}
 
-    /// We deliberately do not try to distinguish "reading Slack" from "writing in Slack".
-    /// No permission-free signal separates them, and idle time is far too coarse, reading
-    /// is idle.
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
         var evidence: [Evidence] = [Ev.communicationFrontmost(name)]
@@ -953,16 +814,11 @@ public struct CommunicationProvider: ActivityProvider {
     }
 }
 
-// MARK: - Design, API tools, containers
-
 public struct DesignProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.design")
     public let claims = [AppClaim(.bundleID(BundleIDs.figma))]
     public init() {}
 
-    /// A single low-confidence class. We do not pretend to read Figma's state: the title
-    /// gives a document name and nothing about whether you are designing, reviewing, or
-    /// staring at a spec someone sent you.
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         ProviderVerdict(activity: .browsing, evidence: [Ev.designAppFrontmost("Figma")])
     }
@@ -996,8 +852,6 @@ public struct ContainerProvider: ActivityProvider {
     }
 }
 
-// MARK: - AI assistants
-
 public struct AIAssistantProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.ai")
     public let claims = [
@@ -1010,11 +864,6 @@ public struct AIAssistantProvider: ActivityProvider {
 
     public init() {}
 
-    /// A desktop AI assistant being frontmost tells us nothing about whether it is about
-    /// code. The user could be asking for a recipe. So `AI_CODING` requires corroboration:
-    /// an editor, IDE or terminal frontmost within the last five minutes. Without it the
-    /// class is UNKNOWN, and even with it, at Tier 0 the *label* degrades to "AI
-    /// assistant" rather than "AI coding", not just the number.
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
         var evidence: [Evidence] = [Ev.aiAppFrontmost(name)]
@@ -1034,8 +883,6 @@ public struct AIAssistantProvider: ActivityProvider {
         return ProviderVerdict(activity: .aiCoding, evidence: evidence, labelOverride: label)
     }
 }
-
-// MARK: - Notes
 
 public struct NotesProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.notes")
@@ -1063,22 +910,12 @@ public struct NotesProvider: ActivityProvider {
     }
 }
 
-// MARK: - Generic fallback
-
-/// Claims everything, declines nothing, and is always last. Resolution therefore always
-/// terminates with a verdict.
-///
-/// `UNKNOWN` is a first-class, frequently-correct answer here. It must be displayed plainly
-///, "not sure", and be easy for the user to correct, because a correction is how the
-/// catalog improves without a release.
 public struct GenericProvider: ActivityProvider {
     public static let identifier = ProviderID("dev.sigstop.provider.generic")
     public let claims = [AppClaim(.bundleIDRegex(".*"))]
     public var priority: Int { Int.min }
     public init() {}
 
-    /// Coarse categories for apps nobody wrote a provider for. Weights are low on purpose:
-    /// this is a catalog lookup, not an inference.
     static let categories: [String: (Activity, Double, String)] = [
         "com.apple.dt.Xcode":     (.coding, 1.2, "an IDE"),
         "com.apple.TextEdit":     (.documentation, 1.0, "a text editor"),
@@ -1089,12 +926,12 @@ public struct GenericProvider: ActivityProvider {
         "com.spotify.client":     (.unknown, 0.2, "a music player"),
         "com.apple.Preview":      (.browsing, 0.6, "a document viewer"),
         "com.readdle.PDFExpert-Mac": (.browsing, 0.6, "a document viewer"),
-        "com.github.GitHubClient": (.codeReview, 1.0, "a git client"),          // UNVERIFIED
-        "com.sublimemerge":       (.codeReview, 1.0, "a git client"),           // UNVERIFIED
-        "com.torusknot.SourceTreeNotMAS": (.codeReview, 1.0, "a git client"),   // UNVERIFIED
-        "com.sequelpro.SequelPro": (.terminalWork, 1.0, "a database client"),   // UNVERIFIED
-        "com.beekeeperstudio.desktop": (.terminalWork, 1.0, "a database client"), // UNVERIFIED
-        "com.mongodb.compass":    (.terminalWork, 1.0, "a database client"),    // UNVERIFIED
+        "com.github.GitHubClient": (.codeReview, 1.0, "a git client"),
+        "com.sublimemerge":       (.codeReview, 1.0, "a git client"),
+        "com.torusknot.SourceTreeNotMAS": (.codeReview, 1.0, "a git client"),
+        "com.sequelpro.SequelPro": (.terminalWork, 1.0, "a database client"),
+        "com.beekeeperstudio.desktop": (.terminalWork, 1.0, "a database client"),
+        "com.mongodb.compass":    (.terminalWork, 1.0, "a database client"),
     ]
 
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
@@ -1110,12 +947,7 @@ public struct GenericProvider: ActivityProvider {
     }
 }
 
-// MARK: - Registration
-
 public enum BuiltinProviders {
-    /// Adding support for a new app is adding an entry here plus its claims. It requires
-    /// **zero** changes to the engine, the confidence model, or any other provider. If it
-    /// ever does, the extension point is wrong and the extension point is what to fix.
     public static let all: [any ActivityProvider] = [
         VSCodeProvider(),
         CursorProvider(),

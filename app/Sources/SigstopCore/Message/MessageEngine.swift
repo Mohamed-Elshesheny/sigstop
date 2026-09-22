@@ -1,11 +1,6 @@
 import Foundation
 
-// MARK: - Randomness
-
-/// A source of uniform randomness. Class-bound so the engine can hold one without
-/// existential-mutation gymnastics, `Sendable` so the engine stays `Sendable`.
 public protocol RandomSource: AnyObject, Sendable {
-    /// Uniform in `0 ..< 1`.
     func nextUniform() -> Double
 }
 
@@ -32,8 +27,6 @@ public final class SystemRandomSource: RandomSource, @unchecked Sendable {
     }
 }
 
-// MARK: - Stable hashing
-
 enum StableHash {
     static func fnv1a(_ string: String) -> UInt64 {
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325
@@ -45,12 +38,9 @@ enum StableHash {
     }
 }
 
-// MARK: - Results
-
 public struct RenderedMessage: Sendable, Hashable {
     public let templateID: String
     public let title: String?
-    /// Fully filled. Never contains an unfilled `{slot}`.
     public let text: String
     public let tone: Tone
     public let category: String
@@ -94,7 +84,6 @@ public struct SelectionTrace: Sendable, Hashable {
     public var bandSize: Int = 0
     public var effectiveToneCeiling: Tone = .friendly
     public var bandIDs: [String] = []
-    /// templateID -> why it was dropped. The debug panel's whole reason to exist.
     public var rejections: [String: RejectionReason] = [:]
 }
 
@@ -103,15 +92,6 @@ public struct SelectionResult: Sendable, Hashable {
     public let trace: SelectionTrace
 }
 
-// MARK: - Engine
-
-/// Selects one line for one break event.
-///
-/// A rules system over a typed context, not `messages.randomElement()`: the same break
-/// event fired twice must produce meaningfully different output, and the difference must
-/// be earned by context rather than by a coin flip.
-///
-/// `select` is total. It has no failure return and cannot throw.
 public final class MessageEngine: @unchecked Sendable {
     public let corpus: Corpus
     public let ledger: RecencyLedger
@@ -130,11 +110,6 @@ public final class MessageEngine: @unchecked Sendable {
         self.rng = rng
     }
 
-    // MARK: Tone / escalation matrix
-
-    /// The user's preference is a ceiling, never a floor; the escalation rung is a second
-    /// ceiling on top of it. NUCLEAR only appears at L3 when the user opted into it, and
-    /// at L4. See docs/MESSAGE-ENGINE.md §5.
     public static func effectiveToneCeiling(
         at level: EscalationLevel, userCeiling: Tone
     ) -> Tone {
@@ -148,8 +123,6 @@ public final class MessageEngine: @unchecked Sendable {
         return min(levelCap, userCeiling)
     }
 
-    // MARK: Confidence gate
-
     public static func confidenceGate(_ t: MessageTemplate, _ ctx: MessageContext) -> Bool {
         let usesActivity = t.usesActivityClaim
         let usesApp = t.usesAppPredicate
@@ -162,9 +135,6 @@ public final class MessageEngine: @unchecked Sendable {
         return true
     }
 
-    // MARK: Selection
-
-    /// Pick a line. `record: false` gives a preview that does not consume the ledger.
     public func select(for ctx: MessageContext, record: Bool = true) -> SelectionResult {
         var trace = SelectionTrace()
         trace.totalTemplates = corpus.templates.count
@@ -258,8 +228,6 @@ public final class MessageEngine: @unchecked Sendable {
         return SelectionResult(message: message, trace: trace)
     }
 
-    /// The hard gates, as a function so tests and the debug panel can ask directly.
-    /// Returns nil when the template passes.
     public static func hardGateRejection(
         _ t: MessageTemplate,
         _ ctx: MessageContext,
@@ -276,11 +244,6 @@ public final class MessageEngine: @unchecked Sendable {
         return nil
     }
 
-    // MARK: Band
-
-    /// Everything within `bandTolerance` of the best score, sorted deterministically.
-    /// Inside the band templates are genuinely interchangeable in specificity, so
-    /// randomness is safe there, and only there.
     static func band(_ candidates: [MessageTemplate], ctx: MessageContext) -> [MessageTemplate] {
         guard let best = candidates.map(Scorer.score).max() else { return [] }
         let cut = best - Scorer.bandTolerance
@@ -296,10 +259,6 @@ public final class MessageEngine: @unchecked Sendable {
             }
     }
 
-    // MARK: Weighted pick
-
-    /// Freshness-weighted sampling, not uniform choice. Never-shown templates dominate
-    /// naturally; an overused tone is deprioritized rather than blocked.
     func weightedPick(_ band: [MessageTemplate], now: Date) -> MessageTemplate {
         precondition(!band.isEmpty, "weightedPick requires a non-empty band")
         if band.count == 1 { return band[0] }
@@ -318,8 +277,6 @@ public final class MessageEngine: @unchecked Sendable {
         }
         return band[band.count - 1]
     }
-
-    // MARK: Deterministic tie-break
 
     public static func tieBreakKey(_ t: MessageTemplate, ctx: MessageContext) -> UInt64 {
         let day = ctx.calendar.startOfDay(for: ctx.now).timeIntervalSince1970

@@ -4,10 +4,6 @@ import Testing
 @testable import SigstopCore
 @testable import SigstopSensors
 
-/// The Access pane and `--doctor` both draw `PermissionStatus.signals`. These pin the
-/// shape the pane relies on: five rows, always, in one order, with only the state moving,
-/// so nothing appears or disappears as switches are flipped, and a switch that is on but
-/// cannot read says what is in its way rather than "off".
 struct PermissionStatusTests {
 
     private func status(_ settings: SigstopSettings, trusted: Bool) -> PermissionStatus {

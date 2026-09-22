@@ -2,29 +2,9 @@ import AppKit
 import Foundation
 import SigstopCore
 
-// MARK: - Prompt gate
-
-/// Whether a break prompt may be shown *right now*, and why not.
-///
-/// The distinction is the whole invariant from CLAUDE.md §4.1, expressed as a type:
-///
-/// * `.hardBlocked` is reachable **only** from a real system signal, the screen is
-///   actually locked, the displays are actually asleep, another user is actually on the
-///   console, an audio input device is actually running. These are facts the kernel or the
-///   window server handed us.
-/// * `.softDeferred` is reachable from an *inference*, "a conferencing app is running and
-///   frontmost, so you are probably in a meeting", "something is fullscreen, so you might
-///   be presenting". A guess may delay a prompt. It may never suppress one, because a
-///   confident-sounding wrong guess that silently eats the whole feature is worse than an
-///   interruption at a slightly awkward moment.
-///
-/// Confidence therefore gates deferral and never blocking. There is deliberately no API
-/// here that turns a `Confidence` into a `.hardBlocked`.
 public enum PromptGate: Sendable, Hashable {
     case allowed
-    /// Inference-based. The decision engine should wait and re-ask, not give up.
     case softDeferred(reason: String)
-    /// OS-fact-based. Showing a prompt now is pointless or actively rude.
     case hardBlocked(reason: String)
 
     public var allowsPrompt: Bool { self == .allowed }
@@ -37,12 +17,6 @@ public enum PromptGate: Sendable, Hashable {
     }
 }
 
-// MARK: - Work clock bridge
-
-/// The session clock lives in `SigstopCore` (docs/BREAK-DECISION.md) and is deliberately
-/// not reimplemented here. The engine takes a reading rather than owning one, so the two
-/// halves stay independently testable and the sensing layer never grows a second, subtly
-/// different idea of what "continuous work" means.
 public struct WorkClockReading: Sendable, Hashable {
     public let continuousWork: TimeInterval
     public let timeSinceLastBreak: TimeInterval?
@@ -55,19 +29,10 @@ public struct WorkClockReading: Sendable, Hashable {
     public static let zero = WorkClockReading()
 }
 
-// MARK: - Sample
-
-/// One published sample: the value the rest of the app reasons about, plus the two things
-/// that do not fit in `DeveloperContext` and must not be smuggled into it.
 public struct ContextSample: Sendable {
     public let context: DeveloperContext
     public let gate: PromptGate
-    /// Set when the honest label differs from the activity's own name, a desktop AI app
-    /// with no corroboration is "AI assistant", not "AI coding". The *label* degrades, not
-    /// just the number.
     public let honestLabel: String?
-    /// Things a skeptic should be told that are not evidence for the activity: a disabled
-    /// microphone signal, an unreadable idle counter, a suppressed app switch.
     public let caveats: [String]
     public let providerID: ProviderID
 
@@ -86,43 +51,15 @@ public struct ContextSample: Sendable {
     }
 }
 
-// MARK: - Engine
-
-/// Composes every collector into `SignalContext`, resolves a provider, applies the dwell
-/// gate and confidence decay, and publishes `DeveloperContext`.
-///
-/// **Why `@MainActor` and not an actor.** `NSWorkspace` and the lock/sleep notifications
-/// are delivered on the main thread, so `FrontmostAppCollector` and `SystemStateCollector`
-/// are already main-actor-isolated. Making the engine its own actor would add a hop in
-/// each direction on the hot path and would reorder events relative to the notifications
-/// that produced them, in exchange for nothing: the engine does no blocking work. The one
-/// call that *can* block, Accessibility IPC, is already confined to its own queue inside
-/// `AccessibilityCollector` and is reached with `await`.
-///
-/// **Why almost nothing is polled.** Every input is an event stream: workspace activation,
-/// lock/unlock, sleep/wake, CoreAudio device state, AX title changes. The single
-/// `DispatchSourceTimer` exists for exactly two jobs that have no notification, crossing
-/// an idle threshold, and reconciling a possibly-missed AX title change, and it is
-/// cancelled outright (not merely skipped) whenever the user demonstrably is not there.
 @MainActor
 public final class ContextEngine {
     public struct Configuration: Sendable {
-        /// A new app must hold the front this long before it may change the published
-        /// class. Suppresses the flicker of alt-tabbing and of clicking a notification.
         public var dwellGate: TimeInterval
-        /// Odds halve every this-many seconds without corroboration (§6.4).
         public var decayHalfLife: TimeInterval
-        /// Above this idle, input stops corroborating and confidence starts decaying.
         public var corroboratingInputWindow: TimeInterval
-        /// Start of the "reading or thinking, not idle" band.
         public var softIdleFloor: TimeInterval
-        /// Above this, `IDLE` is the answer.
         public var idleThreshold: TimeInterval
-        /// Guards against an `AXObserver` notification we never received. A missed one
-        /// leaves a stale title, and a stale title is indistinguishable from a lie.
         public var axReconcileInterval: TimeInterval
-        /// Fraction of the interval given to the OS as timer leeway, so our wakeups
-        /// coalesce with other processes' (§8.3).
         public var timerLeewayFraction: Double
 
         public init(
@@ -146,8 +83,6 @@ public final class ContextEngine {
         public static let `default` = Configuration()
     }
 
-    // MARK: Collaborators
-
     private let time: any TimeSource
     private let configuration: Configuration
     private let permissions: PermissionBroker
@@ -162,18 +97,14 @@ public final class ContextEngine {
     private var registry: ProviderRegistry
     private var workClock: @Sendable () -> WorkClockReading
 
-    // MARK: State
-
     private var running = false
     private var suspended = false
     private var tasks: [Task<Void, Never>] = []
     private var timer: DispatchSourceTimer?
     private var continuations: [UUID: AsyncStream<ContextSample>.Continuation] = [:]
 
-    /// The gated, decayed observation the app is currently standing behind.
     private var publishedObservation: ActivityObservation?
     private var publishedLabel: String?
-    /// When the evidence last actually changed, or the user last touched the hardware.
     private var corroboratedAt: Date
     private var evidenceFingerprint: Set<String> = []
 
@@ -182,14 +113,9 @@ public final class ContextEngine {
     private var observedPID: pid_t?
     private var geometry: WindowGeometrySnapshot?
 
-    /// Set by any event after which accumulated durations are void, wake, unlock, session
-    /// switch. The session clock must diff real timestamps across this, never trust ticks
-    /// (CLAUDE.md §3.4). Exposed rather than acted on here: the clock is Core's.
     public private(set) var lastElapsedInvalidation: Date?
 
     public private(set) var lastSample: ContextSample?
-
-    // MARK: Init
 
     public init(
         time: any TimeSource = SystemTimeSource(),
@@ -227,8 +153,6 @@ public final class ContextEngine {
         for c in continuations.values { c.finish() }
     }
 
-    // MARK: Lifecycle
-
     public func start() {
         guard !running else { return }
         running = true
@@ -263,8 +187,6 @@ public final class ContextEngine {
         frontmostCollector.stop()
     }
 
-    /// `SIGHUP`: re-read settings. A revoked opt-in must take effect on the next sample,
-    /// not on the next launch.
     public func reloadSettings(_ settings: SigstopSettings) {
         permissions.apply(settings)
         projectFolders = settings.projectFolders
@@ -293,7 +215,6 @@ public final class ContextEngine {
 
     public var permissionStatus: PermissionStatus { permissions.status() }
 
-    /// Everything `make doctor` prints: what we can see, what we think, and why.
     public func doctorReport() -> [String] {
         var lines = permissions.status().explanation
         guard let sample = lastSample else {
@@ -314,10 +235,6 @@ public final class ContextEngine {
         return lines
     }
 
-    // MARK: Sampling
-
-    /// Builds one `SignalContext`, classifies it, and publishes. Async only because of
-    /// Accessibility IPC, which is the one call here that can block.
     @discardableResult
     public func sampleAndPublish() async -> ContextSample {
         let sample = await buildSample()
@@ -348,17 +265,10 @@ public final class ContextEngine {
 
         let axInfo = await readTitleIfPermitted(tiers: tiers, pid: snapshot.frontmost.pid, input: input, now: now)
 
-        /// Taken here rather than on a timer of its own. The engine already wakes on every
-        /// app activation, which is exactly the moment a debugger appearing matters, and
-        /// the collector's own gate and memo keep a burst of samples down to one scan.
-        /// Measured cost of that scan on this machine: 0.24 ms over 1003 processes.
         let processes = processCollector.snapshot(
             frontmost: snapshot.frontmost, input: input, power: power, now: now
         )
 
-        /// Awaited rather than read inline for the same reason the title is: a registered
-        /// folder can live on a sleeping external disk or a network mount, where a `stat`
-        /// blocks for as long as the filesystem takes. The read itself is 50 microseconds.
         let git = await gitCollector.read(
             frontmost: snapshot.frontmost,
             folders: projectFolders,
@@ -381,10 +291,6 @@ public final class ContextEngine {
             windowGeometry: geometry,
             windowTitle: axInfo.title,
             documentURL: axInfo.documentURL,
-            /// Tier 1b, built. The separate opt-in is checked here rather than in the
-            /// collector, so the host is dropped on the way past even though the read that
-            /// produced it happens anyway for file URLs. Turning the switch off therefore
-            /// takes effect on the next sample and leaves nothing behind.
             browserHost: permissions.browserHostPermitted() ? axInfo.browserHost : nil,
             processes: processes,
             git: git
@@ -407,15 +313,6 @@ public final class ContextEngine {
 
         let developerContext = DeveloperContext(
             timestamp: now,
-            /// The app that goes with the activity, not the one in front right now.
-            ///
-            /// While the dwell gate holds the previous class, taking the live frontmost
-            /// here paired the new app's name with the old app's activity and published
-            /// "Google Chrome, coding", which is a specific claim about Chrome that no
-            /// signal ever made. The gate already returns the app the held activity
-            /// belongs to; this line was overwriting it. Naming both honestly means the
-            /// panel says it is still counting the previous session, which is true, for
-            /// the few seconds before the new app settles.
             application: gated.wasGated ? gated.observation.app : snapshot.frontmost,
             activity: gated.observation.activity,
             confidence: gated.observation.confidence,
@@ -442,8 +339,6 @@ public final class ContextEngine {
             providerID: resolved.providerID
         )
     }
-
-    // MARK: Classification
 
     private func resolve(
         _ signals: SignalContext,
@@ -534,8 +429,6 @@ public final class ContextEngine {
         return "someone else is signed in at the console"
     }
 
-    /// Corroboration is "something changed, or a human touched the hardware". Without it,
-    /// confidence decays.
     private func updateCorroboration(verdict: ProviderVerdict, signals: SignalContext) {
         let fingerprint = Set(verdict.evidence.map(\.id.rawValue))
         let touched = signals.inputWithin(configuration.corroboratingInputWindow)
@@ -545,14 +438,6 @@ public final class ContextEngine {
         }
     }
 
-    // MARK: Dwell gate
-
-    /// An app switch does not immediately change the published class (§6.4). A two-second
-    /// glance at a browser from an editor is not the start of a browsing session, and the
-    /// ring buffer is what lets that stay true.
-    ///
-    /// Exception: a switch *into* idle publishes immediately. Being away is not something
-    /// to be gradual about.
     private func applyDwellGate(
         _ fresh: ActivityObservation,
         signals: SignalContext,
@@ -585,11 +470,6 @@ public final class ContextEngine {
         )
     }
 
-    // MARK: Concurrent states
-
-    /// Meeting lives on its own axis because a meeting overlaps other work. Forcing a
-    /// choice between "in a meeting" and "coding" produces wrong answers for everyone who
-    /// codes during a standup.
     private func concurrentStates(
         _ signals: SignalContext,
         tiers: SignalTierSet
@@ -638,8 +518,6 @@ public final class ContextEngine {
         }
     }
 
-    // MARK: Gate
-
     private func promptGate(
         session: SessionState,
         audio: AudioInputState,
@@ -669,8 +547,6 @@ public final class ContextEngine {
         }
         return .allowed
     }
-
-    // MARK: Accessibility
 
     private func readTitleIfPermitted(
         tiers: SignalTierSet,
@@ -705,8 +581,6 @@ public final class ContextEngine {
         accessibilityCollector.startObserving(pid: pid)
         observedPID = pid
     }
-
-    // MARK: Subscriptions
 
     private func subscribeToWorkspace() {
         let stream = frontmostCollector.events
@@ -804,17 +678,6 @@ public final class ContextEngine {
         geometry = systemCollector.windowGeometry(frontmostPID: frontmostCollector.snapshot().frontmost.pid)
     }
 
-    // MARK: The one timer
-
-    /// A single `DispatchSourceTimer` for the whole subsystem. N timers would be N
-    /// independent wakeup trains; one with generous leeway coalesces with whatever else the
-    /// machine is already waking for.
-    ///
-    /// It is scheduled for the moment the user would next cross an idle threshold, not on
-    /// a fixed period, so a heads-down editing session costs roughly two wakeups per idle
-    /// episode instead of 3,600 an hour. The interval is also floored at the AX
-    /// reconciliation interval while Tier 1 is live, because a missed `AXObserver`
-    /// notification leaves a stale title behind.
     private func resumeSamplingIfNeeded() {
         guard running else { return }
         let session = systemCollector.sessionState()

@@ -3,12 +3,6 @@ import Testing
 
 @testable import SigstopCore
 
-/// The call latch, driven entirely by hand off a fake clock.
-///
-/// The latch is the one place in this app where a bug means the product silently stops
-/// working: a hard block that misfires is a break app that has quietly given up while
-/// still looking fine, and nobody files that bug. So the negative cases below matter more
-/// than the positive ones.
 @Suite("the call latch")
 struct MeetingLatchTests {
 
@@ -22,8 +16,6 @@ struct MeetingLatchTests {
         bundleID: "com.google.Chrome", name: "Google Chrome", isConferencing: false
     )
 
-    /// One sample. `t` is monotonic seconds; the wall clock tracks it unless a test
-    /// deliberately separates them, which is how a system sleep is modelled.
     static func sample(
         _ t: Double,
         mic: Bool = false,
@@ -58,8 +50,6 @@ struct MeetingLatchTests {
         MeetingLatch.started(at: 0, wall: wall0, dayIndex: 0)
     }
 
-    /// Steps the latch every 5 s, the app's real cadence, from `from` up to and including
-    /// `to`, calling `body` with the sample it is about to apply.
     static func run(
         _ latch: MeetingLatch,
         from: Double,
@@ -75,8 +65,6 @@ struct MeetingLatchTests {
         }
         return l
     }
-
-    // MARK: Arming
 
     @Test("A capture shorter than the dwell never arms the latch")
     func briefCaptureDoesNotArm() {
@@ -138,8 +126,6 @@ struct MeetingLatchTests {
         #expect(l.isHolding, "the hold is measured from the last capture fact, not from the first")
     }
 
-    // MARK: The anchor, and the direction it is allowed to move the budget
-
     @Test("With no call-capable app at all the hold is the unconditional eight minutes")
     func unconditionalBaseHold() {
         var l = Self.fresh()
@@ -184,13 +170,10 @@ struct MeetingLatchTests {
         #expect(!without.isHolding, "a browser being open all day is not evidence of anything")
     }
 
-    // MARK: Ceilings, the circuit breakers
-
     @Test("Ninety minutes of accumulated hold trips the episode ceiling and needs quiet to re-arm")
     func episodeCeiling() {
         var l = Self.fresh()
         var t = 5.0
-        /// Alternate a short capture with five minutes of holding, the push-to-talk shape.
         while t < 12_000, !(l.phase == .closed && l.heldSecondsThisEpisode > 0) {
             l = Self.run(l, from: t, to: t + 60) { Self.sample($0, mic: true, running: [Self.slack]) }
             t += 65
@@ -200,7 +183,6 @@ struct MeetingLatchTests {
         #expect(!l.isHolding)
         #expect(l.closeReason == .episodeCeiling, "the episode ceiling is what catches the voice-channel idler")
 
-        /// It refuses to re-arm on the same still-running app.
         l = Self.run(l, from: t, to: t + 120) { Self.sample($0, mic: true, running: [Self.slack]) }
         #expect(!l.isHolding, "no re-arm until capture has actually been quiet")
 
@@ -240,8 +222,6 @@ struct MeetingLatchTests {
         #expect(l.isHolding, "a new local day restores the budget")
     }
 
-    // MARK: Clocks, and gaps nobody watched
-
     @Test("A system sleep longer than the remaining hold closes the latch")
     func longSleepClosesTheLatch() {
         var l = Self.fresh()
@@ -249,9 +229,6 @@ struct MeetingLatchTests {
         l = l.advanced(Self.sample(55, running: [Self.slack]), policy: Self.policy)
         #expect(l.isHolding)
 
-        /// A real macOS sleep moves the wall clock and leaves the monotonic clock where it
-        /// was. `MutableTimeSource.sleepAndWake` advances BOTH, so it would model a
-        /// throttle rather than a sleep and this test would pass for the wrong reason.
         l = l.advanced(
             Self.sample(60, running: [Self.slack], wall: Self.wall0.addingTimeInterval(55 + 4 * 3600)),
             policy: Self.policy
@@ -266,7 +243,6 @@ struct MeetingLatchTests {
         l = Self.run(l, from: 5, to: 50) { Self.sample($0, mic: true, running: [Self.slack]) }
         l = l.advanced(Self.sample(55, running: [Self.slack]), policy: Self.policy)
 
-        /// Two minutes with the lid shut, walking to a meeting room mid-call.
         l = l.advanced(
             Self.sample(60, running: [Self.slack], wall: Self.wall0.addingTimeInterval(55 + 120)),
             policy: Self.policy
@@ -309,8 +285,6 @@ struct MeetingLatchTests {
         #expect(l.closeReason == .sessionEnded)
     }
 
-    // MARK: The ways out
-
     @Test("Clearing it by hand stops it re-opening from the same still-running app")
     func userClearInhibits() {
         var l = Self.fresh()
@@ -346,11 +320,9 @@ struct MeetingLatchTests {
     @Test("Turning the setting off and on again leaves a working latch")
     func settingOffThenOnReArms() {
         var l = Self.fresh()
-        /// One tick with the switch off is all it takes to record the disabled state.
         l = l.advanced(Self.sample(5, enabled: false), policy: Self.policy)
         #expect(l.inhibition == .disabled)
 
-        /// Five minutes later they change their mind, and then join a call.
         l = Self.run(l, from: 310, to: 600) {
             Self.sample($0, mic: true, running: [Self.slack], attributed: Self.slack)
         }
@@ -400,10 +372,6 @@ struct MeetingLatchTests {
         l = l.advanced(Self.sample(55, running: [Self.slack]), policy: Self.policy)
         #expect(l.isHolding)
 
-        /// 12 s apart: just over `latchGapTolerance`, which is a 2.4x slip on a 5 s tick
-        /// and is exactly the App Nap / heavy-load case CLAUDE.md 3.4 names. Every one of
-        /// these gaps is individually far shorter than the remaining hold, so the
-        /// single-gap rule alone can never trip.
         l = Self.run(l, from: 67, to: 67 + 6 * 3600, step: 12) { Self.sample($0, running: [Self.slack]) }
         #expect(!l.isHolding, "politeness cannot become silence, and a throttle is not consent")
         #expect(l.closeReason != nil)
@@ -417,8 +385,6 @@ struct MeetingLatchTests {
         }
         #expect(l.phase == .live)
 
-        /// A real sleep: the wall clock jumps fifteen hours, the monotonic clock does not.
-        /// The mic is not running on wake, and the call ended some time last night.
         let wake = Self.wall0.addingTimeInterval(120 + 15 * 3600)
         l = l.advanced(Self.sample(125, running: [Self.slack], wall: wake), policy: Self.policy)
         #expect(
@@ -438,7 +404,6 @@ struct MeetingLatchTests {
         #expect(!l.isHolding)
         #expect(l.inhibition == .disabled)
 
-        /// The pre-existing fact is untouched by the switch.
         let policy = InterruptionPolicy(policy: Self.policy)
         let input = EngineInput(
             now: Self.wall0, monotonic: 0,
@@ -462,15 +427,8 @@ struct MeetingLatchTests {
         )
     }
 
-    // MARK: The Mac where nothing else is blocking
-
     @Test("On a Mac whose device signal is unreliable the latch blocks during the call, not after it")
     func unreliableDeviceGetsTheLiveBlockToo() {
-        /// Krisp / Loopback / BlackHole downgrade the device signal to `.unreliable`, so
-        /// `audioInputRunning` and `cameraRunning` are false for the whole of a real
-        /// call and neither live hard block ever fires. Attribution still names the app,
-        /// which is what arms the latch — and if the latch stays quiet in `.live` the
-        /// protection is inverted: absent during the meeting, present after it.
         var l = Self.fresh()
         l = Self.run(l, from: 5, to: 120) {
             Self.sample($0, mic: true, deviceBlocks: false, running: [Self.slack], attributed: Self.slack)
@@ -484,7 +442,6 @@ struct MeetingLatchTests {
         #expect(signal.summary?.contains("is live right now") == true)
         #expect(!signal.suspectsCall, "a block is not a suspicion")
 
-        /// It charges itself for the time, so the circuit breakers still work.
         #expect(l.heldSecondsThisEpisode > 0)
     }
 
@@ -509,16 +466,9 @@ struct MeetingLatchTests {
         #expect(l.closeReason == .episodeCeiling)
     }
 
-    // MARK: The line the design is not allowed to cross
-
     @Test("Nothing but a capture fact can open the latch")
     func inferenceCannotOpenIt() {
         var l = Self.fresh()
-        /// Every conferencing app on the machine, one of them frontmost, one of them
-        /// attributed, and no microphone or camera running anywhere. This is the state
-        /// that would produce a high meeting confidence, and it must do nothing at all.
-        /// If a future edit wires `meetingConfidence` or `ConcurrentStates.inMeeting` into
-        /// the latch, this is the test that fails.
         l = Self.run(l, from: 5, to: 3600) {
             Self.sample(
                 $0,
@@ -569,7 +519,6 @@ struct MeetingLatchTests {
     }
 }
 
-/// Shared literals for the decision tests below.
 enum TestContext {
     static func make(
         activity: Activity = .coding,
