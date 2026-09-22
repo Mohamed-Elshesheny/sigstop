@@ -49,6 +49,21 @@ struct CalendarSystemTests {
                 "a Hijri Mac asked for \(today.fileName) and got \(loaded.events.count) events back")
     }
 
+    @Test("a day's interval is the same stretch of time on a Hijri Mac")
+    func intervalUnderIslamicCalendar() throws {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        var islamic = Calendar(identifier: .islamicUmmAlQura)
+        islamic.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+
+        let day = CalendarDay.utc(of: Self.instant)
+        let expected = try #require(day.interval(boundaryHour: 0, calendar: gregorian))
+        let hijri = try #require(day.interval(boundaryHour: 0, calendar: islamic))
+
+        #expect(hijri == expected, "\(day.fileName) read on a Hijri Mac spans \(hijri), not \(expected)")
+        #expect(hijri.contains(Self.instant))
+    }
+
     @Test("the day a reader asks for is the day the writer wrote")
     func readerAndWriterMatch() {
         let written = CalendarDay.utc(of: Self.instant)
