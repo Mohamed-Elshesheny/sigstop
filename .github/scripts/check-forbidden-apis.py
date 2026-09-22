@@ -5,6 +5,11 @@ docs/PRIVACY.md §2 tells a suspicious reader that the app never reads the clipb
 screen or keystrokes, never starts another process and never scripts another app, and its
 threat table said a forbidden-symbol guard enforced that. There was no such guard. This is it.
 
+It also refuses the ways to reach the network that leave no networking symbol in the binary:
+`Data(contentsOf:)` and its relatives load any URL inside Foundation, `AsyncImage` fetches from a
+view, and a class or library loaded by name at runtime is invisible to nm. The one reviewed use,
+reading the corpus from the app's own bundle, is allowed by file.
+
 `make verify` checks the same list against the built binary with nm, which is the stronger
 proof for what ships. This one reads the source, because an NSEvent monitor is an
 Objective-C method call that nm cannot see, and a global monitor is exactly how an app would
@@ -39,6 +44,17 @@ FORBIDDEN = {
     r"\bAVCaptureSession\b": "records the camera or microphone",
     r"\bAVAudioRecorder\b": "records the microphone",
     r"\bAVAudioEngine\b": "records the microphone",
+    r"\b(URLSession|NSURLSession|NSURLConnection)\b": "opens a network connection outside Sparkle",
+    r"\bAsyncImage\b": "fetches a URL from a view",
+    r"\b(WKWebView|WebView)\b": "loads web content",
+    r"\b(dlopen|dlsym|NSClassFromString|NSSelectorFromString|objc_getClass)\b": "loads code or classes by name at runtime",
+    r"\b(Data|NSData|String|NSString|NSImage|CIImage|XMLParser|NSDictionary|NSArray|NSAttributedString)\s*\(\s*contentsOf:":
+        "loads a URL, which can be a network URL that no symbol check sees",
+}
+
+# Where a flagged call is known and reviewed. The corpus is read from the app's own bundle.
+ALLOWED = {
+    "contentsOf:": {"app/Sources/SigstopCore/Message/MessageTemplate.swift"},
 }
 
 MONITOR = re.compile(r"addGlobalMonitorForEvents\s*\(\s*matching:\s*(\[[^\]]*\]|\.\w+)")
@@ -62,6 +78,8 @@ def main() -> int:
         body = code_only(path.read_text())
         for pattern, why in FORBIDDEN.items():
             for match in re.finditer(pattern, body):
+                if any(key in pattern and str(rel) in files for key, files in ALLOWED.items()):
+                    continue
                 line = body.count("\n", 0, match.start()) + 1
                 failures.append(f"{rel}:{line}: {match.group(0).strip()} {why}")
         for call in re.finditer(r"addGlobalMonitorForEvents", body):
