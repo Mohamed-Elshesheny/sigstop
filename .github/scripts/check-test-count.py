@@ -21,9 +21,10 @@ README = ROOT / "README.md"
 
 log = pathlib.Path(sys.argv[1]).read_text() if len(sys.argv) > 1 else sys.stdin.read()
 
-ran = re.search(r"Test run with (\d+) tests", log)
+ran = re.search(r"Test run with (\d+) tests? (?:in \d+ suites? )?passed", log)
 if not ran:
-    print("::error::no 'Test run with N tests' line in the output, so nothing was checked")
+    print("::error::no 'Test run with N tests ... passed' line in the output: the run failed, "
+          "or nothing was checked")
     sys.exit(1)
 actual = int(ran.group(1))
 

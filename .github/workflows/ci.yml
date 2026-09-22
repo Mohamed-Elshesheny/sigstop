@@ -17,6 +17,12 @@ concurrency:
 permissions:
   contents: read
 
+# Without this a step runs as `bash -e`, and `make test | tee` took tee's exit status, so a
+# failing test left the step green. `shell: bash` adds pipefail.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check:
     name: Build, test, and prove the claims
@@ -46,7 +52,7 @@ jobs:
       - name: The README's test count is the real one
         run: python3 .github/scripts/check-test-count.py "$RUNNER_TEMP/test.log"
 
-      # The humour rails, which CLAUDE.md §4.5 pointed at a lint that did not exist.
+      # The humour rails, which docs/MESSAGE-ENGINE.md §4 pointed at a lint that did not exist.
       # Hard failures are the ones a machine can decide; the rest of the rubric stays
       # human and the pull request template asks a reviewer to tick it.
       - name: Corpus lint
