@@ -1,162 +1,134 @@
 <div align="center">
 
-<img src="docs/images/icon.png" width="104" alt="">
+<img src="docs/images/icon.png" width="112" alt="sigstop icon">
 
 # sigstop
 
 **You're a developer. Not a server.**
 
-A macOS menu bar app that works out what you are doing, then interrupts at a defensible
-moment instead of on a timer.
+Break reminders that know what you're doing, and when not to interrupt.
+
+[![Download for macOS](https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest/download/sigstop.dmg)
+
+macOS 14+ · Apple Silicon and Intel · Free and open source · [Website](https://sigstop-app.vercel.app)
 
 [![CI](https://github.com/Mohamed-Elshesheny/sigstop/actions/workflows/ci.yml/badge.svg)](https://github.com/Mohamed-Elshesheny/sigstop/actions/workflows/ci.yml)
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?style=flat-square)](#requirements)
-[![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square)](#building)
+[![336 tests](https://img.shields.io/badge/tests-336%20passing-3fb950?style=flat-square)](#build)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
-[![329 tests](https://img.shields.io/badge/tests-329%20passing-3fb950?style=flat-square)](#building)
+
+<img src="docs/images/prompt.png" width="800" alt="A sigstop break prompt over a Mac desktop: Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five and go meet your new codebase.">
 
 </div>
 
----
+## ✨ What it does
 
-`SIGSTOP` is the one signal a process cannot catch, block, or ignore. `SIGCONT` resumes it
-exactly where it left off, registers and memory intact. That is what a break is, and it is
-not a restart.
+A timer fires in the middle of your standup. sigstop doesn't.
 
-## Install
+- 🧠 **Knows what you're doing.** Which app is in front, how long you've really been at it, and how sure it is.
+- 🎙️ **Stays quiet on calls.** A live camera or a call on your mic means it waits.
+- ⏸️ **Waits for a pause.** It picks a natural gap in your work, not the middle of a thought.
+- 😏 **Speaks your language.** 187 lines for editors, terminals, browsers, AI tools and Xcode, in four tones from friendly to nuclear.
+- 📊 **Shows your day.** Active time, your longest unbroken stretch and the breaks you kept.
+- 🔋 **Barely there.** It sleeps between checks, so you won't notice it on your battery or in your Mac's speed.
+- 🔒 **Private by design.** Zero permissions required, and nothing leaves your Mac.
 
-[![Download for macOS](https://img.shields.io/badge/Download%20for-macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest/download/sigstop.dmg)
+## 🧭 How it decides
 
-Open the `.dmg` and drag **sigstop** into `/Applications`.
+```
+45 min of real work          idle time doesn't count
+  → what's in front?         an editor, a terminal, a call
+  → how sure am I?           unsure means it says less, never more
+  → mic or camera live?      then it waits
+  → a natural pause?         then it asks
+```
+
+Keep ignoring it and it asks a little louder, in signals your shell already knows. The last one claims it can't be ignored. It can.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/ladder-dark.png">
+  <img src="docs/images/ladder-light.png" width="760" alt="The escalation ladder: SIGTSTP, a nudge. SIGINT, a bit rude. SIGTERM, your warning. SIGSTOP, the bluff. Snooze is SIGALRM, and coming back is SIGCONT, right where you left off.">
+</picture>
+
+<a id="install"></a>
+
+## 📦 Install
+
+1. [Download `sigstop.dmg`](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest/download/sigstop.dmg)
+2. Open it and drag **sigstop** into **Applications**
+3. Clear the quarantine once (below), then open it
 
 > [!IMPORTANT]
-> There is no Apple Developer account behind this build, so macOS refuses to open it the
-> first time. Clear it once and it opens like anything else afterwards.
+> sigstop isn't signed with a paid Apple Developer ID, so macOS blocks it the first time. That's expected, not a malware warning, and you only do it once.
+
+**Recommended: Terminal**
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/sigstop.app
 ```
 
-System Settings, Privacy and Security, **Open Anyway** does the same thing, but it can
-fail and it does nothing for a user without admin rights.
+Then open sigstop as usual. It lives in your menu bar.
 
-Both routes mean trusting a binary somebody else built. Check the `sha256` on the
-[release](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest), or
-[build it yourself](#building) and trust nobody.
+**Or: System Settings**
 
-## How it decides
+1. Open sigstop and close the warning
+2. Go to **System Settings → Privacy & Security** and scroll down
+3. Click **Open Anyway** and confirm (needs an admin account)
 
-A timer knows one thing: that time passed. It will fire in the middle of your standup.
+Want proof it's the real build? Compare the `sha256` on the [release page](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest), or [build it yourself](#build).
 
-```
-45 min of genuinely active work
-  -> which app is in front, and what does that suggest?
-  -> how sure am I, honestly?
-  -> is a microphone or camera live?
-  -> wait for a natural seam
-  -> SIGCONT
-```
+**Updates:** Settings → About → **Check for updates**. Every update is verified against a signing key built into the app before it installs.
 
-**If a capture device is live, it does not fire.** Not quietly. It does not fire.
+## 🔒 Privacy
 
-Confidence is acted on rather than displayed. Below the threshold the app names no
-activity, and when it cannot separate two it reports their shared parent. Telling someone
-they have been debugging for an hour when they were writing docs destroys the only thing
-this product has.
+- 👀 Reads **which** app is in front, never what's in it. No code, keystrokes, clipboard or screen.
+- 🙅 **Needs zero permissions.** Accessibility (window titles) and your git branch are optional upgrades.
+- 📡 **One network request**, only when you press Check for updates. No analytics, no account, no ID.
+- 💾 **Stays on your Mac.** Raw events are deleted after 7 days.
 
-## Privacy
+Don't take our word for it: `make verify` checks these claims against the built app, and [PRIVACY.md](docs/PRIVACY.md) lists everything it stores.
 
-It reads **which** application is in front, never what is inside it.
+## ❓ FAQ
 
-| It reads | It cannot read |
-|---|---|
-| Frontmost app name and bundle id | Your source code |
-| Seconds since the last keypress | Your keystrokes |
-| Whether a capture device is running | Your clipboard |
-| Window titles, only with Accessibility | Your screen |
+**"sigstop can't be opened because Apple cannot check it"**
+That's the quarantine. Run the Terminal command in [Install](#install).
 
-Zero permissions are required. Accessibility and git context are opt-in upgrades, never
-gates. One network call exists and it is the update check, on a button press.
-
-Do not take that on trust:
+**It hasn't reminded me in a while. Why?**
+Ask it. It explains itself:
 
 ```sh
-make verify    # 15 assertions against the built binary, not the source
-make doctor    # everything the app can see about you, right now
+/Applications/sigstop.app/Contents/MacOS/sigstop --doctor
 ```
 
-## Building
+**It interrupted a call.**
+Click **I'm in a meeting** in the menu bar. It holds breaks for up to two hours, or until you click **Not in a meeting**.
 
-Command Line Tools are enough. There is no Xcode requirement and no `.xcodeproj`.
+**Where is my data, and how do I delete it?**
+In `~/Library/Application Support/dev.sigstop.app`. **Settings → Data → Delete everything** removes it all.
+
+## 🗑️ Uninstall
+
+Quit sigstop from the menu bar, drag it to the Trash, then remove what it stored:
+
+```sh
+rm -rf ~/Library/Application\ Support/dev.sigstop.app
+defaults delete dev.sigstop.app
+```
+
+<a id="build"></a>
+
+## 🛠️ Build from source
+
+Command Line Tools are enough. No Xcode.
 
 ```sh
 git clone https://github.com/Mohamed-Elshesheny/sigstop
 cd sigstop/app
-make run        # build, bundle, launch
-make test       # 329 tests, no GUI session needed
+make run     # build and launch
+make test    # the test suite, no GUI needed
 ```
 
-### Requirements
+How it works is in [`docs/`](docs). Want to help? Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
-| | |
-|---|---|
-| macOS | 14 or later |
-| Swift | 6.2 (Command Line Tools) |
-| Dependencies | one: [Sparkle](https://sparkle-project.org) 2.10.0, for signed updates |
+## 📄 License
 
-## Architecture
-
-```
-App  ->  Sensors  ->  Core
-```
-
-**Core** is pure domain and never imports AppKit. It takes an injected `TimeSource`, so
-"45 minutes of work triggers a break" is a microsecond unit test. **Sensors** is the only
-layer that touches macOS APIs. **App** is the menu bar, the prompt and settings.
-
-Providers are pure functions from signals to an observation, so supporting a new editor is
-a provider and a bundle id with no changes to core code.
-
-| Document | Owns |
-|---|---|
-| [`ACTIVITY-DETECTION.md`](docs/ACTIVITY-DETECTION.md) | Signal tiers, providers, the confidence model |
-| [`BREAK-DECISION.md`](docs/BREAK-DECISION.md) | The session clock and the interruption policy |
-| [`MESSAGE-ENGINE.md`](docs/MESSAGE-ENGINE.md) | Template selection, tone, escalation |
-| [`PRIVACY.md`](docs/PRIVACY.md) | Data inventory and the enforceable properties |
-| [`RELEASING.md`](docs/RELEASING.md) | Signing, naming and publishing a release |
-
-These were written before the code. If they disagree with it, one of them is a bug.
-
-## The escalation ladder
-
-POSIX already ships a ladder ordered by how easy each signal is to ignore.
-
-| | Signal | Meaning |
-|---|---|---|
-| 1 | `SIGTSTP` | Catchable. You are allowed to ignore it. |
-| 2 | `SIGINT` | Catchable, but ignoring it is rude. |
-| 3 | `SIGTERM` | This is your warning. |
-| 4 | `SIGSTOP` | Cannot be caught, blocked, or ignored by anyone, ever. |
-
-Snooze is `SIGALRM` and resume is `SIGCONT`, never "Dismiss". There is no `SIGKILL`: it is
-unrecoverable, and it would destroy the thing the name promises.
-
-## Contributing
-
-[`CONTRIBUTING.md`](CONTRIBUTING.md) first. It opens with the one thing that will cost you
-an afternoon: macOS keys the Accessibility grant to the binary's cdhash.
-
-The 155 message lines are one JSON file with structured preconditions, so a line can be
-written to fire only in the situation it is about.
-
-This repository is the app. The landing site is
-[`sigstop-web`](https://github.com/Mohamed-Elshesheny/sigstop-web).
-
-## Licence
-
-[GPL-3.0](LICENSE). Use it, change it, sell it. Distribute a changed copy and the source
-goes with it, on the same terms. Nobody closes this and sells the locked version.
-
-The name and the logo are not part of that grant. A fork needs its own name, and
-[`TRADEMARK.md`](TRADEMARK.md) explains why in a page: "sigstop makes no network calls"
-stops being checkable the moment there is more than one sigstop.
+[GPL-3.0](LICENSE). The name and logo are not covered; see [TRADEMARK.md](TRADEMARK.md).
