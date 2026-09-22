@@ -620,6 +620,13 @@ struct SlotFillerTests {
                 "an English sentence must not carry Arabic-Indic digits")
         #expect(onlyWesternDigits(table[.hour]?.text),
                 "the time slot too: got \(table[.hour]?.text ?? "nil")")
+
+        let british = resolver.table(for: makeContext(minutes: 45, hour: 15, locale: Locale(identifier: "en_GB")))
+        #expect(british[.hour]?.text.hasPrefix("15:") == true,
+                "a 24-hour clock stays 24-hour: got \(british[.hour]?.text ?? "nil")")
+        let american = resolver.table(for: makeContext(minutes: 45, hour: 15, locale: Locale(identifier: "en_US")))
+        #expect(american[.hour]?.text.contains("PM") == true,
+                "a 12-hour clock stays 12-hour: got \(american[.hour]?.text ?? "nil")")
     }
 
     @Test("An optional slot degrades; a required one does not")

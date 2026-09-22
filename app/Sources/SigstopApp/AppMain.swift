@@ -294,7 +294,9 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             defer: false
         )
         window.title = "sigstop Settings"
-        window.contentViewController = NSHostingController(rootView: SettingsView(model: model))
+        window.contentViewController = NSHostingController(
+            rootView: SettingsView(model: model).environment(\.locale, DisplayLocale.english(from: .current))
+        )
         window.isReleasedWhenClosed = false
         var frame = window.frameRect(forContentRect: content)
         frame.origin = Self.centredOrigin(for: frame.size)
@@ -362,6 +364,7 @@ private struct PanelChrome: View {
                 RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                     .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
             )
+            .environment(\.locale, DisplayLocale.english(from: .current))
     }
 }
 

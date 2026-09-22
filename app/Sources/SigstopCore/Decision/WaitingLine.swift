@@ -172,7 +172,7 @@ public extension WaitingLine {
     private static func clock(_ date: Date, _ r: Reading) -> String {
         var style = Date.FormatStyle(date: .omitted, time: .shortened)
         style.timeZone = r.calendar.timeZone
-        if let locale = r.calendar.locale { style.locale = locale }
+        style.locale = DisplayLocale.english(from: r.calendar.locale ?? .current)
         return date.formatted(style)
     }
 

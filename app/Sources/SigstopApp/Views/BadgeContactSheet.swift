@@ -189,7 +189,7 @@ enum BadgeSheetRenderer {
 
     @MainActor
     static func write(_ view: some View, appearance name: NSAppearance.Name, to url: URL) throws {
-        let hosting = NSHostingView(rootView: view)
+        let hosting = NSHostingView(rootView: view.environment(\.locale, DisplayLocale.english(from: .current)))
         hosting.appearance = NSAppearance(named: name)
         hosting.layoutSubtreeIfNeeded()
         let size = hosting.fittingSize

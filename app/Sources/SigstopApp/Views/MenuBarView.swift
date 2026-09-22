@@ -3,6 +3,12 @@ import SigstopCore
 import SwiftUI
 
 struct MenuBarView: View {
+    static func clock(_ date: Date) -> String {
+        var style = Date.FormatStyle(date: .omitted, time: .shortened)
+        style.locale = DisplayLocale.english(from: .current)
+        return date.formatted(style)
+    }
+
     let model: AppModel
     var openSettings: () -> Void = {}
 
@@ -137,13 +143,13 @@ struct MenuBarView: View {
 
     private var subtitle: String {
         if let until = model.pausedUntil {
-            return "paused until \(until.formatted(date: .omitted, time: .shortened))"
+            return "paused until \(Self.clock(until))"
         }
         if let until = model.snoozeUntil, until > .now {
-            return "asking again at \(until.formatted(date: .omitted, time: .shortened))"
+            return "asking again at \(Self.clock(until))"
         }
         if let ends = model.breakEndsAt {
-            return "on a break until \(ends.formatted(date: .omitted, time: .shortened))"
+            return "on a break until \(Self.clock(ends))"
         }
         if let since = model.timeSinceLastBreak {
             return "continuous · \(DurationText.short(since)) since your last break"

@@ -82,7 +82,9 @@ final class BreakOverlayController {
                 .canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle,
             ]
             panel.setFrame(screen.frame, display: true)
-            let hosting = NSHostingView(rootView: BreakOverlayView(model: model))
+            let hosting = NSHostingView(
+                rootView: BreakOverlayView(model: model).environment(\.locale, DisplayLocale.english(from: .current))
+            )
             hosting.appearance = Self.overlayAppearance
             hosting.sizingOptions = []
             panel.contentView = hosting
@@ -137,6 +139,7 @@ final class BreakOverlayController {
                     onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
                     onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
                 )
+                .environment(\.locale, DisplayLocale.english(from: .current))
             )
             hosting.appearance = Self.overlayAppearance
             hosting.sizingOptions = []

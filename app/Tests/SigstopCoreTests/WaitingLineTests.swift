@@ -211,6 +211,11 @@ struct WaitingLineTests {
         #expect(american.text.contains("10:43"), "\(american.text)")
         #expect(american.text.contains("PM"), "\(american.text)")
         #expect(!american.text.contains("22:43"), "\(american.text)")
+
+        let egyptian = read(.snoozed(due), calendar: calendar("ar_EG"))
+        let latin = egyptian.text.allSatisfy { !$0.isNumber || ("0"..."9").contains($0) }
+        #expect(latin, "an English line must not carry Arabic-Indic digits: \(egyptian.text)")
+        #expect(egyptian.text.contains("10:43"), "\(egyptian.text)")
     }
 
     @Test("the three claims stay three claims")
