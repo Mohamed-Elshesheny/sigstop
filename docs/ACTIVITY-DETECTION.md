@@ -115,6 +115,7 @@ permission people assume.
 Unlocks: **the focused window's title**, and for document-based apps, **the document's file URL**.
 
 ```swift
+@MainActor
 public func openAccessibilitySettings(_ gesture: UserGesture) {
     _ = gesture
     guard let url = URL(

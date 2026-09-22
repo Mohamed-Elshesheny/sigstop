@@ -297,8 +297,9 @@ because there is no server (§5).
 ### 2.5 No message, email, or chat content
 
 **Mechanism.** Reading another app's message content would require either the Accessibility tree
-below the window level (the app reads exactly two attributes, `kAXFocusedWindow` and `kAXTitle`, and
-the AX isolation guard proves no other attribute constant appears in the tree) or AppleEvents
+below the window level (the app reads three attributes, `kAXFocusedWindow`, `kAXTitle` and
+`kAXDocument`, and the AX isolation guard fails the build on any other, including one written as a
+string) or AppleEvents
 scripting of Mail/Messages. `NSAppleScript`, `OSAScript`, `AEDeterminePermissionToAutomateTarget`
 are never referenced and `NSAppleEventsUsageDescription` is absent from `Info.plist`, so macOS would
 show no Automation prompt and would deny any attempt.
@@ -306,7 +307,7 @@ show no Automation prompt and would deny any attempt.
 **Check.**
 ```
 plutil -p <APP>/Contents/Info.plist | grep -i AppleEvents    # expect no output
-grep -rn 'kAX' app/Sources | sort -u                          # expect only kAXFocusedWindow / kAXTitle / kAXTrustedCheckOptionPrompt
+grep -rhoE 'kAX[A-Za-z]+' app/Sources | sort -u    # expect the three attributes and the two *ChangedNotification
 ```
 
 ### 2.6 No screenshots or screen contents
@@ -544,7 +545,7 @@ every permission provider stubbed to "denied" and asserts reminders still fire c
 | Permission | TCC service | When asked | What it buys | If denied |
 |---|---|---|---|---|
 | **Notifications** | `UNUserNotificationCenter` | At the first break, not at launch | Reminders appear as system notifications, respect Focus modes and Notification Center | Fallback: a borderless `NSWindow` at `.statusBar` level that the app draws itself. Needs no permission. Slightly more intrusive, does not respect Do Not Disturb — so the app's own quiet hours setting becomes the only mute |
-| **Accessibility** | `kTCCServiceAccessibility` | Never automatically. Only when you turn on "Window titles" in Settings → Access, under the sentence that says what the grant really is | Window-title fidelity (inventory rows 12–14): the app can avoid interrupting a live meeting and can tell a terminal from a browser inside the same app | Everything still works from app identity alone. The app may propose a break during a Zoom call, because it can see you are in Zoom but not that a meeting is in progress |
+| **Accessibility** | `kTCCServiceAccessibility` | Never. The app does not raise the macOS alert. **Open System Settings** in Settings → Access opens the Accessibility pane, you grant it there, and the "Window titles" switch decides whether the grant is used | Window-title fidelity (inventory rows 12–14): the app can avoid interrupting a live meeting and can tell a terminal from a browser inside the same app | Everything still works from app identity alone. The app may propose a break during a Zoom call, because it can see you are in Zoom but not that a meeting is in progress |
 | **Login item** | `SMAppService` (not TCC) | Only from the settings toggle | Starts at login | Start it yourself |
 | **Git context (Tier 2)** | None. Not a TCC service. What you grant is a folder | Never automatically. Only when you add a project folder in Settings → Access | The branch name, and whether a rebase, merge or bisect is in progress, for the folders you added | Nothing degrades. `branch` is `nil`, the templates that need `{branch}` become unselectable by construction (`docs/MESSAGE-ENGINE.md` §5), every other line still fires |
 | **Process context (Tier 2)** | None. `sysctl(KERN_PROC_ALL)` needs no grant and produces no prompt | Never automatically. Only from its own switch in Settings → Access | `DEBUGGING` becomes reachable instead of collapsing into `CODING` | `CODING`, and the UI says it cannot tell whether you are debugging |
