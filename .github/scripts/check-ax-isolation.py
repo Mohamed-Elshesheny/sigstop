@@ -30,7 +30,7 @@ READER = "SigstopSensors/Collectors/AccessibilityCollector.swift"
 TRUST = "SigstopSensors/PermissionBroker.swift"
 
 # What the trust file is allowed to name. Anything beyond this is reading, not asking.
-TRUST_ONLY = {"AXIsProcessTrusted", "AXIsProcessTrustedWithOptions"}
+TRUST_ONLY = {"AXIsProcessTrusted"}
 
 # The notifications the reader subscribes to. These say WHEN to read again; they do not
 # widen WHAT is read, which is why they are listed apart from the attributes below. An
@@ -47,8 +47,6 @@ ATTRIBUTES_ALLOWED = {
     "kAXFocusedWindowAttribute",
     "kAXTitleAttribute",
     "kAXDocumentAttribute",
-    "kAXFocusedUIElementAttribute",
-    "kAXTrustedCheckOptionPrompt",
 }
 ATTRIBUTE = re.compile(r"\bkAX[A-Za-z]\w*")
 
@@ -58,17 +56,21 @@ STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
 # carrying a title and a document path, and a file that passes one around is not a file
 # that talks to Accessibility. Read from the source rather than listed, so a rename cannot
 # turn this check into a liar.
+# "AXValue" as CFString reads the same attribute as kAXValueAttribute, and would pass the
+# allowlist unseen because the literal is stripped below. So an attribute or option named
+# in a string is refused outright: write the constant, and the check can read it.
+NAMED_IN_A_STRING = re.compile(r'"(AX[A-Za-z]\w*)"')
+
 DEFINES = re.compile(r"\b(?:struct|class|enum|actor|protocol|typealias)\s+(AX\w+)")
 
 
 def code_only(text: str) -> str:
     """The source with comments and string literals removed.
 
-    Comments, because a doc comment explaining what AX is used for is not a use of it, and
-    this file is full of them by design. String literals, because PermissionBroker names
-    the prompt option key as the string "AXTrustedCheckOptionPrompt": Swift 6 refuses to
-    read the imported C global, so the constant is written out, and matching inside the
-    quotes read that as an API call.
+    Comments, because a doc comment explaining what AX is used for is not a use of it.
+    String literals, because a sentence that mentions AX is not a call. The one string that
+    is a call, an attribute name written out instead of its kAX constant, is caught by
+    NAMED_IN_A_STRING before this runs.
     """
     text = BLOCK.sub("", text)
     text = "\n".join(
@@ -88,7 +90,13 @@ def main() -> int:
 
     for path in sorted(SOURCES.rglob("*.swift")):
         rel = str(path.relative_to(SOURCES))
-        body = code_only(path.read_text())
+        raw = path.read_text()
+        for name in sorted(set(NAMED_IN_A_STRING.findall(raw))):
+            failures.append(
+                f"{rel}: names {name} in a string literal.\n"
+                "       Use its kAX constant, so this check can see which attribute it is."
+            )
+        body = code_only(raw)
         symbols = set(AX.findall(body)) - ours
         if not symbols:
             continue
