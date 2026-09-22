@@ -117,8 +117,16 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         defer { lock.unlock() }
         let days = try unlockedAvailableDays()
         var cache: [CalendarDay: [LoggedEvent]] = [:]
-        for day in days { cache[day] = unlockedLoad(day: day).events }
-        return try ExportWriter.render(location: root.path, days: days) { cache[$0] ?? [] }
+        var unreadable: [CalendarDay] = []
+        for day in days {
+            let loaded = unlockedLoad(day: day)
+            cache[day] = loaded.events
+            if loaded.unreadable { unreadable.append(day) }
+        }
+        let text = try ExportWriter.render(location: root.path, days: days) { cache[$0] ?? [] }
+        guard !unreadable.isEmpty else { return text }
+        let list = unreadable.map(\.description).joined(separator: ", ")
+        return text + "\nNot exported, the file is there but would not open: \(list)\n"
     }
 
     public struct ExportReport: Sendable, Hashable {

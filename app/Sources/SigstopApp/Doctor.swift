@@ -555,8 +555,13 @@ enum Doctor {
         if let store = try? FileEventStore(root: root), let days = try? store.availableDays() {
             out.append("  days on disk     \(days.count)\(days.isEmpty ? "" : "  (\(days[0]) .. \(days[days.count - 1]))")")
             let today = CalendarDay.local(of: Date(), calendar: .current, boundaryHour: BreakPolicy.default.dayBoundaryHour)
-            if let summary = try? DailyRollup.compute(day: today, from: store) {
+            do {
+                let summary = try DailyRollup.compute(day: today, from: store)
                 out.append("  today            \(SummaryNarrator(tone: .friendly).detail(for: summary))")
+            } catch StoreError.unreadable(let days) {
+                out.append("  today            could not read \(days.map(\.description).joined(separator: ", ")), the file is there but would not open")
+            } catch {
+                out.append("  today            could not be computed: \(error)")
             }
         } else {
             out.append("  days on disk     could not read the store")

@@ -817,6 +817,8 @@ final class AppModel {
         holdReason = waiting.body
     }
 
+    private static let unreadableLogPrefix = "Could not read the event log for"
+
     func refreshRollup(force: Bool) {
         let now = time.now
         if !force, let last = rollupComputedAt, now.timeIntervalSince(last) < 60 { return }
@@ -825,7 +827,17 @@ final class AppModel {
         let today = CalendarDay.local(
             of: now, calendar: .current, boundaryHour: BreakPolicy.default.dayBoundaryHour
         )
-        guard let summary = try? DailyRollup.compute(day: today, from: store) else { return }
+        let summary: DailySummary
+        do {
+            summary = try DailyRollup.compute(day: today, from: store)
+            if lastStoreError?.hasPrefix(Self.unreadableLogPrefix) == true { lastStoreError = nil }
+        } catch StoreError.unreadable(let days) {
+            let list = days.map(\.description).joined(separator: ", ")
+            lastStoreError = "\(Self.unreadableLogPrefix) \(list), so today's numbers are not shown."
+            return
+        } catch {
+            return
+        }
         todaySummary = summary
         let narrator = SummaryNarrator(tone: settings.tone)
         let seed = UInt64(bitPattern: Int64(today.year * 10_000 + today.month * 100 + today.day))

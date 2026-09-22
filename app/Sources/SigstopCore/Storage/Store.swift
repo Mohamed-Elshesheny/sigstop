@@ -4,6 +4,7 @@ public enum StoreError: Error, Sendable, Hashable {
     case unsupportedSchemaVersion(Int)
     case notWritable(path: String, reason: String)
     case notADirectory(path: String)
+    case unreadable(days: [CalendarDay])
 }
 
 public struct DayLoad: Sendable, Hashable {
@@ -134,6 +135,8 @@ extension EventStore {
         let loads = try [day.adding(days: -1), day, day.adding(days: 1)].map {
             try load(day: $0)
         }
+        let unreadable = loads.filter(\.unreadable).map(\.day)
+        if !unreadable.isEmpty { throw StoreError.unreadable(days: unreadable) }
         let merged = loads.flatMap(\.events).sorted { $0.at < $1.at }
         let malformed = loads.reduce(0) { $0 + $1.malformedLines }
         guard let interval = day.interval(boundaryHour: policy.dayBoundaryHour, calendar: calendar)

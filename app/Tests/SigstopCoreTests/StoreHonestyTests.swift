@@ -6,6 +6,12 @@ import Testing
 @Suite("the store does not invent an answer")
 struct StoreHonestyTests {
 
+    private static var utc: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return c
+    }
+
     private func scratch() -> URL {
         URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("sigstop-store-\(UUID().uuidString)")
@@ -31,6 +37,12 @@ struct StoreHonestyTests {
 
         let after = try store.load(day: day)
         #expect(after.unreadable, "a file that will not open must say so, not report an empty day")
+
+        #expect(throws: StoreError.self, "the rollup must refuse, not report a day with no work") {
+            _ = try DailyRollup.compute(day: day, from: store, calendar: Self.utc)
+        }
+        let export = try store.exportText()
+        #expect(export.contains("would not open: \(day)"), "the export must name the day it could not read")
 
         let absent = try store.load(day: day.adding(days: -30))
         #expect(absent.events.isEmpty)
