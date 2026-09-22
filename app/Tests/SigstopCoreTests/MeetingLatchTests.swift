@@ -348,6 +348,18 @@ struct MeetingLatchTests {
         #expect(!l.isHolding, "the day's budget is spent, and a switch is not a way to refill it")
     }
 
+    @Test("Deleting your data resets the day's hold total and keeps a hold you declared")
+    func deletingKeepsADeclaredHold() {
+        var l = Self.fresh()
+        l = l.restoringDailyHold(seconds: Self.policy.latchDailyCeiling + 60, dayIndex: 0)
+        l = l.assertedByUser(at: 10, policy: Self.policy)
+        l = l.resettingDailyHold()
+        let signal = l.signal(at: 20, wall: Self.wall0, policy: Self.policy)
+        #expect(signal.isHolding, "a call you declared is still a call after you delete your history")
+        #expect(signal.heldSecondsToday == 0)
+        #expect(signal.inhibition == nil)
+    }
+
     @Test("The setting ends a manual hold too, because that is what the row says it does")
     func settingEndsAManualHold() {
         var l = Self.fresh()

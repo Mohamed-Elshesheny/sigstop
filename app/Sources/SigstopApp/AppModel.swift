@@ -964,7 +964,7 @@ final class AppModel {
             let report = try store.deleteEverything()
             try? FileManager.default.removeItem(at: AppPaths.settingsFile)
             apply(settings: .default)
-            latch = MeetingLatch.started(at: time.continuousSeconds, wall: time.now, dayIndex: latch.dayIndex)
+            latch = latch.resettingDailyHold()
             lastPersistedHold = 0
             todaySummary = nil
             todayLine = ""

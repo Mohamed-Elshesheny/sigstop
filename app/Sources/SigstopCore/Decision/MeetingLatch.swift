@@ -191,6 +191,13 @@ public struct MeetingLatch: Sendable, Codable, Hashable {
         return l
     }
 
+    public func resettingDailyHold() -> MeetingLatch {
+        var l = self
+        l.heldSecondsToday = 0
+        if l.inhibition == .dailyCeiling { l.inhibition = nil }
+        return l
+    }
+
     public var isHolding: Bool { phase == .held || (phase == .live && liveNeedsLatch) }
 
     func holdBudget(_ policy: BreakPolicy) -> TimeInterval {
