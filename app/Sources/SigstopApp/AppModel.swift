@@ -261,7 +261,12 @@ final class AppModel {
 
     func update(settings newValue: SigstopSettings) {
         guard newValue != settings else { return }
-        SettingsStore.save(newValue)
+        if SettingsStore.save(newValue) {
+            if lastStoreError?.hasPrefix(Self.settingsFailurePrefix) == true { lastStoreError = nil }
+        } else {
+            lastStoreError = "\(Self.settingsFailurePrefix) to \(AppPaths.settingsFile.path), "
+                + "so this change lasts only until sigstop quits."
+        }
         apply(settings: newValue)
     }
 
@@ -669,6 +674,7 @@ final class AppModel {
     }
 
     private static let pruneFailurePrefix = "Could not prune old logs"
+    private static let settingsFailurePrefix = "Could not save your settings"
 
     private func pruneOldLogs() {
         lastPruneMono = time.continuousSeconds
