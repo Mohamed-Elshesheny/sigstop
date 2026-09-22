@@ -412,7 +412,7 @@ enum Doctor {
         case .optedOut, .skipped:
             return []
         case .noFoldersRegistered:
-            return ["Settings > Signals has the button. The folder you pick there is", "also the grant: nothing else can be opened."]
+            return ["Settings > Access has the button. The folder you pick there is", "also the grant: nothing else can be opened."]
         case .noFolderMatched(let reason):
             return [reason, "Reported as unknown, never as no branch."]
         case .notPermitted:
@@ -433,8 +433,8 @@ enum Doctor {
         case .read(_, _, _, let route):
             return [
                 "Which folder was decided by \(route).",
-                "Settings > Signals, under What it read, shows the name itself on this",
-                "machine. That row is why the length is enough here.",
+                "Settings > Access shows the name itself on this machine, next to",
+                "read. That row is why the length is enough here.",
             ]
         }
     }
