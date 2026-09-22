@@ -27,6 +27,8 @@ make run      # build, bundle, launch
 make test     # the badge export check, then the suites; no GUI session required
 make doctor   # exactly what the app can observe right now
 make verify   # assert the privacy properties against the built binary
+make smoke    # run the built app as if on somebody else's Mac
+make bench    # what it costs a battery, idle and during a break
 ```
 
 There is **no Xcode project and no Xcode requirement**. `open app/Package.swift` if you want
