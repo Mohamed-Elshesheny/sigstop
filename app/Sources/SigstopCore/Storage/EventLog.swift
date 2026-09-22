@@ -48,19 +48,47 @@ public struct CalendarDay: Sendable, Hashable, Comparable, CustomStringConvertib
 
     /// The **logical** day `date` belongs to: the local calendar day, with the boundary
     /// moved to `boundaryHour` so that 01:30 still belongs to the day before.
+    /// **The caller's time zone, never the caller's calendar system.**
+    ///
+    /// A `CalendarDay` is a file name. `utc(of:)` writes one with a pinned Gregorian
+    /// calendar, so a reader that numbers the same instant in another era asks for a file
+    /// that was never written. Measured: the same moment is `2025-09-22` to the writer and
+    /// `1447-03-30` under Islamic Umm al-Qura, `2568-09-22` under Buddhist. macOS picks
+    /// the calendar from the Region, so that is the DEFAULT in the Gulf and in Thailand,
+    /// and nothing looks broken when it happens: breaks still fire, the menu bar still
+    /// works, and only the uptime panel and all ten badges read zero, forever, silently.
+    ///
+    /// What genuinely belongs to the user here is the time zone and the boundary hour:
+    /// their midnight, their 4am. The era does not, because it is choosing a key that has
+    /// to match one written by a pinned calendar. Formatting a date for someone to READ is
+    /// a different job and should use `Calendar.current`; this is not that.
     public static func local(
         of date: Date,
         calendar: Calendar = .current,
         boundaryHour: Int = 4
     ) -> CalendarDay {
         let shifted = date.addingTimeInterval(-Double(boundaryHour) * 3600)
-        let c = calendar.dateComponents([.year, .month, .day], from: shifted)
+        let c = keyed(like: calendar).dateComponents([.year, .month, .day], from: shifted)
         return CalendarDay(year: c.year ?? 0, month: c.month ?? 0, day: c.day ?? 0)
+    }
+
+    /// `calendar`'s time zone on a Gregorian calendar, which is the system every
+    /// `CalendarDay` is numbered in. See `local(of:)`.
+    static func keyed(like calendar: Calendar) -> Calendar {
+        guard calendar.identifier != .gregorian else { return calendar }
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = calendar.timeZone
+        c.locale = Locale(identifier: "en_US_POSIX")
+        return c
     }
 
     /// `[boundaryHour on this day, boundaryHour on the next day)`, in `calendar`'s time
     /// zone. `nil` only when the components do not name a real date.
+    /// Reconstruction has to use the same system construction did, or the numbers are read
+    /// as an era they were never written in: Gregorian 2026 taken as a Hijri year lands
+    /// roughly five and a half centuries away, and every event falls outside the window.
     public func interval(boundaryHour: Int = 4, calendar: Calendar = .current) -> DateInterval? {
+        let calendar = CalendarDay.keyed(like: calendar)
         var comps = DateComponents()
         comps.year = year
         comps.month = month
