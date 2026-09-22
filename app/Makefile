@@ -42,6 +42,9 @@ TEST_FLAGS := -Xswiftc -F -Xswiftc $(TESTING_FW) \
 test: badges-check ## Run the Core test suite (no GUI session, no Xcode needed)
 	@swift test $(TEST_FLAGS)
 
+bench: bundle ## Measure idle and break-screen cost from the kernel's counters
+	@./Scripts/bench.sh
+
 smoke: bundle ## Run the shipped app as if this were somebody else's Mac
 	@./Scripts/smoke.sh
 

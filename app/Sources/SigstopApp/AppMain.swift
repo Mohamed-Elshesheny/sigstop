@@ -145,6 +145,12 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         applyActivationPolicy()
         model.onSettingsChanged = { [weak self] in self?.applyActivationPolicy() }
         model.start()
+        if CommandLine.arguments.contains("--bench-break") {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(3))
+                self?.model.takeBreakNow()
+            }
+        }
     }
 
     private func applyActivationPolicy() {
