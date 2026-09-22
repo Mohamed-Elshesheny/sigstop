@@ -7,7 +7,8 @@ signing key. If you are reading it to audit the process rather than to run it, �
 interesting parts.
 
 Related: `docs/PRIVACY.md` §2.7 (what the network use is), §2.8 (why signatures carry the guarantee),
-§5.3 (why the project changed its mind about in-app updates), and `CLAUDE.md` §4.3.
+§5.3 (why the project changed its mind about in-app updates), and the *One network call* row of
+[`CONTRIBUTING.md`](../CONTRIBUTING.md#the-rules-a-pr-cannot-break).
 
 ---
 
@@ -49,9 +50,11 @@ cd app
 make release VERSION=0.2.0 NAME="Wood Frog 🐸"
 ```
 
-It refuses to run if `Info.plist` and the version disagree, if the tag exists, or if the
-working tree is dirty, and it runs the tests, `make verify` and the scenario suite before
-it publishes anything. A release that cannot prove its own claims does not go out.
+It refuses to run if `Info.plist` disagrees with the version or the name, if the tag exists,
+if the working tree is dirty, or if the notes hold anything but headings and bullets or no
+bullet at all. Then it runs the tests, `make verify-shipped`, `Scripts/smoke.sh`,
+`Scripts/intel-slice.sh` and the scenario suite before it publishes anything; §3.3 has the
+order. A release that cannot prove its own claims does not go out.
 
 ## 0.4 When to cut one
 
@@ -78,7 +81,7 @@ moment it is fixed. That is the whole list of exceptions.
 ## 0.5 What the notes say
 
 Sections and bullets, generated from the log by `Scripts/changelog.py`. The format and the rules
-are CLAUDE.md §9; `release.sh` refuses to publish notes with any other kind of line in them. There
+are that script's; `release.sh` refuses to publish notes with any other kind of line in them. There
 is no prose in them, so nothing can be said in the notes that is not a commit subject.
 
 ## 1. What makes this safe, in one paragraph
@@ -184,11 +187,15 @@ swift package resolve              # fetches Sparkle's binary artifact, which ca
 softwareupdate --install-rosetta   # optional: lets this Mac run the x86_64 slice itself
 ```
 
-Somebody has to run the x86_64 slice before it ships. `Scripts/intel-slice.sh` decides who:
-this Mac under Rosetta when it can, launching the slice and asking `--doctor` which slice
-answered; otherwise CI's run on the exact commit being released, and only if its
-`The Intel slice runs too` step passed. With neither, the release refuses. macOS 28 removes
-Rosetta, so from then on a release waits for CI: push, let it go green, then release. Running
+Somebody has to run an x86_64 slice before a release goes out. `Scripts/intel-slice.sh` decides
+who, and the two answers do not prove the same thing. Under Rosetta, this Mac launches the slice
+in `dist/sigstop.app`, the bundle `dmg.sh` then packs, and asks `--doctor` which slice answered:
+the slice that runs is the slice that ships. Without Rosetta it falls back to CI's run on the
+exact commit being released, and only if its `The Intel slice runs too` step passed. That shows
+an x86_64 build of the same commit ran, built by CI's own runner, not the bytes in the image
+being released; two builds of the same commit are not byte-identical (§3.4). With neither, the
+release refuses. macOS 28 removes Rosetta, so from then on a release waits for CI, and carries
+only the weaker proof: push, let it go green, then release. Running
 the slice under Rosetta on macOS 27 makes macOS show an "App Update Required" notice for
 sigstop; that is the test, not a defect, and users on Apple Silicon run the arm64 slice.
 
@@ -406,7 +413,7 @@ broken" from the other side.
 
 `swift build --arch arm64 --arch x86_64` is the obvious fix and **it does not work here**: that flag
 routes through `xcbuild`, which ships with Xcode, and this repository deliberately requires only
-Command Line Tools (`CLAUDE.md` §2). It fails with *"xcbuild executable ... does not exist."*
+Command Line Tools ([`CONTRIBUTING.md`](../CONTRIBUTING.md#setup)). It fails with *"xcbuild executable ... does not exist."*
 
 Build the two slices separately and `lipo` them, which does work with CLT alone. **Order matters:**
 `lipo` invalidates the code signature, so the fattening has to happen before the bundle is sealed,
