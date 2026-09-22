@@ -623,7 +623,8 @@ Apply all seven to every submitted line. Any single failure is a rejection.
 warnings print and do not, because each has a false-positive mode a person has to judge.
 
 **This section used to describe something else, and that is worth stating plainly**
-because `CLAUDE.md` §4.5 points here as the thing enforcing the humour rails. It described
+because [`CONTRIBUTING.md`](../CONTRIBUTING.md#the-rules-a-pr-cannot-break) points here as
+the thing enforcing the humour rails in §4.2. It described
 a `swift package corpus-lint` command plugin with twelve checks, four warnings, a JSON
 Schema and a `Lint/banned-lexicon.json`, run on pull requests touching `docs/corpus-*.json`
 or `Resources/packs/**`. None of it existed: no plugin, no schema, no lexicon, no packs
@@ -673,16 +674,23 @@ and not appearance. The script takes a path argument for exactly this reason.
 The rubric items a machine cannot decide, §4.3's target, standup, bad-day and specificity
 tests, stay human. `.github/PULL_REQUEST_TEMPLATE.md` asks for them.
 
-**Golden tests** (`MessageEngineTests`) run alongside the lint over a fixture matrix of 500
-synthetic contexts spanning every app × activity × band × level × confidence tier:
+**Golden tests** live in `app/Tests/SigstopCoreTests/MessageEngineTests.swift` and run under
+`make test`, a separate CI step from the lint. The ones that guard selection:
 
-- `select` returns a message for all 500 (totality).
-- `t.tone <= ctx.toneCeiling` for all 500 (ceiling never violated).
-- No template ID repeats within any 60-selection window (LRU honored).
-- No template repeats within a simulated calendar day at stages ≤ 3.
-- Every rendered string contains zero unfilled `{...}` sequences.
-- A Cursor context never selects a generic line while an eligible Cursor line exists
-  (the specificity property, asserted directly).
+- *Selection is total* (suite `MessageEngine selection`) enumerates every `AppKey` ×
+  `Activity` × five session lengths × four escalation levels × four confidences, 11,520
+  contexts today, all under a `nuclear` ceiling. Each must render a non-empty line with no
+  `{` or `}` left in it, and the test asserts it checked every one.
+- *The user's tone preference is a hard ceiling* (`Hard gates`): for every tone and every
+  level, 25 selections, each with `message.tone <= ceiling`.
+- *The same template is never returned twice in a row* (`MessageEngine selection`): 80
+  selections from one context, no back-to-back repeat. No test asserts the full 60-entry
+  LRU window of §3.1.
+- *A template shown today is not shown again today* (`Recency ledger`): 30 selections in one
+  day, no repeat while the relaxation stage is at or below `dropCooldown`.
+- *A specific joke beats a generic one* and *Specificity holds for every app that has its own
+  lines* (`MessageEngine selection`): a Cursor context picks a `cursor.` line, and each of
+  eight apps picks a line with its own prefix.
 
 ---
 
@@ -727,10 +735,12 @@ Two non-negotiables, enforced in the notification layer rather than the engine:
   (`NSWindow.StyleMask.nonactivatingPanel`, `becomesKeyOnlyIfNeeded = true`). It is visually
   loud and input-transparent to the app underneath. A break reminder that eats a keystroke
   mid-edit gets uninstalled that afternoon, correctly.
-- **A live camera, or a full-screen presentation, holds every rung** until it ends, so nothing
-  renders on a projector during a demo. Screen sharing and Do Not Disturb are not detected:
-  `SensorStack` passes `displayCaptured: false` and `focusModeActive: nil`, because neither can
-  be read without a permission the app does not ask for.
+- **A live camera holds every rung** until it ends. A full-screen presentation on its own
+  does not: `SensorStack` passes `frontmostIsPresentationApp: false`, so the full-screen gate
+  can only fire while a camera is running, and the camera has already held. Screen sharing and
+  Do Not Disturb are not detected: `SensorStack` passes `displayCaptured: false` and
+  `focusModeActive: nil`, because neither can be read without a permission the app does not
+  ask for.
 
 ---
 
