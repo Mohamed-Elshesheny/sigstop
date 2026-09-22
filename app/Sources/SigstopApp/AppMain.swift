@@ -36,9 +36,10 @@ enum SigstopEntryPoint {
         if let index = CommandLine.arguments.firstIndex(of: "--render-prompt") {
             let args = CommandLine.arguments
             let stem = index + 1 < args.count ? args[index + 1] : "prompt"
+            let id = index + 2 < args.count ? args[index + 2] : "cursor.ai.tab-tab-tab"
             MainActor.assumeIsolated {
                 NSApplication.shared.setActivationPolicy(.prohibited)
-                PromptRenderer.runAndExit(stem: stem)
+                PromptRenderer.runAndExit(stem: stem, templateID: id)
             }
         }
         if let index = CommandLine.arguments.firstIndex(of: "--render-badges") {

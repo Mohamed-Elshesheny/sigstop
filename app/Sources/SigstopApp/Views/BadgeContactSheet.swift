@@ -131,8 +131,14 @@ enum SettingsPaneRenderer {
 enum PromptRenderer {
 
     @MainActor
-    static func runAndExit(stem: String) -> Never {
+    static func runAndExit(stem: String, templateID: String) -> Never {
         let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
+        guard let corpus = try? Corpus.loadBundled(),
+              let template = corpus.templates.first(where: { $0.id == templateID })
+        else {
+            FileHandle.standardError.write(Data("no corpus line with id '\(templateID)'\n".utf8))
+            exit(2)
+        }
         let cases: [(String, EscalationLevel, PromptChannel, [TimeInterval])] = [
             ("l1", .first, .notification, [300, 600, 900]),
             ("l1-nosnooze", .first, .notification, []),
@@ -148,9 +154,8 @@ enum PromptRenderer {
                 snoozeOffered: snooze
             )
             let message = RenderedMessage(
-                templateID: "render", title: nil,
-                text: "You have been at this for 47 minutes. The build will still be broken in five.",
-                tone: .sarcastic, category: "render", escalation: level,
+                templateID: template.id, title: nil, text: template.text,
+                tone: template.tone, category: template.category, escalation: level,
                 isFallback: false, theatrical: false
             )
             let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
