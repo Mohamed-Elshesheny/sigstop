@@ -265,6 +265,43 @@ else
   pass "no private signing key anywhere in the repository"
 fi
 
+# Sparkle's `generate_keys -x` exports the key as bare base64 with no header, so the grep above
+# cannot see it. A line that is nothing but a 32 or 64 byte base64 value, other than the public
+# key, is treated as one.
+PUBLIC_KEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "${PLIST}" 2>/dev/null || true)
+BARE_KEYS=$(cd .. && python3 - "${PUBLIC_KEY}" <<'PY'
+import base64, os, re, sys
+public = sys.argv[1]
+token = re.compile(r"^(?:[A-Za-z0-9+/]{43}=|[A-Za-z0-9+/]{86}==)$")
+skip = {".build", "dist", ".git", "node_modules", ".next"}
+for base, dirs, files in os.walk("."):
+    dirs[:] = [d for d in dirs if d not in skip and not d.startswith(".build")]
+    for name in files:
+        path = os.path.join(base, name)
+        try:
+            if os.path.getsize(path) > 1_000_000:
+                continue
+            text = open(path, encoding="utf-8", errors="ignore").read()
+        except OSError:
+            continue
+        for line in text.splitlines():
+            value = line.strip()
+            if value and value != public and token.match(value):
+                try:
+                    if len(base64.b64decode(value)) in (32, 64):
+                        print(path)
+                        break
+                except ValueError:
+                    pass
+PY
+)
+if [ -n "${BARE_KEYS}" ]; then
+  fail "a line holding nothing but a key-sized base64 value is in the repository"
+  printf '%s\n' "${BARE_KEYS}" | sed 's/^/        /'
+else
+  pass "no bare base64 key, the format Sparkle exports, anywhere in the repository"
+fi
+
 # ---------------------------------------------------------------------------
 head2 "6. exactly one endpoint, and it is the feed"
 

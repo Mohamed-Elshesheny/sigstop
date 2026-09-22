@@ -160,14 +160,15 @@ and no amount of repository access fixes that. Export it once, to somewhere offl
 
 ```sh
 cd app
-.build/artifacts/sparkle/Sparkle/bin/generate_keys --account sigstop -x ~/sigstop-ed25519.key
+(umask 077; .build/artifacts/sparkle/Sparkle/bin/generate_keys --account sigstop -x /Volumes/<encrypted>/sigstop-ed25519.key)
 ```
 
-Put that file on an encrypted volume or in a password manager, then **delete it from disk**:
-
-```sh
-rm -P ~/sigstop-ed25519.key
-```
+Write it straight to an encrypted volume, or paste its one line into a password manager and write
+it nowhere else. The `umask` matters: `generate_keys` writes with the default mode, which is
+readable by every account on the Mac. Do not export it into your home folder or the repository;
+`make verify` fails if a line that looks like an exported key is anywhere in the tree, and
+`.gitignore` refuses `*.key`. There is no secure delete to fall back on: `rm -P` does nothing on
+APFS, and a snapshot or Time Machine backup taken while the file existed keeps it.
 
 To restore it on a new machine:
 
