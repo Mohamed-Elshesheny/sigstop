@@ -34,8 +34,8 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 3 | Frontmost app **pid** | `NSRunningApplication.processIdentifier` | Needed as the argument to `AXUIElementCreateApplication` when window-title fidelity is on | Memory-only | Until the next app switch | n/a |
 | 4 | Frontmost app **icon** | `NSRunningApplication.icon` | Drawn in the menu bar popover | Memory-only | Until the next app switch | n/a |
 | 5 | **Activation timestamp** | `Date()` at notification delivery | Compute durations | Persisted, second resolution, UTC | Same as #1 | No (it is the timer) |
-| 6 | **Seconds since last input event** (a single `Double`) | `CGEventSourceSecondsSinceLastEventType(.combinedSessionState, kCGAnyInputEventType)` | Distinguish "working for 50 minutes" from "left the room 40 minutes ago" | Not persisted raw. Only the derived transitions `idle_begin` / `idle_end` and the idle duration are persisted | Same as #1 | Yes — off means idle time counts as work time |
-| 7 | **Idle/active state** | Derived from #6 against a threshold (default 120 s) | Pause and resume the streak timer | Persisted as events | Same as #1 | Follows #6 |
+| 6 | **Seconds since last input event** (a single `Double`) | `CGEventSourceSecondsSinceLastEventType(.hidSystemState, kCGAnyInputEventType)` | Distinguish "working for 50 minutes" from "left the room 40 minutes ago" | Not persisted raw. Only the derived transitions `idle_begin` / `idle_end` and the idle duration are persisted | Same as #1 | No. There is no switch for it |
+| 7 | **Idle/active state** | Derived from #6 against a threshold (default 90 s) | Pause and resume the streak timer | Persisted as events | Same as #1 | Follows #6 |
 | 8 | **Screen locked / unlocked** | `CGSessionCopyCurrentDictionary()["CGSSessionScreenIsLocked"]`, polled; plus the `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked` distributed notifications as a fast path | Locked time is not work time; also the moment to reset a streak | Persisted as `lock` / `unlock` events | Same as #1 | No |
 | 9 | **Display sleep / wake** | `NSWorkspace.screensDidSleepNotification`, `screensDidWakeNotification` | Same as #8 | Persisted as events | Same as #1 | No |
 | 10 | **System sleep / wake** | `NSWorkspace.willSleepNotification`, `didWakeNotification` | Do not fire a break reminder into a closed lid; reset the streak across a long sleep | Persisted as events | Same as #1 | No |
@@ -100,56 +100,29 @@ the parts that cannot be proven from this side.
 
 ### 1.3 What a "focus" sample looks like end to end
 
+The code is `FrontmostAppCollector` in
+`app/Sources/SigstopSensors/Collectors/FrontmostAppCollector.swift`. `start()` subscribes to
+activation, deactivation, launch and termination on `NSWorkspace.shared.notificationCenter`, and every
+`NSRunningApplication` it is handed, by a notification or by the first read, is reduced to an
+`AppIdentity` here:
+
 ```swift
-// app/Sources/Observation/FrontmostAppObserver.swift
-import AppKit
+private nonisolated static func identity(of app: NSRunningApplication) -> AppIdentity {
+    AppIdentity(
+        bundleID: app.bundleIdentifier,
+        localizedName: app.localizedName ?? app.bundleIdentifier ?? "Unknown",
+        pid: app.processIdentifier
+    )
+}
 
-/// Emits an event whenever the frontmost application changes.
-/// Requires NO TCC permission of any kind. This is the app's primary signal.
-final class FrontmostAppObserver {
-
-    struct Focus {
-        let bundleID: String?       // persisted
-        let localizedName: String?  // persisted only when bundleID == nil
-        let pid: pid_t              // memory-only, never persisted
-        let at: Date
+private nonisolated static func readFrontmost() -> AppIdentity? {
+    if let app = NSWorkspace.shared.frontmostApplication {
+        return identity(of: app)
     }
-
-    private var tokens: [NSObjectProtocol] = []
-    private let onChange: (Focus) -> Void
-
-    init(onChange: @escaping (Focus) -> Void) { self.onChange = onChange }
-
-    func start() {
-        let center = NSWorkspace.shared.notificationCenter
-        let token = center.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] note in
-            guard
-                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            else { return }
-            self?.onChange(Focus(bundleID: app.bundleIdentifier,
-                                 localizedName: app.localizedName,
-                                 pid: app.processIdentifier,
-                                 at: Date()))
-        }
-        tokens.append(token)
-
-        if let app = NSWorkspace.shared.frontmostApplication {
-            onChange(Focus(bundleID: app.bundleIdentifier,
-                           localizedName: app.localizedName,
-                           pid: app.processIdentifier,
-                           at: Date()))
-        }
+    if let owner = NSWorkspace.shared.runningApplications.first(where: { $0.ownsMenuBar }) {
+        return identity(of: owner)
     }
-
-    func stop() {
-        let center = NSWorkspace.shared.notificationCenter
-        tokens.forEach(center.removeObserver)
-        tokens.removeAll()
-    }
+    return nil
 }
 ```
 
@@ -160,21 +133,22 @@ every app on your system can already see it.
 
 ### 1.4 Idle detection carries no input content
 
-```swift
-// app/Sources/Observation/IdleMonitor.swift
-import CoreGraphics
+The code is `IdleCollector.read()` in `app/Sources/SigstopSensors/Collectors/IdleCollector.swift`.
+It returns one number and the name of the source it came from. When the event source has no answer it
+falls back to the `HIDIdleTime` property of `IOHIDSystem`, which is also a single number:
 
-enum IdleMonitor {
-    /// Seconds since the last HID input event anywhere in the session.
-    ///
-    /// This is a scalar. It contains no key codes, no characters, no modifier
-    /// state, no mouse coordinates, and no indication of which app received the
-    /// input. It is NOT an event tap: the app never calls CGEventTapCreate, and
-    /// therefore never appears in Input Monitoring and never sees an event.
-    static func secondsSinceLastInput() -> TimeInterval {
-        let anyInput = CGEventType(rawValue: ~0)!   // kCGAnyInputEventType
-        return CGEventSourceSecondsSinceLastEventType(.combinedSessionState, anyInput)
+```swift
+public func read() -> InputActivity {
+    if let any = CGEventType(rawValue: ~0) {
+        let seconds = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: any)
+        if seconds.isFinite, seconds >= 0 {
+            return InputActivity(idleSeconds: seconds, source: .hidSystemState)
+        }
     }
+    if let seconds = Self.hidIdleSecondsFromIORegistry() {
+        return InputActivity(idleSeconds: seconds, source: .ioRegistry)
+    }
+    return .unknown
 }
 ```
 
@@ -216,9 +190,9 @@ return AXWindowInfo(
 )
 ```
 
-`AXUIElementCopyAttributeValue` appears twice in the file: once in `readSync` for the focused
-window, and once inside `copyString`, which is `private` and is called only with `kAXTitle` and
-`kAXDocument`:
+`AXUIElementCopyAttributeValue` appears twice in `AccessibilityCollector.swift`: once in `readSync`
+for the focused window, and once inside `copyString`, which is `private` and is called only with
+`kAXTitle` and `kAXDocument`:
 
 ```swift
 private func copyString(_ element: AXUIElement, _ attribute: String) -> String? {
@@ -273,11 +247,13 @@ absent, and the command that shows you it is absent. `<APP>` is the installed bu
 ### 2.1 No source code, file contents, or document text
 
 **Mechanism.** The app never opens a file it did not create, except its own read-only bundle
-resources. It requests no Full Disk Access. In the sandboxed flavor (§3.6) the App Sandbox confines
+resources and, with Tier 2 git context on, the few git files §2.10 names, in folders you registered.
+It requests no Full Disk Access. In the sandboxed flavor (§3.6) the App Sandbox confines
 file access to the app's own container; there is no `com.apple.security.files.user-selected.read-only`
-entitlement except in the export path, which is a *write* panel. The only file-reading code in the
-tree is `Storage/EventStore.swift` and `Storage/SettingsStore.swift`, both scoped to the storage
-directory.
+entitlement except in the export path, which is a *write* panel. The file-reading code in the tree is
+`FileEventStore` (`app/Sources/SigstopCore/Storage/FileStore.swift`), `SettingsStore`
+(`app/Sources/SigstopApp/Support.swift`) and `CallHoldLedger`, all scoped to the storage directory,
+plus `GitCollector` for those git files.
 
 **Check.** `scripts/verify-entitlements.sh <APP>` asserts the absence of every file-access
 entitlement. At runtime: `sudo fs_usage -w -f filesys $(pgrep -f '<BUNDLE_ID>')` and watch that the
@@ -772,11 +748,11 @@ below is a bug under CLAUDE.md §7, not a documentation chore.
 {"v":1,"t":"2026-09-20T10:20:00Z","e":"gate","gate":"audioInputInUse","cycle":4}
 {"v":1,"t":"2026-09-20T10:34:07Z","e":"gate","gate":"delivered","cycle":4}
 {"v":1,"t":"2026-09-20T10:34:12Z","e":"break_prompt","reason":"SIGTSTP","cycle":4}
-{"v":1,"t":"2026-09-20T10:34:31Z","e":"break_response","action":"snoozed","snooze_s":600,"cycle":4}
-{"v":1,"t":"2026-09-20T10:44:31Z","e":"break_response","action":"taken","cycle":4}
-{"v":1,"t":"2026-09-20T10:44:31Z","e":"break_begin","origin":"accepted","cycle":4}
-{"v":1,"t":"2026-09-20T10:49:34Z","e":"break_end","origin":"accepted","dur_s":303,"plan_s":300,"cycle":4}
-{"v":1,"t":"2026-09-20T10:49:34Z","e":"cycle_close","outcome":"honored","cycle":4}
+{"v":1,"t":"2026-09-20T10:34:31Z","e":"break_response","action":"snoozed","snooze_s":300,"cycle":4}
+{"v":1,"t":"2026-09-20T10:39:31Z","e":"break_response","action":"taken","cycle":4}
+{"v":1,"t":"2026-09-20T10:39:31Z","e":"break_begin","origin":"accepted","cycle":4}
+{"v":1,"t":"2026-09-20T10:44:34Z","e":"break_end","origin":"accepted","dur_s":303,"plan_s":300,"cycle":4}
+{"v":1,"t":"2026-09-20T10:44:34Z","e":"cycle_close","outcome":"honored","cycle":4}
 {"v":1,"t":"2026-09-20T10:52:04Z","e":"lock"}
 {"v":1,"t":"2026-09-20T11:31:55Z","e":"unlock"}
 {"v":1,"t":"2026-09-20T18:02:11Z","e":"stop"}
@@ -894,64 +870,35 @@ file look tidier, because either would mean buffering in front of a log you are 
 
 ### 4.4 The writer
 
+The writer is `FileEventStore` in `app/Sources/SigstopCore/Storage/FileStore.swift`, behind the
+`EventStore` protocol in `Store.swift`. A line is a `LoggedEvent` from `EventLog.swift`, encoded by
+`EventLogCodec`. `append(contentsOf:)` groups events by their UTC day and hands each day's lines to
+this:
+
 ```swift
-// app/Sources/Storage/EventStore.swift
-import Foundation
-
-struct Event: Codable {
-    let v: Int
-    let t: String
-    let e: String
-    var app: String?
-    var cat: String?
-    var sig: String?
-    var idle_s: Int?
-    var reason: String?
-    var action: String?
-    var snooze_s: Int?
-    var deferred: String?
-}
-
-final class EventStore {
-    private let eventsDir: URL
-    private let queue = DispatchQueue(label: "events.writer", qos: .utility)
-    private let encoder: JSONEncoder = {
-        let e = JSONEncoder()
-        e.outputFormatting = [.withoutEscapingSlashes]   // keep the file readable
-        return e
-    }()
-
-    init(root: URL) throws {
-        eventsDir = root.appendingPathComponent("events", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: eventsDir,
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700]
-        )
-    }
-
-    func append(_ event: Event) {
-        queue.async { [weak self] in try? self?.write(event) }
-    }
-
-    private func write(_ event: Event) throws {
-        let day = String(event.t.prefix(10))                     // "2026-09-20"
-        let url = eventsDir.appendingPathComponent("\(day).jsonl")
-
-        if !FileManager.default.fileExists(atPath: url.path) {
-            FileManager.default.createFile(
-                atPath: url.path, contents: nil,
-                attributes: [.posixPermissions: 0o600]
-            )
+private func appendRaw(_ text: String, to url: URL) throws {
+    if !fm.fileExists(atPath: url.path) {
+        guard fm.createFile(
+            atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]
+        ) else {
+            throw StoreError.notWritable(path: url.path, reason: "could not create file")
         }
-        var line = try encoder.encode(event)
-        line.append(0x0A)
-
-        let handle = try FileHandle(forWritingTo: url)
-        defer { try? handle.close() }
-        try handle.seekToEnd()
-        try handle.write(contentsOf: line)                        // single small append
     }
+    let handle = try FileHandle(forUpdating: url)
+    defer { try? handle.close() }
+
+    let end = try handle.seekToEnd()
+    if end > 0 {
+        try handle.seek(toOffset: end - 1)
+        let last = try handle.read(upToCount: 1)
+        if last != Data([0x0A]) {
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data([0x0A]))
+        }
+    }
+    try handle.seekToEnd()
+    try handle.write(contentsOf: Data(text.utf8))
+    try handle.synchronize()
 }
 ```
 
@@ -1061,7 +1008,7 @@ next to the argument it replaced.
 ### 5.2 Is opt-in analytics worth it? Recommendation: no.
 
 The case for it is real. Without any telemetry the maintainers do not know which macOS versions are
-in use, how often the AX path fails on a given app, or whether the default 50-minute interval is
+in use, how often the AX path fails on a given app, or whether the default 45-minute interval is
 sensible. Those are genuine product costs.
 
 The recommendation is still no, and the reason survives the arrival of the updater largely intact:

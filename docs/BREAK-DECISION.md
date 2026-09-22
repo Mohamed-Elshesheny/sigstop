@@ -58,43 +58,15 @@ three is the single most common bug in this class of app, so the model keeps the
 
 ### 2.1 Types
 
-```swift
-import Foundation
+This section used to sketch `ActivityType`, `ClassificationSource` and `ActivityClassification`, and
+none of them was built. The session carries `Activity`, the detector's enum in
+`app/Sources/SigstopCore/Model/Activity.swift` (quoted in `docs/ACTIVITY-DETECTION.md` §3), with a
+`Confidence` beside it, and the app as an `AppIdentity` (`bundleID`, `localizedName`, `pid`) from
+`Model/Identity.swift`.
 
-enum ActivityType: String, Codable, CaseIterable {
-    case coding          // editor / IDE frontmost
-    case terminal        // shell, REPL, build output
-    case debugging       // debugger UI frontmost, or editor in a debug session
-    case review          // diff/PR/docs reading
-    case browsing        // browser, unclassified
-    case communication   // chat, mail
-    case design          // figma, sketch, image tools
-    case meeting         // conferencing app + live mic/camera
-    case media           // video/music foreground with no input
-    case unknown
-}
-
-enum ClassificationSource: String, Codable {
-    case bundleIdentifier   // high confidence, cheap, always available
-    case windowTitle        // needs Accessibility; transient, never persisted
-    case systemSignal       // mic/camera/display-capture state; not a guess
-    case userOverride       // user pinned this app to a type
-}
-
-struct ActivityClassification: Codable, Equatable {
-    var type: ActivityType
-    var confidence: Double          // 0.0 ... 1.0
-    var source: ClassificationSource
-    var observedAt: Date
-}
-
-struct AppIdentity: Codable, Equatable, Hashable {
-    var bundleIdentifier: String    // "com.microsoft.VSCode"
-    var localizedName: String       // for display only
-}
-```
-
-`confidence` is calibrated, not decorative:
+The table below was the design for that confidence. The number the app uses is computed by
+`ConfidenceEngine` from evidence and tier ceilings (`docs/ACTIVITY-DETECTION.md` §6), not read from
+this table:
 
 | Signal | Type | Confidence |
 |---|---|---|
@@ -115,71 +87,73 @@ meeting" and "the microphone is on".
 
 ### 2.2 `DeveloperSession`
 
+The pause, clock and reset vocabulary, from `app/Sources/SigstopCore/Session/SessionTypes.swift`:
+
 ```swift
-enum PauseCause: String, Codable {
-    case microIdleExceeded      // input gap grew past the grace window
+public enum PauseCause: String, Sendable, Codable, Hashable {
+    case microIdleExceeded
     case screenLocked
     case systemSleep
     case displaySleep
     case fastUserSwitch
-    case meetingNoInput         // live call, hands off keyboard
+    case meetingNoInput
     case breakActive
-    case userPaused             // "pause the app for 1 hour"
+    case userPaused
 }
 
-enum WorkClockState: Equatable {
+public enum WorkClockState: Sendable, Codable, Hashable {
     case running
     case paused(cause: PauseCause, since: Date)
-    case stopped                // session finalized
+    case stopped
 }
 
-enum ResetReason: String, Codable {
-    case qualifyingBreak        // >= 5 min away: a real break
-    case longPause              // >= 20 min paused for any reason: context is gone
+public enum ResetReason: String, Sendable, Codable, Hashable {
+    case qualifyingBreak
+    case longPause
     case sessionStart
     case dayBoundary
     case userReset
 }
+```
 
-struct DeveloperSession: Codable, Identifiable {
-    let id: UUID
-    let startedAt: Date
-    private(set) var endedAt: Date?
+The session's stored properties, from `app/Sources/SigstopCore/Session/DeveloperSession.swift`:
 
-    // ---- the work clock ----
-    private(set) var continuousActiveWork: TimeInterval = 0   // resets; the number the engine acts on
-    private(set) var totalActiveWork: TimeInterval = 0        // never resets within the session
-    private(set) var peakContinuousActiveWork: TimeInterval = 0
-    private(set) var clock: WorkClockState = .running
-    private(set) var provisionalGraceCredit: TimeInterval = 0 // see §3.3
+```swift
+public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
 
-    // ---- breaks ----
-    private(set) var lastBreakAt: Date?          // start of the most recent qualifying break
-    private(set) var lastBreakEndedAt: Date?     // drives the post-break settle-in hard block
-    private(set) var breakCount: Int = 0
-    private(set) var skippedBreakCount: Int = 0
-    private(set) var snoozeCount: Int = 0
-    private(set) var ignoredPromptCount: Int = 0
+    public let id: UUID
+    public let startedAt: Date
+    public private(set) var endedAt: Date?
 
-    // ---- idle ----
-    private(set) var lastInputAt: Date
-    private(set) var idleDuration: TimeInterval = 0     // current uninterrupted gap; 0 while active
-    private(set) var accumulatedIdle: TimeInterval = 0  // all uncredited time this session
+    public private(set) var continuousActiveWork: TimeInterval = 0
+    public private(set) var totalActiveWork: TimeInterval = 0
+    public private(set) var peakContinuousActiveWork: TimeInterval = 0
+    public private(set) var clock: WorkClockState = .running
+    public private(set) var provisionalGraceCredit: TimeInterval = 0
 
-    // ---- application context ----
-    private(set) var activeApplication: AppIdentity?
-    private(set) var activity: ActivityClassification
-    private(set) var applicationSwitches: Int = 0
-    private(set) var recentSwitches: [Date] = []                 // ring buffer, trimmed to 10 min
-    private(set) var appActiveSeconds: [String: TimeInterval] = [:]  // bundleID -> credited seconds
+    public private(set) var observedElapsed: TimeInterval = 0
 
-    // ---- derived ----
-    var activityType: ActivityType { activity.type }
-    var activityConfidence: Double { activity.confidence }
-    var timeSinceLastBreak: TimeInterval? {
-        lastBreakEndedAt.map { Date().timeIntervalSince($0) }
-    }
-}
+    public private(set) var lastBreakAt: Date?
+    public private(set) var lastBreakEndedAt: Date?
+    public private(set) var breakCount: Int = 0
+    public private(set) var abandonedBreakCount: Int = 0
+    public private(set) var skippedBreakCount: Int = 0
+    public private(set) var snoozeCount: Int = 0
+    public private(set) var ignoredPromptCount: Int = 0
+    public private(set) var resetCount: Int = 0
+
+    public private(set) var lastInputAt: Date
+    public private(set) var idleDuration: TimeInterval = 0
+    public private(set) var accumulatedIdle: TimeInterval = 0
+
+    public private(set) var activeApplication: AppIdentity?
+    public private(set) var activity: Activity = .unknown
+    public private(set) var activityConfidence: Confidence = .none
+    public private(set) var applicationSwitches: Int = 0
+    public private(set) var recentSwitches: [Date] = []
+    public private(set) var appActiveSeconds: [String: TimeInterval] = [:]
+
+    private var provisionalByApp: [String: TimeInterval] = [:]
 ```
 
 ### 2.3 Focus estimate
@@ -187,24 +161,32 @@ struct DeveloperSession: Codable, Identifiable {
 Not a mood reading — two observable quantities.
 
 ```swift
-extension DeveloperSession {
-    /// 0...1. Low switch rate + one dominant app = deep focus.
-    func focusScore(now: Date, window: TimeInterval = 600) -> Double {
-        let switches = recentSwitches.filter { now.timeIntervalSince($0) <= window }.count
-        let switchTerm = max(0, min(1, 1 - Double(switches) / 6.0))
-        let total = appActiveSeconds.values.reduce(0, +)
-        let dominance = total > 0 ? (appActiveSeconds.values.max() ?? 0) / total : 0
-        return 0.6 * switchTerm + 0.4 * dominance
-    }
-
-    func isInDeepFocus(now: Date, policy: BreakPolicy) -> Bool {
-        focusScore(now: now) >= 0.70
-            && continuousActiveWork >= 20 * 60
-            && activityConfidence >= 0.60
-            && [.coding, .debugging, .terminal].contains(activityType)
-    }
+public func focusScore(now: Date, window: TimeInterval = 600) -> Double {
+    let switches = recentSwitches.filter { now.timeIntervalSince($0) <= window }.count
+    let switchTerm = max(0, min(1, 1 - Double(switches) / 6.0))
+    let total = appActiveSeconds.values.reduce(0, +)
+    let dominance = total > 0 ? (appActiveSeconds.values.max() ?? 0) / total : 0
+    return 0.6 * switchTerm + 0.4 * dominance
 }
 ```
+
+That is `DeveloperSession.focusScore(now:window:)`, in
+`app/Sources/SigstopCore/Session/DeveloperSession.swift`, which `SessionTracker.focusScore` hands to
+the engine. The test the engine applies is `InterruptionPolicy.isDeepFocus(_:)`, in
+`app/Sources/SigstopCore/Decision/InterruptionPolicy.swift`:
+
+```swift
+public func isDeepFocus(_ input: EngineInput) -> Bool {
+    input.focusScore >= 0.70
+        && input.context.continuousWork >= policy.deepFocusMinimumWork
+        && input.context.confidence.isConfidentEnoughForSpecificClaim
+        && BreakPolicy.deepFocusActivities.contains(input.context.activity)
+}
+```
+
+`deepFocusMinimumWork` is 20 minutes, and `deepFocusActivities` is coding, debugging, testing,
+terminal work and AI coding. `DeveloperSession.isInDeepFocus(now:policy:)` states the same test and
+nothing calls it.
 
 Deep focus buys **exactly one** deferral extension per break cycle (§9). It is never a veto: deep
 focus is precisely the state in which people lose track of the clock, so an app that treats it as a
@@ -216,7 +198,8 @@ permanent shield is an app that never fires.
 
 ### 3.1 Sampling
 
-- Tick every **1 s** (5 s when on battery below 20 % or in Low Power Mode).
+- Tick every **5 s**, sooner when the end of a break, a snooze, a pause or the work target falls
+  inside that. `AppModel.tickInterval` overrides the 1 s in `BreakPolicy`, and `tickTolerance` is 5 s.
 - Idle is read from `CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!)`
   (`~0` is `kCGAnyInputEventType`). This counts keyboard, mouse, trackpad and tablet input across all
   apps and requires no permission.
@@ -233,25 +216,30 @@ stops `mach_absolute_time` but not the wall clock. So every tick reconstructs re
 independent clocks and never credits more than one interval:
 
 ```swift
-func tick(now: Date, uptime: TimeInterval /* ProcessInfo.systemUptime */) {
-    let wallDelta = now.timeIntervalSince(lastTickAt)
-    let uptimeDelta = uptime - lastTickUptime
-    defer { lastTickAt = now; lastTickUptime = uptime }
-
-    // wall advanced but uptime did not -> the machine slept.
-    // both advanced too far      -> we were throttled/suspended/the timer was starved.
-    let discontinuity = wallDelta > policy.tickInterval + policy.tickTolerance   // 2 s
-    if discontinuity {
-        let cause: PauseCause = (wallDelta - uptimeDelta > 5) ? .systemSleep : .microIdleExceeded
-        ingestGap(duration: wallDelta, endedAt: now, cause: cause)   // classified by §4, never credited
-        return
-    }
-
-    let idle = readSystemIdle()
-    session.idleDuration = idle
-    creditOrPause(idle: idle, delta: min(wallDelta, policy.tickInterval))
+let delta = max(0, mono - lastTickMono)
+let wallDelta = now.timeIntervalSince(lastTickWall)
+let skew = wallDelta - delta
+let skewed = abs(skew) > policy.wallClockSkewTolerance
+if skewed {
+    dayIndex = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
+    events.append(.wallClockSkewIgnored(seconds: skew))
 }
+lastTickMono = mono
+lastTickWall = now
+
+session.observe(elapsed: delta)
+session.note(application: sample.application, activity: sample.activity, confidence: sample.confidence, at: now)
+
+let discontinuity = delta > policy.tickInterval + policy.tickTolerance
 ```
+
+That is the top of `SessionTracker.tick(_:)` in `app/Sources/SigstopCore/Session/SessionTracker.swift`.
+Credit is measured on the monotonic clock only. The wall clock is compared against it, and a
+disagreement larger than `wallClockSkewTolerance` (5 s) is logged as `wallClockSkewIgnored` rather
+than credited. A monotonic step longer than `tickInterval + tickTolerance` (10 s in the app, §3.1) is
+a discontinuity: it opens a gap, whose cause is `.systemSleep` when `AppModel` has reported a wake
+through `noteSystemWake()` and otherwise an idle pause, or a meeting pause if the microphone is
+running, and the tick credits nothing for it: `creditIfPossible(delta: discontinuity ? 0 : delta, ...)`.
 
 The invariant this protects: **credited active work can never exceed elapsed wall-clock time.** It is
 the first property test (§15).
@@ -261,23 +249,23 @@ the first property test (§15).
 Provisional credit, confirmed by resumption, revoked by absence:
 
 ```swift
-private func creditOrPause(idle: TimeInterval, delta: TimeInterval) {
-    guard case .running = session.clock else { return }   // paused clocks credit nothing
-
-    if idle < policy.activityEpsilon {            // 2 s: real input just happened
-        session.credit(delta)
-        session.provisionalGraceCredit = 0        // everything so far is confirmed work
-    } else if idle < policy.microIdleGrace {      // 90 s: reading, thinking, watching a build
-        session.credit(delta)
-        session.provisionalGraceCredit += delta   // credited, but provisionally
-    } else {
-        // the gap turned out to be real absence: take the grace back and stop the clock
-        session.revoke(session.provisionalGraceCredit)
-        session.provisionalGraceCredit = 0
-        session.pauseClock(cause: .microIdleExceeded, since: session.lastInputAt)
-    }
+private mutating func creditIfPossible(delta: TimeInterval, mono: Double, bundleID: String?) {
+    guard delta > 0, session.isRunning else { return }
+    let start = mono - delta
+    var creditEnd = min(mono, lastInputMono + policy.microIdleGrace)
+    if let gap { creditEnd = min(creditEnd, gap.startMono) }
+    let credited = max(0, creditEnd - start)
+    guard credited > 0 else { return }
+    let provisional = max(0, creditEnd - max(start, lastInputMono))
+    session.credit(credited, provisional: provisional, bundleID: bundleID)
 }
 ```
+
+That is `SessionTracker.creditIfPossible`, in `SessionTracker.swift`. Credit runs to
+`microIdleGrace` past the last input and no further, and the part of it after the last input is
+recorded as provisional. New input confirms it: `tick` calls `confirmProvisionalCredit()` when the
+last-input time moves forward. Absence takes it back: once the gap is classified as a pause or
+longer, `applyGapThresholds` calls `revokeProvisionalCredit()` and pauses the clock.
 
 Consequences, exactly as intended:
 
@@ -289,8 +277,10 @@ Consequences, exactly as intended:
 - **40 min lunch** → crosses the qualifying-break threshold: reset, break recorded, cycle over.
 
 The grace window is the whole design. Too short and the app forgets you between keystrokes; too long
-and a coffee run counts as coding. 90 s is the default and is configurable in
-`[60 s ... 180 s]`; outside that range the behavior degenerates in one of those two directions.
+and a coffee run counts as coding. 90 s is the default. It is
+`microIdleThresholdSeconds` in `settings.json`, which accepts 15 s to 600 s and has no control in
+Settings; the intended range is 60 s to 180 s, and outside it the behavior degenerates in one of those
+two directions.
 
 ---
 
@@ -299,19 +289,42 @@ and a coffee run counts as coding. 90 s is the default and is configurable in
 Every non-credited stretch of time is a **gap**. A gap is classified once, when it ends (or when it
 crosses a threshold, whichever comes first), by duration and context. This is the authoritative table.
 
-```swift
-enum GapClassification: String, Codable {
-    case microIdle, shortPause, qualifyingBreak, longPause, sessionGap, meetingIdle
-}
+`GapClassification`, in `app/Sources/SigstopCore/Session/SessionTypes.swift`:
 
-struct GapOutcome: Equatable {
-    var creditsWork = false
-    var pausesClock = false
-    var resetsClock = false
-    var recordsBreak = false
-    var endsSession = false
+```swift
+public enum GapClassification: Sendable, Hashable {
+    case microIdle
+    case pause(PauseCause)
+    case qualifyingBreak
+    case sessionEnd
 }
 ```
+
+and the function that assigns it, `classify(duration:cause:)` in
+`app/Sources/SigstopCore/Session/SessionTracker.swift`:
+
+```swift
+public func classify(duration: TimeInterval, cause: PauseCause) -> GapClassification {
+    switch cause {
+    case .meetingNoInput, .userPaused, .breakActive:
+        return .pause(cause)
+    case .screenLocked, .systemSleep, .displaySleep, .fastUserSwitch:
+        if duration < policy.qualifyingBreak { return .pause(cause) }
+        if duration < policy.sessionGap { return .qualifyingBreak }
+        return .sessionEnd
+    case .microIdleExceeded:
+        if duration < policy.microIdleGrace { return .microIdle }
+        if duration < policy.qualifyingBreak { return .pause(.microIdleExceeded) }
+        if duration < policy.sessionGap { return .qualifyingBreak }
+        return .sessionEnd
+    }
+}
+```
+
+The table below keeps the design's names. In the code `shortPause`, `meetingIdle` and `longPause` are
+all `.pause(cause)`, the 20-minute reset is applied to a pause by `applyGapThresholds` when it reaches
+`longPauseReset`, and `sessionGap` is `.sessionEnd`. The `GapOutcome` struct this section used to
+sketch was not built.
 
 ### 4.1 Work-clock transitions
 
@@ -353,95 +366,122 @@ Rows worth defending:
 
 ### 4.2 Reference thresholds
 
+`BreakPolicy`, in `app/Sources/SigstopCore/Decision/InterruptionPolicy.swift`, down to the ladder.
+The audio ceiling and the call-latch constants follow in the same struct and are listed in §7.1.1 and
+§7.8.
+
 ```swift
-struct BreakPolicy: Codable, Equatable {
-    // --- session model ---
-    var tickInterval: TimeInterval        = 1
-    var tickTolerance: TimeInterval       = 2
-    var activityEpsilon: TimeInterval     = 2
-    var microIdleGrace: TimeInterval      = 90         // 60...180
-    var qualifyingBreak: TimeInterval     = 5 * 60     // 3...15 min
-    var longPauseReset: TimeInterval      = 20 * 60
-    var sessionGap: TimeInterval          = 30 * 60
-    var dayBoundaryHour: Int              = 4          // local
+public struct BreakPolicy: Sendable, Codable, Hashable {
 
-    // --- break cycle ---
-    var targetContinuousWork: TimeInterval = 45 * 60   // 20...120 min
-    var absoluteMaxWork: TimeInterval      = 90 * 60   // fire-regardless floor
-    var breakDurationTarget: TimeInterval  = 5 * 60
-    var settleInAfterBreak: TimeInterval   = 5 * 60    // hard block on re-prompting
+    public var tickInterval: TimeInterval = 1
+    public var tickTolerance: TimeInterval = 2
+    public var activityEpsilon: TimeInterval = 2
+    public var microIdleGrace: TimeInterval = 90
+    public var qualifyingBreak: TimeInterval = 5 * 60
+    public var longPauseReset: TimeInterval = 20 * 60
+    public var sessionGap: TimeInterval = 30 * 60
+    public var dayBoundaryHour: Int = 4
+    public var wallClockSkewTolerance: TimeInterval = 5
 
-    // --- deferral ---
-    var softDeferralWindow: TimeInterval   = 8 * 60
-    var deepFocusExtension: TimeInterval   = 7 * 60    // once per cycle
-    var seamIdleBlip: TimeInterval         = 20
-    var staleBreakCeiling: TimeInterval    = 60 * 60   // abandon the cycle
-    var rearmAfterStale: TimeInterval      = 10 * 60
-    var rearmAfterSkip: TimeInterval       = 20 * 60
-    var cooldownAfterExhausted: TimeInterval = 25 * 60
+    public var targetContinuousWork: TimeInterval = 45 * 60
+    public var absoluteMaxWork: TimeInterval = 90 * 60
+    public var breakDurationTarget: TimeInterval = 5 * 60
+    public var settleInAfterBreak: TimeInterval = 5 * 60
+    public var deepFocusMinimumWork: TimeInterval = 20 * 60
 
-    // --- prompts ---
-    var promptTimeout: TimeInterval        = 90        // no interaction -> ignored
-    var snoozeDurations: [TimeInterval]    = [5*60, 10*60, 15*60]
-    var maxSnoozesPerCycle: Int            = 3
-    var maxSnoozeTotalPerCycle: TimeInterval = 30 * 60
-    var minNotificationSpacing: TimeInterval = 5 * 60
-    var maxNotificationsPerCycle: Int      = 4
-    var dailyNotificationCap: Int          = 12
+    public var softDeferralWindow: TimeInterval = 8 * 60
+    public var deepFocusExtension: TimeInterval = 7 * 60
+    public var maxSeamWaitPerCycle: TimeInterval = 15 * 60
+    public var seamIdleBlip: TimeInterval = 20
+    public var staleBreakCeiling: TimeInterval = 60 * 60
+    public var rearmAfterStale: TimeInterval = 10 * 60
+    public var rearmAfterSkip: TimeInterval = 20 * 60
+    public var cooldownAfterExhausted: TimeInterval = 25 * 60
 
-    var quietHours: QuietHours = .default
+    public var promptTimeout: TimeInterval = 90
+    public var snoozeDurations: [TimeInterval] = [5 * 60, 10 * 60, 15 * 60]
+    public var maxSnoozesPerCycle: Int = 2
+    public var maxSnoozeTotalPerCycle: TimeInterval = 30 * 60
+    public var minNotificationSpacing: TimeInterval = 5 * 60
+    public var maxNotificationsPerCycle: Int = 4
+    public var dailyNotificationCap: Int = 14
+
+    public var ladderLevel1: TimeInterval = 0
+    public var ladderLevel2: TimeInterval = 5 * 60
+    public var ladderLevel3Armed: TimeInterval = 12 * 60
+    public var ladderLevel3Forced: TimeInterval = 20 * 60
+    public var ladderLevel4: TimeInterval = 35 * 60
+    public var ignoreBackoffThreshold: Int = 2
+```
+
+These are the defaults of `BreakPolicy()`. The app builds its policy with `init(settings:)`, in the
+same `InterruptionPolicy.swift`, which takes several of them from `settings.json`:
+
+```swift
+public init(settings: SigstopSettings) {
+    self.init()
+    targetContinuousWork = settings.workInterval
+    breakDurationTarget = settings.breakDuration
+    microIdleGrace = TimeInterval(settings.microIdleThresholdSeconds)
+    qualifyingBreak = TimeInterval(settings.idleCountsAsBreakMinutes * 60)
+    dailyNotificationCap = settings.maxNotificationsPerDay
+    maxSnoozesPerCycle = settings.maxSnoozesPerBreak
+    let unit = TimeInterval(settings.snoozeMinutes * 60)
+    snoozeDurations = [unit, unit * 2, unit * 3]
+    let cyclesInAWakingDay = Int((16 * 3600) / max(60, targetContinuousWork + breakDurationTarget))
+    dailyNotificationCap = max(settings.maxNotificationsPerDay, cyclesInAWakingDay)
+    absoluteMaxWork = max(absoluteMaxWork, targetContinuousWork * 2)
+    qualifyingBreak = max(qualifyingBreak, microIdleGrace + 30)
+    sessionGap = max(sessionGap, qualifyingBreak * 2)
+    longPauseReset = min(max(longPauseReset, qualifyingBreak), sessionGap)
 }
 ```
+
+With the default settings that is a 45-minute interval, a 5-minute break, 90 s of micro-idle grace, a
+5-minute qualifying break, `snoozeDurations` of 5, 10 and 15 minutes (only the first is used, §9)
+with at most 2 snoozes per cycle, and a daily cap of 19: the *Most prompts in a day* setting is 14,
+but 16 hours hold 19 cycles of 45 + 5 minutes and the larger number wins. `AppModel` then sets
+`tickInterval` and `tickTolerance` to 5 s each (§3.1).
 
 ---
 
 ## 5. Part B — engine states
 
 ```swift
-enum EngineState: Equatable {
-    case working
+public enum EngineState: Sendable, Codable, Hashable {
+    case working(WorkingState)
     case breakDue(BreakDue)
     case breakActive(BreakActive)
-    case snoozed(until: Date, index: Int, cycle: CycleID)
+    case snoozed(SnoozedState)
     case ignored(Escalation)
-    case idle(since: Date, cause: PauseCause)
-    case quiet(until: Date?, cause: QuietCause)
-}
-
-struct BreakDue: Equatable {
-    var cycle: CycleID
-    var dueSince: Date
-    var seamWaitElapsed: TimeInterval = 0     // accrues ONLY while not hard-blocked
-    var totalElapsed: TimeInterval = 0        // wall clock since dueSince
-    var deepFocusExtensionUsed = false
-    var promptedAt: Date?
-    var snoozesUsed: Int = 0
-    var snoozeTotal: TimeInterval = 0
-    var notificationsThisCycle: Int = 0
-    var lastVerdict: InterruptionVerdict?
-}
-
-struct BreakActive: Equatable {
-    var startedAt: Date
-    var plannedEnd: Date
-    var origin: BreakOrigin     // .accepted, .idleInferred, .userInitiated
-}
-
-enum QuietCause: String, Codable {
-    case scheduledQuietHours, userPaused, sustainedFocusMode, dailyCapReached
-}
-
-enum EscalationLevel: Int, Codable { case passive = 1, quietRepeat, seamArmed, final }
-
-struct Escalation: Equatable {
-    var cycle: CycleID
-    var dueSince: Date
-    var ignoredAt: Date              // t0 for the ladder
-    var level: EscalationLevel
-    var enteredLevelAt: Date
-    var notificationsThisCycle: Int
-}
+    case idle(IdleState)
+    case quiet(QuietState)
 ```
+
+`EngineState`, in `app/Sources/SigstopCore/Decision/EngineState.swift`, where the payload types sit
+too. The one the transition table leans on most is `BreakDue`:
+
+```swift
+public struct BreakDue: Sendable, Codable, Hashable {
+    public var cycle: CycleID
+    public var dueSince: Date
+    public var seamWaitElapsed: TimeInterval = 0
+    public var seamWaitTotal: TimeInterval = 0
+    public var totalElapsed: TimeInterval = 0
+    public var deepFocusExtensionUsed: Bool = false
+    public var promptedAt: Date?
+    public var promptedAtMono: Double?
+    public var snoozesUsed: Int = 0
+    public var snoozeTotal: TimeInterval = 0
+    public var notificationsThisCycle: Int = 0
+    public var uncorroboratedAudioElapsed: TimeInterval = 0
+    public var lastVerdict: InterruptionVerdict?
+    public var lastStepMono: Double
+```
+
+`QuietCause` is `scheduledQuietHours`, `userPaused`, `sustainedFocusMode` or `dailyCapReached`. The
+ladder's levels are `EscalationLevel` in `Model/Settings.swift`: `.first`, `.second`, `.third` and
+`.incident`, named after `SIGTSTP`, `SIGINT`, `SIGTERM` and `SIGSTOP`.
 
 `.idle` and `.quiet` are engine states, not session states: the session model keeps measuring
 throughout (the rollup is still accurate during quiet hours). These two states only describe what the
@@ -465,7 +505,7 @@ engine is allowed to *say*.
 | `breakDue` | tick | `seamWaitElapsed >= softDeferralWindow (+ extension)` | `breakDue` (prompted) | **deliver anyway** |
 | `breakDue` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
 | `breakDue` | user accepts | — | `breakActive` | begin break |
-| `breakDue` | user snoozes | `snoozesUsed < 3` and `snoozeTotal + d <= 30 min` | `snoozed` | **work clock keeps running** |
+| `breakDue` | user snoozes | `snoozesUsed < maxSnoozesPerCycle` (2) and `snoozeTotal + d <= 30 min` | `snoozed` | **work clock keeps running** |
 | `breakDue` | user skips | — | `working` | `skippedBreakCount += 1`; re-arm at `W + rearmAfterSkip`; no reset; `consecutiveIgnoredCycles` **unchanged** |
 | `breakDue` | no interaction for `promptTimeout` | user was present (input seen) | `ignored` | ladder level 1 (passive) |
 | `breakDue` | no interaction for `promptTimeout` | user was absent (idle ≥ grace) | `idle` | not an ignore; retract prompt |
@@ -504,49 +544,62 @@ Two structural rules the table encodes:
 ## 6. Engine inputs
 
 ```swift
-struct EnvironmentSnapshot: Equatable {
-    var now: Date
-    var idleSeconds: TimeInterval
-    var keystrokeRate: Double              // events/sec over the last 5 s
+public struct EngineInput: Sendable {
+    public var now: Date
+    public var monotonic: Double
+    public var context: DeveloperContext
+    public var signals: SystemSignals
+    public var settings: SigstopSettings
+    public var calendarSystem: Calendar
+    public var calendar: CalendarSignals?
+    public var seams: [Seam]
+    public var keystrokeRate: Double
+    public var terminalCommandRunning: Bool
+    public var secondsSinceFrontmostChange: TimeInterval
+    public var focusScore: Double
+    public var lastBreakEndedAt: Date?
+    public var day: DailyCounters
+    public var userAction: UserAction?
+    public var sessionEvents: [SessionEvent]
+```
 
-    var frontmost: AppIdentity?
-    var activity: ActivityClassification
-    var seamsSinceLastTick: [Seam]
+That is `EngineInput`, in `app/Sources/SigstopCore/Decision/BreakDecisionEngine.swift`. Its `signals`
+are:
 
-    // system signals (facts, not guesses)
-    var audioInputRunning: Bool            // kAudioDevicePropertyDeviceIsRunningSomewhere
-    var cameraRunning: Bool                // kCMIODevicePropertyDeviceIsRunningSomewhere
-    var displayCaptured: Bool              // always false: no permission-free signal exists
-    var screenLocked: Bool
-    var focusModeActive: Bool?             // nil == undetectable, see §7.1
-    var frontmostIsFullscreen: Bool        // AX kAXFullscreenAttribute on the focused window
-    var frontmostIsPresentationApp: Bool
+```swift
+public struct SystemSignals: Sendable, Codable, Hashable {
+    public var audioInputRunning: Bool
+    public var cameraRunning: Bool
+    public var displayCaptured: Bool
+    public var screenLocked: Bool
+    public var systemSleeping: Bool
+    public var fastUserSwitched: Bool
+    public var focusModeActive: Bool?
+    public var frontmostIsFullscreen: Bool
+    public var frontmostIsPresentationApp: Bool
+    public var batteryFraction: Double?
+    public var isCharging: Bool
+    public var lowPowerMode: Bool
+    public var meetingLatch: MeetingLatchSignal
+```
 
-    // power
-    var batteryFraction: Double?           // nil on desktops
-    var isCharging: Bool
-    var lowPowerMode: Bool
+and its seams, both in `InterruptionPolicy.swift`:
 
-    // calendar-adjacent (optional, read-only EventKit; absent if not granted)
-    var calendar: CalendarSignals?
-}
-
-struct CalendarSignals: Equatable {
-    var eventInProgress: Bool
-    var inProgressIsBusy: Bool
-    var inProgressHasVideoLink: Bool
-    var minutesUntilNextBusyEvent: Int?
-}
-
-enum Seam: String, Codable {
-    case applicationSwitch          // the canonical seam
-    case idleBlip                   // >= 20 s of no input, then input resumes
-    case terminalCommandFinished    // opt-in shell integration only (§7.3)
-    case meetingEnded               // declared, never produced. See 7.3
+```swift
+public enum Seam: String, Sendable, Codable, Hashable, CaseIterable {
+    case applicationSwitch
+    case idleBlip
+    case terminalCommandFinished
+    case meetingEnded
     case fullscreenExited
     case spaceSwitch
 }
 ```
+
+`CalendarSignals` has the four fields §7.7 uses. Several inputs have no producer in the shipping app:
+`AppModel` passes `calendar: nil`, `keystrokeRate: 0` and `terminalCommandRunning: false` on every
+tick, and `SensorStack` sets `displayCaptured` to `false`, `frontmostIsPresentationApp` to `false`
+and `focusModeActive` to `nil`. The rules that depend only on them cannot fire.
 
 The engine also reads from the session: `continuousActiveWork`, `timeSinceLastBreak`, `idleDuration`,
 `activityType` + `activityConfidence`, `applicationSwitches`, `focusScore`, `snoozeCount`,
@@ -563,16 +616,10 @@ generous with waiting, strict about never firing into a hard block — but bound
 cannot become silence.
 
 ```swift
-enum InterruptionVerdict: Equatable {
-    case deliver
-    case hardBlocked(HardBlock)
-    case softDeferred(SoftDeferReason)
-    case rateLimited(RateLimit)
-}
-
-enum HardBlock: String, Codable {
-    case audioInputInUse          // mic is live: call, recording, dictation
+public enum HardBlock: String, Sendable, Codable, Hashable {
+    case audioInputInUse
     case cameraInUse
+    case recentCallContinuing
     case screenBeingShared
     case presentationFullscreen
     case focusModeActive
@@ -580,22 +627,40 @@ enum HardBlock: String, Codable {
     case systemSleeping
     case fastUserSwitched
     case settleInAfterBreak
-    case videoEventInProgress     // calendar event with a video link AND mic live
-    case imminentMeeting          // < 2 min before a busy event starts
+    case videoEventInProgress
+    case imminentMeeting
 }
 
-enum SoftDeferReason: String, Codable {
+public enum SoftDeferReason: String, Sendable, Codable, Hashable {
     case deepFocus
-    case typingBurst              // > 2 keystrokes/sec in the last 5 s
+    case typingBurst
     case terminalCommandRunning
-    case preMeetingWindow         // 2...6 min before a busy event
-    case recentAppLaunch          // < 20 s since the frontmost app changed
+    case preMeetingWindow
+    case recentAppLaunch
+    case inferredMeeting
+    case liveCaptureUnattributed
+    case calendarEventInProgress
 }
 
-enum RateLimit: String, Codable {
-    case quietHours, dailyCapReached, cycleNotificationCap, minimumSpacing, ignoreBackoff
+public enum RateLimit: String, Sendable, Codable, Hashable {
+    case quietHours
+    case dailyCapReached
+    case cycleNotificationCap
+    case minimumSpacing
+    case ignoreBackoff
+
+    public var isTerminalForCycle: Bool {
+        switch self {
+        case .ignoreBackoff, .cycleNotificationCap: return true
+        case .minimumSpacing, .quietHours, .dailyCapReached: return false
+        }
+    }
 }
 ```
+
+These are in `app/Sources/SigstopCore/Decision/InterruptionPolicy.swift`, just below
+`InterruptionVerdict`, whose four cases are `.deliver`, `.hardBlocked(HardBlock)`,
+`.softDeferred(SoftDeferReason)` and `.rateLimited(RateLimit)`.
 
 ### 7.1 Hard blocks — never deliver, and the deferral clocks stop
 
@@ -735,7 +800,7 @@ Summary of the two extremes and the specific mechanisms against each:
 
 | Failure mode | Mechanisms |
 |---|---|
-| **Nagging** | max 4 notifications per cycle; ≥ 5 min between any two; daily cap of 12; snooze always offered (3×); explicit skip that costs nothing; escalation ladder that ends permanently; backoff to 1 notification per cycle after 2 consecutive ignored cycles; ladder timing that stretches, never compresses. A skip neither trips that backoff nor clears it: it is an answer, so it is not an ignore, and it is not a break, so it does not earn a clean slate. |
+| **Nagging** | max 4 notifications per cycle; ≥ 5 min between any two; daily cap of 19 at the default settings (§4.2); snooze on level 1 prompts only, at most twice per cycle; an explicit skip; escalation ladder that ends permanently; backoff to 1 notification per cycle after 2 consecutive ignored cycles; ladder timing that stretches, never compresses. A skip neither trips that backoff nor clears it: it is an answer, so it is not an ignore, and it is not a break, so it does not earn a clean slate. |
 | **Never firing** | soft deferrals are bounded at 15 min total; deep focus buys one extension, once; hard blocks pause rather than cancel; `absoluteMaxWork` floor at 90 min; the passive indicator is always live even during quiet hours, DND and cap exhaustion, so the information is never lost — only the interruption is. |
 
 ### 7.5 Channels
@@ -745,7 +810,7 @@ Summary of the two extremes and the specific mechanisms against each:
 | Passive menu-bar indicator (icon state + title) | no | **always**, including quiet hours, DND, daily cap, hard blocks |
 | Standard notification (`.active`, silent by default) | yes | not hard-blocked, not rate-limited |
 | Notification with sound | yes | escalation level 3+ only, never twice in a cycle, and never while a microphone or camera is live |
-| Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 on AC power, and any rung the system will not show as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears. Level 4 becomes a notification on battery < 20 % or Low Power Mode |
+| Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 outside Low Power Mode, and any rung the system will not show as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears. Level 4 becomes a notification in Low Power Mode (§7.6) |
 
 Nothing in the app is ever modal, and the panel never activates the app. It does cover every
 display until it is answered, and *Ignore it* is always one of its answers, so there is no
@@ -767,9 +832,11 @@ notification's answers, as §9 lists. L4 on AC power offers *Take it* and *Ignor
 
 Battery is an input about *cost and context*, never a reason to skip a break:
 
-- battery < 20 % and discharging, or Low Power Mode: tick interval 1 s → 5 s; device-running polls
-  throttled to every 15 s; overlay channel disabled (notification instead); animations disabled.
-- battery < 10 %: additionally suppress the level-4 overlay entirely.
+- Low Power Mode: level 4 takes the notification channel instead of the panel channel, and level 3
+  loses its sound (`channelFor` in `BreakDecisionEngine`). The battery half of this rule has no
+  input: `SensorStack` passes `batteryFraction: nil`, so a battery below 20 % changes nothing.
+- `isSeverelyPowerConstrained`, the below-10 % rule that was to suppress level 4 entirely, is
+  declared and nothing reads it.
 - Battery never changes *whether* a break is due, and never suppresses the passive indicator.
 
 ### 7.7 Calendar-adjacent signals
@@ -915,51 +982,57 @@ mitigation §7.1 promised years ago and never shipped.
 ## 8. Verdict evaluation, in order
 
 ```swift
-func verdict(_ s: EnvironmentSnapshot, _ session: DeveloperSession,
-             _ cycle: BreakDue, _ day: DailyCounters) -> InterruptionVerdict {
-    // 1. hard blocks — evaluated first, pause the deferral clocks
-    if s.screenLocked            { return .hardBlocked(.screenLocked) }
-    if s.audioInputRunning       { return .hardBlocked(.audioInputInUse) }
-    if s.cameraRunning           { return .hardBlocked(.cameraInUse) }
-    if s.meetingLatch.isHolding  { return .hardBlocked(.recentCallContinuing) }   // 7.8
-    if s.displayCaptured         { return .hardBlocked(.screenBeingShared) }      // cannot fire
-    if s.frontmostIsFullscreen && (s.frontmostIsPresentationApp || s.cameraRunning) {
-        return .hardBlocked(.presentationFullscreen)
+public func verdict(_ input: EngineInput, budget: CycleBudget) -> InterruptionVerdict {
+    if let block = hardBlock(input, budget: budget) { return .hardBlocked(block) }
+    if let limit = rateLimit(input, budget: budget) { return .rateLimited(limit) }
+
+    if input.context.continuousWork >= policy.absoluteMaxWork { return .deliver }
+
+    if budget.seamWaitElapsed < softBudget(input, budget: budget),
+       budget.seamWaitTotal < policy.maxSeamWaitPerCycle {
+        if !input.seams.isEmpty { return .deliver }
+        if let reason = softDefer(input) { return .softDeferred(reason) }
     }
-    if s.focusModeActive == true { return .hardBlocked(.focusModeActive) }
-    if let e = session.lastBreakEndedAt,
-       s.now.timeIntervalSince(e) < policy.settleInAfterBreak { return .hardBlocked(.settleInAfterBreak) }
-    if let c = s.calendar, (c.minutesUntilNextBusyEvent ?? .max) <= 2 { return .hardBlocked(.imminentMeeting) }
+    return .deliver
+}
 
-    // 2. rate limits — do not pause the clocks; they close the cycle instead
-    if policy.quietHours.contains(s.now)                  { return .rateLimited(.quietHours) }
-    if day.notificationsDelivered >= policy.dailyNotificationCap { return .rateLimited(.dailyCapReached) }
-    if cycle.notificationsThisCycle >= policy.maxNotificationsPerCycle { return .rateLimited(.cycleNotificationCap) }
-    if let last = day.lastNotificationAt,
-       s.now.timeIntervalSince(last) < policy.minNotificationSpacing { return .rateLimited(.minimumSpacing) }
-    if day.consecutiveIgnoredCycles >= 2 && cycle.notificationsThisCycle >= 1 {
-        return .rateLimited(.ignoreBackoff)
-    }
-
-    // 3. the floor beats every soft consideration
-    if session.continuousActiveWork >= policy.absoluteMaxWork { return .deliver }
-
-    // 4. soft deferrals, only while the budget lasts
-    let budget = policy.softDeferralWindow
-        + (session.isInDeepFocus(now: s.now, policy: policy) && !cycle.deepFocusExtensionUsed
-           ? policy.deepFocusExtension : 0)
-    if cycle.seamWaitElapsed < budget {
-        if !s.seamsSinceLastTick.isEmpty            { return .deliver }        // a seam beats any soft reason
-        if s.keystrokeRate > 2.0                    { return .softDeferred(.typingBurst) }
-        if s.terminalCommandRunning                 { return .softDeferred(.terminalCommandRunning) }
-        if let c = s.calendar, (3...6).contains(c.minutesUntilNextBusyEvent ?? .max) {
-            return .softDeferred(.preMeetingWindow)
+public func hardBlock(_ input: EngineInput, budget: CycleBudget = CycleBudget()) -> HardBlock? {
+    let s = input.signals
+    if s.screenLocked { return .screenLocked }
+    if s.systemSleeping { return .systemSleeping }
+    if s.fastUserSwitched { return .fastUserSwitched }
+    if s.audioInputRunning {
+        if let c = input.calendar, c.eventInProgress, c.inProgressIsBusy, c.inProgressHasVideoLink {
+            return .videoEventInProgress
         }
-        if session.isInDeepFocus(now: s.now, policy: policy) { return .softDeferred(.deepFocus) }
+        if audioIsCorroborated(input)
+            || budget.uncorroboratedAudioElapsed < policy.uncorroboratedAudioCeiling {
+            return .audioInputInUse
+        }
     }
-    return .deliver     // budget spent: fire.
+    if s.cameraRunning { return .cameraInUse }
+    if s.meetingLatch.isHolding { return .recentCallContinuing }
+    if s.displayCaptured { return .screenBeingShared }
+    if s.frontmostIsFullscreen && (s.frontmostIsPresentationApp || s.cameraRunning) {
+        return .presentationFullscreen
+    }
+    if s.focusModeActive == true { return .focusModeActive }
+    if let ended = input.lastBreakEndedAt,
+       input.now.timeIntervalSince(ended) >= 0,
+       input.now.timeIntervalSince(ended) < policy.settleInAfterBreak {
+        return .settleInAfterBreak
+    }
+    if let minutes = input.calendar?.minutesUntilNextBusyEvent, minutes <= 2 { return .imminentMeeting }
+    return nil
 }
 ```
+
+`InterruptionPolicy.verdict(_:budget:)` and `hardBlock(_:budget:)`, in
+`app/Sources/SigstopCore/Decision/InterruptionPolicy.swift`. `rateLimit` checks quiet hours, the
+daily cap, the per-cycle cap, minimum spacing and the ignore backoff, in that order. `softDefer`
+checks typing, a running terminal command, a recent app switch, unattributed live capture, a
+suspected call, an inferred meeting, the pre-meeting window, a calendar event in progress and deep
+focus, in that order.
 
 Order matters and is part of the spec: hard blocks precede rate limits (a blocked prompt should not
 burn a cycle's notification budget), rate limits precede the floor, and a seam beats every soft reason.
@@ -968,21 +1041,25 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
 
 ## 9. Snooze semantics
 
-- **Offered durations:** 5 / 10 / 15 minutes. 5 is the primary button; the others live behind a
-  disclosure so the common case is one click.
-- **Maximum 3 snoozes per cycle**, and `snoozeTotal` capped at 30 minutes. Durations offered shrink to
-  fit the remaining cap (a third snooze after 5 + 15 may only be 10).
-- **After the cap:** the prompt no longer offers snooze. It offers exactly two actions — *Take it now*
-  and *Skip this one*. Removing the option is honest; offering a fourth snooze that silently behaves
-  like the third is not.
+- **One snooze length.** The notification and the stand-in panel offer one *Snooze (SIGALRM)*, and
+  it lasts `snoozeMinutes`, 5 minutes by default. `init(settings:)` fills `snoozeDurations` with 1, 2
+  and 3 times that, and the `.snooze` action takes the first entry `offeredSnoozes` returns, so the
+  longer two are never used. Snooze is offered on level 1 prompts only; the rungs above it offer none.
+- **Maximum 2 snoozes per cycle** (`maxSnoozesPerBreak`, 0 to 10 in `settings.json`), and
+  `snoozeTotal` capped at 30 minutes (`maxSnoozeTotalPerCycle`, not a setting). With the default
+  5-minute snooze the cap never binds; a longer one shrinks the last snooze to fit (with
+  `snoozeMinutes` at 20: 20 minutes, then 10).
+- **After the cap:** the prompt no longer offers snooze. The notification offers *Take it* and
+  *Skip*, and the stand-in panel adds *Ignore it*. Removing the option is honest; offering a third
+  snooze that silently behaves like the second is not.
 - **What a snooze does to the work clock: nothing.** The clock keeps running. Snoozing defers the
-  question, it does not buy credit. If you snooze 15 minutes at 45 minutes of work, you are at 60
+  question, it does not buy credit. If you snooze 5 minutes at 45 minutes of work, you are at 50
   minutes of work when it returns, and the copy says so.
 - **On snooze expiry:** re-enter `breakDue` with `seamWaitElapsed = 0` (a fresh seam window — the
   deferral machinery gets to do its job again) but `totalElapsed` continuing from the original
   `dueSince`, so snoozing cannot be used to outrun the stale ceiling.
 - **Snooze while hard-blocked** cannot happen — there is no prompt to snooze.
-- **Skip** (`skipThisOne`): closes the cycle, `skippedBreakCount += 1`, no reset, no break recorded,
+- **Skip** (`UserAction.skip`): closes the cycle, `skippedBreakCount += 1`, no reset, no break recorded,
   counted as a *missed* opportunity in compliance (it was a real, answered opportunity). The engine
   re-arms after another `rearmAfterSkip` (20 min) of continuous active work. This is the mid-deploy
   escape hatch and it is deliberately cheap to use.
@@ -1085,17 +1162,19 @@ cooldown, with the work clock still climbing against a threshold nothing was wai
    one, the backoff was unescapable for the rest of the day for everyone who did not answer inside 90
    seconds, which is the window the backoff exists to shorten. `honoredOpportunities` stays conditional
    on an open cycle, because the compliance denominator only grows when an opportunity was opened.
-6. **Daily cap** (12) overrides everything above. On reaching it, the app goes passive-only until the
-   next day boundary and records `quiet(.dailyCapReached)`. That state is terminal until the boundary
+6. **Daily cap** (19 at the default settings, §4.2) overrides everything above. On reaching it, the
+   app goes passive-only until the next day boundary and records `quiet(.dailyCapReached)`. That
+   state is terminal until the boundary
    and computes no verdict, so it writes no `gate` line either: the menu is the only place a user can
    find out, and it says so in words (`QuietCause.summary`). It drew as the literal title "quiet hours"
    for every cause until the counters started surviving a relaunch made it reachable in practice — a
    false label on an app that has gone quiet for the rest of the day is the failure this whole section
    exists to prevent.
 
-Cap arithmetic: a well-matched day is ~9 cycles in 8 hours × 1 notification each = 9, under the cap. A
-day where everything is ignored hits the cap after ~3 cycles — and the backoff rule engages after 2.
-The caps bind in exactly the situation they are meant for.
+Cap arithmetic: a well-matched day is ~9 cycles in 8 hours × 1 notification each = 9, under the
+default cap of 19. A day where everything is ignored spends 4 notifications on each of the first two
+cycles, then the backoff rule holds every later cycle to 1, so the cap is reached on the thirteenth
+cycle. The caps bind in exactly the situation they are meant for.
 
 The knock-on from ending a capped ladder promptly, said here rather than left to be found: backed-off
 cycles close sooner, so a user who ignores everything reaches the daily cap earlier in the afternoon.
@@ -1166,26 +1245,34 @@ decision in `MenuBarIcon` intact. The tooltip carries the sentence, so hovering 
 ## 12. Quiet hours
 
 ```swift
-struct QuietHours: Codable, Equatable {
-    struct Window: Codable, Equatable {
-        var weekday: Int          // 1 = Sunday (Calendar convention)
-        var startMinuteOfDay: Int // e.g. 19*60
-        var endMinuteOfDay: Int   // may be < start: wraps past midnight
-    }
-    var windows: [Window]
-    var allowPassiveIndicator: Bool = true
-    var respectSystemFocusModes: Bool = true
+public struct QuietHours: Sendable, Codable, Hashable {
+    public var startMinute: Int
+    public var endMinute: Int
+    public var enabled: Bool
 
-    static let `default` = QuietHours(windows: (1...7).map {
-        Window(weekday: $0, startMinuteOfDay: 19 * 60, endMinuteOfDay: 9 * 60)   // 19:00 -> 09:00
-    })
+    public init(startMinute: Int = 22 * 60, endMinute: Int = 8 * 60, enabled: Bool = false) {
+        self.startMinute = startMinute
+        self.endMinute = endMinute
+        self.enabled = enabled
+    }
+
+    public func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+        guard enabled else { return false }
+        let c = calendar.dateComponents([.hour, .minute], from: date)
+        let m = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        return startMinute <= endMinute
+            ? (m >= startMinute && m < endMinute)
+            : (m >= startMinute || m < endMinute)
+    }
 }
 ```
 
-- Boundaries are computed with `Calendar.current.nextDate(after:matching:matchingPolicy:)` in the
-  user's current time zone and **recomputed on every `NSSystemTimeZoneDidChange` and
-  `NSCalendarDayChanged`** — never by adding 86 400 to a `Date`. DST transitions therefore behave: a
-  window whose start falls in a skipped hour begins at the next valid minute.
+`QuietHours`, in `app/Sources/SigstopCore/Model/Settings.swift`: one window for every day, 22:00 to
+08:00, off by default.
+
+- There are no computed boundaries. `contains` reads the hour and minute of the moment it is given,
+  in the calendar it is given, on every call. Nothing is scheduled at a boundary and nothing adds
+  86 400 to a `Date`.
 - Quiet hours suppress **delivery only**. Measurement, the session model, and the rollup continue
   unchanged, so the daily summary of an evening session is complete and correct.
 - **Entering** quiet hours withdraws any pending prompt and closes the cycle as `.quietSuppressed`
@@ -1206,8 +1293,8 @@ struct QuietHours: Codable, Equatable {
 - Persisted: session records, classified gaps, break records, cycle outcomes, per-minute app
   attribution buckets (bundle id + credited seconds), daily counters.
 - Not persisted: raw idle samples, keystroke timings, window titles, URLs.
-- The last tick timestamp is written every 15 s. On launch, the gap since it is classified by §4 row 16,
-  so a crash, a force-quit, or a reboot resolves as an ordinary gap rather than as fabricated work.
+- Nothing records the last tick, so §4 row 16 was not built: every launch starts a new session at
+  zero, and a crash, a force-quit or a reboot loses the clock rather than crediting the gap.
 - Raw events are kept 7 days, a constant rather than a setting. Summaries and badges are kept until
   *Delete everything*, the one-click erase (`docs/PRIVACY.md` §4.5).
 
@@ -1216,33 +1303,41 @@ struct QuietHours: Codable, Equatable {
 ## 14. Daily rollup
 
 ```swift
-struct DailySummary: Codable, Equatable {
-    let day: CalendarDay                  // Gregorian y/m/d, user time zone, boundary 04:00
+public struct DailySummary: Sendable, Codable, Hashable {
+    public let day: CalendarDay
 
-    let codingTime: TimeInterval          // credited active work across all sessions
-    let activeWorkByActivity: [ActivityType: TimeInterval]
-    let applicationDistribution: [String: TimeInterval]   // bundleID -> credited seconds
-    let longestContinuousSession: TimeInterval            // max peakContinuousActiveWork
+    public let totalActiveWork: TimeInterval
+    public let activeWorkByActivity: [String: TimeInterval]
+    public let applicationDistribution: [String: TimeInterval]
+    public let longestContinuousSession: TimeInterval
 
-    let breakCount: Int                   // qualifying breaks: accepted + idle-inferred
-    let breaksAccepted: Int
-    let breaksIdleInferred: Int
-    let breaksAbandoned: Int              // ended under qualifyingBreak; not in breakCount
-    let skippedBreakCount: Int
-    let snoozeCount: Int
-    let ignoredPromptCount: Int
+    public let breakCount: Int
+    public let breaksAccepted: Int
+    public let breaksIdleInferred: Int
+    public let breaksUserInitiated: Int
+    public let breaksAbandoned: Int
+    public let skippedBreakCount: Int
+    public let snoozeCount: Int
+    public let ignoredPromptCount: Int
 
-    let breakOpportunities: Int
-    let honoredOpportunities: Int
-    let excludedOpportunities: Int
-    let notificationsDelivered: Int
-    let sessionCount: Int
+    public let breakOpportunities: Int
+    public let honoredOpportunities: Int
+    public let excludedOpportunities: Int
+    public let notificationsDelivered: Int
+    public let sessionCount: Int
 
-    var breakCompliance: Double? {        // nil, never 0 or 1, when there is nothing to measure
-        let denominator = breakOpportunities - excludedOpportunities
-        guard denominator > 0 else { return nil }
-        return Double(honoredOpportunities) / Double(denominator)
-    }
+    public let malformedLines: Int
+```
+
+The stored fields of `DailySummary`, in `app/Sources/SigstopCore/Summary/DailyRollup.swift`.
+`codingTime` is a computed alias for `totalActiveWork`, `activeWorkByActivity` is keyed by the
+`Activity` raw value, and compliance is computed rather than stored:
+
+```swift
+public var breakCompliance: Double? {
+    let denominator = breakOpportunities - excludedOpportunities
+    guard denominator > 0 else { return nil }
+    return Double(honoredOpportunities) / Double(denominator)
 }
 ```
 

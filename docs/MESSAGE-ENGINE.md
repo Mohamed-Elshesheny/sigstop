@@ -41,144 +41,73 @@ Everything the engine can reason about is in one value type. Nothing else is rea
 selection time — this makes selection pure, and therefore testable and reproducible.
 
 ```swift
-// MARK: - Context vocabulary
-
-public enum AppKey: String, Codable, Sendable, CaseIterable {
-    case cursor, vscode, zed, xcode, jetbrains, terminal, browser
-    case figma, docker, slack, discord, unknown
-}
-
-public enum AppFamily: String, Codable, Sendable, CaseIterable {
-    case aiEditor      // cursor, and other completion-forward editors
-    case editor        // vscode, zed, sublime
-    case ide           // xcode, jetbrains
-    case terminal
-    case browser
-    case design
-    case containers
-    case chat
-    case other
-}
-
-public enum ActivityKind: String, Codable, Sendable, CaseIterable {
-    case aiPairing, editing, debugging, testing, building, reviewing
-    case reading, chatting, browsing, designing, unknown
-}
-
-/// Continuous-work duration, bucketed. Bands, not raw minutes, are what templates match on:
-/// raw minutes are a slot, bands are a predicate.
-public enum WorkBand: String, Codable, Sendable, CaseIterable {
-    case short      // < 25
-    case focused    // 25 ..< 50
-    case deep       // 50 ..< 90
-    case marathon   // 90 ..< 150
-    case absurd     // >= 150
+public enum WorkBand: String, Codable, Sendable, CaseIterable, Hashable {
+    case short
+    case focused
+    case deep
+    case marathon
+    case absurd
 
     public init(minutes: Int) {
         switch minutes {
-        case ..<25:   self = .short
-        case ..<50:   self = .focused
-        case ..<90:   self = .deep
-        case ..<150:  self = .marathon
-        default:      self = .absurd
+        case ..<25:  self = .short
+        case ..<50:  self = .focused
+        case ..<90:  self = .deep
+        case ..<150: self = .marathon
+        default:     self = .absurd
         }
     }
 }
 
-public enum TimeBand: String, Codable, Sendable, CaseIterable {
-    case earlyMorning   // 05:00 ..< 08:00
-    case morning        // 08:00 ..< 12:00
-    case afternoon      // 12:00 ..< 17:00
-    case evening        // 17:00 ..< 21:00
-    case night          // 21:00 ..< 01:00
-    case lateNight      // 01:00 ..< 05:00
+public enum TimeBand: String, Codable, Sendable, CaseIterable, Hashable {
+    case earlyMorning
+    case morning
+    case afternoon
+    case evening
+    case night
+    case lateNight
 
     public init(hour: Int) {
         switch hour {
-        case 5..<8:   self = .earlyMorning
-        case 8..<12:  self = .morning
-        case 12..<17: self = .afternoon
-        case 17..<21: self = .evening
+        case 5..<8:      self = .earlyMorning
+        case 8..<12:     self = .morning
+        case 12..<17:    self = .afternoon
+        case 17..<21:    self = .evening
         case 21..<24, 0: self = .night
-        default:      self = .lateNight
+        default:         self = .lateNight
         }
     }
 }
-
-public enum Weekday: String, Codable, Sendable, CaseIterable {
-    case mon, tue, wed, thu, fri, sat, sun
-}
-
-/// Counters the ledger maintains across the day / session.
-public enum StreakKey: String, Codable, Sendable, CaseIterable {
-    case skippedToday          // breaks dismissed or snoozed today
-    case skippedConsecutive    // dismissed in a row, resets on a taken break
-    case takenToday
-    case snoozeSecondsToday
-    case buildsWatchedInSession
-    case sameCommandRepeats    // terminal: identical command re-run count
-}
-
-/// Cheap booleans/strings the collectors can assert about the session.
-public enum FactKey: String, Codable, Sendable, CaseIterable {
-    case branchIsDefault       // on main/master
-    case branchIsLongLived
-    case hasUncommittedChanges
-    case ciPending
-    case prOpenInForeground
-    case testsFailing
-    case buildRunning
-    case windowCount           // numeric fact
-    case editorTabCount
-}
-
-public enum FactValue: Sendable, Hashable, Codable {
-    case bool(Bool)
-    case int(Int)
-    case string(String)
-}
-
-public enum FactMatch: Sendable, Hashable, Codable {
-    case isTrue
-    case isFalse
-    case intAtLeast(Int)
-    case equalsString(String)
-}
 ```
+
+`WorkBand` and `TimeBand`, from `app/Sources/SigstopCore/Message/MessageContext.swift`. Beside them
+are `AppKey` (`cursor`, `vscode`, `zed`, `xcode`, `jetbrains`, `terminal`, `browser`, `figma`,
+`docker`, `slack`, `discord`, `unknown`), `AppFamily`, `Weekday`, `StreakKey`, `FactKey`,
+`FactValue` and `FactMatch`. There is no `ActivityKind`: predicates and slots use `Activity`, the
+detector's own enum (`docs/ACTIVITY-DETECTION.md` §3).
+
+The one value type is `MessageContext`, in the same `MessageContext.swift`. It wraps the detector's
+`DeveloperContext`:
 
 ```swift
-public struct DeveloperContext: Sendable {
-    public var now: Date
-    public var calendar: Calendar
-
-    // Foreground application
-    public var app: AppKey
-    public var appFamily: AppFamily
-    public var appDisplayName: String?          // "Cursor", "Xcode" — may be nil
-    public var appConfidence: Double            // 0...1
-
-    // Inferred activity
-    public var activity: ActivityKind
-    public var activityConfidence: Double       // 0...1
-
-    // Timing
-    public var continuousWorkMinutes: Int
-    public var minutesSinceLastBreak: Int
-    public var timeBand: TimeBand
-    public var weekday: Weekday
-
-    // Insistence
+public struct MessageContext: Sendable, Hashable {
+    public var developer: DeveloperContext
     public var escalation: EscalationLevel
-    public var toneCeiling: Tone                // user preference, hard cap
-
-    // Structured extras
+    public var toneCeiling: Tone
     public var streaks: [StreakKey: Int]
     public var facts: [FactKey: FactValue]
-    public var slots: [SlotKey: SlotValue]
-
-    public var workBand: WorkBand { WorkBand(minutes: continuousWorkMinutes) }
-}
+    public var slotOverrides: [SlotKey: SlotValue]
+    public var calendar: Calendar
+    public var locale: Locale
+    public var appConfidenceOverride: Double?
+    public var withheldSlots: Set<SlotKey>
 ```
+
+`app`, `appFamily`, `appConfidence`, `activity`, `activityConfidence`, `continuousWorkMinutes`,
+`minutesSinceLastBreak`, `workBand`, `timeBand` and `weekday` are computed from those fields.
+`appConfidence` is 0.95 for a known app, 0.50 for an unknown bundle id and 0.20 with none, and
+`activity` is the detector's `claimableActivity`, so below 0.6 it has already fallen back to the
+parent.
 
 ### 1.2 Predicates
 
@@ -190,7 +119,7 @@ This keeps the language flat enough to validate in CI and to explain in a debug 
 public enum Predicate: Sendable, Hashable, Codable {
     case app(Set<AppKey>)
     case appFamily(Set<AppFamily>)
-    case activity(Set<ActivityKind>)
+    case activity(Set<Activity>)
     case workBand(Set<WorkBand>)
     case timeBand(Set<TimeBand>)
     case weekday(Set<Weekday>)
@@ -198,31 +127,44 @@ public enum Predicate: Sendable, Hashable, Codable {
     case streak(StreakKey, atLeast: Int)
     case fact(FactKey, FactMatch)
 
-    public func holds(in ctx: DeveloperContext) -> Bool {
+    public func holds(in ctx: MessageContext) -> Bool {
         switch self {
-        case .app(let s):            return s.contains(ctx.app)
-        case .appFamily(let s):      return s.contains(ctx.appFamily)
-        case .activity(let s):       return s.contains(ctx.activity)
-        case .workBand(let s):       return s.contains(ctx.workBand)
-        case .timeBand(let s):       return s.contains(ctx.timeBand)
-        case .weekday(let s):        return s.contains(ctx.weekday)
+        case .app(let s):
+            return s.contains(ctx.app)
+        case .appFamily(let s):
+            return s.contains(ctx.appFamily)
+        case .activity(let s):
+            var node: Activity? = ctx.activity
+            while let n = node {
+                if s.contains(n) { return true }
+                node = n.parent
+            }
+            return false
+        case .workBand(let s):
+            return s.contains(ctx.workBand)
+        case .timeBand(let s):
+            return s.contains(ctx.timeBand)
+        case .weekday(let s):
+            return s.contains(ctx.weekday)
         case .minutesSinceBreak(let n):
             return ctx.minutesSinceLastBreak >= n
-        case .streak(let k, let n):
-            return (ctx.streaks[k] ?? 0) >= n
-        case .fact(let k, let m):
-            guard let v = ctx.facts[k] else { return false }
-            switch (m, v) {
-            case (.isTrue, .bool(let b)):                 return b
-            case (.isFalse, .bool(let b)):                return !b
-            case (.intAtLeast(let n), .int(let i)):       return i >= n
-            case (.equalsString(let s), .string(let t)):  return s == t
-            default:                                      return false
+        case .streak(let key, let n):
+            return ctx.streak(key) >= n
+        case .fact(let key, let match):
+            guard let v = ctx.facts[key] else { return false }
+            switch (match, v) {
+            case (.isTrue, .bool(let b)):                return b
+            case (.isFalse, .bool(let b)):               return !b
+            case (.intAtLeast(let n), .int(let i)):      return i >= n
+            case (.equalsString(let s), .string(let t)): return s == t
+            default:                                     return false
             }
         }
     }
-}
 ```
+
+`Predicate`, in `app/Sources/SigstopCore/Message/MessageTemplate.swift`. An `activity` predicate also
+holds for a parent: a template for `coding` matches while you are debugging.
 
 **A missing fact fails the predicate.** Absence is never treated as truth. This is the rule
 that stops the engine claiming you are on `main` because the git collector hasn't reported yet.
@@ -234,23 +176,22 @@ system rather than a hope. Each predicate kind carries a weight reflecting how m
 context it pins down:
 
 ```swift
-extension Predicate {
-    /// How much context this predicate commits to. Higher = more specific = better match.
-    public var specificity: Int {
-        switch self {
-        case .app:                return 40
-        case .activity:           return 30
-        case .fact:               return 25
-        case .streak:             return 20
-        case .appFamily:          return 15
-        case .workBand:           return 12
-        case .timeBand:           return 12
-        case .minutesSinceBreak:  return 8
-        case .weekday:            return 5
-        }
+public var specificity: Int {
+    switch self {
+    case .app:               return 40
+    case .activity:          return 30
+    case .fact:              return 25
+    case .streak:            return 20
+    case .appFamily:         return 15
+    case .workBand:          return 12
+    case .timeBand:          return 12
+    case .minutesSinceBreak: return 8
+    case .weekday:           return 5
     }
 }
 ```
+
+`Predicate.specificity`, in the same `MessageTemplate.swift`.
 
 Rationale for the ordering: `app` is the strongest signal a reader perceives ("it knows I'm in
 Cursor"), `activity` next ("it knows I'm debugging"). Set size does not reduce weight — a
@@ -260,56 +201,69 @@ template matching `[.vscode, .zed]` is only marginally less specific than one ma
 The score adds two structural bonuses on top of the predicate sum:
 
 ```swift
-public struct Scorer {
-    public static let slotBonus = 4          // per required slot: the line commits to a detail
-    public static let tightEscalationBonus = 6   // template targets exactly one level
+public enum Scorer {
+    public static let slotBonus = 4
+    public static let tightEscalationBonus = 6
+    public static let bandTolerance = 10
 
-    public static func score(_ t: MessageTemplate, in ctx: DeveloperContext) -> Int {
+    public static func score(_ t: MessageTemplate) -> Int {
         var s = t.when.reduce(0) { $0 + $1.specificity }
         s += slotBonus * t.requiredSlots.count
         if t.escalation.lowerBound == t.escalation.upperBound { s += tightEscalationBonus }
-        s += t.authorPriority          // pack-declared, clamped to -10...10 at load
+        s += t.authorPriority
         return s
     }
 }
 ```
 
-A Cursor + aiPairing + marathon template scores `40 + 30 + 12 = 82` plus bonuses. A generic
+`Scorer`, in `MessageTemplate.swift`. The score depends on the template alone, and `bandTolerance`
+lives here too.
+
+A Cursor + aiCoding + marathon template scores `40 + 30 + 12 = 82` plus bonuses. A generic
 `workBand(.marathon)` template scores `12`. The Cursor line wins by construction, and it wins
 by enough that no randomness can flip it (see the band rule below).
 
 ### 1.4 The algorithm
 
 ```swift
-public struct SelectionResult: Sendable {
+public struct SelectionTrace: Sendable, Hashable {
+    public var totalTemplates: Int = 0
+    public var afterHardGates: Int = 0
+    public var afterRecency: Int = 0
+    public var relaxation: RelaxationStage = .strict
+    public var topScore: Int = 0
+    public var bandSize: Int = 0
+    public var effectiveToneCeiling: Tone = .friendly
+    public var bandIDs: [String] = []
+    public var rejections: [String: RejectionReason] = [:]
+}
+
+public struct SelectionResult: Sendable, Hashable {
     public let message: RenderedMessage
-    public let trace: SelectionTrace     // for the debug panel and for tests
+    public let trace: SelectionTrace
 }
 
-public struct SelectionTrace: Sendable {
-    public var totalTemplates: Int
-    public var afterHardGates: Int
-    public var afterRecency: Int
-    public var relaxation: RelaxationStage
-    public var topScore: Int
-    public var bandSize: Int
-    public var rejections: [String: RejectionReason]   // templateID -> why
-}
+public final class MessageEngine: @unchecked Sendable {
+    public let corpus: Corpus
+    public let ledger: RecencyLedger
+    public let slots: SlotResolver
+    private let rng: any RandomSource
 
-public final class MessageEngine {
-    private let corpus: Corpus
-    private let ledger: RecencyLedger
-    private let slots: SlotResolver
-    private var rng: any RandomNumberGenerator
-
-    public init(corpus: Corpus,
-                ledger: RecencyLedger,
-                slots: SlotResolver,
-                rng: any RandomNumberGenerator = SystemRandomNumberGenerator()) { ... }
-
-    public func select(for ctx: DeveloperContext) -> SelectionResult
-}
+    public init(
+        corpus: Corpus = .bundled,
+        ledger: RecencyLedger = RecencyLedger(),
+        slots: SlotResolver = SlotResolver(),
+        rng: any RandomSource = SystemRandomSource()
+    ) {
+        self.corpus = corpus
+        self.ledger = ledger
+        self.slots = slots
+        self.rng = rng
+    }
 ```
+
+From `app/Sources/SigstopCore/Message/MessageEngine.swift`. Selection is `select(for:record:)`, which
+takes a `MessageContext` and returns a `SelectionResult`.
 
 Pipeline, in order:
 
@@ -337,13 +291,36 @@ so randomness is safe there and only there.
 sampling, not uniform choice:
 
 ```swift
-func pickWeight(_ t: MessageTemplate, now: Date) -> Double {
-    let base = t.weight                                    // pack-declared, default 1.0
-    guard let last = ledger.lastShown(templateID: t.id) else { return base }   // never shown
+public func freshness(_ t: MessageTemplate, now: Date) -> Double {
+    guard let last = lastShown(templateID: t.id) else { return 1.0 }
     let hours = now.timeIntervalSince(last) / 3600
-    let recoveryHours = Double(t.cooldownHours ?? Policy.templateCooldownHours)
-    let freshness = min(1.0, max(0.05, hours / recoveryHours))
-    return base * freshness
+    let recovery = Double(t.cooldownHours ?? Policy.templateCooldownHours)
+    guard recovery > 0 else { return 1.0 }
+    return min(1.0, max(0.05, hours / recovery))
+}
+```
+
+`RecencyLedger.freshness(_:now:)`, in `app/Sources/SigstopCore/Message/RecencyLedger.swift`, and the
+sampling that uses it, `MessageEngine.weightedPick` in `MessageEngine.swift`:
+
+```swift
+func weightedPick(_ band: [MessageTemplate], now: Date) -> MessageTemplate {
+    precondition(!band.isEmpty, "weightedPick requires a non-empty band")
+    if band.count == 1 { return band[0] }
+
+    let weights = band.map { t -> Double in
+        let toneFactor = ledger.toneIsOverused(t.tone) ? Policy.toneRepeatWeightMultiplier : 1.0
+        return max(0.0001, t.weight * ledger.freshness(t, now: now) * toneFactor)
+    }
+    let total = weights.reduce(0, +)
+    guard total > 0, total.isFinite else { return band[0] }
+
+    var target = rng.nextUniform() * total
+    for (i, w) in weights.enumerated() {
+        target -= w
+        if target < 0 { return band[i] }
+    }
+    return band[band.count - 1]
 }
 ```
 
@@ -354,14 +331,14 @@ a newly installed pack surfaces quickly without a special case.
 hash so the same context on the same day yields the same line:
 
 ```swift
-func tieBreakKey(_ t: MessageTemplate, ctx: DeveloperContext) -> UInt64 {
-    var h = Hasher()
-    h.combine(t.id)
-    h.combine(ctx.calendar.startOfDay(for: ctx.now).timeIntervalSince1970)
-    h.combine(ctx.escalation.rawValue)
-    return UInt64(bitPattern: Int64(h.finalize()))
+public static func tieBreakKey(_ t: MessageTemplate, ctx: MessageContext) -> UInt64 {
+    let day = ctx.calendar.startOfDay(for: ctx.now).timeIntervalSince1970
+    return StableHash.fnv1a("\(t.id)|\(Int(day))|\(ctx.escalation.rawValue)")
 }
 ```
+
+`MessageEngine.tieBreakKey`, in `MessageEngine.swift`. `StableHash.fnv1a` is FNV-1a over the id,
+the start of the day and the level, so the key is the same on every launch.
 
 Order: higher weight → lower `tieBreakKey` → lexicographic `id`. Fully deterministic, so the
 golden tests in §8 can assert exact output.
@@ -375,30 +352,50 @@ golden tests in §8 can assert exact output.
 ### 2.1 Typed slots
 
 ```swift
-public enum SlotKey: String, Codable, Sendable, CaseIterable {
-    case app        // "Cursor"         — display name of the foreground app
-    case minutes    // "94"             — continuous work minutes, localized number
-    case project    // "payments-api"   — workspace/repo name
-    case branch     // "fix/retry-loop" — current git branch
-    case activity   // "debugging"      — human-readable activity noun
-    case streak     // "3"              — skipped-breaks count
-    case count      // "41"             — generic counter the collector supplies
-    case hour       // "2:14am"         — localized time of day
+public enum SlotKey: String, Codable, Sendable, CaseIterable, Hashable {
+    case app
+    case minutes
+    case project
+    case branch
+    case activity
+    case streak
+    case count
+    case hour
+
+    public var canDegrade: Bool {
+        switch self {
+        case .branch, .streak, .minutes, .count, .hour: return false
+        case .app, .project, .activity:                 return true
+        }
+    }
 }
 
-public struct SlotValue: Sendable, Hashable {
+public struct SlotValue: Sendable, Hashable, Codable {
     public let text: String
-    public let confidence: Double        // 0...1
+    public let confidence: Double
     public let provenance: Provenance
 
-    public enum Provenance: String, Sendable, Codable {
-        case exact        // read directly (git HEAD, window title, accessibility API)
-        case derived      // computed from an exact value (minutes from a timestamp)
-        case degraded     // family-level substitute ("your editor")
-        case generic      // neutral filler ("this")
+    public enum Provenance: String, Sendable, Codable, Hashable {
+        case exact
+        case derived
+        case degraded
+        case generic
+    }
+
+    public init(text: String, confidence: Double, provenance: Provenance) {
+        self.text = text
+        self.confidence = min(max(confidence, 0), 1)
+        self.provenance = provenance
+    }
+
+    public var isHardEnoughForRequiredSlot: Bool {
+        provenance == .exact || provenance == .derived
     }
 }
 ```
+
+From `app/Sources/SigstopCore/Message/SlotFiller.swift`. `canDegrade` is false for `branch`,
+`streak`, `minutes`, `count` and `hour`.
 
 ### 2.2 Declaration is mandatory
 
@@ -409,22 +406,17 @@ is never selected when branch is unknown** — it isn't a runtime string check, 
 in Step 1 that runs before the text is ever touched.
 
 ```swift
-public struct SlotResolver {
-    public static let requiredFloor: Double = 0.70   // required slots need this confidence
-    public static let optionalFloor: Double = 0.50
-
-    /// Hard gate: can this template's required slots all be satisfied *exactly or derived*?
-    public func canSatisfyRequired(_ t: MessageTemplate, in ctx: DeveloperContext) -> Bool {
-        t.requiredSlots.allSatisfy { key in
-            guard let v = ctx.slots[key] else { return false }
-            guard v.confidence >= Self.requiredFloor else { return false }
-            return v.provenance == .exact || v.provenance == .derived
-        }
+public func canSatisfyRequired(_ t: MessageTemplate, table: [SlotKey: SlotValue]) -> Bool {
+    t.requiredSlots.allSatisfy { key in
+        guard let v = table[key] else { return false }
+        guard v.confidence >= Self.requiredFloor else { return false }
+        return v.isHardEnoughForRequiredSlot
     }
-
-    public func fill(_ t: MessageTemplate, in ctx: DeveloperContext) throws -> String
 }
 ```
+
+`SlotResolver.canSatisfyRequired(_:table:)`, in the same `SlotFiller.swift`. `requiredFloor` is 0.70 and
+`optionalFloor` 0.50. `fill(_:table:family:)` renders a template or returns `nil`.
 
 ### 2.3 The fallback chain
 
@@ -455,34 +447,33 @@ Number and time slots (`minutes`, `count`, `hour`, `streak`) are rendered throug
 
 ## 3. Repetition avoidance: the recency ledger
 
-Repetition is the failure mode that gets the app uninstalled. The ledger is therefore
-persistent (SQLite/`UserDefaults`-backed, survives relaunch) and enforced as a hard gate.
+Repetition is the failure mode that gets the app uninstalled. The ledger is therefore enforced as
+a hard gate. It is not persistent: `AppModel` holds one `MessageEngine` with a fresh
+`RecencyLedger`, nothing writes it to disk, and a relaunch starts it empty.
 
-```swift
-public protocol RecencyLedger: AnyObject, Sendable {
-    func lastShown(templateID: String) -> Date?
-    func showCount(templateID: String, since: Date) -> Int
-    func shownToday(templateID: String, calendar: Calendar, now: Date) -> Bool
-    func lastShown(category: String) -> Date?
-    func lastShown(tone: Tone) -> Date?
-    func recentTemplateIDs(limit: Int) -> [String]      // most-recent-first LRU
-    func record(templateID: String, category: String, tone: Tone, at: Date)
-    func purge(before: Date)                            // retention: 30 days
-}
-```
+`RecencyLedger`, in `app/Sources/SigstopCore/Message/RecencyLedger.swift`, is a class, not a
+protocol. It holds `LedgerEntry` values (template id, category, tone, time shown) in memory, answers
+the lookups this section needs, and decides eligibility in `allows(_:at:now:calendar:)`.
+`purge(before:)` exists and nothing calls it.
 
 ### 3.1 Policy
 
 ```swift
 public enum Policy {
-    public static let templateCooldownHours = 72        // a line rests 3 days
-    public static let categoryCooldownMinutes = 45      // don't do two Docker jokes in a row
-    public static let lruWindow = 60                    // last 60 shown IDs are excluded
-    public static let nuclearPerDay = 1                 // at most one NUCLEAR per calendar day
-    public static let toneRepeatWindow = 3              // avoid 3 identical tones in a row
+    public static let templateCooldownHours = 72
+    public static let categoryCooldownMinutes = 45
+    public static let lruWindow = 60
+    public static let relaxedLRUWindow = 20
+    public static let nuclearPerDay = 1
+    public static let nuclearCooldownHours = 6
+    public static let toneRepeatWindow = 3
+    public static let toneRepeatWeightMultiplier = 0.4
+    public static let sameDayRepeatMinimumHours = 6.0
     public static let ledgerRetentionDays = 30
 }
 ```
+
+`ledgerRetentionDays` is declared and nothing reads it.
 
 Rules, all enforced at Step 2:
 
@@ -505,15 +496,27 @@ Selection never returns nothing. If Step 2 empties the candidate set, the engine
 Step 2 at the next stage and records the stage in the trace:
 
 ```swift
-public enum RelaxationStage: Int, Sendable, Comparable {
-    case strict = 0        // all rules
-    case dropCategory = 1  // drop the 45-minute category cooldown
-    case shrinkLRU = 2     // LRU window 60 -> 20
-    case dropCooldown = 3  // drop the 72h template cooldown; same-day rule still absolute
-    case allowSameDay = 4  // allow a same-day repeat, but only if >= 6h since that show
-    case emergency = 5     // built-in fallback pool, tone forced to .friendly
+public enum RelaxationStage: Int, Sendable, Codable, Hashable, CaseIterable, Comparable {
+    case strict = 0
+    case dropCategory = 1
+    case shrinkLRU = 2
+    case dropCooldown = 3
+    case allowSameDay = 4
+    case emergency = 5
+
+    public static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
+
+    public var lruWindow: Int {
+        self >= .shrinkLRU ? Policy.relaxedLRUWindow : Policy.lruWindow
+    }
+    public var enforcesCategoryCooldown: Bool { self < .dropCategory }
+    public var enforcesTemplateCooldown: Bool { self < .dropCooldown }
+    public var enforcesSameDayUniqueness: Bool { self < .allowSameDay }
 }
 ```
+
+`RelaxationStage`, also in `RecencyLedger.swift`. At `allowSameDay` a same-day repeat still needs 6
+hours since that show (`sameDayRepeatMinimumHours`).
 
 Stage 5 draws from `Corpus.emergencyPool`, a small set compiled into the binary (not
 loadable, not disable-able, `isFallback: true`). A unit test asserts the emergency pool is
@@ -532,12 +535,26 @@ Four tiers. The distinction is **not** intensity of insult — it is *what the j
 and *how the exaggeration works*.
 
 ```swift
-public enum Tone: String, Codable, Sendable, CaseIterable, Comparable {
-    case friendly, sarcastic, roast, nuclear
-    private var rank: Int { Self.allCases.firstIndex(of: self)! }
-    public static func < (a: Tone, b: Tone) -> Bool { a.rank < b.rank }
-}
+public enum Tone: String, Sendable, Codable, CaseIterable, Hashable, Comparable {
+    case friendly
+    case sarcastic
+    case roast
+    case nuclear
+
+    public var rank: Int {
+        switch self {
+        case .friendly: return 0
+        case .sarcastic: return 1
+        case .roast: return 2
+        case .nuclear: return 3
+        }
+    }
+
+    public static func < (a: Self, b: Self) -> Bool { a.rank < b.rank }
 ```
+
+The first lines of `Tone`, in `app/Sources/SigstopCore/Model/Settings.swift`. It also carries a
+`displayName` and a one-line `blurb`.
 
 ### 4.1 What separates the tiers
 
@@ -672,45 +689,38 @@ synthetic contexts spanning every app × activity × band × level × confidence
 
 ## 5. Escalation
 
-Four levels. Escalation is a property of the *user's response history*, not of elapsed time
-alone: it advances on a skip and resets on a taken break.
+Four levels, one per rung of the break engine's ladder. A rung is reached by leaving a prompt
+unanswered, not by skipping: a skip closes the cycle, and the next cycle starts again at the first
+rung.
 
 ```swift
-public enum EscalationLevel: Int, Codable, Sendable, CaseIterable, Comparable {
-    case nudge = 1
-    case insistent = 2
-    case confrontational = 3
-    case intervention = 4
+public enum EscalationLevel: Int, Sendable, Codable, CaseIterable, Hashable, Comparable {
+    case first = 1
+    case second = 2
+    case third = 3
+    case incident = 4
 
     public static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
-}
 
-public struct EscalationPolicy {
-    /// Advance one level per skip; reset to .nudge on a completed break;
-    /// decay one level for every 2 hours with no reminder fired.
-    public func next(after outcome: ReminderOutcome,
-                     from level: EscalationLevel,
-                     idleSince: Date?,
-                     now: Date) -> EscalationLevel
-}
-
-public enum ReminderOutcome: String, Codable, Sendable {
-    case breakTaken, snoozed, dismissed, ignored, quietHours
+    public var next: EscalationLevel { EscalationLevel(rawValue: rawValue + 1) ?? .incident }
 }
 ```
 
-Per-level treatment. Each level changes *three* things — the tone ceiling, the presentation,
-and the cost of saying no:
+`EscalationLevel`, in `app/Sources/SigstopCore/Model/Settings.swift`. There is no
+`EscalationPolicy` and no `ReminderOutcome`: the level a line is chosen for comes from the
+`PromptRequest` being delivered (`docs/BREAK-DECISION.md` §11).
+
+Per level, the message engine decides one thing, the tone ceiling
+(`MessageEngine.effectiveToneCeiling`), and the user's own tone setting caps it further:
 
 | | **L1 Nudge** | **L2 Insistent** | **L3 Confrontational** | **L4 Intervention** |
 |---|---|---|---|---|
 | Tone cap | `sarcastic` | `roast` | `roast` (`nuclear` if opted in) | `nuclear` |
-| Presentation | `UNNotification` banner | Banner, persistent | Alert-style + menu-bar pulse | Borderless `NSWindow` at `.statusBar` level, 40% screen |
-| Sound | none | `NSSound` soft | `NSSound` distinct | distinct + repeat once at 10s |
-| Dismissal | auto after 8s | stays until acted on | stays; "Later" needs a second click | 20s countdown; "I'm mid-thought" button dismisses |
-| Actions | Later | Later (10m) · Start break | Later (5m, confirm) · Start break | Snooze 5m (once) · Start break |
-| Snooze budget | unlimited | 3/hour | 1/hour | 1 per event |
-| Frequency guard | — | — | ≥ 8 min since last | ≥ 15 min since last; max 3/day |
+
+Presentation, sound, the actions a prompt offers and the spacing between prompts belong to the break
+engine, and `docs/BREAK-DECISION.md` §7.5, §9 and §11 describe what ships. The rows this table used
+to carry for them, a 40% window, countdowns, snooze budgets per hour and longer spacing at L3 and
+L4, were a design that was not built.
 
 Two non-negotiables, enforced in the notification layer rather than the engine:
 
@@ -730,51 +740,33 @@ Two independent confidences: `appConfidence` (which app is in front) and `activi
 (what you're doing in it). App detection is nearly always reliable; activity inference is not.
 The rule: **the engine may only make a claim as specific as its weakest relevant signal.**
 
-```swift
-public enum ConfidenceTier: String, Sendable, CaseIterable {
-    case high      // >= 0.85 — specific factual claims allowed
-    case medium    // >= 0.60 — app-level claims only; no fine-grained activity claims
-    case low       // >= 0.35 — app-family / neutral lines only
-    case unknown   // <  0.35 — generic pool only
-
-    public init(_ v: Double) {
-        switch v {
-        case 0.85...:      self = .high
-        case 0.60..<0.85:  self = .medium
-        case 0.35..<0.60:  self = .low
-        default:           self = .unknown
-        }
-    }
-}
-```
+There is no `ConfidenceTier` type. The gate compares against numbers directly: 0.35 as the floor for
+any claim, 0.60 as the least an app claim needs, and each template's own `minConfidence`.
 
 Gate, evaluated in Step 1:
 
 ```swift
-func confidenceGate(_ t: MessageTemplate, _ ctx: DeveloperContext) -> Bool {
-    // A template that names an activity must clear its own floor on activity confidence.
-    let usesActivity = t.when.contains { if case .activity = $0 { return true }; return false }
-        || t.requiredSlots.contains(.activity)
-        || t.claimsActivity
-
-    let usesApp = t.when.contains { if case .app = $0 { return true }; return false }
-        || t.requiredSlots.contains(.app)
+public static func confidenceGate(_ t: MessageTemplate, _ ctx: MessageContext) -> Bool {
+    let usesActivity = t.usesActivityClaim
+    let usesApp = t.usesAppPredicate
 
     if usesActivity && ctx.activityConfidence < t.minConfidence { return false }
     if usesApp && ctx.appConfidence < max(t.minConfidence, 0.60) { return false }
 
-    // Hard floor: below 0.35 on the relevant signal, only non-claiming templates survive.
-    if ConfidenceTier(ctx.activityConfidence) == .unknown && usesActivity { return false }
-    if ConfidenceTier(ctx.appConfidence) == .unknown && usesApp { return false }
+    if usesActivity && ctx.activityConfidence < 0.35 { return false }
+    if usesApp && ctx.appConfidence < 0.35 { return false }
     return true
 }
 ```
+
+`MessageEngine.confidenceGate`, in `app/Sources/SigstopCore/Message/MessageEngine.swift`.
+`usesActivityClaim` and `usesAppPredicate` are properties of `MessageTemplate`.
 
 Recommended `minConfidence` by how specific the claim is:
 
 | Claim the line makes | `minConfidence` | Example |
 |---|---|---|
-| Names an app *and* a fine-grained activity ("you've accepted 41 suggestions") | 0.85 | Cursor + aiPairing lines |
+| Names an app *and* a fine-grained activity ("you've accepted 41 suggestions") | 0.85 | Cursor + aiCoding lines |
 | Names an app, generic activity ("long stretch in the editor") | 0.70 | VS Code lines |
 | App family only ("your terminal has been busy") | 0.55 | family lines |
 | No claim at all ("something's had your attention") | 0.00 | generic pool |
@@ -941,27 +933,19 @@ be a consolation prize; it carries ~10% of the corpus and gets the same rubric.
 
 ### 7.3 Swift decoding
 
-```swift
-public struct MessagePack: Codable, Sendable {
-    public let schemaVersion: Int
-    public let packId: String
-    public let packVersion: String
-    public let locale: String
-    public let title: String?
-    public let author: String?
-    public let license: String?
-    public let defaultWeight: Double?
-    public let messages: [MessageTemplate]
-}
+From `app/Sources/SigstopCore/Message/MessageTemplate.swift`, the stored fields of
+`MessageTemplate`. `escalation` is decoded from `{min, max}`, and `minConfidence`, `weight` and
+`authorPriority` are clamped when a template is built:
 
-public struct MessageTemplate: Codable, Sendable, Identifiable {
+```swift
+public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let title: String?
     public let text: String
     public let altText: String?
     public let tone: Tone
     public let category: String
-    public let escalation: ClosedRange<EscalationLevel>   // decoded from {min,max}
+    public let escalation: ClosedRange<EscalationLevel>
     public let minConfidence: Double
     public let claimsActivity: Bool
     public let requiredSlots: [SlotKey]
@@ -974,14 +958,25 @@ public struct MessageTemplate: Codable, Sendable, Identifiable {
     public let theatrical: Bool
     public let plural: [SlotKey: [String: String]]?
     public let notes: String?
-}
-
-public struct Corpus: Sendable {
-    public let packs: [MessagePack]
-    public let templates: [MessageTemplate]          // flattened, id-deduped, lint-validated
-    public static let emergencyPool: [MessageTemplate]   // compiled in, never empty
-}
 ```
+
+and of a pack, `MessagePack` in the same `MessageTemplate.swift`:
+
+```swift
+public struct MessagePack: Codable, Sendable, Hashable {
+    public let schemaVersion: Int
+    public let packId: String
+    public let packVersion: String
+    public let locale: String
+    public let title: String?
+    public let author: String?
+    public let license: String?
+    public let defaultWeight: Double?
+    public let messages: [MessageTemplate]
+```
+
+`Corpus` flattens the packs whose `schemaVersion` is supported and drops repeated ids.
+`Corpus.emergencyPool` is six lines compiled into the binary, and `Corpus.lastResort` is a seventh.
 
 **Packs ship in-tree only. There is no runtime pack loading, and this is a decision
 rather than a gap.**

@@ -118,10 +118,26 @@ permission people assume.
 Unlocks: **the focused window's title**, and for document-based apps, **the document's file URL**.
 
 ```swift
-// Prompting. Only ever call with prompt:true from an explicit user action.
-let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-let trusted = AXIsProcessTrustedWithOptions(opts)
+@discardableResult
+public func requestAccessibility(_ gesture: UserGesture) -> Bool {
+    _ = gesture
+    let key = axPromptOptionKey as String
+    let trusted = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    lock.lock()
+    cachedTrusted = trusted
+    let tiers = Self.tiers(settings: settings, trusted: trusted)
+    let changed = tiers != lastPublished
+    lastPublished = tiers
+    let sinks = changed ? Array(continuations.values) : []
+    lock.unlock()
+    for sink in sinks { sink.yield(tiers) }
+    return trusted
+}
 ```
+
+That is `PermissionBroker.requestAccessibility(_:)`, in
+`app/Sources/SigstopSensors/PermissionBroker.swift`, the only place the app asks for the prompt. A `UserGesture` can only be made by `clickedButton` or
+`selectedMenuItem`, which is how the signature says it runs from a user action.
 
 - `AXIsProcessTrusted()` is the poll-safe, non-prompting check. **`AXAPIEnabled()` is deprecated** —
   do not use it.
@@ -132,8 +148,8 @@ let trusted = AXIsProcessTrustedWithOptions(opts)
 - **AX calls are synchronous IPC into the target process and can block.** If the target is beachballed,
   the call hangs until the messaging timeout. Two non-negotiable rules:
   - `AXUIElementSetMessagingTimeout(element, 0.25)` on every element we create.
-  - Never call AX on the main actor. All AX work lives in a dedicated `AccessibilityActor` on a
-    background thread that owns its own `CFRunLoop`.
+  - Never call AX on the main actor. `AccessibilityCollector` reads on its own serial queue, and its
+    observers run on a thread that owns its own `CFRunLoop`.
 - **Prefer `AXObserver` over polling.** `kAXFocusedWindowChangedNotification` and
   `kAXTitleChangedNotification` turn title tracking into an *event stream*, which is the single
   biggest reason this app can be energy-negligible.
@@ -141,19 +157,32 @@ let trusted = AXIsProcessTrustedWithOptions(opts)
   enables their own accessibility support. The **window title on `AXWindow` is always present**
   regardless. Therefore the design depends on window titles *only* and never walks an Electron
   app's AX tree. This is a deliberate robustness choice.
-- **Privacy line, enforced in code:** we read `kAXTitle`, `kAXDocument`, and element *roles*. We
-  **never** read `kAXValue` of a text area or text field. Reading `kAXValue` would give us the user's
-  actual source code / message drafts. The `AccessibilityActor` has no API surface that can return
-  a text value; the capability is absent, not merely unused.
+- **Privacy line, enforced in code:** we read `kAXFocusedWindow`, then `kAXTitle` and `kAXDocument`
+  on it, and nothing else. We **never** read `kAXValue` of a text area or text field. Reading
+  `kAXValue` would give us the user's actual source code / message drafts. `AccessibilityCollector`
+  has no API surface that can return a text value; the capability is absent, not merely unused.
 
 ### 2.3 Microphone-in-use detection, honestly
 
 ```swift
-var addr = AudioObjectPropertyAddress(
-    mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-    mScope:    kAudioObjectPropertyScopeGlobal,
-    mElement:  kAudioObjectPropertyElementMain)   // macOS 12+; not ...ElementMaster
+static func deviceIsRunningSomewhere(_ device: AudioObjectID) -> Bool? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    var value: UInt32 = 0
+    var size = UInt32(MemoryLayout<UInt32>.size)
+    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr else {
+        return nil
+    }
+    return value != 0
+}
 ```
+
+`AudioDeviceCollector.deviceIsRunningSomewhere(_:)`, in
+`app/Sources/SigstopSensors/Collectors/AudioDeviceCollector.swift`. A read that fails is `nil`, never
+`false`.
 
 We enumerate `kAudioHardwarePropertyDevices`, keep those with a non-empty input
 `kAudioDevicePropertyStreamConfiguration`, and OR their `DeviceIsRunningSomewhere`. We register
@@ -288,13 +317,21 @@ refuse it, and nothing in the activity model is worth it.
   unwrap.** Write it defensively and keep an IOKit fallback:
 
   ```swift
-  func systemIdleSeconds() -> TimeInterval {
+  public func read() -> InputActivity {
       if let any = CGEventType(rawValue: ~0) {
-          return CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: any)
+          let seconds = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: any)
+          if seconds.isFinite, seconds >= 0 {
+              return InputActivity(idleSeconds: seconds, source: .hidSystemState)
+          }
       }
-      return hidIdleSecondsFromIORegistry()   // IOHIDSystem → "HIDIdleTime" (nanoseconds)
+      if let seconds = Self.hidIdleSecondsFromIORegistry() {
+          return InputActivity(idleSeconds: seconds, source: .ioRegistry)
+      }
+      return .unknown
   }
   ```
+
+  That is `IdleCollector.read()` in `app/Sources/SigstopSensors/Collectors/IdleCollector.swift`.
 
 - **`.hidSystemState` vs `.combinedSessionState`** — `.combinedSessionState` also counts *synthetic*
   events posted by other processes, so mouse jigglers, automation tools, and some conferencing apps
@@ -324,12 +361,11 @@ refuse it, and nothing in the activity model is worth it.
 
 ## 3. Core model
 
+The model, from `app/Sources/SigstopCore/Model/Activity.swift`. The activity taxonomy and its
+parents:
+
 ```swift
-import Foundation
-
-// MARK: - Activity taxonomy
-
-public enum Activity: String, Sendable, Codable, CaseIterable {
+public enum Activity: String, Sendable, Codable, CaseIterable, Hashable {
     case coding
     case debugging
     case testing
@@ -343,8 +379,6 @@ public enum Activity: String, Sendable, Codable, CaseIterable {
     case idle
     case unknown
 
-    /// The class to fall back to when a child cannot be distinguished from its siblings.
-    /// Degrading to the parent is ALWAYS preferred over guessing between children.
     public var parent: Activity? {
         switch self {
         case .debugging, .testing, .aiCoding, .documentation: return .coding
@@ -354,103 +388,68 @@ public enum Activity: String, Sendable, Codable, CaseIterable {
              .communication, .idle, .unknown:                 return nil
         }
     }
-}
+```
 
-// MARK: - Tiers
+`Confidence`, in the same `Activity.swift`, cannot be built out of range, and `.certain` is the value
+kept for OS facts:
 
-public enum SignalTier: Int, Sendable, Codable, CaseIterable {
-    case tier0 = 0   // zero permission, always available
-    case tier1 = 1   // Accessibility, user-granted
-    case tier2 = 2   // explicit opt-in: local git context + process introspection
-}
-
-public struct SignalTierSet: OptionSet, Sendable, Codable, Hashable {
-    public let rawValue: Int
-    public init(rawValue: Int) { self.rawValue = rawValue }
-    public static let tier0 = SignalTierSet(rawValue: 1 << 0)
-    public static let tier1 = SignalTierSet(rawValue: 1 << 1)
-    public static let tier2 = SignalTierSet(rawValue: 1 << 2)
-}
-
-// MARK: - Confidence
-
-/// A probability in 0...1 that cannot be constructed out of range.
+```swift
 public struct Confidence: Sendable, Codable, Hashable, Comparable {
     public let value: Double
-    public init(_ v: Double) { self.value = min(max(v, 0.0), 1.0) }
+
+    public init(_ v: Double) {
+        self.value = v.isFinite ? min(max(v, 0.0), 1.0) : 0.0
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        self.init(try c.decode(Double.self))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(value)
+    }
+
     public static func < (a: Self, b: Self) -> Bool { a.value < b.value }
 
-    public static let none    = Confidence(0.0)
-    /// Reserved for OS facts only (screen locked, session inactive). Nothing inferred reaches this.
+    public static let none = Confidence(0.0)
+
     public static let certain = Confidence(0.99)
+
+    public static let specificClaimThreshold = Confidence(0.6)
+
+    public var isConfidentEnoughForSpecificClaim: Bool {
+        self >= Self.specificClaimThreshold
+    }
 }
+```
 
-// MARK: - Evidence
+`Evidence`, also in `Activity.swift`, carries its tier, its weight in log-odds and a user-facing
+summary:
 
-public struct EvidenceID: Sendable, Codable, Hashable, RawRepresentable {
-    public let rawValue: String
-    public init(rawValue: String) { self.rawValue = rawValue }
-    public init(_ s: String) { self.rawValue = s }
-}
-
-/// A single reason the app believes something, expressed in log-odds so that
-/// independent reasons compose by addition. `summary` is user-facing: the app must
-/// always be able to answer "why do you think that?".
+```swift
 public struct Evidence: Sendable, Codable, Hashable {
     public let id: EvidenceID
     public let tier: SignalTier
     public let logOdds: Double
     public let summary: String
-}
 
-// MARK: - Identity & context
-
-public struct AppIdentity: Sendable, Codable, Hashable {
-    public let bundleID: String?          // nil for bundle-less processes
-    public let localizedName: String
-    public let pid: pid_t
-}
-
-/// Everything optional. A field is nil when the tier that would populate it is unavailable.
-/// There is no "unknown" sentinel string: absence is modelled as absence.
-public struct ActivityContext: Sendable, Codable, Hashable {
-    public var projectName: String?       // tier1, parsed from window title (heuristic)
-    public var fileName: String?          // tier1
-    public var fileExtension: String?     // tier1
-    public var documentURL: URL?          // tier1, kAXDocument — a REAL path, not a guess
-    public var branch: String?            // tier2, read from .git/HEAD
-    public var repoState: RepoState?      // tier2
-    public var browserHost: String?       // tier1b opt-in; HOST ONLY, never path or query
-}
-
-public enum RepoState: String, Sendable, Codable {
-    case clean, rebaseInProgress, mergeInProgress, bisecting, detachedHead
-}
-
-/// States that are NOT mutually exclusive with the primary activity.
-/// You can be in a meeting while coding. Modelling MEETING as a peer of CODING
-/// would force a false choice, so it is a separate axis.
-public struct ConcurrentStates: Sendable, Codable, Hashable {
-    public var inMeeting: Bool = false
-    public var meetingConfidence: Confidence = .none
-    public var screenLocked: Bool = false
-    public var onBattery: Bool = false
-}
-
-// MARK: - The output
-
-public struct ActivityObservation: Sendable, Codable, Hashable {
-    public let timestamp: Date
-    public let activity: Activity
-    public let confidence: Confidence
-    public let evidence: [Evidence]        // ordered by |logOdds| descending
-    public let app: AppIdentity
-    public let context: ActivityContext
-    public let concurrent: ConcurrentStates
-    public let providerID: ProviderID
-    public let tiersUsed: SignalTierSet
+    public init(id: EvidenceID, tier: SignalTier, logOdds: Double, summary: String) {
+        self.id = id
+        self.tier = tier
+        self.logOdds = logOdds.isFinite ? logOdds : 0
+        self.summary = summary
+    }
 }
 ```
+
+`SignalTier` and `SignalTierSet` sit in the same file. `Model/Identity.swift` holds the rest:
+`AppIdentity` (`bundleID`, `localizedName`, `pid`); `ActivityContext`, whose fields are all optional
+(`projectName`, `fileName`, `fileExtension`, `documentURL`, `branch`, `repoState`, `browserHost`);
+`RepoState`; `ConcurrentStates` (`inMeeting`, `meetingConfidence`, `screenLocked`, `onBattery`,
+`lowPowerMode`, `fullscreen`); and `ActivityObservation`, whose `claimableActivity` falls back to the
+parent below the 0.6 threshold.
 
 ---
 
@@ -607,11 +606,23 @@ runs is knowing something about them. The rules are absolute:
 
 ### 4.4 Tier availability is a runtime value
 
+There is no `SignalAvailability` actor. The tier set is computed by `PermissionBroker`, a class in
+`app/Sources/SigstopSensors/PermissionBroker.swift`: `currentTiers()` returns the last set published,
+`stream` delivers changes, and `refresh()` re-checks the grant:
+
 ```swift
-public actor SignalAvailability {
-    public private(set) var tiers: SignalTierSet = [.tier0]
-    public func refresh() async   // re-checks AXIsProcessTrusted() and user opt-ins
-    public var stream: AsyncStream<SignalTierSet> { get }
+@discardableResult
+public func refresh() -> SignalTierSet {
+    let trusted = trustCheck()
+    lock.lock()
+    cachedTrusted = trusted
+    let tiers = Self.tiers(settings: settings, trusted: trusted)
+    let changed = tiers != lastPublished
+    lastPublished = tiers
+    let sinks = changed ? Array(continuations.values) : []
+    lock.unlock()
+    for sink in sinks { sink.yield(tiers) }
+    return tiers
 }
 ```
 
@@ -626,22 +637,34 @@ continuing to emit stale high-confidence observations.
 
 ### 5.1 The protocol
 
-```swift
-public struct ProviderID: Sendable, Codable, Hashable, RawRepresentable {
-    public let rawValue: String
-    public init(rawValue: String) { self.rawValue = rawValue }
-    public init(_ s: String) { self.rawValue = s }
-}
+The protocol, in `app/Sources/SigstopSensors/Providers/ActivityProvider.swift`. An extension gives
+`priority` a default of 0:
 
-/// How a provider declares the apps it claims.
+```swift
+public protocol ActivityProvider: Sendable {
+    static var identifier: ProviderID { get }
+    var claims: [AppClaim] { get }
+    var priority: Int { get }
+
+    func observe(_ context: SignalContext) -> ProviderVerdict?
+}
+```
+
+How a provider claims apps, `AppClaim` in the same `ActivityProvider.swift`:
+
+```swift
 public struct AppClaim: Sendable, Hashable {
     public enum Match: Sendable, Hashable {
-        case bundleID(String)          // exact       — specificity 300
-        case bundleIDPrefix(String)    // "com.jetbrains." — specificity 200 + prefix.count
-        case bundleIDRegex(String)     // last resort — specificity 100
-        case executableName(String)    // for bundle-less processes — specificity 150
+        case bundleID(String)
+        case bundleIDPrefix(String)
+        case executableName(String)
+        case bundleIDRegex(String)
     }
+
     public let match: Match
+
+    public init(_ match: Match) { self.match = match }
+
     public var specificity: Int {
         switch match {
         case .bundleID:              return 300
@@ -650,129 +673,96 @@ public struct AppClaim: Sendable, Hashable {
         case .bundleIDRegex:         return 100
         }
     }
-    public func matches(_ app: AppIdentity) -> Bool { /* ... */ }
-}
 
-/// A provider is a pure function from signals to an observation.
-/// It owns NO state, performs NO I/O, and is `Sendable`. All I/O happened upstream
-/// in the collectors; providers only interpret. This makes every provider trivially
-/// unit-testable by constructing a `SignalContext` literal — which matters a lot,
-/// because there is no Xcode and thus no UI test harness.
-public protocol ActivityProvider: Sendable {
-    static var identifier: ProviderID { get }
-
-    /// Which apps this provider claims.
-    var claims: [AppClaim] { get }
-
-    /// Tiebreaker when two providers claim at equal specificity. Higher wins.
-    /// Built-ins use 0; third-party overrides should use 100 so they win by default.
-    var priority: Int { get }
-
-    /// Return nil to decline — e.g. a provider that only recognises a specific
-    /// window-title shape and sees none. Declining passes the app to the next
-    /// ranked provider, and ultimately to `GenericProvider`, which never declines.
-    func observe(_ context: SignalContext) -> ProviderVerdict?
-}
-
-/// A provider proposes an activity and the evidence for it. It does NOT compute the
-/// final confidence — `ConfidenceEngine` does, so that tier ceilings and calibration
-/// are applied in exactly one place and cannot be bypassed by a third-party provider.
-public struct ProviderVerdict: Sendable {
-    public let activity: Activity
-    public let evidence: [Evidence]
-    public let context: ActivityContext
-    /// If the provider knows it cannot distinguish between children, it names the
-    /// parent here and the engine will not let confidence exceed `parentCeiling`.
-    public let degradedFromAmbiguity: Bool
+    public func matches(_ app: AppIdentity) -> Bool {
+        switch match {
+        case .bundleID(let id):
+            return app.bundleID?.caseInsensitiveCompare(id) == .orderedSame
+        case .bundleIDPrefix(let prefix):
+            guard let id = app.bundleID else { return false }
+            return id.lowercased().hasPrefix(prefix.lowercased())
+        case .executableName(let name):
+            return app.localizedName.caseInsensitiveCompare(name) == .orderedSame
+        case .bundleIDRegex(let pattern):
+            guard let id = app.bundleID else { return pattern == ".*" }
+            return RegexCache.shared.matches(pattern, id)
+        }
+    }
 }
 ```
 
+`ProviderVerdict`, in the same file, carries `activity`, `evidence`, `context` and
+`degradedFromAmbiguity`, plus `concurrentHints`, `labelOverride` and `maximumConfidence`. A provider
+cannot set the final confidence, only lower its cap through `maximumConfidence`; `ConfidenceEngine`
+computes it (§6). `ProviderID` is in `app/Sources/SigstopCore/Model/Identity.swift`.
+
 ### 5.2 What providers receive
+
+The stored properties of `SignalContext`, in `app/Sources/SigstopSensors/SignalContext.swift`:
 
 ```swift
 public struct SignalContext: Sendable {
     public let now: Date
     public let available: SignalTierSet
 
-    // Tier 0
     public let frontmost: AppIdentity
     public let frontmostSince: Date
-    public let recentApps: [AppSwitch]        // ring buffer, last 20 switches
-    public let runningBundleIDs: Set<String>  // for "is Zoom/Docker/a simulator running"
+    public let recentApps: [AppSwitch]
+    public let runningBundleIDs: Set<String>
     public let input: InputActivity
     public let session: SessionState
     public let power: PowerState
     public let audioInput: AudioInputState
-    public let windowGeometry: WindowGeometrySnapshot?   // nil if feature-detected unavailable
+    public let windowGeometry: WindowGeometrySnapshot?
 
-    // Tier 1
     public let windowTitle: String?
     public let documentURL: URL?
-    public let browserHost: String?           // tier1b only
+    public let browserHost: String?
 
-    // Tier 2
     public let processes: ProcessSnapshot?
     public let git: GitSignal?
-}
+```
 
-public struct AppSwitch: Sendable, Hashable, Codable {
-    public let app: AppIdentity
-    public let enteredAt: Date
-    public let leftAt: Date?
-}
+The audio state, in the same `SignalContext.swift`, has four cases, not a `Bool`:
 
-public struct InputActivity: Sendable, Hashable {
-    public let idleSeconds: TimeInterval
-    public let source: IdleSource            // .hidSystemState or .ioRegistryFallback
-}
-
-public struct SessionState: Sendable, Hashable {
-    public let screenLocked: Bool
-    public let displaysAsleep: Bool
-    public let sessionActive: Bool           // false during fast user switching
-}
-
-public enum AudioInputState: Sendable, Hashable {
+```swift
+public enum AudioInputState: String, Sendable, Codable, Hashable {
     case running
     case notRunning
     case noInputDevice
-    case unreliable          // calibration decided this Mac's mic never turns off
-}
+    case unreliable
 
-public struct ProcessSnapshot: Sendable {
-    /// Allowlist-matched tool tokens only. Raw argv is never stored here.
-    public let matchedTools: Set<ToolToken>
-    /// Tools whose parent process is the frontmost app — a much stronger signal.
-    public let childrenOfFrontmost: Set<ToolToken>
-    public let capturedAt: Date
-}
-
-public enum ToolToken: String, Sendable, Codable, CaseIterable {
-    // debuggers
-    case lldb, debugserver, gdb, delve, debugpy, nodeInspect
-    // test runners
-    case pytest, jest, vitest, xctest, goTest, cargoTest, swiftTesting, rspec, phpunit, playwright
-    // terminal editors
-    case vim, nvim, helix, emacs, nano
-    // AI CLIs
-    case claudeCLI, aider, codexCLI, gooseCLI
-    // build / vcs
-    case gitProcess, ghCLI, xcodebuild, gradle, cargo, swiftBuild, tsc, webpack, vite
-    // remote
-    case ssh, mosh, kubectl
+    public var contributesToMeeting: Bool { self == .running }
 }
 ```
 
+`AppSwitch`, `InputActivity`, `SessionState`, `PowerState`, `WindowGeometrySnapshot`,
+`ProcessSnapshot`, `GitSignal` and the `ToolToken` allowlist are in the same file. `ProcessSnapshot`
+holds `matchedTools`, `childrenOfFrontmost`, `tracedUnderFrontmost`, `tracedElsewhere` and
+`capturedAt`, and no argv.
+
 ### 5.3 Resolution and ranking
 
-```swift
-public actor ProviderRegistry {
-    public func register(_ provider: any ActivityProvider)
-    public func registerAll(_ providers: [any ActivityProvider])
-    public func loadManifests(from directory: URL) throws -> [ProviderID]
+`ProviderRegistry` is a struct, not an actor, in
+`app/Sources/SigstopSensors/Providers/ActivityProvider.swift`. It has `register(_:)`,
+`registerAll(_:)`, `resolve(for:)` and `classify(_:)`, and no `loadManifests`:
 
-    /// Ordered best-first. Never empty: GenericProvider is always appended last.
-    public func resolve(for app: AppIdentity) -> [any ActivityProvider]
+```swift
+public func resolve(for app: AppIdentity) -> [any ActivityProvider] {
+    let ranked = providers
+        .compactMap { provider -> (provider: any ActivityProvider, specificity: Int)? in
+            guard let specificity = provider.matchSpecificity(for: app) else { return nil }
+            return (provider, specificity)
+        }
+        .sorted { lhs, rhs in
+            if lhs.specificity != rhs.specificity { return lhs.specificity > rhs.specificity }
+            if lhs.provider.priority != rhs.provider.priority {
+                return lhs.provider.priority > rhs.provider.priority
+            }
+            return lhs.provider.identifier.rawValue < rhs.provider.identifier.rawValue
+        }
+        .map(\.provider)
+    return ranked + [fallback]
 }
 ```
 
@@ -807,7 +797,8 @@ everything else is evidence fed into it via `SignalContext`.
 
 ### 5.5 Third-party extension without touching core
 
-Two mechanisms, in order of preference.
+Two mechanisms, in order of preference. Neither was built: nothing reads a manifest from disk, and
+there is no `DeclarativeProvider`.
 
 **(a) Declarative manifest — no code, no rebuild.** Drop a JSON file into
 `~/Library/Application Support/<the app>/providers/`. It is parsed into a `DeclarativeProvider` at
@@ -855,11 +846,8 @@ Safety properties that make this acceptable to load from disk:
 state machines), a third party depends on the `ActivityCore` module, conforms to `ActivityProvider`,
 and exposes a `ProviderBundle`:
 
-```swift
-public protocol ProviderBundle: Sendable {
-    static var providers: [any ActivityProvider] { get }
-}
-```
+There is no `ProviderBundle` protocol and no `ActivityCore` module: providers live in
+`SigstopSensors`, and the ones the app runs are listed in `BuiltinProviders.all`.
 
 The host app links the package and calls `registry.registerAll(MyBundle.providers)`. This requires a
 rebuild — which is the honest trade, because loading arbitrary third-party binary code into a
@@ -955,33 +943,54 @@ Evidence is expressed in **log-odds** so independent evidence composes by additi
 
 ```swift
 public enum ConfidenceEngine {
-    /// Prior for any inferred activity before evidence. 0.15 ⇒ we start sceptical.
-    static let prior: Double = log(0.15 / 0.85)      // ≈ -1.735
+    public static let prior: Double = log(0.15 / 0.85)
+    public static let logOddsClamp: Double = 2.0
 
-    @inlinable static func sigmoid(_ x: Double) -> Double { 1.0 / (1.0 + exp(-x)) }
+    public static let tier0Ceiling = 0.55
+    public static let tier1Ceiling = 0.85
+    public static let tier2Ceiling = 0.93
+    public static let degradedCeiling = 0.60
+    public static let debuggingCeiling = 0.90
+    public static let debuggerElsewhereCeiling = 0.80
+    public static let meetingCeiling = 0.90
+    public static let noEvidenceCeiling = 0.20
 
-    public static func combine(
+    public static func ceiling(for tiers: SignalTierSet, degraded: Bool) -> Double {
+        var value: Double
+        if tiers.contains(.tier2) { value = tier2Ceiling }
+        else if tiers.contains(.tier1) { value = tier1Ceiling }
+        else { value = tier0Ceiling }
+        if degraded { value = min(value, degradedCeiling) }
+        return value
+    }
+
+    public static func activityCeiling(_ activity: Activity) -> Double {
+        switch activity {
+        case .debugging: return debuggingCeiling
+        case .meeting:   return meetingCeiling
+        default:         return 1.0
+        }
+    }
+
+    public static func confidence(
         evidence: [Evidence],
         tiers: SignalTierSet,
+        activity: Activity,
         degradedFromAmbiguity: Bool,
         isOSFact: Bool = false
     ) -> Confidence {
-        let sum = evidence.reduce(prior) { $0 + max(-2.0, min(2.0, $1.logOdds)) }
-        let raw = sigmoid(sum)
-        let cap = isOSFact ? 0.99 : ceiling(for: tiers, degraded: degradedFromAmbiguity)
+        if isOSFact { return .certain }
+        guard !evidence.isEmpty else { return Confidence(min(noEvidenceCeiling, tier0Ceiling)) }
+        let clamped = evidence.map(clamp(_:))
+        let raw = Probability.combine(clamped, prior: prior).value
+        let cap = min(ceiling(for: tiers, degraded: degradedFromAmbiguity), activityCeiling(activity))
         return Confidence(min(raw, cap))
     }
-
-    static func ceiling(for tiers: SignalTierSet, degraded: Bool) -> Double {
-        var c: Double
-        if tiers.contains(.tier2)      { c = 0.93 }
-        else if tiers.contains(.tier1) { c = 0.85 }
-        else                           { c = 0.55 }
-        if degraded { c = min(c, 0.60) }
-        return c
-    }
-}
 ```
+
+The constants and the arithmetic of `ConfidenceEngine`, in
+`app/Sources/SigstopSensors/Providers/ActivityProvider.swift`. Besides the tier ceilings it caps
+`debugging` and `meeting` at 0.90, and with no evidence it returns 0.20.
 
 ### 6.2 Invariants (enforced by tests, not by convention)
 
@@ -1285,24 +1294,54 @@ work** — no timer fires, nothing is polled.
 | Idle-threshold crossing | **self-scheduling**, not periodic | always | ~2 wakeups per idle transition |
 | Process snapshot (Tier 2) | not polled at all: taken inside the sample the engine was already going to build | the process opt-in on **AND** frontmost is editor/terminal **AND** `idleSeconds < 120` **AND** thermal `.nominal`/`.fair` **AND** not (on battery AND Low Power Mode), then memoized for a few seconds | **0.17 ms** per scan, mean of 200 scans of the real table over 1006 processes, release build. At one scan every five seconds that is 0.003% of one core |
 | Window geometry | **on demand only** | on app-activation events | sub-ms |
-| AX title reconciliation | 60 s, leeway 30 s | Tier 1 on and not idle | guards against a missed `AXObserver` notification |
+| AX title reconciliation | 60 s, leeway 15 s | Tier 1 on and not idle | guards against a missed `AXObserver` notification |
 
 **The idle timer deserves explanation**, because polling idle every second is the standard mistake.
 We never poll. We read `idleSeconds` once and schedule a **single** timer for exactly the remaining
 time until the next threshold:
 
 ```swift
-/// Fires exactly once, when the user will next cross an idle threshold.
-/// If the user touches the keyboard first, an NSWorkspace/AX event cancels
-/// and reschedules it. Steady-state cost: ~2 timer fires per idle episode,
-/// versus 3,600/hour for naive 1 Hz polling.
-func scheduleNextIdleCheck() {
-    let idle = systemIdleSeconds()
-    let next = idleThresholds.first { $0 > idle } ?? idleThresholds.last!
-    let delay = max(1.0, next - idle)
-    timer.schedule(deadline: .now() + delay, leeway: .seconds(Int(delay * 0.25)))
+public static func secondsUntilNextThreshold(
+    idleSeconds: TimeInterval,
+    thresholds: [TimeInterval] = IdleCollector.thresholds,
+    maximum: TimeInterval = 300
+) -> TimeInterval {
+    guard let next = thresholds.sorted().first(where: { $0 > idleSeconds }) else {
+        return maximum
+    }
+    return max(1.0, next - idleSeconds)
 }
 ```
+
+That is `IdleCollector.secondsUntilNextThreshold`, in
+`app/Sources/SigstopSensors/Collectors/IdleCollector.swift`, and `IdleCollector.thresholds` is 90,
+120 and 300 seconds. `ContextEngine.scheduleNextWake()`, in
+`app/Sources/SigstopSensors/ContextEngine.swift`, reads idle once and arms one timer for that delay,
+capped at 60 s while Tier 1 is on so that a missed `AXObserver` notification is reconciled, with a
+quarter of the delay as leeway:
+
+```swift
+private func scheduleNextWake() {
+    cancelTimer()
+    guard running, !suspended else { return }
+
+    let idle = idleCollector.read()
+    var delay = IdleCollector.secondsUntilNextThreshold(
+        idleSeconds: idle.knownIdleSeconds ?? 0,
+        maximum: configuration.idleThreshold
+    )
+    if permissions.currentTiers().contains(.tier1) {
+        delay = min(delay, configuration.axReconcileInterval)
+    }
+
+    let source = DispatchSource.makeTimerSource(queue: .main)
+    source.schedule(
+        deadline: .now() + delay,
+        leeway: .milliseconds(Int(delay * configuration.timerLeewayFraction * 1000))
+    )
+```
+
+The handler samples once and calls `scheduleNextWake()` again.
 
 ### 8.3 Timer discipline
 
@@ -1359,37 +1398,12 @@ a recorded baseline. An energy budget that is not measured in CI is a wish.
 
 ## 9. Concurrency (Swift 6 strict)
 
-```swift
-/// Owns all AX interaction. Runs off the main actor on a thread with its own CFRunLoop
-/// (required by AXObserver). No AXUIElement ever escapes this actor — only extracted
-/// Strings and URLs, which are Sendable.
-///
-/// Deliberately has NO method that returns the value of a text element. Reading a user's
-/// source code is not a capability this type possesses.
-actor AccessibilityActor {
-    func focusedWindowTitle(pid: pid_t) async -> String?
-    func focusedDocumentURL(pid: pid_t) async -> URL?
-    func startObserving(pid: pid_t) async
-    func stopObserving(pid: pid_t) async
-    var events: AsyncStream<AXEvent> { get }
-}
-
-/// NSWorkspace notifications arrive on the main thread.
-@MainActor final class WorkspaceMonitor {
-    var events: AsyncStream<WorkspaceEvent> { get }
-}
-
-/// Merges every collector into one ordered signal stream, applies dwell gating
-/// and decay, resolves a provider, and publishes observations.
-public actor ActivityEngine {
-    public init(registry: ProviderRegistry, availability: SignalAvailability)
-    public func start() async
-    public func stop() async
-    public var observations: AsyncStream<ActivityObservation> { get }
-    /// Current best guess, for the menu bar to render synchronously.
-    public func current() async -> ActivityObservation
-}
-```
+The three types this section sketched, `AccessibilityActor`, `WorkspaceMonitor` and `ActivityEngine`,
+were not built. Their jobs are done by `AccessibilityCollector`, a class that
+reads on its own serial queue and runs its `AXObserver`s on a thread with its own `CFRunLoop`;
+`FrontmostAppCollector`, a `@MainActor` class whose `events` stream carries `WorkspaceEvent`s; and
+`ContextEngine`, a `@MainActor` class that applies the dwell gate and decay, resolves a provider and
+publishes a `ContextSample`. All three are in `app/Sources/SigstopSensors/`.
 
 Notes that matter under strict concurrency:
 
@@ -1456,7 +1470,7 @@ Recorded here so that "can't we just…" has a written answer.
 3. **Screenshot OCR / screen content analysis.** Would answer nearly every question in §7.13.
    Declined; the permission is disproportionate to a time tracker.
 4. **Reading `kAXValue` of text areas.** Technically available the moment Accessibility is granted,
-   and it would give us the actual code being edited. The `AccessibilityActor` has no API for it.
+   and it would give us the actual code being edited. `AccessibilityCollector` has no API for it.
 5. **AppleScript browser-tab enumeration.** Declined: second permission, per-app prompts, brittle.
 6. **Full URL retention.** Host only, and only behind its own toggle.
 7. **Productivity / focus / "deep work" scoring.** The signals do not support a claim about the
