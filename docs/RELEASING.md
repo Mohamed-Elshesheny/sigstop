@@ -53,6 +53,28 @@ It refuses to run if `Info.plist` and the version disagree, if the tag exists, o
 working tree is dirty, and it runs the tests, `make verify` and the scenario suite before
 it publishes anything. A release that cannot prove its own claims does not go out.
 
+## 0.4 When to cut one
+
+**A release is a body of work, not a commit.** Four went out in one evening here, and two of
+them existed only to fix something the one before had broken. That is not a changelog anybody
+reads, it is a log of somebody debugging in public, and it teaches a watcher to ignore the
+release feed.
+
+The rule, written down because it was broken:
+
+- **A fix does not earn a release.** It earns a commit on `main`. Releases collect.
+- **Cut one when there is something a user would act on**: a crash they are hitting, a
+  feature they asked for, a batch of fixes that together change how the app behaves.
+- **Never cut one to fix the release you just cut.** If the tag is wrong, the answer is to
+  finish the work and cut the next one when it is ready, not to chase it with a patch an
+  hour later.
+- **Finish the release machinery before using it.** v0.1.6 shipped with the old note format
+  because the new one was wired up after the tag was already out. Get the shape right, prove
+  it on a dry run, then release once.
+
+An exception worth naming: a build that is broken for everybody, like v0.1.5, ships the
+moment it is fixed. That is the whole list of exceptions.
+
 ## 0.5 What the notes say
 
 The notes used to be the install instructions and nothing else, identical on every release,
