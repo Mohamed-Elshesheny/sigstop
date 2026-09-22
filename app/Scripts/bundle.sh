@@ -43,9 +43,9 @@ UNIVERSAL="${UNIVERSAL:-0}"
 # executable", which is how `make dmg` failed: it renders its backdrop by running the
 # app. Explicit per-triple paths below, native last, so the convenience symlink is
 # never the Intel one.
-# UNIVERSAL=1 builds arm64 natively and cross-builds x86_64. On an Intel Mac both paths below
-# would name the same file and lipo would fail on two identical slices, so refuse before
-# spending two release builds on finding that out.
+# UNIVERSAL=1 builds arm64 natively and cross-builds x86_64, and the arm64 path below is
+# fixed, so it only works on an Apple Silicon Mac. Refuse before spending two release builds
+# on finding that out.
 if [ "${UNIVERSAL}" = "1" ] && [ "$(uname -m)" != "arm64" ]; then
   echo "error: UNIVERSAL=1 has to run on an Apple Silicon Mac. This is $(uname -m)." >&2
   echo "       For a local build without the second slice, drop UNIVERSAL=1." >&2
@@ -87,9 +87,9 @@ cp Resources/sigstop.icns "${BUNDLE}/Contents/Resources/"
 #
 # The message corpus lives in one of these, and the app dies at launch without it. That is
 # not hypothetical: it is exactly what shipped through v0.1.5. So this is a guard, not a
-# best-effort copy. A universal build resolves the bundles under a per-arch directory, a
-# native one under .build/<config> directly; check both, and refuse to assemble an app
-# with no corpus rather than hand one to `make smoke` to reject later.
+# best-effort copy. Both a native and a universal build leave the bundles under this
+# machine's per-arch directory, which is the one place read. Refuse to assemble an app with
+# no corpus rather than hand one to `make smoke` to reject later.
 COPIED_CORPUS=0
 RESOURCES_FROM=".build/$(uname -m)-apple-macosx/${CONFIG}"
 for b in "${RESOURCES_FROM}"/*.bundle; do
@@ -100,6 +100,15 @@ done
 if [ "${COPIED_CORPUS}" -ne 1 ] || [ ! -f "${BUNDLE}/Contents/Resources/${APP_NAME}_SigstopCore.bundle/corpus.json" ]; then
   echo "error: the SigstopCore resource bundle with corpus.json is not in the app." >&2
   echo "       Without it the app dies at launch on every machine (this was the v0.1.5 bug)." >&2
+  exit 1
+fi
+# SwiftPM never deletes a file it did not put in a resource bundle, so anything left there by
+# hand (an mv into it, a copy) would be copied above and shipped. The bundle holds one file.
+EXTRA="$(cd "${BUNDLE}/Contents/Resources/${APP_NAME}_SigstopCore.bundle" && find . -mindepth 1 ! -name corpus.json)"
+if [ -n "${EXTRA}" ]; then
+  echo "error: the SigstopCore resource bundle holds more than corpus.json:" >&2
+  echo "${EXTRA}" | sed 's/^/         /' >&2
+  echo "       Remove it from ${RESOURCES_FROM}/${APP_NAME}_SigstopCore.bundle, or run make clean." >&2
   exit 1
 fi
 
