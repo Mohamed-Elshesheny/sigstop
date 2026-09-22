@@ -33,12 +33,19 @@ BUILD_DIR="$(pwd)/.build"
 STAGE="$(mktemp -d)"
 PROBE_HOME="$(mktemp -d)"
 HIDDEN=0
+X86_HOME=""
 FAILURES=0
 
 cleanup() {
   pkill -f "${STAGE}/sigstop.app" 2>/dev/null || true
-  [ "${HIDDEN}" -eq 1 ] && mv "${BUILD_DIR}-smoke-hidden" "${BUILD_DIR}" 2>/dev/null || true
-  rm -rf "${STAGE}" "${PROBE_HOME}"
+  if [ "${HIDDEN}" -eq 1 ]; then
+    if [ -e "${BUILD_DIR}" ]; then
+      echo "warning: ${BUILD_DIR} was recreated while hidden; the original is still at ${BUILD_DIR}-smoke-hidden" >&2
+    else
+      mv "${BUILD_DIR}-smoke-hidden" "${BUILD_DIR}" 2>/dev/null || true
+    fi
+  fi
+  rm -rf "${STAGE}" "${PROBE_HOME}" ${X86_HOME:+"${X86_HOME}"}
 }
 trap cleanup EXIT
 
@@ -50,6 +57,11 @@ cp -R "${APP}" "${STAGE}/sigstop.app"
 mkdir -p "${PROBE_HOME}/Library/Application Support"
 
 if [ -d "${BUILD_DIR}" ]; then
+  if [ -e "${BUILD_DIR}-smoke-hidden" ]; then
+    echo "error: ${BUILD_DIR}-smoke-hidden already exists, left by an interrupted run." >&2
+    echo "       Move it back to ${BUILD_DIR} (or delete it) before running smoke again." >&2
+    exit 1
+  fi
   mv "${BUILD_DIR}" "${BUILD_DIR}-smoke-hidden"
   HIDDEN=1
   pass "build directory hidden, so a baked path resolves to nothing"
@@ -96,7 +108,7 @@ echo "==> asking it what it can see"
 DOCTOR="$(CFFIXED_USER_HOME="${PROBE_HOME}" HOME="${PROBE_HOME}" \
   "${STAGE}/sigstop.app/Contents/MacOS/sigstop" --doctor 2>&1 || true)"
 
-CORPUS_N="$(printf '%s' "${DOCTOR}" | grep -oE '[0-9]+ messages loaded' | head -1 | cut -d' ' -f1)"
+CORPUS_N="$(printf '%s' "${DOCTOR}" | grep -oE '[0-9]+ messages loaded' | head -1 | cut -d' ' -f1 || true)"
 if [ -n "${CORPUS_N}" ] && [ "${CORPUS_N}" -gt 0 ] 2>/dev/null; then
   pass "reads its own message corpus (${CORPUS_N} messages)"
 else
@@ -105,8 +117,8 @@ fi
 
 # Tier 0 is the promise that the app works with nothing granted. On a pristine home with no
 # permissions this is the line that proves it rather than asserting it.
-if printf '%s' "${DOCTOR}" | grep -q "frontmost app"; then
-  pass "tier 0 signals readable with no permissions and no settings"
+if grep -qE '^ +0 +input idle +[0-9]+\.[0-9]s via ' <<<"${DOCTOR}"; then
+  pass "tier 0 reads a real idle time with no permissions and no settings"
 else
   fail "could not read the signals that need no permission"
 fi
@@ -160,7 +172,7 @@ else
   else
     fail "asked for x86_64, but --doctor says: $(printf '%s' "${X86_DOCTOR}" | grep -E '^  slice' | sed 's/^ *//')"
   fi
-  X86_N="$(printf '%s' "${X86_DOCTOR}" | grep -oE '[0-9]+ messages loaded' | head -1 | cut -d' ' -f1)"
+  X86_N="$(printf '%s' "${X86_DOCTOR}" | grep -oE '[0-9]+ messages loaded' | head -1 | cut -d' ' -f1 || true)"
   if [ -n "${X86_N}" ] && [ "${X86_N}" -gt 0 ] 2>/dev/null; then
     pass "the x86_64 slice reads its message corpus (${X86_N} messages)"
   else
