@@ -50,8 +50,11 @@ fi
 echo "==> proving the claims before publishing them"
 make test >/dev/null
 make verify-shipped >/dev/null
+# The artifact, not the code. Everything above this line passed for every release that
+# shipped broken, because all of it runs on the machine that built the thing.
+BUNDLE=dist/sigstop.app ./Scripts/smoke.sh >/dev/null
 swift run -c release Scenarios >/dev/null
-echo "    tests, verify and scenarios all pass"
+echo "    tests, verify, smoke and scenarios all pass"
 
 echo "==> building the image"
 make dmg >/dev/null

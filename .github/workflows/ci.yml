@@ -65,6 +65,14 @@ jobs:
         working-directory: app
         run: make verify
 
+      # Everything above this runs on the machine that built the thing, which is exactly
+      # why a build that died on every OTHER machine passed all of it and reached users.
+      # This one copies the .app away from the tree, hides the build directory, hands it a
+      # pristine HOME and asks the running app what it can actually see.
+      - name: The shipped app runs on a machine that is not the build machine
+        working-directory: app
+        run: make smoke
+
       # Fourteen scripted days against the real engine. The unit tests answer "does this
       # branch do what it says"; this answers "does a whole day ever go quiet".
       - name: Run the scenarios

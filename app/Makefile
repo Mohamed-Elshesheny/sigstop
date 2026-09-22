@@ -42,6 +42,9 @@ TEST_FLAGS := -Xswiftc -F -Xswiftc $(TESTING_FW) \
 test: badges-check ## Run the Core test suite (no GUI session, no Xcode needed)
 	@swift test $(TEST_FLAGS)
 
+smoke: bundle ## Run the shipped app as if this were somebody else's Mac
+	@./Scripts/smoke.sh
+
 release: ## Cut a release: VERSION=0.2.0 NAME="Wood Frog 🐸"
 	@./Scripts/release.sh
 
