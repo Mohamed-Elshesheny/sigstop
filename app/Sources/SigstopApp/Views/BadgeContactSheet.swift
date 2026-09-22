@@ -136,8 +136,10 @@ enum PromptRenderer {
         let cases: [(String, EscalationLevel, PromptChannel, [TimeInterval])] = [
             ("l1", .first, .notification, [300, 600, 900]),
             ("l1-nosnooze", .first, .notification, []),
-            ("l2", .second, .panel, [300]),
+            ("l2", .second, .notification, []),
+            ("l3", .third, .notificationWithSound, []),
             ("l4", .incident, .panel, []),
+            ("l4-battery", .incident, .notification, []),
         ]
         for (suffix, level, channel, snooze) in cases {
             let request = PromptRequest(
