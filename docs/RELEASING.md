@@ -93,7 +93,10 @@ Gatekeeper would be checking a signature against nobody. What makes the update c
 maintainer's login keychain, and the app refuses to install anything whose signature does not verify
 against the public key compiled into it. The consequence is worth stating plainly, because it is the
 reason this design was chosen: **an attacker who completely owns GitHub, the CDN and the network can
-stop users getting updates, and cannot make the app run their code.**
+stop users getting updates, and cannot make an installed copy run their code.** That protects people
+who already have the app. Somebody downloading it for the first time is trusting whatever file the
+release page serves, and an attacker with the account could replace it; the first install rests on
+GitHub alone.
 
 Everything below exists to keep that sentence true.
 
