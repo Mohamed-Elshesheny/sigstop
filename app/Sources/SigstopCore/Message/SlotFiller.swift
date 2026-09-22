@@ -58,15 +58,15 @@ public struct SlotResolver: Sendable {
             text: format(time: ctx.now, locale: ctx.locale, timeZone: ctx.calendar.timeZone),
             confidence: 0.99, provenance: .derived)
 
-        if let name = ctx.appDisplayName {
+        if let name = ctx.appDisplayName.flatMap(Self.outsideText) {
             out[.app] = SlotValue(text: name, confidence: ctx.appConfidence, provenance: .exact)
         }
 
-        if let project = ctx.developer.context.projectName, !project.isEmpty {
+        if let project = ctx.developer.context.projectName.flatMap(Self.outsideText) {
             out[.project] = SlotValue(text: project, confidence: 0.75, provenance: .exact)
         }
 
-        if let branch = ctx.developer.context.branch, !branch.isEmpty {
+        if let branch = ctx.developer.context.branch.flatMap(Self.outsideText) {
             out[.branch] = SlotValue(text: branch, confidence: 0.95, provenance: .exact)
         }
 
@@ -149,6 +149,30 @@ public struct SlotResolver: Sendable {
         case .activity: return "whatever this is"
         default:        return nil
         }
+    }
+
+    public static let outsideTextLimit = 40
+
+    public static func outsideText(_ raw: String) -> String? {
+        var kept = String.UnicodeScalarView()
+        var pendingSpace = false
+        for scalar in raw.unicodeScalars.prefix(outsideTextLimit * 4) {
+            switch scalar.properties.generalCategory {
+            case .control, .format, .lineSeparator, .paragraphSeparator,
+                 .privateUse, .surrogate, .unassigned:
+                continue
+            case .spaceSeparator:
+                pendingSpace = !kept.isEmpty
+            default:
+                if pendingSpace { kept.append(" ") }
+                pendingSpace = false
+                kept.append(scalar)
+            }
+        }
+        let text = String(kept)
+        guard !text.isEmpty else { return nil }
+        guard text.count > outsideTextLimit else { return text }
+        return String(text.prefix(outsideTextLimit - 1)) + "…"
     }
 
     private func format(integer: Int, locale: Locale) -> String {

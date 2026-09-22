@@ -333,6 +333,7 @@ struct FallbackPromptView: View {
                     .foregroundStyle(Brand.Dark.fg)
                     .multilineTextAlignment(.center)
                     .lineSpacing(6)
+                    .lineLimit(8)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 820, alignment: .center)
                     .padding(.top, message.title == nil ? 34 : 14)

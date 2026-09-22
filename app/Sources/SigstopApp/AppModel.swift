@@ -84,7 +84,10 @@ final class AppModel {
         let repoState: RepoState?
         let route: String
 
-        var branchText: String { branch ?? "detached HEAD, no branch to name" }
+        var branchText: String {
+            guard let branch else { return "detached HEAD, no branch to name" }
+            return SlotResolver.outsideText(branch) ?? "a branch whose name is only invisible characters"
+        }
         var stateText: String? {
             guard let repoState, repoState != .clean else { return nil }
             return "mid-\(repoState.rawValue)"
