@@ -150,9 +150,20 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         return unlockedLoad(day: day)
     }
 
+    /// A day with no file and a day whose file will not open are different answers.
+    ///
+    /// `fm.contents` returns nil for both: a file that is not there, and one that is there
+    /// and cannot be read because of permissions, an I/O error, or a size that will not fit
+    /// in memory. Both became `.empty(day)`, so an unreadable day was reported upward as a
+    /// day on which nothing happened, with `malformedLines: 0` to say the reading went
+    /// fine. PRIVACY.md promises a corrupt file "never silently changes your history", and
+    /// reporting a day you cannot read as a day you did nothing is exactly that.
     private func unlockedLoad(day: CalendarDay) -> DayLoad {
         let path = url(for: day)
-        guard let data = fm.contents(atPath: path.path) else { return .empty(day) }
+        guard fm.fileExists(atPath: path.path) else { return .empty(day) }
+        guard let data = fm.contents(atPath: path.path) else {
+            return DayLoad(day: day, events: [], malformedLines: 0, unreadable: true)
+        }
         let result = EventLogCodec.decodeLines(String(decoding: data, as: UTF8.self))
         return DayLoad(day: day, events: result.events, malformedLines: result.malformedLines)
     }
@@ -237,10 +248,28 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         let name = "\(Pad.four(summary.day.year))-\(Pad.two(summary.day.month)).json"
         let path = summariesDirectory.appendingPathComponent(name)
 
+        /// A month that will not decode is set aside, never overwritten.
+        ///
+        /// This fell through to an empty file on any decode failure and then wrote that
+        /// over the original, so one bad key in one day destroyed up to a month of
+        /// summaries and left nothing to look at afterwards. `SummaryFile.days` is a
+        /// dictionary of non-optional values, so a single field added or removed by a
+        /// future version fails the whole file, which makes this reachable by upgrading
+        /// rather than by corruption.
+        ///
+        /// Renaming costs one file on disk and keeps the thing a person could still
+        /// recover by hand. Deleting to make room for today's row is not a trade this
+        /// project gets to make quietly.
         var file: SummaryFile
-        if let data = fm.contents(atPath: path.path),
-           let decoded = try? JSONDecoder().decode(SummaryFile.self, from: data) {
-            file = decoded
+        if let data = fm.contents(atPath: path.path) {
+            if let decoded = try? JSONDecoder().decode(SummaryFile.self, from: data) {
+                file = decoded
+            } else {
+                let aside = path.appendingPathExtension("unreadable")
+                try? fm.removeItem(at: aside)
+                try? fm.moveItem(at: path, to: aside)
+                file = SummaryFile(v: EventSchema.version, days: [:])
+            }
         } else {
             file = SummaryFile(v: EventSchema.version, days: [:])
         }

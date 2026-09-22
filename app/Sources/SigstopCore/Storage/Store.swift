@@ -21,11 +21,21 @@ public struct DayLoad: Sendable, Hashable {
     /// Lines that did not parse. Surfaced rather than swallowed: a corrupt file never
     /// crashes the app and never *silently* changes your history.
     public let malformedLines: Int
+    /// The file is there and would not open: permissions, an I/O error, or too large to
+    /// read. Separate from an empty day, because "nothing happened" and "I could not look"
+    /// are different answers and only one of them is about you.
+    public let unreadable: Bool
 
-    public init(day: CalendarDay, events: [LoggedEvent], malformedLines: Int = 0) {
+    public init(
+        day: CalendarDay,
+        events: [LoggedEvent],
+        malformedLines: Int = 0,
+        unreadable: Bool = false
+    ) {
         self.day = day
         self.events = events.sorted { $0.at < $1.at }
         self.malformedLines = malformedLines
+        self.unreadable = unreadable
     }
 
     public static func empty(_ day: CalendarDay) -> DayLoad {
