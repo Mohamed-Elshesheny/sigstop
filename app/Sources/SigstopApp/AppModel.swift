@@ -252,8 +252,12 @@ final class AppModel {
 
     func update(settings newValue: SigstopSettings) {
         guard newValue != settings else { return }
-        settings = newValue
         SettingsStore.save(newValue)
+        apply(settings: newValue)
+    }
+
+    private func apply(settings newValue: SigstopSettings) {
+        settings = newValue
         onSettingsChanged?()
         let previousTarget = policy.targetContinuousWork
         policy = Self.policy(for: newValue)
@@ -910,9 +914,9 @@ final class AppModel {
         do {
             let report = try store.deleteEverything()
             try? FileManager.default.removeItem(at: AppPaths.settingsFile)
-            settings = .default
-            onSettingsChanged?()
-            onAppearanceChanged?(settings.appearance)
+            apply(settings: .default)
+            latch = MeetingLatch.started(at: time.continuousSeconds, wall: time.now, dayIndex: latch.dayIndex)
+            lastPersistedHold = 0
             todaySummary = nil
             todayLine = ""
             todayDetail = ""

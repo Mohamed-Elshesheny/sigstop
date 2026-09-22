@@ -80,6 +80,7 @@ public struct DeletionReport: Sendable, Hashable {
         return """
         Deleted: \(location)  (\(removedFiles) files, \(size))
         Removed \(removedEvents) events across \(removedDays.count) day(s).
+        sigstop is still running, so a new, empty log starts from now.
 
         Two things this app cannot remove for you:
           • The Accessibility permission you granted. Remove it in
