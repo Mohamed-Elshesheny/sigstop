@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import ServiceManagement
 import SigstopCore
 import SigstopSensors
 
@@ -976,9 +977,20 @@ final class AppModel {
             day = DailyCounters()
             persistedDay = nil
             refreshRollup(force: true)
-            return report.userFacingSummary
+            return report.userFacingSummary + Self.removeLoginItem()
         } catch {
             return "Delete failed, \(error)"
+        }
+    }
+
+    private static func removeLoginItem() -> String {
+        guard AppPaths.isBundled, SMAppService.mainApp.status == .enabled else { return "" }
+        do {
+            try SMAppService.mainApp.unregister()
+            return "\nRemoved: the login item."
+        } catch {
+            return "\nThe login item is still registered, \(error.localizedDescription). "
+                + "Remove it in System Settings → General → Login Items."
         }
     }
 
