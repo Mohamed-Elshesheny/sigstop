@@ -118,26 +118,21 @@ permission people assume.
 Unlocks: **the focused window's title**, and for document-based apps, **the document's file URL**.
 
 ```swift
-@discardableResult
-public func requestAccessibility(_ gesture: UserGesture) -> Bool {
+public func openAccessibilitySettings(_ gesture: UserGesture) {
     _ = gesture
-    let key = axPromptOptionKey as String
-    let trusted = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
-    lock.lock()
-    cachedTrusted = trusted
-    let tiers = Self.tiers(settings: settings, trusted: trusted)
-    let changed = tiers != lastPublished
-    lastPublished = tiers
-    let sinks = changed ? Array(continuations.values) : []
-    lock.unlock()
-    for sink in sinks { sink.yield(tiers) }
-    return trusted
+    guard let url = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    ) else { return }
+    NSWorkspace.shared.open(url)
 }
 ```
 
-That is `PermissionBroker.requestAccessibility(_:)`, in
-`app/Sources/SigstopSensors/PermissionBroker.swift`, the only place the app asks for the prompt. A `UserGesture` can only be made by `clickedButton` or
-`selectedMenuItem`, which is how the signature says it runs from a user action.
+That is `PermissionBroker.openAccessibilitySettings(_:)`, in
+`app/Sources/SigstopSensors/PermissionBroker.swift`, and it is the only way the app asks for
+Accessibility: it opens System Settings at the Accessibility pane. The app never calls
+`AXIsProcessTrustedWithOptions` with the prompt option, so macOS never raises its own dialog on
+the app's behalf. A `UserGesture` can only be made by `clickedButton`, which is how the signature
+says it runs from a user action.
 
 - `AXIsProcessTrusted()` is the poll-safe, non-prompting check. **`AXAPIEnabled()` is deprecated** —
   do not use it.
@@ -745,7 +740,7 @@ holds `matchedTools`, `childrenOfFrontmost`, `tracedUnderFrontmost`, `tracedElse
 
 `ProviderRegistry` is a struct, not an actor, in
 `app/Sources/SigstopSensors/Providers/ActivityProvider.swift`. It has `register(_:)`,
-`registerAll(_:)`, `resolve(for:)` and `classify(_:)`, and no `loadManifests`:
+`resolve(for:)` and `classify(_:)`, and no `loadManifests`:
 
 ```swift
 public func resolve(for app: AppIdentity) -> [any ActivityProvider] {
@@ -849,7 +844,7 @@ and exposes a `ProviderBundle`:
 There is no `ProviderBundle` protocol and no `ActivityCore` module: providers live in
 `SigstopSensors`, and the ones the app runs are listed in `BuiltinProviders.all`.
 
-The host app links the package and calls `registry.registerAll(MyBundle.providers)`. This requires a
+The host app links the package and calls `registry.register(_:)` for each provider. This requires a
 rebuild — which is the honest trade, because loading arbitrary third-party binary code into a
 non-sandboxed process holding an Accessibility grant would be irresponsible.
 

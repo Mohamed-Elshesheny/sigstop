@@ -37,10 +37,6 @@ public final class MutableTimeSource: TimeSource, @unchecked Sendable {
         }
     }
 
-    public func skewWallClock(by seconds: TimeInterval) {
-        lock.withLock { _now = _now.addingTimeInterval(seconds) }
-    }
-
     public func sleepAndWake(for seconds: TimeInterval) {
         advance(by: seconds)
     }

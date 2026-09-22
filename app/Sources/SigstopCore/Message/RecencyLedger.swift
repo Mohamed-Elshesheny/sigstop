@@ -82,14 +82,6 @@ public final class RecencyLedger: @unchecked Sendable {
         lock.withLock { entries.last { $0.tone == tone }?.shownAt }
     }
 
-    public func showCount(templateID: String, since: Date) -> Int {
-        lock.withLock { entries.filter { $0.templateID == templateID && $0.shownAt >= since }.count }
-    }
-
-    public func shownToday(templateID: String, calendar: Calendar, now: Date) -> Bool {
-        lastShownToday(templateID: templateID, calendar: calendar, now: now) != nil
-    }
-
     public func lastShownToday(templateID: String, calendar: Calendar, now: Date) -> Date? {
         lock.withLock {
             entries.last {

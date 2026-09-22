@@ -185,8 +185,7 @@ public func isDeepFocus(_ input: EngineInput) -> Bool {
 ```
 
 `deepFocusMinimumWork` is 20 minutes, and `deepFocusActivities` is coding, debugging, testing,
-terminal work and AI coding. `DeveloperSession.isInDeepFocus(now:policy:)` states the same test and
-nothing calls it.
+terminal work and AI coding.
 
 Deep focus buys **exactly one** deferral extension per break cycle (§9). It is never a veto: deep
 focus is precisely the state in which people lose track of the clock, so an app that treats it as a
@@ -375,7 +374,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
 
     public var tickInterval: TimeInterval = 1
     public var tickTolerance: TimeInterval = 2
-    public var activityEpsilon: TimeInterval = 2
     public var microIdleGrace: TimeInterval = 90
     public var qualifyingBreak: TimeInterval = 5 * 60
     public var longPauseReset: TimeInterval = 20 * 60
@@ -406,7 +404,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     public var maxNotificationsPerCycle: Int = 4
     public var dailyNotificationCap: Int = 14
 
-    public var ladderLevel1: TimeInterval = 0
     public var ladderLevel2: TimeInterval = 5 * 60
     public var ladderLevel3Armed: TimeInterval = 12 * 60
     public var ladderLevel3Forced: TimeInterval = 20 * 60
@@ -835,8 +832,7 @@ Battery is an input about *cost and context*, never a reason to skip a break:
 - Low Power Mode: level 4 takes the notification channel instead of the panel channel, and level 3
   loses its sound (`channelFor` in `BreakDecisionEngine`). The battery half of this rule has no
   input: `SensorStack` passes `batteryFraction: nil`, so a battery below 20 % changes nothing.
-- `isSeverelyPowerConstrained`, the below-10 % rule that was to suppress level 4 entirely, is
-  declared and nothing reads it.
+- There is no below-10 % rule that suppresses level 4. It was designed and never built.
 - Battery never changes *whether* a break is due, and never suppresses the passive indicator.
 
 ### 7.7 Calendar-adjacent signals
@@ -1330,7 +1326,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
 ```
 
 The stored fields of `DailySummary`, in `app/Sources/SigstopCore/Summary/DailyRollup.swift`.
-`codingTime` is a computed alias for `totalActiveWork`, `activeWorkByActivity` is keyed by the
+`activeWorkByActivity` is keyed by the
 `Activity` raw value, and compliance is computed rather than stored:
 
 ```swift
@@ -1352,9 +1348,9 @@ substitution, and `CalendarSystemTests` pins both.
 
 ### 14.1 Definitions, exactly
 
-- **`codingTime`** — the sum of credited ticks (§3.3) across every session whose credit fell inside the
+- **`totalActiveWork`** — the sum of credited ticks (§3.3) across every session whose credit fell inside the
   day. Not wall clock, not app-foreground time. `applicationDistribution` partitions exactly this
-  quantity: `applicationDistribution.values.sum() == codingTime` is an invariant (§15).
+  quantity: `applicationDistribution.values.sum() == totalActiveWork` is an invariant (§15).
 - **`longestContinuousSession`** — `max` over the day of `peakContinuousActiveWork`, sampled at every
   clock reset and again at day end so an in-flight stretch is included. Note this is a *continuous work
   stretch*, not a `DeveloperSession`; the field name follows the everyday meaning.
@@ -1393,7 +1389,7 @@ long form keeps it a description of a day.
 ## 15. Property tests (the invariants worth enforcing in CI)
 
 1. `credited work ≤ wall-clock elapsed`, for every session, under every replayed event stream.
-2. `sum(applicationDistribution) == codingTime` (± one tick per app, from bucket rounding).
+2. `sum(applicationDistribution) == totalActiveWork` (± one tick per app, from bucket rounding).
 3. A synthetic stream of `[work 44 min, idle 30 s, work 2 min]` reaches `breakDue` — micro-idle never resets.
 4. A stream of `[work 44 min, idle 3 min, work 2 min]` reaches `breakDue` at 46 min of *credited* work,
    with the grace revoked — a short pause neither resets nor secretly credits.

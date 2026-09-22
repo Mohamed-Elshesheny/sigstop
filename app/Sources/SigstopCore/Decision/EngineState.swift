@@ -19,14 +19,6 @@ public extension EscalationLevel {
 
     var signalName: String { signal.rawValue }
 
-    var isBeyondBackoff: Bool { self > .second }
-}
-
-public enum SigstopSignal {
-    public static let snooze = "SIGALRM"
-    public static let resume = "SIGCONT"
-    public static let reloadSettings = "SIGHUP"
-    public static let dailySummary = "jobs"
 }
 
 public enum PromptChannel: String, Sendable, Codable, Hashable {
@@ -102,12 +94,6 @@ public enum CycleOutcome: String, Sendable, Codable, Hashable {
     case quietSuppressed
     case dailyCapReached
 
-    public var isExcludedFromCompliance: Bool {
-        switch self {
-        case .expired, .quietSuppressed, .dailyCapReached: return true
-        case .honored, .skipped, .ignoredExhausted: return false
-        }
-    }
 }
 
 public enum QuietCause: String, Sendable, Codable, CaseIterable, Hashable {

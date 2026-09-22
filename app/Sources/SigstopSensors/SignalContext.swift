@@ -293,7 +293,4 @@ public struct SignalContext: Sendable {
 
     public func isRunning(_ bundleID: String) -> Bool { runningBundleIDs.contains(bundleID) }
 
-    public func isAnyRunning(_ bundleIDs: some Sequence<String>) -> Bool {
-        bundleIDs.contains { runningBundleIDs.contains($0) }
-    }
 }

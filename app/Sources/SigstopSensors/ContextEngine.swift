@@ -198,10 +198,6 @@ public final class ContextEngine {
         registry.register(provider)
     }
 
-    public func setWorkClock(_ reading: @escaping @Sendable () -> WorkClockReading) {
-        workClock = reading
-    }
-
     public var samples: AsyncStream<ContextSample> {
         let id = UUID()
         return AsyncStream(bufferingPolicy: .bufferingNewest(8)) { continuation in
@@ -214,26 +210,6 @@ public final class ContextEngine {
     }
 
     public var permissionStatus: PermissionStatus { permissions.status() }
-
-    public func doctorReport() -> [String] {
-        var lines = permissions.status().explanation
-        guard let sample = lastSample else {
-            lines.append("No sample taken yet.")
-            return lines
-        }
-        let context = sample.context
-        let label = sample.honestLabel ?? context.claimableActivity.displayName
-        lines.append(
-            "Right now: \(label) @ \(String(format: "%.2f", context.confidence.value)) "
-                + "in \(context.application.localizedName)"
-        )
-        lines.append(contentsOf: context.reasoning.map { "  because \($0)" })
-        lines.append(contentsOf: sample.caveats.map { "  caveat: \($0)" })
-        if let reason = sample.gate.reason {
-            lines.append("  prompts: \(sample.gate.allowsPrompt ? "allowed" : "held"), \(reason)")
-        }
-        return lines
-    }
 
     @discardableResult
     public func sampleAndPublish() async -> ContextSample {

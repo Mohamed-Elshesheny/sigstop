@@ -272,13 +272,6 @@ public struct BadgeLedger: Sendable, Hashable {
         unlocked[id] = day
     }
 
-    public func merging(_ other: BadgeLedger) -> BadgeLedger {
-        var merged = self
-        for (id, day) in other.unlocked { merged.record(id, on: day) }
-        merged.unrecognised.merge(other.unrecognised) { mine, _ in mine }
-        return merged
-    }
-
     public func newlyUnlocked(since earlier: BadgeLedger) -> [BadgeID] {
         Badge.all.map(\.id).filter { contains($0) && !earlier.contains($0) }
     }

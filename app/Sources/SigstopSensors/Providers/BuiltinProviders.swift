@@ -53,7 +53,6 @@ public enum BundleIDs {
     ]
     public static let editorPrefixes: [String] = [zedPrefix, jetbrainsPrefix]
     public static let terminals: Set<String> = [terminal, iterm2, warp, ghostty, alacritty, kitty]
-    public static let browsers: Set<String> = [chrome, arc, safari, brave, firefox, edge]
 
     public static func isEditorOrTerminal(_ app: AppIdentity) -> Bool {
         guard let id = app.bundleID else { return false }

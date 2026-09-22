@@ -136,10 +136,6 @@ public struct ProviderRegistry: Sendable {
         providers.append(provider)
     }
 
-    public mutating func registerAll(_ newProviders: [any ActivityProvider]) {
-        providers.append(contentsOf: newProviders)
-    }
-
     public func resolve(for app: AppIdentity) -> [any ActivityProvider] {
         let ranked = providers
             .compactMap { provider -> (provider: any ActivityProvider, specificity: Int)? in

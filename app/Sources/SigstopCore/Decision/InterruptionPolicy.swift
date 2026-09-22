@@ -4,7 +4,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
 
     public var tickInterval: TimeInterval = 1
     public var tickTolerance: TimeInterval = 2
-    public var activityEpsilon: TimeInterval = 2
     public var microIdleGrace: TimeInterval = 90
     public var qualifyingBreak: TimeInterval = 5 * 60
     public var longPauseReset: TimeInterval = 20 * 60
@@ -35,7 +34,6 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     public var maxNotificationsPerCycle: Int = 4
     public var dailyNotificationCap: Int = 14
 
-    public var ladderLevel1: TimeInterval = 0
     public var ladderLevel2: TimeInterval = 5 * 60
     public var ladderLevel3Armed: TimeInterval = 12 * 60
     public var ladderLevel3Forced: TimeInterval = 20 * 60
@@ -143,9 +141,6 @@ public struct SystemSignals: Sendable, Codable, Hashable {
         lowPowerMode || (!isCharging && (batteryFraction ?? 1) < 0.20)
     }
 
-    public var isSeverelyPowerConstrained: Bool {
-        !isCharging && (batteryFraction ?? 1) < 0.10
-    }
 }
 
 public struct CalendarSignals: Sendable, Codable, Hashable {

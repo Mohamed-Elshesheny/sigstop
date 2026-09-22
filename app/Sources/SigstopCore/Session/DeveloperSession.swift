@@ -50,8 +50,6 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         return nil
     }
 
-    public var peakContinuous: TimeInterval { max(peakContinuousActiveWork, continuousActiveWork) }
-
     public func timeSinceLastBreak(now: Date) -> TimeInterval? {
         lastBreakEndedAt.map { now.timeIntervalSince($0) }
     }
@@ -62,13 +60,6 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         let total = appActiveSeconds.values.reduce(0, +)
         let dominance = total > 0 ? (appActiveSeconds.values.max() ?? 0) / total : 0
         return 0.6 * switchTerm + 0.4 * dominance
-    }
-
-    public func isInDeepFocus(now: Date, policy: BreakPolicy) -> Bool {
-        focusScore(now: now) >= 0.70
-            && continuousActiveWork >= policy.deepFocusMinimumWork
-            && activityConfidence.isConfidentEnoughForSpecificClaim
-            && BreakPolicy.deepFocusActivities.contains(activity)
     }
 
     mutating func observe(elapsed: TimeInterval) {

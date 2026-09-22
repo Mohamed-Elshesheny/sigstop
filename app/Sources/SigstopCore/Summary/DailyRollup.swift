@@ -101,8 +101,6 @@ public struct DailySummary: Sendable, Codable, Hashable {
         self.malformedLines = malformedLines
     }
 
-    public var codingTime: TimeInterval { totalActiveWork }
-
     public var workByActivity: [Activity: TimeInterval] {
         var out: [Activity: TimeInterval] = [:]
         for (key, value) in activeWorkByActivity {

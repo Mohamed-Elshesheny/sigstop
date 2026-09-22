@@ -30,10 +30,6 @@ public enum Activity: String, Sendable, Codable, CaseIterable, Hashable {
         return node
     }
 
-    public var countsAsWork: Bool {
-        self != .idle
-    }
-
     public var displayName: String {
         switch self {
         case .coding:        return "coding"

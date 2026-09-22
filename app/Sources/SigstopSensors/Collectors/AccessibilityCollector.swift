@@ -83,14 +83,6 @@ public final class AccessibilityCollector: @unchecked Sendable {
         }
     }
 
-    public func focusedWindowTitle(pid: pid_t) async -> String? {
-        await read(pid: pid).title
-    }
-
-    public func focusedDocumentURL(pid: pid_t) async -> URL? {
-        await read(pid: pid).documentURL
-    }
-
     private func readSync(pid: pid_t) -> AXWindowInfo {
         guard pid > 0 else { return .empty }
         let app = AXUIElementCreateApplication(pid)

@@ -3,7 +3,6 @@ import Foundation
 public enum StoreError: Error, Sendable, Hashable {
     case unsupportedSchemaVersion(Int)
     case notWritable(path: String, reason: String)
-    case notADirectory(path: String)
     case unreadable(days: [CalendarDay])
 }
 
@@ -146,18 +145,13 @@ extension EventStore {
         return ((before.map { [$0] } ?? []) + inWindow, malformed)
     }
 
-    public static var defaultRetentionDays: Int { 7 }
 }
 
 public enum Retention {
     public static let defaultEventDays = 7
     public static let minimumEventDays = 0
     public static let maximumEventDays = 365
-    public static let defaultSummaryDays = 90
 
-    public static func clampEventDays(_ days: Int) -> Int {
-        min(max(days, minimumEventDays), maximumEventDays)
-    }
 }
 
 public final class InMemoryEventStore: EventStore, @unchecked Sendable {

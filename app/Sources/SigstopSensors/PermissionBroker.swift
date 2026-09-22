@@ -4,7 +4,6 @@ import ApplicationServices
 import Foundation
 import SigstopCore
 
-private nonisolated(unsafe) let axPromptOptionKey = "AXTrustedCheckOptionPrompt" as CFString
 
 public struct UserGesture: Sendable, Hashable {
     public let origin: String
@@ -13,10 +12,6 @@ public struct UserGesture: Sendable, Hashable {
 
     public static func clickedButton(_ label: String) -> UserGesture {
         UserGesture(origin: "button:\(label)")
-    }
-
-    public static func selectedMenuItem(_ label: String) -> UserGesture {
-        UserGesture(origin: "menu:\(label)")
     }
 }
 
@@ -30,7 +25,6 @@ public struct PermissionStatus: Sendable, Hashable {
     public let tiers: SignalTierSet
 
     public var tier1Active: Bool { tiers.contains(.tier1) }
-    public var tier2Active: Bool { tiers.contains(.tier2) }
 
     public enum Cost: Sendable, Hashable, CaseIterable {
         case alwaysOn, needsAccessibility, offByDefault
@@ -257,22 +251,6 @@ public final class PermissionBroker: @unchecked Sendable {
                 self.lock.unlock()
             }
         }
-    }
-
-    @discardableResult
-    public func requestAccessibility(_ gesture: UserGesture) -> Bool {
-        _ = gesture
-        let key = axPromptOptionKey as String
-        let trusted = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
-        lock.lock()
-        cachedTrusted = trusted
-        let tiers = Self.tiers(settings: settings, trusted: trusted)
-        let changed = tiers != lastPublished
-        lastPublished = tiers
-        let sinks = changed ? Array(continuations.values) : []
-        lock.unlock()
-        for sink in sinks { sink.yield(tiers) }
-        return trusted
     }
 
     @MainActor
