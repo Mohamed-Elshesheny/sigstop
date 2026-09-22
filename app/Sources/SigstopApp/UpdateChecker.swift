@@ -11,6 +11,8 @@ final class UpdateChecker {
         case checking
         case upToDate(current: String)
         case available(version: String)
+        case downloaded(version: String)
+        case informational(version: String, link: URL?)
         case downloading(received: Int64, expected: Int64)
         case extracting(fraction: Double?)
         case readyToInstall(version: String)
@@ -32,7 +34,7 @@ final class UpdateChecker {
 
         var offeredVersion: String? {
             switch self {
-            case .available(let version), .readyToInstall(let version): return version
+            case .available(let version), .downloaded(let version), .readyToInstall(let version): return version
             default: return nil
             }
         }
@@ -134,7 +136,7 @@ final class UpdateChecker {
 
     private var isOffering: Bool {
         switch state {
-        case .available, .readyToInstall, .failed: return true
+        case .available, .downloaded, .readyToInstall, .failed: return true
         default: return false
         }
     }
@@ -152,28 +154,35 @@ final class UpdateChecker {
 
     fileprivate func didFindUpdate(
         version: String,
-        alreadyDownloaded: Bool,
+        stage: SPUUserUpdateStage,
         reply: @escaping (SPUUserUpdateChoice) -> Void
     ) {
         cancelInFlight = nil
         offeredVersion = version
         pendingChoice = reply
-        state = alreadyDownloaded ? .readyToInstall(version: version) : .available(version: version)
+        switch stage {
+        case .installing: state = .readyToInstall(version: version)
+        case .downloaded: state = .downloaded(version: version)
+        default: state = .available(version: version)
+        }
     }
 
-    fileprivate func didFindInformationOnly(version: String) {
+    fileprivate func didFindInformationOnly(version: String, link: URL?) {
         cancelInFlight = nil
         pendingChoice = nil
-        state = .unavailable("\(version) is available but installs by hand. Open the releases page:")
+        state = .informational(version: version, link: link)
     }
 
     fileprivate func didFindNothing(error: any Error, acknowledgement: @escaping () -> Void) {
         cancelInFlight = nil
-        let reason = (error as NSError).userInfo[SPUNoUpdateFoundReasonKey] as? Int
-        if reason.map({ $0 == SPUNoUpdateFoundReason.onLatestVersion.rawValue }) ?? true {
+        let ns = error as NSError
+        let reason = (ns.userInfo[SPUNoUpdateFoundReasonKey] as? NSNumber)?.int32Value
+        let nothingNewer: [SPUNoUpdateFoundReason] = [.unknown, .onLatestVersion, .onNewerThanLatestVersion]
+        if reason.map({ raw in nothingNewer.contains { $0.rawValue == raw } }) ?? true {
             state = .upToDate(current: currentVersion)
         } else {
-            state = .failed(Self.humanReadable(error))
+            let suggestion = ns.localizedRecoverySuggestion?.trimmingCharacters(in: .whitespacesAndNewlines)
+            state = .failed(suggestion.flatMap { $0.isEmpty ? nil : $0 } ?? Self.humanReadable(error))
         }
         acknowledgement()
     }
@@ -261,12 +270,12 @@ private final class UserDriver: NSObject, SPUUserDriver {
     ) {
         guard !appcastItem.isInformationOnlyUpdate else {
             reply(.dismiss)
-            owner?.didFindInformationOnly(version: appcastItem.displayVersionString)
+            owner?.didFindInformationOnly(version: appcastItem.displayVersionString, link: appcastItem.infoURL)
             return
         }
         owner?.didFindUpdate(
             version: appcastItem.displayVersionString,
-            alreadyDownloaded: state.stage != .notDownloaded,
+            stage: state.stage,
             reply: reply
         )
     }

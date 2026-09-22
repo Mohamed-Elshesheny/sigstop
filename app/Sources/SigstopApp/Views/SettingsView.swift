@@ -732,9 +732,21 @@ struct SettingsView: View {
                     case .available:
                         TerminalButton("Download", style: .filled) { updater.proceed() }.fixedSize()
                         TerminalButton("Not now") { updater.dismiss() }.fixedSize()
+                    case .downloaded:
+                        TerminalButton("Install", style: .filled) { updater.proceed() }.fixedSize()
+                        TerminalButton("Later") { updater.dismiss() }.fixedSize()
                     case .readyToInstall:
                         TerminalButton("Install and restart", style: .filled) { updater.proceed() }.fixedSize()
                         TerminalButton("Later") { updater.dismiss() }.fixedSize()
+                    case .informational(_, let link):
+                        TerminalButton("Open releases in browser") {
+                            NSWorkspace.shared.open(link ?? Links.releases)
+                        }
+                        .fixedSize()
+                        TerminalButton("Check for updates", enabled: updater.canCheck) {
+                            updater.checkForUpdates()
+                        }
+                        .fixedSize()
                     case .downloading, .checking:
                         TerminalButton("Cancel") { updater.dismiss() }.fixedSize()
                     case .extracting:
@@ -777,7 +789,7 @@ struct SettingsView: View {
 
     private static func dot(for state: UpdateChecker.State) -> StateDot.State {
         switch state {
-        case .available, .readyToInstall, .checking, .downloading, .extracting, .installing:
+        case .available, .downloaded, .informational, .readyToInstall, .checking, .downloading, .extracting, .installing:
             return .suspend
         case .upToDate:
             return .running
@@ -800,6 +812,10 @@ struct SettingsView: View {
             return "Downloading…"
         case .extracting:
             return "Signature verified. Unpacking…"
+        case .downloaded(let version):
+            return "\(version) is downloaded. Installing checks its signature first."
+        case .informational(let version, _):
+            return "\(version) is available but installs by hand."
         case .readyToInstall(let version):
             return "\(version) is verified and ready."
         case .installing:
