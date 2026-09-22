@@ -77,30 +77,8 @@ moment it is fixed. That is the whole list of exceptions.
 
 ## 0.5 What the notes say
 
-The notes used to be the install instructions and nothing else, identical on every release,
-so the one question somebody opens a release page to answer — what is different — was the
-one thing it did not say.
-
-**A release with something to say puts it in `app/Resources/RELEASE_HIGHLIGHTS.md`.** Whatever
-is in that file goes at the top of the notes, above the generated list, in whatever words the
-release deserves. The release consumes it: the file is emptied and committed as part of
-cutting the tag, so a sentence written for v0.2.0 cannot reappear on v0.2.1. That is the
-failure mode of every hand-kept changelog, and the reason this one is empty by default.
-
-Most patch releases need nothing there. A commit subject is a fine bullet; a release that
-changes how the app feels is not.
-
-`Scripts/changelog.py` reads the Conventional Commit subjects between the previous tag and
-`HEAD` and groups them: breaking changes first, then Added, Fixed, Faster, Changed and
-Documentation, each line prefixed with its scope. CI, build, test and chore commits are
-counted in one closing sentence rather than listed, because a reader downloading a build is
-not shopping for a workflow tweak. The appcast commit the release makes for itself is
-dropped outright.
-
-Nothing is hand-maintained. CLAUDE.md §8 already requires every commit to be a Conventional
-Commit, so the changelog is a view of the log rather than a second file that drifts from it.
-A commit with a lazy subject line shows up as a lazy bullet on a page strangers read, which
-is the right pressure to put on it.
+Sections and bullets, generated from the log by `Scripts/changelog.py`. The format and the rules
+are CLAUDE.md §9; `release.sh` refuses to publish notes with any other kind of line in them.
 
 ## 1. What makes this safe, in one paragraph
 

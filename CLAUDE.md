@@ -394,7 +394,7 @@ body explaining WHY, not what. The diff already says what.
 ```
 
 **Types:** `feat` `fix` `refactor` `perf` `docs` `test` `build` `ci` `chore`
-**Scopes:** `core` `sensors` `app` `docs`. Omit when the change spans the repo.
+**Scopes:** `core` `sensors` `app` `ui` `docs`. Omit when the change spans the repo. `ui` is anything a person sees: the menu bar panel, the overlay, Settings, the installer window.
 
 Rules:
 - Subject in the imperative, lowercase after the colon, no trailing full stop, under 72 chars.
@@ -428,3 +428,36 @@ several commits, not one merge.
 with" footers, and no tool names in the message or the author field. Author and committer
 are the human whose account the work ships under. This is not about hiding anything; the
 commit log is a record of intent, and intent belongs to a person.
+
+---
+
+## 9. Release notes
+
+Sections with emoji, one bullet per change. Nothing else.
+
+```
+## v0.2.0 Wood Frog 🐸
+
+### ✨ New
+- Add a snooze to the break prompt
+
+### 🐛 Bugs
+- Keep corpus numbers Western, since the corpus is English
+
+### ⚡ Perf
+- Read the site name once per sample, not per tick
+
+### 🎨 UI
+- Close the installer window on its content
+```
+
+- `app/Scripts/changelog.py` writes the notes from the commit log. Nobody writes them by hand,
+  and every bullet is a commit subject, so the subject has to be one a stranger can read.
+- **No prose, ever.** No paragraph explaining what the bug was, who it happened to, or whose
+  machine it worked on. No "if you downloaded it and…". No install steps, checksum, platform
+  line or compare link.
+- Sections: `feat` → ✨ New, `fix` → 🐛 Bugs, `perf` → ⚡ Perf, scope `ui` → 🎨 UI, `!` →
+  ⚠️ Breaking. An empty section is left out. `refactor`, `docs`, `test`, `build`, `ci` and
+  `chore` never appear.
+- `release.sh` refuses to publish if any line of the notes is not a heading or a bullet.
+

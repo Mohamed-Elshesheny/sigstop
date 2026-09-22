@@ -69,46 +69,16 @@ if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
   echo "    committed updater/appcast.xml"
 fi
 
-# What changed, from the log, above the instructions. The install steps are the same on
-# every release and were the ONLY thing these notes said, so the one question a reader has
-# was the one the page did not answer. CLAUDE.md 8 makes every commit a Conventional
-# Commit, so the answer is already written and cannot drift from a hand-kept file.
-# HEAD, not "${TAG}^": the tag does not exist yet at this point in the script, and the
-# newest tag reachable from HEAD is exactly the previous release.
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
-CHANGES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD "${TAG} ${NAME}")"
-if [ -n "${PREVIOUS_TAG}" ]; then
-  CHANGES="${CHANGES}
+NOTES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD "${TAG} ${NAME}")"
 
-[Every commit since ${PREVIOUS_TAG}](https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${TAG})"
+# CLAUDE.md 9: headings and bullets, nothing else.
+STRAY="$(printf '%s\n' "${NOTES}" | grep -vE '^(## |### |- |$)' || true)"
+if [ -n "${STRAY}" ]; then
+  echo "error: the release notes may only hold headings and bullets (CLAUDE.md 9). Found:" >&2
+  printf '%s\n' "${STRAY}" | sed 's/^/       /' >&2
+  exit 1
 fi
-
-# Only what is different about THIS build. The install steps are the same on every
-# release and are already in the README, which is where somebody looks for them; printing
-# them again on each tag made the page mostly boilerplate and buried the changelog under
-# it. The checksum stays because it is the one line here that is per-build and the one a
-# careful reader actually uses.
-# The highlights belong to the release that shipped them, so the file is emptied once the
-# notes have been built FROM it. It was cleared a few lines earlier at first, before the
-# generator ran, which meant the one release it was written for was the one release that
-# did not print it.
-if [ -s Resources/RELEASE_HIGHLIGHTS.md ]; then
-  : > Resources/RELEASE_HIGHLIGHTS.md
-  (cd .. && git add app/Resources/RELEASE_HIGHLIGHTS.md)
-  echo "    highlights used and cleared"
-fi
-
-# The notes are what changed and nothing else.
-#
-# They used to end with the filename, the platforms, the checksum and a link to the install
-# steps, on every tag. GitHub already prints the asset and its size under the notes, the
-# platforms have not changed since the first release, and the install steps are in the
-# README where somebody looks for them. None of it answered the question a release page is
-# opened to answer, and all of it pushed the answer further up the scrollbar.
-#
-# The checksum is still published, in `dist/` and in this script's own output, for anyone
-# cutting or auditing a build. It is not a line a downloader reads.
-NOTES="${CHANGES}"
 
 echo "==> tagging ${TAG}"
 git tag -a "${TAG}" -m "${TAG} ${NAME}"
