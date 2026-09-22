@@ -289,11 +289,17 @@ private struct ObserverRegistration: @unchecked Sendable {
     let runLoop: CFRunLoop
 
     func tearDown() {
-        for name in notifications {
-            AXObserverRemoveNotification(observer, element, name as CFString)
+        let registration = self
+        CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue) {
+            for name in registration.notifications {
+                AXObserverRemoveNotification(registration.observer, registration.element, name as CFString)
+            }
+            CFRunLoopRemoveSource(
+                registration.runLoop, AXObserverGetRunLoopSource(registration.observer), .defaultMode
+            )
+            Unmanaged<AXObserverToken>.fromOpaque(registration.refcon).release()
         }
-        CFRunLoopRemoveSource(runLoop, AXObserverGetRunLoopSource(observer), .defaultMode)
-        Unmanaged<AXObserverToken>.fromOpaque(refcon).release()
+        CFRunLoopWakeUp(runLoop)
     }
 }
 
