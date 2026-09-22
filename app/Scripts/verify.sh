@@ -176,7 +176,7 @@ fi
 # starts another process or scripts another app. These are the symbols each of those needs. An
 # NSEvent monitor is an Objective-C method and invisible to nm; the source check in
 # .github/scripts/check-forbidden-apis.py covers that one.
-FORBIDDEN='^ *_(OBJC_CLASS_\$_(NSPasteboard|NSTask|NSAppleScript|OSAScript|SCStream|SCShareableContent|SCScreenshotManager|AVCaptureSession|AVAudioRecorder|AVAudioEngine)|posix_spawnp?|fork|vfork|execve|execv|execvp|system|popen|AESendMessage|CGEventTapCreate|CGEventTapCreateForPid|CGEventTapCreateForPSN|CGWindowListCreateImage|CGDisplayCreateImage|IOHIDManagerCreate|CGEventSourceKeyState)$'
+FORBIDDEN='^ *_(OBJC_CLASS_\$_(NSPasteboard|NSTask|NSAppleScript|OSAScript|NSXPCConnection|SCStream|SCShareableContent|SCScreenshotManager|AVCaptureSession|AVAudioRecorder|AVAudioEngine)|posix_spawnp?|fork|vfork|execve|execv|execvp|system|popen|AESendMessage|CGEventTapCreate|CGEventTapCreateForPid|CGEventTapCreateForPSN|CGWindowListCreateImage|CGDisplayCreateImage|CGDisplayStreamCreate[A-Za-z]*|SecItem(Add|Copy[A-Za-z]*|Update|Delete)|IOHIDManagerCreate|CGEventSourceKeyState)$'
 FORBIDDEN_HITS=$(all_slices nm -u 2>/dev/null | grep -E "${FORBIDDEN}" | sort -u || true)
 if [ -n "${FORBIDDEN_HITS}" ]; then
   fail "the app binary references an API that reads content or starts another process"
