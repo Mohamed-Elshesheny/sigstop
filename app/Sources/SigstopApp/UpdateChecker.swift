@@ -46,6 +46,7 @@ final class UpdateChecker {
 
     private var updater: SPUUpdater?
     private var driver: UserDriver?
+    private var feedPin: FeedPin?
 
     private var pendingChoice: ((SPUUserUpdateChoice) -> Void)?
     private var cancelInFlight: (() -> Void)?
@@ -67,12 +68,14 @@ final class UpdateChecker {
         }
 
         let driver = UserDriver()
+        let feedPin = FeedPin(feed: Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)
         let updater = SPUUpdater(
             hostBundle: .main,
             applicationBundle: .main,
             userDriver: driver,
-            delegate: nil
+            delegate: feedPin
         )
+        updater.clearFeedURLFromUserDefaults()
 
         updater.userAgentString = "sigstop"
         updater.sendsSystemProfile = false
@@ -88,6 +91,7 @@ final class UpdateChecker {
 
         driver.owner = self
         self.driver = driver
+        self.feedPin = feedPin
         self.updater = updater
         updaterIsFree = updater.canCheckForUpdates
         freeObservation = updater.observe(\.canCheckForUpdates, options: [.initial, .new]) {
@@ -256,6 +260,19 @@ final class UpdateChecker {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return parts.isEmpty ? "The update check failed." : parts.joined(separator: " ")
+    }
+}
+
+@MainActor
+private final class FeedPin: NSObject, SPUUpdaterDelegate {
+    let feed: String?
+
+    init(feed: String?) {
+        self.feed = feed
+    }
+
+    func feedURLString(for updater: SPUUpdater) -> String? {
+        feed
     }
 }
 
