@@ -500,9 +500,16 @@ Validation is not enforced whatever the entitlements say, so the old build had n
 and this one has the first. A Developer ID build has a Team ID, needs neither entitlement, and keeps
 Library Validation on; `make verify` fails if it is disabled on such a build.
 
-What is still open: a process that can write into the installed bundle could replace a library
-inside it, and without Library Validation it would load. That needs write access to the app in
-`/Applications`, which an admin user's processes have, and it is listed in §8.
+What is still open, and it is wider than a write to `/Applications`: any process running as you
+can copy the app somewhere else, swap `Sparkle.framework`'s binary in the copy for its own, and run
+the copy. Without Library Validation the swapped library loads, and the copy's executable is
+byte-identical to yours, so if you granted Accessibility, macOS may treat the copy as the app you
+granted. A copy modified this way still runs and passes the default runtime validity check; only a
+static `codesign --verify --deep --strict` notices. The app cannot check for this itself, because
+the swapped library runs before any of the app's code. The only fix is a Developer ID, which gives
+the app and Sparkle a Team ID and lets Library Validation stay on. Until then, the honest advice is
+this: grant Accessibility only if you accept that anything already running as you could
+borrow it through a copy of this app.
 
 ---
 
@@ -1431,9 +1438,9 @@ have. `docs/RELEASING.md` §6 describes what a rotation would actually involve, 
 
 **8.1d Library Validation is off in the default build.** The Hardened Runtime is on, so another
 process cannot inject code by environment variable, but Library Validation cannot load the embedded
-framework without a Team ID, so the ad-hoc build turns it off (§2.9). A process that can write into
-the installed bundle could swap a library. A Developer ID would fix this properly and this project
-does not have one.
+framework without a Team ID, so the ad-hoc build turns it off (§2.9). Any process running as you
+could run a copy of the app with a swapped library, and with Accessibility granted that copy may
+inherit the grant. A Developer ID would fix this properly and this project does not have one.
 
 **8.2 Accessibility cannot be scoped, and the app's restraint is not enforced by macOS.** If you
 grant it, you grant the ability to read most UI text across your system and to synthesize input.

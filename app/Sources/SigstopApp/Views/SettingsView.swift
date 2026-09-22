@@ -333,7 +333,9 @@ struct SettingsView: View {
             SettingsSection(PermissionStatus.Cost.needsAccessibility.label) {
                 Note(
                     "macOS cannot limit this permission to window titles. Granting it means "
-                        + "trusting this code, not the operating system. The app works without "
+                        + "trusting this code, not the operating system. And until sigstop is signed "
+                        + "with an Apple Developer ID, anything already running as you could borrow "
+                        + "the grant by running a modified copy of the app. The app works without "
                         + "it; only the two rows below want it."
                 )
                 SignalRow(
