@@ -456,8 +456,13 @@ Sections with emoji, one bullet per change. Nothing else.
 - **No prose, ever.** No paragraph explaining what the bug was, who it happened to, or whose
   machine it worked on. No "if you downloaded it and…". No install steps, checksum, platform
   line or compare link.
-- Sections: `feat` → ✨ New, `fix` → 🐛 Bugs, `perf` → ⚡ Perf, scope `ui` → 🎨 UI, `!` →
-  ⚠️ Breaking. An empty section is left out. `refactor`, `docs`, `test`, `build`, `ci` and
-  `chore` never appear.
-- `release.sh` refuses to publish if any line of the notes is not a heading or a bullet.
+- A commit is listed only if it changed what ships: `app/Sources`, the `Info.plist`, icon and
+  entitlements in `app/Resources`, `Package.swift`, `bundle.sh` or `dmg.sh`. A change to the
+  release tooling, the docs or CI is not something a person downloads.
+- Sections: `feat` → ✨ New, `fix` → 🐛 Bugs, `perf` → ⚡ Perf, `!` → ⚠️ Breaking. 🎨 UI is
+  scope `ui`, or any change whose shipped files are all under `SigstopApp/Views/` or `dmg.sh`.
+  The first release lists ✨ New only. An empty section is left out.
+- `release.sh` refuses to publish if any line of the notes is not a heading or a bullet, and
+  refuses a release with no bullets at all: nothing shipped changed, so there is nothing to
+  release.
 

@@ -79,6 +79,10 @@ if [ -n "${STRAY}" ]; then
   printf '%s\n' "${STRAY}" | sed 's/^/       /' >&2
   exit 1
 fi
+if ! printf '%s\n' "${NOTES}" | grep -q '^- '; then
+  echo "error: nothing that ships changed since ${PREVIOUS_TAG}, so there is nothing to release." >&2
+  exit 1
+fi
 
 echo "==> tagging ${TAG}"
 git tag -a "${TAG}" -m "${TAG} ${NAME}"
