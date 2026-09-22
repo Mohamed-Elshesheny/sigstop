@@ -532,6 +532,7 @@ public final class ContextEngine {
     ) async -> AXWindowInfo {
         guard tiers.contains(.tier1) else {
             titleCache = nil
+            stopObservingWindow()
             return .empty
         }
         if let idle = input.knownIdleSeconds, idle > configuration.idleThreshold {
@@ -549,8 +550,17 @@ public final class ContextEngine {
         return info
     }
 
+    private func stopObservingWindow() {
+        guard let previous = observedPID else { return }
+        accessibilityCollector.stopObserving(pid: previous)
+        observedPID = nil
+    }
+
     private func startObservingFrontmostWindow() {
-        guard permissions.currentTiers().contains(.tier1) else { return }
+        guard permissions.currentTiers().contains(.tier1) else {
+            stopObservingWindow()
+            return
+        }
         let pid = frontmostCollector.snapshot().frontmost.pid
         guard pid > 0, pid != observedPID else { return }
         if let previous = observedPID { accessibilityCollector.stopObserving(pid: previous) }
