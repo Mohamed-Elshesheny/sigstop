@@ -110,7 +110,8 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
             cache[day] = loaded.events
             if loaded.unreadable { unreadable.append(day) }
         }
-        let text = try ExportWriter.render(location: root.path, days: days) { cache[$0] ?? [] }
+        let location = (root.path as NSString).abbreviatingWithTildeInPath
+        let text = try ExportWriter.render(location: location, days: days) { cache[$0] ?? [] }
         guard !unreadable.isEmpty else { return text }
         let list = unreadable.map(\.description).joined(separator: ", ")
         return text + "\nNot exported, the file is there but would not open: \(list)\n"
