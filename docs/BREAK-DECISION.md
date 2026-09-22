@@ -596,10 +596,12 @@ public enum Seam: String, Sendable, Codable, Hashable, CaseIterable {
 `CalendarSignals` has the four fields §7.7 uses. Several inputs have no producer in the shipping app:
 `AppModel` passes `calendar: nil`, `keystrokeRate: 0` and `terminalCommandRunning: false` on every
 tick, and `SensorStack` sets `displayCaptured` to `false`, `frontmostIsPresentationApp` to `false`
-and `focusModeActive` to `nil`. The rules that depend only on them cannot fire.
+and `focusModeActive` to `nil`. The rules that depend only on them cannot fire. `SensorStack` also
+passes `frontmostIsFullscreen: false`, but that one is produced: `AppModel` overwrites it on every
+tick from window geometry (§7.1).
 
 The engine also reads from the session: `continuousActiveWork`, `timeSinceLastBreak`, `idleDuration`,
-`activityType` + `activityConfidence`, `applicationSwitches`, `focusScore`, `snoozeCount`,
+`activity` + `activityConfidence`, `applicationSwitches`, `focusScore`, `snoozeCount`,
 `ignoredPromptCount`, `skippedBreakCount`, plus today's `notificationsDelivered` and
 `consecutiveIgnoredCycles`.
 
@@ -666,9 +668,9 @@ These are in `app/Sources/SigstopCore/Decision/InterruptionPolicy.swift`, just b
 | `audioInputInUse` | CoreAudio `kAudioDevicePropertyDeviceIsRunningSomewhere` on every input device, attributed through `kAudioProcessPropertyIsRunningInput`, and **bounded**: see §7.1.1 | Public API, no permission. Covers Zoom/Meet/Teams/huddles/recording uniformly, which is why the engine keys on *the microphone*, not on a list of app bundle ids it will always be behind on. |
 | `cameraInUse` | CMIO `kCMIODevicePropertyDeviceIsRunningSomewhere` over `kCMIOHardwarePropertyDevices` | Same idea for video, and **shipped**. Public API, no Camera permission, no prompt, verified against `tccd`. A read failure is `nil`, never `false`. Four states with the same calibration guard as audio, because a virtual camera can hold a device open forever. This closes the camera-on / microphone-muted posture, which is the normal one on Teams and Meet, with no inference at all. |
 | `recentCallContinuing` | The call latch: a capture device ran continuously for >= 45 s and stopped less than the hold budget ago | See §7.7. Named after what it asserts, not after what you might conclude from it. |
-| `screenBeingShared` | **Nothing. This block cannot fire.** | `CGDisplayIsCaptured`, which this row used to name, is annotated `API_DEPRECATED("No longer supported", macos(10.0,10.9))` and does not compile from Swift. CoreMediaIO enumerates no display-capture device. ScreenCaptureKit needs the Screen Recording grant CLAUDE.md 4.2 forbids hard-requiring. The weaker and honest claim: someone looked for a permission-free signal and did not find one. The mitigation this row promised was a manual toggle, and it never shipped; it does now, as "I am in a meeting" in the menu, time-boxed to two hours. `--doctor` prints this block as UNOBSERVABLE with the reason and says out loud that it never fires. |
-| `presentationFullscreen` | AX `kAXFullscreenAttribute` on the focused window **AND** (presentation-capable app **OR** camera/mic live) | Fullscreen **alone is not a block** — developers work fullscreen all day, and blocking on it would mean never firing for half the user base. |
-| `focusModeActive` | Not read. `SensorStack` passes `nil`, because there is no public API and the Focus database is not something this app opens | **Honest limitation:** Focus is not detected. What still holds: notifications go out at `.passive` for L1 and `.active` for L2 and L3 (`Notifier.interruptionLevel(for:)`), so a Focus mode silences them. L4 goes out as `.timeSensitive` and breaks through only if you allowed time-sensitive notifications for sigstop in that Focus. When Focus swallows a notification the engine cannot tell; the menu bar indicator is the safety net. |
+| `screenBeingShared` | **Nothing. This block cannot fire.** | `CGDisplayIsCaptured`, which this row used to name, is annotated `API_DEPRECATED("No longer supported", macos(10.0,10.9))` and does not compile from Swift. CoreMediaIO enumerates no display-capture device. ScreenCaptureKit needs the Screen Recording grant `docs/PRIVACY.md` §3.1 forbids hard-requiring. The weaker and honest claim: someone looked for a permission-free signal and did not find one. The mitigation this row promised was a manual toggle, and it never shipped; it does now, as "I am in a meeting" in the menu, time-boxed to two hours. `--doctor` prints this block as UNOBSERVABLE with the reason and says out loud that it never fires. |
+| `presentationFullscreen` | **Nothing reaches it. This block cannot fire.** | The design was AX `kAXFullscreenAttribute` on the focused window **AND** (presentation-capable app **OR** camera/mic live), and nothing reads that attribute. `frontmostIsFullscreen` comes from window geometry instead: `AppModel` sets it from `ConcurrentStates.fullscreen`, true when any on-screen layer-0 window, from any app, matches a display's size (`SystemStateCollector.windowGeometry`). The other half never holds: `frontmostIsPresentationApp` is always `false` (§6), and `cameraRunning` has already returned `.cameraInUse` one line above. Fullscreen **alone is not a block** — developers work fullscreen all day, and blocking on it would mean never firing for half the user base. |
+| `focusModeActive` | Not read. `SensorStack` passes `nil`, because there is no public API and the Focus database is not something this app opens | **Honest limitation:** Focus is not detected. What still holds: notifications go out at `.passive` for L1 and `.active` for L2 and L3 (`Notifier.interruptionLevel(for:)`), so a Focus mode silences them. L4 requests `.timeSensitive`, but the build does not carry the Time Sensitive entitlement (`com.apple.developer.usernotifications.time-sensitive` is absent from `app/Resources/sigstop.entitlements`, and a build signed ad hoc with no Team ID cannot carry a `com.apple.developer` entitlement), so macOS delivers it as an ordinary notification and a Focus silences it like any other. When Focus swallows a notification the engine cannot tell; the menu bar indicator is the safety net. |
 | `screenLocked` / `systemSleeping` / `fastUserSwitched` | Workspace + distributed notifications | Nobody is there. |
 | `settleInAfterBreak` | `now - lastBreakEndedAt < 5 min` | You do not tell someone who just sat back down to get up. |
 | `imminentMeeting` | `minutesUntilNextBusyEvent <= 2` | The two minutes before a call are not free time. |
@@ -762,9 +764,11 @@ A seam is a moment the user has already broken their own concentration:
 | `applicationSwitch` | `NSWorkspace.didActivateApplicationNotification` | strongest — they chose to context-switch |
 | `idleBlip` | ≥ 20 s without input, then input resumes | strong |
 | `meetingEnded` | **declared and never produced** | See below. |
-| `fullscreenExited` | AX attribute flipped | medium |
-| `spaceSwitch` | active space changed | medium |
-| `terminalCommandFinished` | **opt-in only** | strong when available |
+| `fullscreenExited` | **declared and never produced** | medium, as designed |
+| `spaceSwitch` | **declared and never produced**: nothing observes `activeSpaceDidChangeNotification` | medium, as designed |
+| `terminalCommandFinished` | **declared and never produced** | strong, as designed |
+
+`AppModel` inserts only `.applicationSwitch` and `.idleBlip`.
 
 **`meetingEnded` has no producer, and deliberately gains none.** A seam *delivers*: `verdict` returns
 `.deliver` for any non-empty seam before the soft reasons are consulted at all. So emitting one the
@@ -773,8 +777,9 @@ this whole area exists to fix rather than a fix for it. The call latch's hold (�
 the purpose the seam was invented for, and it serves it as a *block* rather than as a trigger. The
 row stays in the table so the next person does not re-invent it.
 
-`terminalCommandFinished` requires shell integration the user installs deliberately: a `precmd`/`preexec`
-hook writing one byte to a Unix domain socket in the app's container. Without it, the app **cannot** see
+`terminalCommandFinished` was designed around shell integration the user installs deliberately: a
+`precmd`/`preexec` hook writing one byte to a Unix domain socket in the app's container. That is
+planned, not built, and `terminalCommandRunning` is always `false` (§6), so the app **cannot** see
 that a build finished, and the spec does not pretend otherwise — the `idleBlip` seam covers most of the
 same moments, because people stop typing while a command runs.
 
@@ -816,6 +821,13 @@ configuration in which the app can prevent the user from working.
 Live capture suppresses the sound channel for the same reason low battery does, and it matters more
 now that §7.1.1 lets a prompt reach a Mac with a microphone open: the rung still arrives, it just
 does not chime into somebody's recording.
+
+**The app's own prompt sound is separate from the channel.** With *Prompt sound* on, the default,
+`AppModel.deliver` plays `PromptSound` on every rung that is delivered, whatever its channel: Tink
+at L1, Morse at L2, Submarine at L3 and Sosumi at L4, louder at each rung. It is skipped while a
+microphone or camera is running, read on the same tick, so it never lands in a call or a recording
+either. So the table above describes the notification's own sound, and a rung whose channel is
+silent can still be heard.
 
 **Every rung is full screen.** When system notifications are off, which is the default, every rung
 is drawn by the app itself, because there is no other channel. This section used to say that below
@@ -875,7 +887,7 @@ says what was observed and when rather than what to conclude from it.
 | `arming → closed` | capture stops before the dwell, or an unobserved gap |
 | `live → held` | capture stops, or an unobserved gap ended while it was not running |
 | `held → live` | capture returns. No second dwell inside one episode |
-| `held → closed` | `now - lastLive >= holdBudget`, or a ceiling, or a gap |
+| `held → closed` | `monotonic - lastLiveMono >= holdBudget`, or a ceiling, or a gap |
 
 `isHolding` is normally **false** while capture is live, because the two live blocks already cover
 that. `heldSeconds` therefore measures the latch's *own* footprint and nothing else, which is what
@@ -926,8 +938,8 @@ Three clauses of that rule are load-bearing and were each missing once:
   asleep, under a sentence claiming the microphone was live "until just now". A gap in `live` with
   capture no longer running is charged as though capture stopped at the *start* of it, and a gap
   longer than the whole hold closes the latch, because a call cannot still be running after one.
-- **The forgiveness accumulates, and is bounded.** Refunding each short gap into `lastLive` without
-  a total meant a process throttled to 12-second samples — App Nap, or heavy load, CLAUDE.md §3.4 —
+- **The forgiveness accumulates, and is bounded.** Refunding each short gap into `lastLiveMono` without
+  a total meant a process throttled to 12-second samples — App Nap, or heavy load, §3.2 —
   held a break back indefinitely, while `heldSeconds` stayed at zero so no ceiling could catch it
   either. The per-episode total of forgiven time is capped at the hold budget; past that the latch
   closes as a discontinuity.
@@ -1061,16 +1073,18 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   escape hatch and it is deliberately cheap to use.
 - **Skip is not the cheap gesture, and the UI must not let it look like one.** Twenty minutes of
   silence is the longest suppression in the engine, so the control that buys it says so, and Escape
-  does not call it. Escape and *Not now* leave the prompt standing in the engine: it times out after
-  `promptTimeout` and the ladder climbs, which is what §10 means by ignored and what the product
-  means by a rung you are allowed to catch.
+  does not call it. Escape and *Ignore it* take the panel down and tell the engine nothing, so the
+  prompt stands in the engine: `promptTimeout` (90 s) after it was delivered it is classified
+  ignored, which is what §10 means by ignored and what the product means by a rung you are allowed
+  to catch. The next rung waits for its own ladder time (§11, L2 at `t0 + 5 min`), and after L4 the
+  cycle closes as `.ignoredExhausted` with its 25-minute cooldown.
 - **The same answers with or without system notifications.** Any rung whose channel is a
   notification (L1, L2, L3, and L4 on low power) is drawn as a panel when system notifications are
   off, which is the default, or denied, and that panel offers what the notification would have:
   *Take it*, *Snooze (SIGALRM)* when `snoozeOffered` is not empty, *Skip*, and *Ignore it*. L4 on
   AC power is a panel by channel and offers *Take it* and *Ignore it*, so whether L4 offers Skip
   depends on the power state. The stand-in panel used to offer only *Take it* and *Ignore it*,
-  which made Skip and Snooze unreachable without a permission, against CLAUDE.md §4.2. Both
+  which made Skip and Snooze unreachable without a permission, against `docs/PRIVACY.md` §3.1. Both
   surfaces label Skip with what it costs, `rearmAfterSkip` read from the policy: *Skip, quiet for
   20m*.
 - **An ignored prompt keeps the snoozes already used.** The count travels into `ignored` and back,
@@ -1119,10 +1133,15 @@ panel, which no Focus mode can swallow.
 
 | Level | Fires at | Channel | Counts toward caps | Behavior |
 |---|---|---|---|---|
-| **1 — Passive** | `t0` | menu-bar indicator turns amber, count visible on hover | **no** | Silent. No banner. The information is available; the interruption is not. |
-| **2 — Quiet repeat** | `t0 + 5 min` | notification, no sound | yes | Different copy, acknowledging the elapsed time rather than repeating verbatim. |
-| **3 — Seam-armed** | armed at `t0 + 12 min`, fires at the **first seam**, forced at `t0 + 20 min` | notification, sound (the only sound in the cycle) | yes | The engine stops guessing and waits for the user to break their own concentration. This is the level most likely to land. |
-| **4 — Final** | `t0 + 35 min` | dismissible panel/HUD (downgraded to a notification on low battery, or if hard-blocked when due) | yes | One assertive, still non-blocking presentation. Then the ladder **ends permanently for this cycle**. |
+| **1 — Passive** | on delivery, `promptTimeout` before `t0` | `.notification`, which `Notifier` sends at the `.passive` interruption level | yes | The initial prompt, and the only rung that offers a snooze. Once it is classified ignored nothing more is sent at this level, and the indicator turns `.escalating`. |
+| **2 — Quiet repeat** | `t0 + 5 min` | `.notification`, no notification sound (the app's own prompt sound still plays, §7.5) | yes | Different copy, acknowledging the elapsed time rather than repeating verbatim. |
+| **3 — Seam-armed** | armed at `t0 + 12 min`, fires at the **first seam**, forced at `t0 + 20 min` | `.notificationWithSound` (the only rung whose notification carries a sound), or `.notification` in Low Power Mode or while a microphone or camera is live | yes | The engine stops guessing and waits for the user to break their own concentration. This is the level most likely to land. |
+| **4 — Final** | `t0 + 35 min` | `.panel`, or `.notification` in Low Power Mode. A hard block when it is due postpones it (rule 4 below) and does not change its channel | yes | One assertive, still non-blocking presentation. Then the ladder **ends permanently for this cycle**. |
+
+The channel is what `channelFor` in `BreakDecisionEngine` returns, and every rung that delivers adds
+one to `notificationsThisCycle` and to the day's `notificationsDelivered`. With *Use macOS
+notifications instead* off, the default, a `.notification` rung is drawn as the app's own panel
+(§7.5), so the channel decides what the rung offers, not whether it covers the screen.
 
 After level 4 with no response: cycle → `.ignoredExhausted`, `consecutiveIgnoredCycles += 1`, engine
 returns to `working` with a **25-minute cooldown** before a new cycle may open. No further
