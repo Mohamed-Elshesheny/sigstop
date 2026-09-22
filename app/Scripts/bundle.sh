@@ -43,6 +43,15 @@ UNIVERSAL="${UNIVERSAL:-0}"
 # executable", which is how `make dmg` failed: it renders its backdrop by running the
 # app. Explicit per-triple paths below, native last, so the convenience symlink is
 # never the Intel one.
+# UNIVERSAL=1 builds arm64 natively and cross-builds x86_64. On an Intel Mac both paths below
+# would name the same file and lipo would fail on two identical slices, so refuse before
+# spending two release builds on finding that out.
+if [ "${UNIVERSAL}" = "1" ] && [ "$(uname -m)" != "arm64" ]; then
+  echo "error: UNIVERSAL=1 has to run on an Apple Silicon Mac. This is $(uname -m)." >&2
+  echo "       For a local build without the second slice, drop UNIVERSAL=1." >&2
+  exit 1
+fi
+
 if [ "${UNIVERSAL}" = "1" ]; then
   echo "==> swift build -c ${CONFIG} --triple x86_64-apple-macosx14.0"
   swift build -c "${CONFIG}" --triple x86_64-apple-macosx14.0
@@ -52,17 +61,6 @@ echo "==> swift build -c ${CONFIG}"
 swift build -c "${CONFIG}"
 
 if [ "${UNIVERSAL}" = "1" ]; then
-  # This machine builds arm64; the x86_64 slice is cross-built (see dmg.sh). On an Intel
-  # Mac `uname -m` is x86_64, so ARM and X86 would name the same file and `lipo -create`
-  # would fail on two identical slices with a message about neither cause nor fix. A
-  # universal release therefore has to be cut from Apple Silicon, and this says so instead
-  # of failing obscurely.
-  if [ "$(uname -m)" != "arm64" ]; then
-    echo "error: UNIVERSAL=1 builds the arm64 slice natively and cross-builds x86_64, so it" >&2
-    echo "       has to run on an Apple Silicon Mac. This is $(uname -m)." >&2
-    echo "       For a local build without the second slice, drop UNIVERSAL=1." >&2
-    exit 1
-  fi
   ARM=".build/arm64-apple-macosx/${CONFIG}/${APP_NAME}"
   X86=".build/x86_64-apple-macosx/${CONFIG}/${APP_NAME}"
   [ -f "${ARM}" ] && [ -f "${X86}" ] || {
@@ -93,12 +91,11 @@ cp Resources/sigstop.icns "${BUNDLE}/Contents/Resources/"
 # native one under .build/<config> directly; check both, and refuse to assemble an app
 # with no corpus rather than hand one to `make smoke` to reject later.
 COPIED_CORPUS=0
-for dir in ".build/${CONFIG}" ".build/arm64-apple-macosx/${CONFIG}" ".build/x86_64-apple-macosx/${CONFIG}"; do
-  for b in "${dir}"/*.bundle; do
-    [ -e "$b" ] || continue
-    cp -R "$b" "${BUNDLE}/Contents/Resources/"
-    case "$b" in *SigstopCore.bundle) COPIED_CORPUS=1 ;; esac
-  done
+RESOURCES_FROM=".build/$(uname -m)-apple-macosx/${CONFIG}"
+for b in "${RESOURCES_FROM}"/*.bundle; do
+  [ -e "$b" ] || continue
+  cp -R "$b" "${BUNDLE}/Contents/Resources/"
+  case "$b" in *SigstopCore.bundle) COPIED_CORPUS=1 ;; esac
 done
 if [ "${COPIED_CORPUS}" -ne 1 ] || [ ! -f "${BUNDLE}/Contents/Resources/${APP_NAME}_SigstopCore.bundle/corpus.json" ]; then
   echo "error: the SigstopCore resource bundle with corpus.json is not in the app." >&2
