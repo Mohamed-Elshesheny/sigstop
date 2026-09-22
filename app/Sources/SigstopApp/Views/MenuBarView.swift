@@ -261,11 +261,6 @@ struct MenuBarView: View {
                 ) { model.takeBreakNow() }
             }
 
-            if !model.isOnBreak, model.canSnooze {
-                TerminalButton("Snooze · SIGALRM", style: .quiet, mark: Self.command) {
-                    model.snooze()
-                }
-            }
             meetingControl
             if let version = model.updates.state.offeredVersion {
                 TerminalButton("Update to \(version)…", style: .quiet, mark: Self.command) {

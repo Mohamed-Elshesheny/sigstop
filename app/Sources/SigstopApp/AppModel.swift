@@ -77,7 +77,6 @@ final class AppModel {
             + "\(waiting.text.dropFirst())"
     }
 
-    private(set) var canSnooze = false
 
     struct GitReading: Hashable, Sendable {
         let folder: String
