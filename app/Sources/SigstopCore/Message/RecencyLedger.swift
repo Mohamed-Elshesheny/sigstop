@@ -59,10 +59,15 @@ public final class RecencyLedger: @unchecked Sendable {
 
     public var count: Int { lock.withLock { entries.count } }
 
+    public static let longestHistory = 1_000
+
     public func record(templateID: String, category: String, tone: Tone, at date: Date) {
         lock.withLock {
             entries.append(LedgerEntry(
                 templateID: templateID, category: category, tone: tone, shownAt: date))
+            if entries.count > Self.longestHistory {
+                entries.removeFirst(entries.count - Self.longestHistory)
+            }
         }
     }
 
