@@ -263,7 +263,9 @@ final class UpdateChecker {
     fileprivate func didFindInformationOnly(version: String) {
         cancelInFlight = nil
         pendingChoice = nil
-        state = .failed("\(version) exists but has to be installed by hand. Open Releases below.")
+        // `.unavailable`, not `.failed`: this is the one state that draws an "Open releases"
+        // button, and the message pointed the user at a link the `.failed` view does not show.
+        state = .unavailable("\(version) is available but installs by hand. Open the releases page:")
     }
 
     /// "You are on the latest version" has to be something Sparkle said, not something we
