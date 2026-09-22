@@ -57,6 +57,20 @@ else
   pass "no build directory to hide"
 fi
 
+echo "==> asking it what it sees before it has ever run"
+FIRST="$(CFFIXED_USER_HOME="${PROBE_HOME}" HOME="${PROBE_HOME}" \
+  "${STAGE}/sigstop.app/Contents/MacOS/sigstop" --doctor 2>&1 || true)"
+if [ -d "${PROBE_HOME}/Library/Application Support/dev.sigstop.app" ]; then
+  fail "--doctor created the data directory, so a diagnostic wrote to disk"
+else
+  pass "--doctor read without writing anything"
+fi
+if printf '%s' "${FIRST}" | grep -q "the app has not run here"; then
+  pass "--doctor says the app has not run here, which is true"
+else
+  fail "--doctor did not notice that nothing has been stored yet"
+fi
+
 echo "==> launching it the way a person does"
 set +m   # so terminating it at the end does not print a job notice over the result
 CFFIXED_USER_HOME="${PROBE_HOME}" HOME="${PROBE_HOME}" \

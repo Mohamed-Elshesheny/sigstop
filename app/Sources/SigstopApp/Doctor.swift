@@ -489,6 +489,11 @@ enum Doctor {
     private static func outlookSection(settings: SigstopSettings) -> [String] {
         var out = ["WHY IT HAS NOT PROMPTED YOU"]
         let policy = BreakPolicy(settings: settings)
+        guard FileManager.default.fileExists(atPath: AppPaths.storageRoot.path) else {
+            out.append("  Nothing stored yet, the app has not run here, so there is no history to read.")
+            out.append("")
+            return out
+        }
         guard
             let store = try? FileEventStore(root: AppPaths.storageRoot),
             let events = try? loadToday(store: store, policy: policy)
