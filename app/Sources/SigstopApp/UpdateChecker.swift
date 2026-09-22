@@ -170,7 +170,18 @@ final class UpdateChecker {
     fileprivate func didFindInformationOnly(version: String, link: URL?) {
         cancelInFlight = nil
         pendingChoice = nil
-        state = .informational(version: version, link: link)
+        state = .informational(version: version, link: Self.releasePage(link))
+    }
+
+    static func releasePage(_ link: URL?) -> URL? {
+        guard let link,
+              link.scheme?.lowercased() == "https",
+              link.host?.lowercased() == "github.com",
+              link.user == nil, link.password == nil, link.port == nil,
+              !link.path.split(separator: "/").contains(".."),
+              link.path.hasPrefix("/Mohamed-Elshesheny/sigstop/")
+        else { return nil }
+        return link
     }
 
     fileprivate func didFindNothing(error: any Error, acknowledgement: @escaping () -> Void) {
