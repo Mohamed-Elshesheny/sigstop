@@ -138,6 +138,7 @@ final class AppModel {
     @ObservationIgnored private var micInhibitUntil: Date?
     @ObservationIgnored private var unheldDeviceSince: Double?
     @ObservationIgnored private var lastAudioDeviceRunning = false
+    @ObservationIgnored private var captureLive = false
     @ObservationIgnored private var lastVerdict: InterruptionVerdict?
     @ObservationIgnored private var rollupComputedAt: Date?
     @ObservationIgnored private var lastWrittenSummary: DailySummary?
@@ -320,6 +321,7 @@ final class AppModel {
         advanceLatch(raw, now: now, monotonic: monotonic)
 
         lastAudioDeviceRunning = raw.audio.contributesToMeeting
+        captureLive = raw.audio.contributesToMeeting || raw.camera.contributesToMeeting
         var signals = raw.systemSignals
         signals.audioInputRunning = audioBlocks(raw, monotonic: monotonic)
         signals.frontmostIsFullscreen = sample.context.concurrent.fullscreen
@@ -543,7 +545,7 @@ final class AppModel {
             withheldSlots: goesToTheSystem ? [.branch] : []
         )
         let message = messages.select(for: messageContext).message
-        PromptSound.play(for: request.level, enabled: settings.promptSound)
+        PromptSound.play(for: request.level, enabled: settings.promptSound && !captureLive)
         if !goesToTheSystem {
             presentPanel(request, message: message)
         } else {

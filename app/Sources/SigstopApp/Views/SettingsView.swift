@@ -151,7 +151,7 @@ struct SettingsView: View {
             SettingsSection("prompt") {
                 SettingRow(
                     "Play a sound",
-                    detail: "Tink at SIGTSTP, Morse at SIGINT, Submarine at SIGTERM, Sosumi at SIGSTOP. The escalation is carried by volume, quiet enough at the first rung to sit under a conversation."
+                    detail: "Tink at SIGTSTP, Morse at SIGINT, Submarine at SIGTERM, Sosumi at SIGSTOP. The escalation is carried by volume. Silent while a microphone or camera is on, so it never lands in a call or a recording."
                 ) {
                     TerminalSwitch(isOn: settings.promptSound)
                 }
