@@ -134,6 +134,7 @@ final class BreakOverlayController {
                     request: request,
                     message: message,
                     skipQuiet: model.policy.rearmAfterSkip,
+                    quietAfterLast: model.policy.cooldownAfterExhausted,
                     onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
                     onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
                     onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
@@ -285,6 +286,7 @@ struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage
     var skipQuiet: TimeInterval = 20 * 60
+    var quietAfterLast: TimeInterval = 25 * 60
     let onTake: () -> Void
     var onSnooze: () -> Void = {}
     let onIgnore: () -> Void
@@ -351,7 +353,9 @@ struct FallbackPromptView: View {
                 }
                 .padding(.top, 44)
 
-                Text("esc to ignore, it comes back in 90 seconds")
+                Text(isIncident
+                     ? "esc to ignore, then it leaves you alone for \(DurationText.short(quietAfterLast))"
+                     : "esc to ignore, it asks again in a few minutes")
                     .font(Brand.mono(11))
                     .foregroundStyle(Brand.Dark.fgFaint)
                     .padding(.top, 18)
