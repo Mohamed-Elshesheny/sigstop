@@ -9,14 +9,15 @@ answer is already in the log and does not need a hand-written file that drifts.
 Merges and the appcast commit are dropped: the first is noise and the second is the release
 publishing itself, which nobody downloads a build to read about.
 """
+import pathlib
 import re
 import subprocess
 import sys
 from collections import OrderedDict, defaultdict
 
 HEADINGS = OrderedDict([
-    ("feat", "Added"),
-    ("fix", "Fixed"),
+    ("feat", "New"),
+    ("fix", "Fixes"),
     ("perf", "Faster"),
     ("refactor", "Changed"),
     ("docs", "Documentation"),
@@ -42,6 +43,16 @@ def commits(previous: str, head: str) -> list[str]:
 def main() -> int:
     previous = sys.argv[1] if len(sys.argv) > 1 else ""
     head = sys.argv[2] if len(sys.argv) > 2 else "HEAD"
+    # The title line, when the caller knows the version and the codename.
+    title = sys.argv[3] if len(sys.argv) > 3 else ""
+
+    # Hand-written highlights, when a release has something worth saying in a sentence a
+    # commit subject cannot carry. Optional: most patch releases do not need one, and an
+    # empty file is the same as no file.
+    highlights = ""
+    notes_file = pathlib.Path("Resources/RELEASE_HIGHLIGHTS.md")
+    if notes_file.exists():
+        highlights = notes_file.read_text().strip()
 
     buckets: dict[str, list[tuple[str, str, bool]]] = defaultdict(list)
     breaking: list[str] = []
@@ -64,6 +75,11 @@ def main() -> int:
         return 0
 
     parts: list[str] = []
+    if title:
+        parts.append(f"## {title}\n")
+    if highlights:
+        parts.append(highlights)
+        parts.append("")
     if breaking:
         parts.append("### Breaking\n")
         parts += [f"- {s}" for s in breaking]

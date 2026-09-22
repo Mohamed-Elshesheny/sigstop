@@ -137,13 +137,11 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     /// then re-ran that layout and the icon visibly jumped. A fixed width is stable
     /// whatever the button thinks its content is.
     private static let itemLength: CGFloat = 26
-    private static var positionKey: String { "NSStatusItem Preferred Position \(autosaveName)" }
 
     /// Where to sit the very first time, in points from the right edge of the menu bar.
     /// Small enough to land in the always-visible zone rather than behind a menu bar
     /// manager's divider. Only ever written once: after that the number is the user's,
     /// because they moved it.
-    private static let firstRunPosition = 128.0
 
     /// Points between the bottom of the menu bar and the top of the panel, and between
     /// the panel and the edge of the screen when the icon sits near it.
@@ -162,7 +160,6 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     private var isDismissing = false
 
     override init() {
-        Self.claimVisiblePositionOnFirstRun()
         item = NSStatusBar.system.statusItem(withLength: Self.itemLength)
         super.init()
 
@@ -208,13 +205,23 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(wanted)
     }
 
-    /// Seed a position only when the user has never expressed one. Overwriting a stored
-    /// value would mean moving somebody's icon out from under them on every launch.
-    private static func claimVisiblePositionOnFirstRun() {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: positionKey) == nil else { return }
-        defaults.set(firstRunPosition, forKey: positionKey)
-    }
+    /// **Nothing seeds a position any more, and that is the point.**
+    ///
+    /// This used to write `NSStatusItem Preferred Position` on first run so the mark
+    /// landed somewhere visible. What it actually did was jump the queue: a status item's
+    /// preferred position is measured from the right edge, so claiming 128 put a
+    /// just-installed app to the right of icons the user had arranged over months. An app
+    /// that has been open for ninety seconds does not get to outrank one they chose.
+    ///
+    /// With no stored value macOS appends it where new items go, at the left end of the
+    /// status area, and the user drags it wherever they want with Command held. That is
+    /// how every other menu bar app behaves and it is the polite default.
+    ///
+    /// The risk this traded away is real and worth naming: on a menu bar that is already
+    /// full, and especially on a notched Mac, a newly appended item can be pushed out of
+    /// sight entirely. The app cannot fix that, and neither could the seeded position; it
+    /// only moved which app got hidden. `showInDock` is on by default, so there is a Dock
+    /// icon either way and the app is never invisible in both places at once.
 
     // MARK: Panel
 

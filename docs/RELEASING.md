@@ -59,6 +59,15 @@ The notes used to be the install instructions and nothing else, identical on eve
 so the one question somebody opens a release page to answer — what is different — was the
 one thing it did not say.
 
+**A release with something to say puts it in `app/Resources/RELEASE_HIGHLIGHTS.md`.** Whatever
+is in that file goes at the top of the notes, above the generated list, in whatever words the
+release deserves. The release consumes it: the file is emptied and committed as part of
+cutting the tag, so a sentence written for v0.2.0 cannot reappear on v0.2.1. That is the
+failure mode of every hand-kept changelog, and the reason this one is empty by default.
+
+Most patch releases need nothing there. A commit subject is a fine bullet; a release that
+changes how the app feels is not.
+
 `Scripts/changelog.py` reads the Conventional Commit subjects between the previous tag and
 `HEAD` and groups them: breaking changes first, then Added, Fixed, Faster, Changed and
 Documentation, each line prefixed with its scope. CI, build, test and chore commits are

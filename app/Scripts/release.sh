@@ -61,6 +61,14 @@ SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 # signed fails here, with nothing published, rather than after the announcement.
 echo "==> signing the update feed"
 ./Scripts/appcast.sh >/dev/null
+# The highlights belong to the release that shipped them. Clearing the file is what stops
+# v0.2.0's sentence appearing again on v0.2.1, which is the failure mode of every
+# hand-kept notes file.
+if [ -s Resources/RELEASE_HIGHLIGHTS.md ]; then
+  : > Resources/RELEASE_HIGHLIGHTS.md
+  (cd .. && git add app/Resources/RELEASE_HIGHLIGHTS.md)
+fi
+
 if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
   (cd .. && git add updater/appcast.xml && git commit -q -m "build: publish the appcast for v${VERSION}")
   echo "    committed updater/appcast.xml"
@@ -73,7 +81,7 @@ fi
 # HEAD, not "${TAG}^": the tag does not exist yet at this point in the script, and the
 # newest tag reachable from HEAD is exactly the previous release.
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
-CHANGES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD)"
+CHANGES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD "${TAG} ${NAME}")"
 if [ -n "${PREVIOUS_TAG}" ]; then
   CHANGES="${CHANGES}
 
