@@ -577,8 +577,8 @@ final class AppModel {
         if !goesToTheSystem {
             presentPanel(request, message: message)
         } else {
-            notifier.deliver(request, message: message)
             presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: now)
+            notifier.deliver(request, message: message)
             append(.breakPrompt(at: now, cycle: request.cycle, reason: request.level.signal))
         }
     }
@@ -639,8 +639,8 @@ final class AppModel {
 
     private func wireNotifier() {
         notifier.skipQuiet = policy.rearmAfterSkip
-        notifier.onResponse = { [weak self] response in
-            guard let self else { return }
+        notifier.onResponse = { [weak self] response, cycle in
+            guard let self, let cycle, cycle == self.currentCycle else { return }
             switch response {
             case .take:   self.acceptBreak()
             case .snooze: self.snooze()
@@ -652,7 +652,7 @@ final class AppModel {
         }
         notifier.onFallbackNeeded = { [weak self] request, message in
             guard let self else { return }
-            guard self.canPresentNow else { return }
+            guard self.canPresentNow, self.presentation?.request == request, !self.isOnBreak else { return }
             self.presentPanel(request, message: message)
         }
     }

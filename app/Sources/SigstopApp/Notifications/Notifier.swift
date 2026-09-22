@@ -22,7 +22,7 @@ final class Notifier: NSObject {
         static let skip = "dev.sigstop.action.skip"
     }
 
-    var onResponse: ((PromptResponse) -> Void)?
+    var onResponse: ((PromptResponse, CycleID?) -> Void)?
     var onStateChange: ((AppModel.NotificationAvailability) -> Void)?
     var onFallbackNeeded: ((PromptRequest, RenderedMessage) -> Void)?
 
@@ -184,14 +184,16 @@ extension Notifier: UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let action = response.actionIdentifier
+        let thread = response.notification.request.content.threadIdentifier
+        let cycle = Int(thread.replacingOccurrences(of: "dev.sigstop.cycle.", with: "")).map(CycleID.init)
         await MainActor.run {
             switch action {
             case Action.take, UNNotificationDefaultActionIdentifier:
-                self.onResponse?(.take)
+                self.onResponse?(.take, cycle)
             case Action.snooze:
-                self.onResponse?(.snooze)
+                self.onResponse?(.snooze, cycle)
             case Action.skip:
-                self.onResponse?(.skip)
+                self.onResponse?(.skip, cycle)
             default:
                 break
             }
