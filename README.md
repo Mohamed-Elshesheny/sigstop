@@ -13,7 +13,7 @@ moment instead of on a timer.
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?style=flat-square)](#requirements)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square)](#building)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
-[![315 tests](https://img.shields.io/badge/tests-315%20passing-3fb950?style=flat-square)](#building)
+[![329 tests](https://img.shields.io/badge/tests-329%20passing-3fb950?style=flat-square)](#building)
 
 </div>
 
@@ -93,7 +93,7 @@ Command Line Tools are enough. There is no Xcode requirement and no `.xcodeproj`
 git clone https://github.com/Mohamed-Elshesheny/sigstop
 cd sigstop/app
 make run        # build, bundle, launch
-make test       # 315 tests, no GUI session needed
+make test       # 329 tests, no GUI session needed
 ```
 
 ### Requirements
