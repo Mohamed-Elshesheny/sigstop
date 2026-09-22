@@ -131,7 +131,9 @@ final class BreakOverlayController {
                 rootView: FallbackPromptView(
                     request: request,
                     message: message,
+                    skipQuiet: model.policy.rearmAfterSkip,
                     onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
+                    onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
                     onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
                     onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
                 )
@@ -294,85 +296,79 @@ struct BreakOverlayView: View {
 struct FallbackPromptView: View {
     let request: PromptRequest
     let message: RenderedMessage
-    var compact: Bool = false
+    var skipQuiet: TimeInterval = 20 * 60
     let onTake: () -> Void
+    var onSnooze: () -> Void = {}
     let onIgnore: () -> Void
     let onSkip: () -> Void
 
     private var isIncident: Bool { request.level == .incident }
 
+    private var standsInForNotification: Bool {
+        request.channel == .notification || request.channel == .notificationWithSound
+    }
+
     var body: some View {
         ZStack {
-            if compact {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(.black.opacity(0.92))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(Brand.Dark.line, lineWidth: 1)
-                    )
-            } else {
-                Rectangle()
-                    .fill(.black.opacity(0.78))
-                    .ignoresSafeArea()
-            }
+            Rectangle()
+                .fill(.black.opacity(0.78))
+                .ignoresSafeArea()
 
-            VStack(alignment: compact ? .leading : .center, spacing: 0) {
-                HStack(spacing: compact ? 7 : 10) {
+            VStack(alignment: .center, spacing: 0) {
+                HStack(spacing: 10) {
                     StateDot(state: isIncident ? .alert : .suspend)
                     Text(request.signal)
-                        .font(Brand.mono(compact ? 11 : 13, weight: .semibold))
-                        .tracking(compact ? 2 : 3)
+                        .font(Brand.mono(13, weight: .semibold))
+                        .tracking(3)
                         .foregroundStyle(isIncident ? Brand.alert : Brand.Dark.amber)
                     Text("L\(request.level.rawValue)")
-                        .font(Brand.mono(compact ? 10 : 12))
-                        .foregroundStyle(Brand.Dark.fgFaint)
-                    if compact {
-                        Spacer(minLength: 0)
-                        Text("\(DurationText.short(request.continuousWork)) continuous")
-                            .font(Brand.mono(10))
-                            .foregroundStyle(Brand.Dark.fgFaint)
-                    }
-                }
-
-                if !compact {
-                    Text("\(DurationText.short(request.continuousWork)) continuous")
                         .font(Brand.mono(12))
                         .foregroundStyle(Brand.Dark.fgFaint)
-                        .padding(.top, 10)
                 }
+
+                Text("\(DurationText.short(request.continuousWork)) continuous")
+                    .font(Brand.mono(12))
+                    .foregroundStyle(Brand.Dark.fgFaint)
+                    .padding(.top, 10)
 
                 if let title = message.title {
                     Text(title)
-                        .font(Brand.sans(compact ? 12 : 20, weight: .semibold))
+                        .font(Brand.sans(20, weight: .semibold))
                         .foregroundStyle(Brand.Dark.fgMuted)
-                        .padding(.top, compact ? 14 : 34)
+                        .padding(.top, 34)
                 }
 
                 Text(message.text)
-                    .font(Brand.sans(compact ? 16 : 38, weight: .medium))
+                    .font(Brand.sans(38, weight: .medium))
                     .foregroundStyle(Brand.Dark.fg)
-                    .multilineTextAlignment(compact ? .leading : .center)
-                    .lineSpacing(compact ? 2 : 6)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(6)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: compact ? .infinity : 820, alignment: compact ? .leading : .center)
-                    .padding(.top, compact ? (message.title == nil ? 14 : 6) : (message.title == nil ? 34 : 14))
+                    .frame(maxWidth: 820, alignment: .center)
+                    .padding(.top, message.title == nil ? 34 : 14)
 
-                if compact { Spacer(minLength: 12) }
-
-                HStack(spacing: compact ? 8 : 14) {
+                HStack(spacing: 14) {
                     TerminalButton("Take it", style: .filled, shortcut: .defaultAction, action: onTake)
                         .fixedSize()
+                    if standsInForNotification {
+                        if !request.snoozeOffered.isEmpty {
+                            TerminalButton("Snooze (SIGALRM)", action: onSnooze)
+                                .fixedSize()
+                        }
+                        TerminalButton("Skip, quiet for \(DurationText.short(skipQuiet))", action: onSkip)
+                            .fixedSize()
+                    }
                     TerminalButton("Ignore it", action: onIgnore)
                         .fixedSize()
                 }
-                .padding(.top, compact ? 0 : 44)
+                .padding(.top, 44)
 
                 Text("esc to ignore, it comes back in 90 seconds")
-                    .font(Brand.mono(compact ? 9.5 : 11))
+                    .font(Brand.mono(11))
                     .foregroundStyle(Brand.Dark.fgFaint)
-                    .padding(.top, compact ? 10 : 18)
+                    .padding(.top, 18)
             }
-            .padding(compact ? 18 : 48)
+            .padding(48)
         }
     }
 }

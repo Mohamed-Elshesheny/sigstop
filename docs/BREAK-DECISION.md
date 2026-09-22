@@ -991,6 +991,7 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   does not call it. Escape and *Not now* leave the prompt standing in the engine: it times out after
   `promptTimeout` and the ladder climbs, which is what §10 means by ignored and what the product
   means by a rung you are allowed to catch.
+- **The same answers with or without notification permission.** When notifications are denied, the L1 prompt is drawn as a panel instead, and that panel offers what the notification would have: *Take it*, *Snooze* when `snoozeOffered` is not empty, *Skip*, and *Ignore it*. It used to offer only *Take it* and *Ignore it*, which made Skip and Snooze unreachable without a permission, against CLAUDE.md §4.2. Both surfaces label Skip with what it costs, `rearmAfterSkip` read from the policy: *Skip, quiet for 20m*.
 - **Skip leaves `consecutiveIgnoredCycles` alone.** It used to reset it, which made waving a prompt
   off worth as much to the ladder backoff as taking the break, while the same act still counted
   against compliance. It is an answer, so it is not an ignore; it is not a break, so it does not earn

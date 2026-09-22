@@ -122,6 +122,8 @@ final class Notifier: NSObject {
         return center
     }
 
+    var skipQuiet: TimeInterval = 20 * 60
+
     private func registerCategoriesIfNeeded(_ center: UNUserNotificationCenter) {
         guard !registered else { return }
         registered = true
@@ -132,7 +134,9 @@ final class Notifier: NSObject {
         let snooze = UNNotificationAction(
             identifier: Action.snooze, title: "Snooze (SIGALRM)", options: []
         )
-        let skip = UNNotificationAction(identifier: Action.skip, title: "Skip", options: [])
+        let skip = UNNotificationAction(
+            identifier: Action.skip, title: "Skip, quiet for \(DurationText.short(skipQuiet))", options: []
+        )
 
         center.setNotificationCategories([
             UNNotificationCategory(

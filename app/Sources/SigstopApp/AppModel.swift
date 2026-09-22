@@ -601,6 +601,7 @@ final class AppModel {
     }
 
     private func wireNotifier() {
+        notifier.skipQuiet = policy.rearmAfterSkip
         notifier.onResponse = { [weak self] response in
             guard let self else { return }
             switch response {

@@ -33,6 +33,14 @@ enum SigstopEntryPoint {
                 SettingsPaneRenderer.runAndExit(pane: pane, stem: stem)
             }
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-prompt") {
+            let args = CommandLine.arguments
+            let stem = index + 1 < args.count ? args[index + 1] : "prompt"
+            MainActor.assumeIsolated {
+                NSApplication.shared.setActivationPolicy(.prohibited)
+                PromptRenderer.runAndExit(stem: stem)
+            }
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-badges") {
             let next = index + 1
             let stem = next < CommandLine.arguments.count ? CommandLine.arguments[next] : "badges"

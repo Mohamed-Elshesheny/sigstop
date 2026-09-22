@@ -128,6 +128,47 @@ enum SettingsPaneRenderer {
     }
 }
 
+enum PromptRenderer {
+
+    @MainActor
+    static func runAndExit(stem: String) -> Never {
+        let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
+        let cases: [(String, EscalationLevel, PromptChannel, [TimeInterval])] = [
+            ("l1", .first, .notification, [300, 600, 900]),
+            ("l1-nosnooze", .first, .notification, []),
+            ("l2", .second, .panel, [300]),
+            ("l4", .incident, .panel, []),
+        ]
+        for (suffix, level, channel, snooze) in cases {
+            let request = PromptRequest(
+                cycle: CycleID.initial, level: level, channel: channel,
+                at: Date(timeIntervalSince1970: 1_758_500_000), continuousWork: 47 * 60,
+                snoozeOffered: snooze
+            )
+            let message = RenderedMessage(
+                templateID: "render", title: nil,
+                text: "You have been at this for 47 minutes. The build will still be broken in five.",
+                tone: .sarcastic, category: "render", escalation: level,
+                isFallback: false, theatrical: false
+            )
+            let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
+            do {
+                try BadgeSheetRenderer.write(
+                    FallbackPromptView(request: request, message: message, onTake: {}, onIgnore: {}, onSkip: {})
+                        .frame(width: 1280, height: 800),
+                    appearance: .darkAqua,
+                    to: url
+                )
+                FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
+                exit(1)
+            }
+        }
+        exit(0)
+    }
+}
+
 enum BadgeSheetRenderer {
 
     @MainActor
