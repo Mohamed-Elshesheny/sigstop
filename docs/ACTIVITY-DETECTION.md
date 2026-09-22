@@ -45,8 +45,9 @@ Authoring machine for this document: macOS 27.0 (26A428), Swift 6.2. Target floo
 | SwiftUI Previews | **yes** | forbidden. Develop against a live debug build |
 | `codesign`, `notarytool` | no | ship with Command Line Tools |
 
-So the deliverable is a **hand-bundled, Developer-ID-signed, notarized `.app`** produced by a script,
-not by `xcodebuild`.
+So the deliverable is a **hand-bundled, ad-hoc-signed `.app`** produced by a script, not by
+`xcodebuild`. It is not notarized: there is no Developer ID (docs/PRIVACY.md §2.8,
+docs/RELEASING.md §1).
 
 ### 1.2 The App Sandbox is not an option if we want Tier 1
 
@@ -56,7 +57,10 @@ utility on macOS (window managers, launchers, time trackers) ships non-sandboxed
 
 Therefore:
 
-- The app is **non-sandboxed**, hardened runtime on, Developer ID signed, notarized.
+- The app is **non-sandboxed**, ad-hoc signed, not notarized. Hardened runtime is **off** by
+  default: Library Validation refuses the embedded `Sparkle.framework` when neither half carries a
+  Team ID, and an ad-hoc signature carries none. `HARDENED=1 make bundle` turns it on for a
+  Developer ID build (`app/Scripts/bundle.sh`, docs/PRIVACY.md §2.9).
 - It is **not distributable on the Mac App Store**. That is a product consequence, and it must be
   decided now rather than discovered later.
 - Tier 0 alone *would* work sandboxed. If a Mac App Store SKU is ever wanted, it is a Tier-0-only
@@ -73,11 +77,14 @@ Mitigation, required in the dev workflow:
 
 ```sh
 cd app
-make dev-cert                          # once: a stable self-signed identity called sigstop-dev
+make dev-cert                          # once: prints the Keychain Access steps for sigstop-dev
 SIGN_IDENTITY=sigstop-dev make run     # every build after that keeps the grant
 ```
 
-`Scripts/bundle.sh` signs with `SIGN_IDENTITY`, which defaults to ad-hoc (`-`).
+`make dev-cert` does not create the identity: it needs the Keychain Access UI, so the target prints
+the one-time steps to create a self-signed code-signing certificate named `sigstop-dev`, and says
+so if one already exists. `Scripts/bundle.sh` signs with `SIGN_IDENTITY`, which defaults to ad-hoc
+(`-`).
 
 Without a *stable* signing identity, expect to re-grant Accessibility dozens of times a day. Note
 this in `CONTRIBUTING`, not just here.
@@ -273,7 +280,8 @@ Caveats that do not go away, and are printed in `--doctor` rather than smoothed 
 
 Camera-in-use via CoreMediaIO `kCMIODevicePropertyDeviceIsRunningSomewhere` **is shipped**, as
 `CameraDeviceCollector`. This paragraph used to ask for it behind a feature flag while the code said
-the API did not exist; the doc was right and the code was the bug (CLAUDE.md §1). It enumerates
+the API did not exist; the doc was right and the code was the bug
+([the design documents are normative](../CONTRIBUTING.md#commits-and-prs)). It enumerates
 `kCMIOHardwarePropertyDevices`, reads the in-use bit per device, registers CMIO listeners so it is
 event-driven, and treats a read failure as `nil` and never as `false`. Probed on this machine: three
 devices (two Continuity, one FaceTime HD), `running=false` for each, **no Camera permission, no
@@ -346,9 +354,9 @@ refuse it, and nothing in the activity model is worth it.
 | `CGEventTap` keystroke/WPM counting | Requires **Input Monitoring** — a keylogger-shaped grant. Declined on principle (§12). |
 | `IOHIDManager` input device taps | Same permission, same objection. |
 | EndpointSecurity for live process exec events | Needs a **restricted entitlement Apple grants case-by-case**; also requires a system extension. Disproportionate. |
-| Private `MediaRemote.framework` for "is media playing" | Private framework. Breaks on update, risks notarization posture. |
+| Private `MediaRemote.framework` for "is media playing" | Private framework. Breaks on update. |
 | ScreenCaptureKit / OCR of the screen | Requires Screen Recording. Absolutely not. |
-| dyld-loaded third-party plugin bundles | Hardened runtime + notarization make loading unsigned third-party code hostile and unsafe. Extensibility is solved declaratively instead (§5.5). |
+| dyld-loaded third-party plugin bundles | Loading unreviewed third-party code into a non-sandboxed process that holds an Accessibility grant is unsafe, and `make verify` fails if `disable-library-validation`, the entitlement it would need under hardened runtime, ever appears. Extensibility is designed declaratively instead (§5.5). |
 
 ---
 
@@ -524,11 +532,13 @@ grants the folder explicitly):
   Surface this so the user understands why one folder prompted and another did not, and make the
   collector distinguish *no repository here* from *not allowed to look*: an `EPERM` or `EACCES` on
   the read is a different fact from a missing `.git`, and reporting the second when it was the first
-  is the kind of quiet wrong answer §4.1 of `CLAUDE.md` exists to stop.
+  is the kind of quiet wrong answer the
+  [never-overclaim rule](../CONTRIBUTING.md#the-rules-a-pr-cannot-break) exists to stop.
 
 **Where the path comes from, and where it does not.** A registered folder is the only thing the
 collector may open. Nothing infers a path from a name, because inventing a path from a project name
-is exactly the guess `CLAUDE.md` §4.1 forbids. What the other tiers supply is not a path but an
+is exactly the guess the [never-overclaim rule](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)
+forbids. What the other tiers supply is not a path but an
 *answer to which registered folder you are in*, and there are two of them, both Tier 1:
 
 - a `kAXDocument` file URL that lies inside a registered folder. Measured on this machine, that
@@ -776,17 +786,23 @@ everything else is evidence fed into it via `SignalContext`.
 
 | Provider | Claims | Primary job |
 |---|---|---|
-| `VSCodeProvider` | VS Code + Insiders, exact IDs | title → project/file; delegates to shared `ElectronEditorTitleParser` |
+| `VSCodeProvider` | VS Code, Insiders, VSCodium, exact IDs | title → project/file with `TitleParsing.fileFirst`, the shared parser in `BuiltinProviders.swift` |
 | `CursorProvider` | Cursor's ToDesktop ID | same parser, plus AI-CLI-child awareness |
-| `ZedProvider` | `dev.zed.*` prefix | Zed title format |
-| `JetBrainsProvider` | `com.jetbrains.` prefix + `com.google.android.studio` | one provider for the whole family; titles share a format |
+| `ZedProvider` | `dev.zed.` prefix | same `TitleParsing.fileFirst` parser |
+| `JetBrainsProvider` | `com.jetbrains.` prefix + `com.google.android.studio` | one provider for the whole family; titles share a format (`TitleParsing.projectFirst`) |
 | `XcodeProvider` | `com.apple.dt.Xcode` | uses `kAXDocument` (real path!) and `debugserver`/`xctest` children |
-| `TerminalProvider` | Terminal, iTerm2, Warp, Ghostty, Alacritty, Kitty | almost entirely process-driven |
-| `BrowserProvider` | Chrome, Arc, Safari, Firefox | CODE_REVIEW vs BROWSING vs MEETING |
-| `CommunicationProvider` | Slack, Discord, Zoom | COMMUNICATION, and meeting corroboration |
+| `TerminalProvider` | Terminal, iTerm2, Warp, Ghostty, Alacritty, Kitty, Termius | almost entirely process-driven |
+| `BrowserProvider` | Chrome, Arc, Safari, Brave, Firefox, Edge | CODE_REVIEW vs BROWSING, with a meeting title as a concurrent hint |
+| `CommunicationProvider` | Slack, Discord, Zoom, Teams, Mail, Messages | COMMUNICATION, and meeting corroboration |
 | `DesignProvider` | Figma | a single low-confidence class; we do not pretend to read Figma state |
-| `AIAssistantProvider` | Claude, ChatGPT/Codex | AI_CODING only with corroboration (§7.6) |
-| `GenericProvider` | `.*` | category from a bundle-ID catalog, else UNKNOWN |
+| `APIToolProvider` | Postman | CODING, marked degraded: an API client does not say which kind of work it is |
+| `ContainerProvider` | Docker Desktop, and its Electron helper ID (§5.6) | TERMINAL_WORK |
+| `AIAssistantProvider` | Claude, ChatGPT/Codex (and the legacy ID), Gemini | AI_CODING only with corroboration (§7.6) |
+| `NotesProvider` | Notion, Obsidian, Linear | DOCUMENTATION capped at 0.55; Linear is an issue tracker and reads BROWSING |
+| `GenericProvider` | `.*` | category from `GenericProvider.categories`, a Swift dictionary of bundle IDs, else UNKNOWN |
+
+`BuiltinProviders.all` lists the thirteen above `GenericProvider`, in this order; `GenericProvider`
+is the registry's fallback, not a member of that list.
 
 ### 5.5 Third-party extension without touching core
 
@@ -920,11 +936,17 @@ osascript -e 'id of app "Zed"'
 | Notion | `notion.id` | ✅ VERIFIED |
 | Obsidian | `md.obsidian` | ⚠️ UNVERIFIED |
 
-**Design consequence:** because roughly half this table could not be verified and two of the
-verified rows contradicted expectation, **bundle IDs are shipped as a data file, not as Swift
-literals**. `Resources/app-catalog.json` is loaded at launch, is overridable by the user's own
-manifests, and every unrecognised app falls through to `GenericProvider` rather than being
-misclassified. A wrong ID in the catalog is then a one-line data fix, not a release.
+**Design consequence, planned, not built:** because roughly half this table could not be verified
+and two of the verified rows contradicted expectation, the design called for bundle IDs to ship as
+a data file loaded at launch and overridable by the user's own manifests, so that a wrong ID would
+be a one-line data fix rather than a release. There is no such file. The IDs are **Swift
+literals**: the `BundleIDs` enum and `GenericProvider.categories` in
+`app/Sources/SigstopSensors/Providers/BuiltinProviders.swift`, and a second, lowercased set in
+`AppKey` (`terminalIDs`, `browserIDs` and inline prefixes) in
+`app/Sources/SigstopCore/Message/MessageContext.swift`, which keys the message corpus and an app
+category rather than the activity. A wrong ID is a code change and a release. What does hold is
+the fallback: every unrecognised app falls through to `GenericProvider` rather than being
+misclassified.
 
 ---
 
@@ -1062,7 +1084,8 @@ front**, or `P_TRACED` — under the frontmost app, or elsewhere while a debugge
 name is running. A bare machine-wide name match decides nothing: it is cited as evidence and the
 window in front answers first, because one `dlv dap` left alive by a Go extension used to mean the
 app said "you have been chasing one bug for fifty minutes" at 0.90 while you were editing a README,
-which is the failure CLAUDE.md §4.1 names by hand. The `P_TRACED`-elsewhere route is capped at
+which is the failure the [never-overclaim rule](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)
+and §0 of this document exist to prevent. The `P_TRACED`-elsewhere route is capped at
 **0.80** rather than 0.90, so the corroboration changes a number somebody can see instead of being
 decorative: what that debugger is attached to is, by definition, not under the app you are in.
 
@@ -1138,9 +1161,10 @@ frontmost terminal → **+3.0**, confidence up to 0.93. This is as solid as `deb
 
 *Child of* is the whole of it. The same process anywhere else on the machine is **+0.4**, cited as
 "running, but not in this terminal", and decides nothing. The code read the bare name for a while
-and this paragraph did not, which is the disagreement CLAUDE.md asks to be resolved in one direction
-or the other: `claude` is running on the maintainer's Mac nearly all the time, so the bare name made
-every terminal window read `AI_CODING` at the ceiling, permanently. The same rule applies to `vim`,
+and this paragraph did not, which is a disagreement that has to be resolved in one direction or the
+other, because [the design documents are normative](../CONTRIBUTING.md#commits-and-prs): `claude`
+is running on the maintainer's Mac nearly all the time, so the bare name made every terminal window
+read `AI_CODING` at the ceiling, permanently. The same rule applies to `vim`,
 `nvim`, `helix`, `emacs` and `nano`.
 
 **Unreliable (Tier 0):** a desktop AI assistant app is frontmost. This tells us nothing about
@@ -1210,8 +1234,9 @@ bands above against a signal nobody has watched for a week yet.
 One thing this ledger cannot fix, and which §7.8 of the break-decision spec works around instead:
 `meetingConfidence` is clamped to the Tier 0 ceiling of **0.55**, and the specific-claim threshold is
 **0.60**. So `ConcurrentStates.inMeeting` is structurally false for a user who has granted nothing,
-whatever the evidence, and every consumer of it is unreachable in the zero-permission configuration
-CLAUDE.md §4.2 promises. The ceiling is right and is not being raised to let a guess through; the
+whatever the evidence, and every consumer of it is unreachable in the zero-permission configuration,
+which [the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break) promise is fully
+functional. The ceiling is right and is not being raised to let a guess through; the
 call latch gets its deferral from a capture fact instead.
 | Audio input `.unreliable` | 0 | **contributes nothing** |
 
@@ -1368,24 +1393,24 @@ Targets:
 - **< 30 MB** resident.
 - Must not appear in Activity Monitor's "Apps Using Significant Energy".
 
-Without Xcode's Energy gauge, verify with Command Line Tools:
+Without Xcode's Energy gauge, measure with Command Line Tools and no `sudo`:
 
 ```sh
-# Energy impact and wakeups attributed to our process
-sudo powermetrics -n 10 -i 1000 --samplers tasks --show-process-energy \
-  | grep -i -E '<executable name>|Name'
-
-# Idle-state sanity: confirm zero wakeups while the screen is locked
-sudo powermetrics -n 5 -i 5000 --samplers tasks --show-process-energy
-
-# Timer/wakeup attribution over a longer window
-sudo /usr/bin/timerfires -p $(pgrep -x '<executable name>') 2>/dev/null || \
-  sudo dtrace -n 'profile-97 /pid == $target/ { @[ustack()] = count(); }' \
-       -p $(pgrep -x '<executable name>')
+cd app
+make bench                  # IDLE=180 BREAK=45 by default, in seconds
 ```
 
-Ship a `make energy-check` target that runs the first command and **fails CI on regression** against
-a recorded baseline. An energy budget that is not measured in CI is a wish.
+`make bench` bundles the app, runs a copy from a temporary folder with an empty home, and reads the
+kernel's own counters for that process through `proc_pid_rusage` (`app/Scripts/bench.sh`,
+`app/Scripts/rusage.swift`), never `top`, whose IDLEW column is a running total that reads like a
+rate. It reports CPU %, interrupt wakeups per second, energy and memory for two windows: idle, after
+a minute to settle, and the break screen.
+
+**The CI gate is not built.** This section used to ask for a `make energy-check` target that
+**fails CI on regression** against a recorded baseline. `make bench` is run by hand, is not a step
+in `.github/workflows/ci.yml`, and fails on no budget: it prints numbers for a person to compare
+before and after a change. An energy budget that is not measured in CI is a wish, and this one
+still is.
 
 ---
 
