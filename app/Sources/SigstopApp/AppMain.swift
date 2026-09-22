@@ -9,16 +9,14 @@ enum SigstopEntryPoint {
             runDoctorAndExit()
         }
         if let index = CommandLine.arguments.firstIndex(of: "--render-installer") {
-            let args = CommandLine.arguments
-            let stem = index + 1 < args.count ? args[index + 1] : "installer-backdrop"
+            let stem = renderStem(at: index + 1, or: "installer-backdrop")
             MainActor.assumeIsolated {
                 NSApplication.shared.setActivationPolicy(.prohibited)
                 InstallerBackdropRenderer.runAndExit(stem: stem)
             }
         }
         if let index = CommandLine.arguments.firstIndex(of: "--render-panel") {
-            let args = CommandLine.arguments
-            let stem = index + 1 < args.count ? args[index + 1] : "panel"
+            let stem = renderStem(at: index + 1, or: "panel")
             MainActor.assumeIsolated {
                 NSApplication.shared.setActivationPolicy(.prohibited)
                 PanelRenderer.runAndExit(stem: stem)
@@ -27,7 +25,7 @@ enum SigstopEntryPoint {
         if let index = CommandLine.arguments.firstIndex(of: "--render-settings") {
             let args = CommandLine.arguments
             let pane = index + 1 < args.count ? args[index + 1] : "about"
-            let stem = index + 2 < args.count ? args[index + 2] : "settings"
+            let stem = renderStem(at: index + 2, or: "settings")
             MainActor.assumeIsolated {
                 NSApplication.shared.setActivationPolicy(.prohibited)
                 SettingsPaneRenderer.runAndExit(pane: pane, stem: stem)
@@ -35,7 +33,7 @@ enum SigstopEntryPoint {
         }
         if let index = CommandLine.arguments.firstIndex(of: "--render-prompt") {
             let args = CommandLine.arguments
-            let stem = index + 1 < args.count ? args[index + 1] : "prompt"
+            let stem = renderStem(at: index + 1, or: "prompt")
             let id = index + 2 < args.count ? args[index + 2] : "cursor.ai.tab-tab-tab"
             MainActor.assumeIsolated {
                 NSApplication.shared.setActivationPolicy(.prohibited)
@@ -43,11 +41,20 @@ enum SigstopEntryPoint {
             }
         }
         if let index = CommandLine.arguments.firstIndex(of: "--render-badges") {
-            let next = index + 1
-            let stem = next < CommandLine.arguments.count ? CommandLine.arguments[next] : "badges"
-            renderBadgesAndExit(stem: stem)
+            renderBadgesAndExit(stem: renderStem(at: index + 1, or: "badges"))
         }
         SigstopScene.main()
+    }
+
+    private static func renderStem(at position: Int, or fallback: String) -> String {
+        let args = CommandLine.arguments
+        let stem = position < args.count ? args[position] : fallback
+        let parts = stem.split(separator: "/", omittingEmptySubsequences: false)
+        guard !stem.isEmpty, !stem.hasPrefix("/"), !stem.hasPrefix("~"), !parts.contains("..") else {
+            FileHandle.standardError.write(Data("render output has to be a relative path below the current folder, not \(stem)\n".utf8))
+            exit(2)
+        }
+        return stem
     }
 
     private static func renderBadgesAndExit(stem: String) -> Never {
