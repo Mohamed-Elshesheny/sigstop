@@ -295,7 +295,7 @@ struct MenuBarView: View {
             TerminalButton(model.ignoreInputDeviceLabel, style: .quiet, mark: Self.command) {
                 model.clearMeetingHold()
             }
-        } else {
+        } else if model.settings.holdBreaksDuringCalls {
             TerminalButton("I'm in a meeting", style: .quiet, mark: Self.command) {
                 model.assertMeeting()
             }
