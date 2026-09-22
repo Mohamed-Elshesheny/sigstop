@@ -134,6 +134,16 @@ if [ -d "${FRAMEWORK}" ]; then
   rm -rf "${BUNDLE}/Contents/Frameworks/Sparkle.framework/Versions/B/dSYMs" 2>/dev/null || true
   install_name_tool -add_rpath "@executable_path/../Frameworks" \
                     "${BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
+  # SwiftPM also leaves @loader_path, which is Contents/MacOS. dyld tries rpaths in order, so
+  # an empty folder there came first: a Sparkle.framework dropped into it would load in place
+  # of the real one, without changing the executable the Accessibility grant is tied to.
+  install_name_tool -delete_rpath "@loader_path" "${BUNDLE}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
+  RPATHS="$(otool -l "${BUNDLE}/Contents/MacOS/${APP_NAME}" | awk '/LC_RPATH/ { getline; getline; print $2 }' | sort -u)"
+  if [ "${RPATHS}" != "@executable_path/../Frameworks" ]; then
+    echo "error: the executable's rpaths are not exactly @executable_path/../Frameworks:" >&2
+    echo "${RPATHS}" | sed 's/^/         /' >&2
+    exit 1
+  fi
 else
   echo "==> WARNING: ${FRAMEWORK} missing, the bundle will not launch" >&2
 fi
