@@ -119,13 +119,29 @@ else
   fail "Sparkle.framework has no readable Info.plist"
 fi
 
-# Sparkle performs the download in its own XPC service, out of process. That is
-# not decoration: it keeps the half of the update that touches the network out of
-# the process that holds an Accessibility grant.
-if [ -d "${FRAMEWORKS_DIR}/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc" ]; then
-  pass "downloads run in Sparkle's out-of-process XPC service"
+# What is actually true about where the update runs, which is not what this said.
+#
+# It claimed "downloads run in Sparkle's out-of-process XPC service" and proved it by
+# checking that Downloader.xpc exists in the framework. Sparkle ships that service inside
+# the framework whether or not it is used, and it is used ONLY when the host app sets
+# `SUEnableDownloaderService`, an opt-in for sandboxed apps with no network-client
+# entitlement. This app is not sandboxed and does not set it, so the check was true, the
+# claim was false, and the check could not have failed either way. A check that cannot fail
+# is worse than no check: it is a reassurance nobody earned.
+#
+# The download runs in-process, inside Sparkle.framework. The INSTALL does not: Autoupdate
+# is always a separate process. Both halves are asserted below, each by something that
+# could come out the other way.
+if plutil -extract SUEnableDownloaderService raw "${PLIST}" >/dev/null 2>&1; then
+  fail "SUEnableDownloaderService is set; Sparkle warns against it on an unsandboxed app"
 else
-  fail "Sparkle's Downloader.xpc is missing from the bundle"
+  pass "the download runs in-process inside Sparkle.framework, and the app's own binary references no networking symbol (section 1)"
+fi
+
+if [ -x "${FRAMEWORKS_DIR}/Sparkle.framework/Versions/B/Autoupdate" ]; then
+  pass "the installer is a separate executable, so installing never runs inside this process"
+else
+  fail "Sparkle's Autoupdate is missing, so there is nothing to install an update out of process"
 fi
 
 # ---------------------------------------------------------------------------

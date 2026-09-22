@@ -357,8 +357,14 @@ update is offered, pressing the second button fetches the archive itself.
 **What the app's own binary can do: still nothing.** This is the part that survived intact and is
 worth checking yourself. `sigstop`'s executable links no networking framework and references no
 networking symbol — not `NSURLSession`, not `socket`, not `getaddrinfo`. All the network code is
-inside `Sparkle.framework`, and the download runs in Sparkle's own out-of-process XPC service, so
-the process holding your Accessibility grant is not the process doing the transfer.
+inside `Sparkle.framework`. **The download runs in that framework, in this process.** This section
+claimed the opposite until it was checked: Sparkle bundles `Downloader.xpc`, but only uses it when
+the app sets `SUEnableDownloaderService`, which is meant for sandboxed apps and which Sparkle
+advises against otherwise. sigstop does not set it.
+
+What is out of process is the install. `Autoupdate` is a separate executable and always has been,
+so the code that replaces the app on disk is never the code holding your Accessibility grant. The
+transfer is, and saying otherwise was a claim this document had not earned.
 
 **What is enforced by the OS: nothing, and that was already true.** The app cannot be sandboxed
 (§3.6), so the absence of `com.apple.security.network.client` never guaranteed anything on its own —

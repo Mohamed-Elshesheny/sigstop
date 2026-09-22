@@ -198,9 +198,17 @@ paragraph of the old version demanded and is the only reason it was allowed to c
 
 **What is still true and still structural:** the app's *own* binary links no networking framework
 and references no networking symbol: not `NSURLSession`, not a socket, not `getaddrinfo`. All the
-network code in the bundle lives in `Sparkle.framework`, which you can name, version and diff, and
-the download itself runs in Sparkle's out-of-process XPC service. There is no network **server**
-entitlement: nothing listens.
+network code in the bundle lives in `Sparkle.framework`, which you can name, version and diff.
+There is no network **server** entitlement: nothing listens.
+
+This used to add "and the download itself runs in Sparkle's out-of-process XPC service", which was
+not true. Sparkle ships `Downloader.xpc` inside its framework, but routes through it only when the
+host sets `SUEnableDownloaderService` — an opt-in for sandboxed apps with no network-client
+entitlement, and something Sparkle tells an unsandboxed app not to enable. This app does not set
+it, so **the download runs in-process**. What does run out of process is the *install*:
+`Autoupdate` is a separate executable, always. `make verify` asserted the false half by checking
+that a directory exists, which was true whether or not the service was used, so the check could not
+have failed. It asserts both halves properly now.
 
 **What cannot be claimed:** an HTTPS request reveals the client's IP address and a timestamp to
 whoever serves the file. No client-side choice changes that. `docs/PRIVACY.md` §5 says so plainly
