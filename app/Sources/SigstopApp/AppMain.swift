@@ -43,6 +43,12 @@ enum SigstopEntryPoint {
         if let index = CommandLine.arguments.firstIndex(of: "--render-badges") {
             renderBadgesAndExit(stem: renderStem(at: index + 1, or: "badges"))
         }
+        MainActor.assumeIsolated {
+            guard InstanceLock.acquire(in: AppPaths.storageRoot) else {
+                FileHandle.standardError.write(Data("sigstop is already running, so this copy is leaving.\n".utf8))
+                exit(0)
+            }
+        }
         SigstopScene.main()
     }
 
@@ -422,4 +428,25 @@ private struct PopoverMaterial: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+}
+
+@MainActor
+enum InstanceLock {
+    private static var held: Int32 = -1
+
+    static func acquire(in root: URL) -> Bool {
+        try? FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+        )
+        let fd = open(root.appendingPathComponent(".lock").path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { return true }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+            let taken = errno == EWOULDBLOCK
+            close(fd)
+            return !taken
+        }
+        if held >= 0 { close(held) }
+        held = fd
+        return true
+    }
 }
