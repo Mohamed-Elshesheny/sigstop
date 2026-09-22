@@ -100,7 +100,11 @@ cp dist/.dmg-background/backdrop.png "${STAGE}/.background/"
 
 echo "==> read-write image"
 hdiutil detach "${MOUNT}" -quiet 2>/dev/null || true
-rm -f "${RW}" "${OUT}"
+# Every image for THIS version, not just the one about to be written: the filename carries
+# the codename, so a rename leaves a second file for the same version and the appcast then
+# has two to choose from. It refuses to choose, which is right, but the cleanup belongs
+# here where the stale one is made.
+rm -f "${RW}" dist/"${APP_NAME}"-"${VERSION}"*.dmg
 hdiutil create -volname "${VOLUME}" -srcfolder "${STAGE}" -ov -format UDRW -fs HFS+ "${RW}" >/dev/null
 rm -rf "${STAGE}"
 hdiutil attach "${RW}" -nobrowse -quiet
