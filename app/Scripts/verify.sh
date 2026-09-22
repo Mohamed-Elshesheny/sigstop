@@ -305,7 +305,15 @@ check_plist_false() {  # check_plist_false <key> <human description>
 
 check_plist_false SUEnableAutomaticChecks "no scheduled check, and the app also forces it off at launch"
 check_plist_false SUAutomaticallyUpdate   "nothing downloads or installs without being asked"
-check_plist_false SUEnableSystemProfiling "no system profile is appended to the request"
+# Sparkle decides whether to append a system profile from SUSendProfileInfo, not from
+# SUEnableSystemProfiling, which only drives its stock permission prompt. The delegate in
+# UpdateChecker.swift allows no profile keys either way; this keeps the plist from asking for one.
+if /usr/libexec/PlistBuddy -c "Print :SUSendProfileInfo" "${PLIST}" >/dev/null 2>&1 \
+   && [ "$(/usr/libexec/PlistBuddy -c "Print :SUSendProfileInfo" "${PLIST}")" != "false" ]; then
+  fail "SUSendProfileInfo is set in Info.plist, which asks Sparkle to send a system profile"
+else
+  pass "no system profile is asked for in Info.plist"
+fi
 # Without this Sparkle unpacks a downloaded image first and checks it after, and accepts an app
 # whose code signature matches the installed one in place of the EdDSA signature. With it, the
 # archive's EdDSA signature is checked before anything is unpacked, and the only fallback Sparkle

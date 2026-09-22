@@ -67,6 +67,11 @@ final class UpdateChecker {
             return
         }
 
+        let cookieJar = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent("Library/HTTPStorages")
+            .appendingPathComponent("\(Bundle.main.bundleIdentifier ?? "dev.sigstop.app").binarycookies")
+        try? FileManager.default.removeItem(at: cookieJar)
+
         let driver = UserDriver()
         let feedPin = FeedPin(feed: Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)
         let updater = SPUUpdater(
@@ -78,9 +83,10 @@ final class UpdateChecker {
         updater.clearFeedURLFromUserDefaults()
 
         updater.userAgentString = "sigstop"
+        updater.httpHeaders = ["Accept-Language": "en"]
         updater.sendsSystemProfile = false
-        updater.automaticallyDownloadsUpdates = false
         updater.automaticallyChecksForUpdates = false
+        updater.automaticallyDownloadsUpdates = false
 
         do {
             try updater.start()
@@ -273,6 +279,23 @@ private final class FeedPin: NSObject, SPUUpdaterDelegate {
 
     func feedURLString(for updater: SPUUpdater) -> String? {
         feed
+    }
+
+    func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
+        guard updateCheck == .updates else {
+            throw NSError(
+                domain: "dev.sigstop.app", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "sigstop only checks when you press Check for updates."]
+            )
+        }
+    }
+
+    func allowedSystemProfileKeys(for updater: SPUUpdater) -> [String]? {
+        []
+    }
+
+    func updater(_ updater: SPUUpdater, shouldDownloadReleaseNotesForUpdate item: SUAppcastItem) -> Bool {
+        false
     }
 }
 
