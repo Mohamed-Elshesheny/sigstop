@@ -34,6 +34,11 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
                     path: dir.path, reason: (error as NSError).localizedDescription
                 )
             }
+            guard SecureFile.isOwnDirectory(dir) else {
+                throw StoreError.notWritable(
+                    path: dir.path, reason: "it is a symbolic link or not a folder of yours, so nothing is written through it"
+                )
+            }
         }
     }
 
@@ -54,28 +59,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     }
 
     private func appendRaw(_ text: String, to url: URL) throws {
-        if !fm.fileExists(atPath: url.path) {
-            guard fm.createFile(
-                atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]
-            ) else {
-                throw StoreError.notWritable(path: url.path, reason: "could not create file")
-            }
-        }
-        let handle = try FileHandle(forUpdating: url)
-        defer { try? handle.close() }
-
-        let end = try handle.seekToEnd()
-        if end > 0 {
-            try handle.seek(toOffset: end - 1)
-            let last = try handle.read(upToCount: 1)
-            if last != Data([0x0A]) {
-                try handle.seekToEnd()
-                try handle.write(contentsOf: Data([0x0A]))
-            }
-        }
-        try handle.seekToEnd()
-        try handle.write(contentsOf: Data(text.utf8))
-        try handle.synchronize()
+        try SecureFile.append(Data(text.utf8), to: url)
     }
 
     public func url(for day: CalendarDay) -> URL {
@@ -105,11 +89,11 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     }
 
     private func unlockedLoad(day: CalendarDay) -> DayLoad {
-        let path = url(for: day)
-        guard fm.fileExists(atPath: path.path) else { return .empty(day) }
-        let size = (try? fm.attributesOfItem(atPath: path.path)[.size] as? Int) ?? 0
-        guard size <= Self.largestDayFile, let data = fm.contents(atPath: path.path) else {
-            return DayLoad(day: day, events: [], malformedLines: 0, unreadable: true)
+        let data: Data
+        switch SecureFile.read(url(for: day), limit: Self.largestDayFile) {
+        case .absent: return .empty(day)
+        case .unreadable: return DayLoad(day: day, events: [], malformedLines: 0, unreadable: true)
+        case .contents(let contents): data = contents
         }
         let result = EventLogCodec.decodeLines(String(decoding: data, as: UTF8.self))
         return DayLoad(day: day, events: result.events, malformedLines: result.malformedLines)
@@ -167,29 +151,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     }
 
     func writeAtomically(_ data: Data, to destination: URL) throws {
-        let directory = destination.deletingLastPathComponent()
-        let temp = directory.appendingPathComponent(
-            ".\(destination.lastPathComponent).tmp-\(UUID().uuidString)"
-        )
-        guard fm.createFile(
-            atPath: temp.path, contents: nil, attributes: [.posixPermissions: 0o600]
-        ) else {
-            throw StoreError.notWritable(path: temp.path, reason: "could not create temp file")
-        }
-        do {
-            let handle = try FileHandle(forWritingTo: temp)
-            try handle.write(contentsOf: data)
-            try handle.synchronize()
-            try handle.close()
-            if fm.fileExists(atPath: destination.path) {
-                _ = try fm.replaceItemAt(destination, withItemAt: temp)
-            } else {
-                try fm.moveItem(at: temp, to: destination)
-            }
-        } catch {
-            try? fm.removeItem(at: temp)
-            throw error
-        }
+        try SecureFile.write(data, to: destination)
     }
 
     public func writeSummary(_ summary: DailySummary) throws {

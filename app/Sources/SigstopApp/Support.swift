@@ -34,8 +34,11 @@ enum SettingsStore {
     private static func tightenPermissions() {
         let manager = FileManager.default
         for url in [AppPaths.settingsFile, AppPaths.storageRoot] {
-            guard let mode = (try? manager.attributesOfItem(atPath: url.path))?[.posixPermissions]
-                as? NSNumber else { continue }
+            guard let attributes = try? manager.attributesOfItem(atPath: url.path),
+                  let type = attributes[.type] as? FileAttributeType,
+                  type == .typeRegular || type == .typeDirectory,
+                  let mode = attributes[.posixPermissions] as? NSNumber
+            else { continue }
             let wanted = url == AppPaths.storageRoot ? 0o700 : 0o600
             guard mode.intValue & 0o077 != 0 else { continue }
             try? manager.setAttributes([.posixPermissions: wanted], ofItemAtPath: url.path)
@@ -52,10 +55,8 @@ enum SettingsStore {
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            try encoder.encode(settings).write(to: AppPaths.settingsFile, options: .atomic)
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o600], ofItemAtPath: AppPaths.settingsFile.path
-            )
+            guard SecureFile.isOwnDirectory(AppPaths.storageRoot) else { return false }
+            try SecureFile.write(encoder.encode(settings), to: AppPaths.settingsFile)
             return true
         } catch {
             return false

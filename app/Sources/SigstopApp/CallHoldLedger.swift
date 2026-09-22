@@ -1,4 +1,5 @@
 import Foundation
+import SigstopCore
 
 enum CallHoldLedger {
     private struct Record: Codable {
@@ -25,7 +26,7 @@ enum CallHoldLedger {
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
-        try? data.write(to: file, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        guard SecureFile.isOwnDirectory(AppPaths.storageRoot) else { return }
+        try? SecureFile.write(data, to: file)
     }
 }
