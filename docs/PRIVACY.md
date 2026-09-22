@@ -472,27 +472,31 @@ sockets, the channels below matter more rather than less. Each is absent, with t
 | `Process` / `NSTask` / `posix_spawn` | Shelling out to `curl` | Forbidden symbols; not referenced anywhere in app code |
 | `NSAppleScript` / `osascript` | Scripting another app into making the request | Forbidden symbols; no Automation usage string |
 | `NSXPCConnection` to a helper | A helper could hold the network code | The app ships no helper of its own. `Sparkle.framework` carries two XPC services, and only one is used. `Downloader.xpc` ships but is idle, because `SUEnableDownloaderService` is not set, so the download runs in this process (§2.7). `Installer.xpc` launches the installer, because `SUEnableInstallerLauncherService` is `true`, and the install itself runs in the separate `Autoupdate` executable. `ls <APP>/Contents/Frameworks` shows exactly one framework |
-| `dlopen` / plugin loading | Loading code not in the reviewed binary | `com.apple.security.cs.disable-library-validation` is absent and `make verify` fails if it ever appears. **But see the honest caveat below: the shipped build no longer has Hardened Runtime enabled.** |
+| `dlopen` / plugin loading | Loading code not in the reviewed binary | The app loads no plugins and has one `@rpath`, `Contents/Frameworks`. The Hardened Runtime is on, so dyld refuses `DYLD_INSERT_LIBRARIES`. Library Validation is off in the ad-hoc build, which is the caveat below |
 | Analytics SDK arriving as a transitive dependency | The usual way telemetry actually gets in | Sparkle has no dependencies of its own, and `make verify` greps the whole bundle against a list of ~25 analytics and crash-reporting SDKs by name |
 | DNS via `CFHost` | Data in a hostname | Forbidden symbols; checked by `make verify` |
 
-**The Hardened Runtime regression, stated rather than buried.** Before Sparkle, the bundle was
-signed with `--options runtime`, which enables Library Validation. That is no longer possible for
-ad-hoc builds: Library Validation makes dyld refuse a library whose Team ID differs from the main
-executable's, ad-hoc signatures carry no Team ID, and so an ad-hoc-signed app with an embedded
-framework passes `codesign --verify --deep --strict` and then dies at launch with *"mapping process
-and mapped file (non-platform) have different Team IDs."*
+**The Hardened Runtime is on, and Library Validation is off, and here is why both.** Without the
+runtime, dyld honours `DYLD_INSERT_LIBRARIES`, so any process running as you can start the app's
+binary with its own code inside. macOS ties the Accessibility grant to the app's executable, not to
+what the process loads, so that code would inherit the grant. This was measured: a harmless probe
+library was injected into a build without the runtime and refused by one with it. `make verify`
+fails if the runtime flag is missing, or if an entitlement that reopens injection
+(`allow-dyld-environment-variables`), JIT, unsigned executable memory or debugging appears.
 
-The two ways out were a real Developer ID certificate, or turning Library Validation off with
-`com.apple.security.cs.disable-library-validation`. The second was refused, because the absence of
-that entitlement is the guard in the `dlopen` row above and trading it away to keep a checkbox would
-be exactly backwards. So `make bundle` signs without Hardened Runtime by default, and
-`HARDENED=1 make bundle` turns it back on for anyone who has a Developer ID. The comment in
-`app/Scripts/bundle.sh` explains this at the point where somebody would otherwise "fix" it.
+The runtime also turns on Library Validation, which refuses a library signed by a different Team ID.
+An ad-hoc signature has no Team ID, so the app and the embedded `Sparkle.framework` count as
+different teams and the app dies at launch with *"mapping process and mapped file (non-platform)
+have different Team IDs."* So an ad-hoc build carries `com.apple.security.cs.disable-library-validation`,
+added by `app/Scripts/bundle.sh` at signing time and only to a build with no Team ID. This document
+used to call the absence of that entitlement a guard. It was not one: without the runtime, Library
+Validation is not enforced whatever the entitlements say, so the old build had neither protection
+and this one has the first. A Developer ID build has a Team ID, needs neither entitlement, and keeps
+Library Validation on; `make verify` fails if it is disabled on such a build.
 
-What this costs: a local attacker who can already write to the app bundle could inject a library.
-That attacker could also simply replace the binary, so the practical loss is smaller than it sounds
-— but it is a real reduction from the previous position and it is listed in §8.
+What is still open: a process that can write into the installed bundle could replace a library
+inside it, and without Library Validation it would load. That needs write access to the app in
+`/Applications`, which an admin user's processes have, and it is listed in §8.
 
 ---
 
@@ -1164,15 +1168,15 @@ That would be the entire list. In particular these must be **absent**:
 `com.apple.security.files.all`, `com.apple.security.device.camera`,
 `com.apple.security.device.microphone`, `com.apple.security.personal-information.*`,
 `com.apple.security.automation.apple-events`,
-`com.apple.security.cs.disable-library-validation`,
 `com.apple.security.cs.allow-unsigned-executable-memory`,
 `com.apple.security.cs.allow-dyld-environment-variables`.
 
 The shipped, unsandboxed build: the entitlements file is almost empty by design. It holds one key,
-`com.apple.security.automation.apple-events`, set to `false`, and the two that matter are the two
-that are *not* there, which are the two `make verify` checks: `com.apple.security.network.server` (nothing listens) and
-`com.apple.security.cs.disable-library-validation` (§2.9). Without the App Sandbox, the absence of
-`network.client` is not meaningful and this document does not pretend it is.
+`com.apple.security.automation.apple-events`, set to `false`. The signed app carries a second,
+`com.apple.security.cs.disable-library-validation`, which `bundle.sh` adds to a build with no Team ID
+(§2.9). `make verify` checks that `com.apple.security.network.server` is absent (nothing listens),
+that the Hardened Runtime is on, and that nothing reopens injection, JIT or debugging. Without the
+App Sandbox, the absence of `network.client` is not meaningful and this document does not pretend it is.
 
 Also confirm the signature:
 ```bash
@@ -1181,8 +1185,8 @@ spctl -a -vvv "$APP"                 # see the note below before reading anythin
 ```
 
 **Do not expect `spctl` to say "Notarized Developer ID" for a build from this repository.** The app
-is ad-hoc signed — no Developer ID, no Team ID, no notarization, and (see §2.9) no Hardened Runtime
-in the default `make bundle`. That is a real gap and it is why update integrity rests on Sparkle's
+is ad-hoc signed — no Developer ID, no Team ID and no notarization. The Hardened Runtime is on, and
+Library Validation is off because there is no Team ID to validate against (§2.9). That is a real gap and it is why update integrity rests on Sparkle's
 EdDSA signature rather than on Apple's chain. The EdDSA key is checkable and does not depend on
 anyone's certificate:
 
@@ -1377,7 +1381,7 @@ toolchain, and physical access to an unlocked machine.
 |---|---|---|---|---|
 | 1 | A contributor adds an analytics or "crash reporting" call | Maintainer under commercial pressure, or a contributor | `make verify` fails on any networking symbol in the app's own binary, on any URL literal outside the allowlist, and on ~25 analytics and crash-reporting SDKs by name, checked against the built bundle | Someone with merge rights can also edit the check. There is no `CODEOWNERS` file, so nothing but review protects `app/Scripts/verify.sh`; it runs in CI on every push, so an edit to it is at least visible |
 | 2 | A dependency ships a malicious update | Upstream package | **Exactly one third-party runtime dependency: Sparkle, pinned with `exact:` rather than a range, so a new upstream tag cannot enter a build without a commit that says so.** It is attached to `SigstopApp` only; `SigstopCore` and `SigstopSensors` remain dependency-free, and `make verify` asserts Sparkle is the only embedded framework | A malicious Sparkle release that someone then deliberately bumps to. Mitigation is the pin plus review of the bump. The argument for admitting the dependency at all is §2.8, and the rule it had to clear is "One dependency" in [the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break) |
-| 3 | Code is loaded at runtime that was never reviewed | Attacker with write access to the bundle | `disable-library-validation` and `allow-unsigned-executable-memory` are absent and `make verify` fails if they appear. No `dlopen`, no plugin directory, no bundle loading, no JavaScriptCore | **Weakened.** Hardened Runtime is no longer enabled in the default ad-hoc build, because Library Validation cannot coexist with an embedded framework when neither has a Team ID (§2.9). `HARDENED=1 make bundle` restores it for anyone with a Developer ID. An attacker who can rewrite `/Applications` could inject a library — though they could equally replace the binary outright |
+| 3 | Code is loaded at runtime that was never reviewed | Another process running as you, or one that can write to the bundle | The Hardened Runtime is on, so `DYLD_INSERT_LIBRARIES` is refused, and `make verify` fails if the runtime flag goes or `allow-dyld-environment-variables`, `allow-unsigned-executable-memory` or `get-task-allow` appears. One `@rpath`, `Contents/Frameworks`. No `dlopen`, no plugin directory, no bundle loading, no JavaScriptCore | Library Validation is off in the ad-hoc build, because it cannot load the embedded framework without a Team ID (§2.9). A process that can rewrite the bundle in `/Applications` could replace a library inside it and keep the Accessibility grant, which replacing the executable would lose. A Developer ID would close this |
 | 3b | A malicious update is served to users | Attacker who compromises GitHub, the CDN, or the network path | **EdDSA signature verification (§2.8).** The private key is in the maintainer's login keychain only; the public key is compiled into the app; Sparkle refuses an archive whose signature does not verify | Theft of the private key. Rotation does not reach installs that already hold the old public key. `docs/RELEASING.md` §6 |
 | 4 | A malicious **message pack** exfiltrates or executes | Contributor, or a user installing a third-party pack | Packs are data, not code: strict JSON, schema-validated on load, string fields only, length-capped. No URLs, no format specifiers, no templating engine, no HTML — text is rendered into `NSAttributedString` with attributes disabled. A pack cannot cause a network call: the app's own binary has no networking code at all, and the only URL the bundle can fetch is the compile-time feed constant | A pack could still contain hostile or manipulative *text*. Defense is review: packs ship only in-tree, every pack change requires a human review, and third-party packs are not loadable from disk in the default build |
 | 5 | The Accessibility grant is abused to read message/document contents | Malicious future version of the app | `.github/scripts/check-ax-isolation.py` in CI; the AX code is two files and one `private` reader that touches two attribute constants; the permission is off by default | **Real and unavoidable.** If you grant Accessibility, a future build could read anything. Defenses are social (review, reproducible hashes) not technical. Two of the mitigations this row used to claim — a shell script and a raw-title debug ring — did not exist. See §8.2 |
@@ -1415,10 +1419,11 @@ anyone already running an older build — they verify against the key compiled i
 have. `docs/RELEASING.md` §6 describes what a rotation would actually involve, which is mostly
 "tell people to reinstall by hand."
 
-**8.1d Hardened Runtime is off in the default build.** See §2.9 for the full mechanism; the short
-version is that Library Validation and an embedded framework cannot coexist without a Team ID, and
-the alternative — adding `disable-library-validation` — would have cost more than it bought. A
-Developer ID would fix this properly and this project does not have one.
+**8.1d Library Validation is off in the default build.** The Hardened Runtime is on, so another
+process cannot inject code by environment variable, but Library Validation cannot load the embedded
+framework without a Team ID, so the ad-hoc build turns it off (§2.9). A process that can write into
+the installed bundle could swap a library. A Developer ID would fix this properly and this project
+does not have one.
 
 **8.2 Accessibility cannot be scoped, and the app's restraint is not enforced by macOS.** If you
 grant it, you grant the ability to read most UI text across your system and to synthesize input.
@@ -1521,7 +1526,7 @@ where the change is recorded.
 | Network | "No network transmission of any kind." Zero requests, ever | One HTTPS `GET` of a static appcast, on a button press, with no identifier. §2.7, §5 |
 | Update checking | "The app never checks for updates"; a menu item that opens a browser | An in-app updater with EdDSA signature verification. §5.3 keeps the old argument in full and says which sentence of it was wrong |
 | Dependencies | Zero third-party runtime dependencies | Exactly one: Sparkle, pinned with `exact:`, linked into the app target only. §7 row 2 |
-| Hardened Runtime | On, with Library Validation | Off in the default ad-hoc build, because it cannot coexist with an embedded framework without a Team ID. §2.9, §8.1d |
+| Hardened Runtime | On, with Library Validation | On. Library Validation is off in the ad-hoc build, because it cannot load an embedded framework without a Team ID. §2.9, §8.1d |
 | Update integrity | Notarized Developer ID signing | EdDSA signing with a key held only by the maintainer, verified before install. §2.8, §8.1c |
 | Tier 2 | Two switches that read nothing, and a `--doctor` that said so | Two collectors: executable basenames against a fixed allowlist, and one line of `.git/HEAD` in folders you register. Inventory rows 29 to 31, §2.10, §3.5, §8.11 to §8.13 |
 | Tier 2 command lines | `docs/ACTIVITY-DETECTION.md` mandated `KERN_PROCARGS2` for the full argv | argv is never read. The justification for reading it (a 16-character `p_comm` limit) was measurably wrong, and `proc_pidpath` answers the same question with no permission. The cost, six tool tokens that become undetectable, is named in §4.3(b) of that file |

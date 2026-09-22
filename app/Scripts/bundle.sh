@@ -188,42 +188,44 @@ if [ -d "${SPARKLE_IN_BUNDLE}" ]; then
   sign "${SPARKLE_IN_BUNDLE}"
 fi
 
-# Hardened runtime is now OPT-IN, and the reason is worth reading before you turn
-# it back on by default.
+# Hardened runtime is on. Without it dyld honours DYLD_INSERT_LIBRARIES, so any process
+# running as the user could start this binary with its own code inside and borrow the
+# Accessibility grant, which macOS ties to this executable and not to what it loads. That
+# was measured with a harmless probe: injected without the runtime, refused with it.
 #
-# --options runtime enables Library Validation, which makes dyld refuse to load a
-# library signed by a different Team ID than the main executable. Ad-hoc and
-# self-signed certificates carry no Team ID, so two separately ad-hoc-signed
-# Mach-Os are treated as different teams even when the same command signed both.
-# With Sparkle.framework embedded, the result is an app that passes
-# `codesign --verify --deep --strict` and then dies at launch with:
+# The runtime also turns on Library Validation, which refuses a library signed by a different
+# Team ID. An ad-hoc or self-signed build has no Team ID, so the app and the embedded
+# Sparkle.framework count as different teams and the app dies at launch with "mapping process
+# and mapped file (non-platform) have different Team IDs". So a build without a Team ID adds
+# com.apple.security.cs.disable-library-validation. That gives up nothing: without the runtime
+# Library Validation was never enforced at all, whatever the entitlements said. A Developer ID
+# build has a Team ID, needs neither, and keeps Library Validation on.
 #
-#   Library not loaded: @rpath/Sparkle.framework/Versions/B/Sparkle
-#   ... mapping process and mapped file (non-platform) have different Team IDs
-#
-# Before this framework existed the bundle had nothing to load, so hardened
-# runtime cost nothing and was on. It is not free any more. The honest options
-# are a real Developer ID (both halves get the same Team ID, HARDENED=1 works),
-# or no hardened runtime. Disabling library validation with
-# com.apple.security.cs.disable-library-validation is NOT one of the options:
-# docs/PRIVACY.md §2.8 names the absence of that entitlement as the thing that
-# stops the app loading code nobody reviewed, and trading it away to keep a
-# checkbox would be exactly backwards.
-#
-# What carries the guarantee in the meantime is Sparkle's EdDSA signature, which
-# is checked against a key compiled into the app and does not depend on Apple
-# issuing anybody a certificate. See docs/RELEASING.md.
-HARDENED="${HARDENED:-0}"
+# What proves an update came from the maintainer is Sparkle's EdDSA signature, checked against
+# a key compiled into the app, before the image is unpacked. See docs/RELEASING.md.
+HARDENED="${HARDENED:-1}"
 RUNTIME_FLAGS=()
+ENTITLEMENTS="Resources/sigstop.entitlements"
+SIGNING_ENTITLEMENTS="${ENTITLEMENTS}"
 if [ "${HARDENED}" = "1" ]; then
   RUNTIME_FLAGS=(--options runtime)
-  echo "    (hardened runtime requested, needs a Developer ID or the app will not launch)"
+  case "${SIGN_IDENTITY}" in
+    "Developer ID Application"*) ;;
+    *)
+      SIGNING_ENTITLEMENTS="$(mktemp -d)/sigstop.entitlements"
+      cp "${ENTITLEMENTS}" "${SIGNING_ENTITLEMENTS}"
+      /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.disable-library-validation bool true" \
+        "${SIGNING_ENTITLEMENTS}" >/dev/null
+      echo "    hardened runtime; no Team ID, so library validation is off and DYLD_* is still refused"
+      ;;
+  esac
 fi
 
 codesign --force --sign "${SIGN_IDENTITY}" \
-         --entitlements Resources/sigstop.entitlements \
+         --entitlements "${SIGNING_ENTITLEMENTS}" \
          ${RUNTIME_FLAGS[@]+"${RUNTIME_FLAGS[@]}"} \
          "${BUNDLE}" 2>&1 | sed 's/^/    /'
+[ "${SIGNING_ENTITLEMENTS}" = "${ENTITLEMENTS}" ] || rm -rf "$(dirname "${SIGNING_ENTITLEMENTS}")"
 
 # The seal, checked. Every failure above this point was either swallowed or trusted, and
 # nothing ever asked codesign whether the finished bundle actually verifies. --deep --strict

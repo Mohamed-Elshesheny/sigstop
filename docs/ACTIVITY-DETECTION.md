@@ -57,10 +57,10 @@ utility on macOS (window managers, launchers, time trackers) ships non-sandboxed
 
 Therefore:
 
-- The app is **non-sandboxed**, ad-hoc signed, not notarized. Hardened runtime is **off** by
-  default: Library Validation refuses the embedded `Sparkle.framework` when neither half carries a
-  Team ID, and an ad-hoc signature carries none. `HARDENED=1 make bundle` turns it on for a
-  Developer ID build (`app/Scripts/bundle.sh`, docs/PRIVACY.md §2.9).
+- The app is **non-sandboxed**, ad-hoc signed, not notarized. The hardened runtime is **on**, so
+  dyld refuses `DYLD_INSERT_LIBRARIES`. Library Validation is off in an ad-hoc build, because it
+  refuses the embedded `Sparkle.framework` when neither half carries a Team ID; a Developer ID
+  build keeps it on (`app/Scripts/bundle.sh`, docs/PRIVACY.md §2.9).
 - It is **not distributable on the Mac App Store**. That is a product consequence, and it must be
   decided now rather than discovered later.
 - Tier 0 alone *would* work sandboxed. If a Mac App Store SKU is ever wanted, it is a Tier-0-only
@@ -356,7 +356,7 @@ refuse it, and nothing in the activity model is worth it.
 | EndpointSecurity for live process exec events | Needs a **restricted entitlement Apple grants case-by-case**; also requires a system extension. Disproportionate. |
 | Private `MediaRemote.framework` for "is media playing" | Private framework. Breaks on update. |
 | ScreenCaptureKit / OCR of the screen | Requires Screen Recording. Absolutely not. |
-| dyld-loaded third-party plugin bundles | Loading unreviewed third-party code into a non-sandboxed process that holds an Accessibility grant is unsafe, and `make verify` fails if `disable-library-validation`, the entitlement it would need under hardened runtime, ever appears. Extensibility is designed declaratively instead (§5.5). |
+| dyld-loaded third-party plugin bundles | Loading unreviewed third-party code into a non-sandboxed process that holds an Accessibility grant is unsafe. Library Validation cannot stand in the way in an ad-hoc build (docs/PRIVACY.md §2.9), so the only guard is that the app never loads anything it did not ship. Extensibility is designed declaratively instead (§5.5). |
 
 ---
 

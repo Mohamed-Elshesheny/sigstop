@@ -17,11 +17,13 @@
 	                                                    `make verify` fails if this key
 	                                                    ever appears
 	       com.apple.security.cs.disable-library-validation
-	                                                    the guard that keeps the process
-	                                                    from loading code nobody reviewed
-	                                                    (docs/PRIVACY.md §2.9). It was
-	                                                    tempting when Sparkle was embedded
-	                                                    and it was refused
+	                                                    not in this file. Scripts/bundle.sh
+	                                                    adds it at signing time, and only to
+	                                                    a build with no Team ID, because the
+	                                                    hardened runtime cannot load the
+	                                                    embedded Sparkle without it. The
+	                                                    comment there says why that costs
+	                                                    nothing
 	       com.apple.security.device.camera
 	       com.apple.security.device.audio-input        mic STATE is read from CoreAudio
 	                                                    without ever opening a stream

@@ -240,13 +240,15 @@ developer's machine is one architecture. The image people download carries two, 
 `otool` read the native slice by default, so a symbol present only in the Intel half used to come
 back clean. `verify-shipped` builds both and the script splits them and checks each.
 
-A note on `make bundle`: it signs **without** Hardened Runtime by default. That is not laziness, and
-`docs/PRIVACY.md` §2.9 has the full explanation. Library Validation refuses a framework whose Team
-ID differs from the executable's, ad-hoc signatures have no Team ID, and so an ad-hoc-signed app with
-an embedded framework builds, verifies, and then dies at launch. If you ever obtain a Developer ID:
+A note on `make bundle`: it signs **with** the Hardened Runtime, so dyld refuses
+`DYLD_INSERT_LIBRARIES`, and for an ad-hoc build it adds `disable-library-validation`, because
+Library Validation refuses a framework whose Team ID differs from the executable's and ad-hoc
+signatures have none. `docs/PRIVACY.md` §2.9 has the full explanation, and `make verify` checks
+both halves. If you ever obtain a Developer ID, the entitlement is left out and Library Validation
+stays on:
 
 ```sh
-SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" HARDENED=1 make bundle
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" make bundle
 ```
 
 ### 3.3 Cut it

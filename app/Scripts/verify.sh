@@ -198,13 +198,40 @@ else
   pass "no network server entitlement"
 fi
 
-# Library validation. docs/PRIVACY.md §2.8 names the ABSENCE of this entitlement
-# as the thing that stops the process loading code nobody reviewed. Embedding
-# Sparkle made it tempting to add; it was not added.
-if printf '%s' "${ENTS}" | grep -q 'disable-library-validation'; then
-  fail "com.apple.security.cs.disable-library-validation is present"
+# The hardened runtime is what makes dyld refuse DYLD_INSERT_LIBRARIES. Without it any process
+# running as the user can start this binary with its own code inside, and that code inherits the
+# Accessibility grant. This check used to pass on the absence of disable-library-validation,
+# which proved nothing: without the runtime, library validation is not enforced at all.
+SIG_INFO=$(codesign -dvv "${BUNDLE}" 2>&1 || true)
+CS_FLAGS=$(printf '%s\n' "${SIG_INFO}" | sed -n 's/.*flags=0x\([0-9a-f]*\).*/\1/p' | head -1)
+if [ -n "${CS_FLAGS}" ] && (( 16#${CS_FLAGS} & 16#10000 )); then
+  pass "hardened runtime is on, so dyld refuses DYLD_* injection"
 else
-  pass "library validation is not disabled"
+  fail "hardened runtime is off, so another process can inject code and borrow the Accessibility grant"
+fi
+
+REOPENS=""
+for key in allow-dyld-environment-variables allow-unsigned-executable-memory allow-jit \
+           disable-executable-page-protection get-task-allow; do
+  if printf '%s' "${ENTS}" | grep -q "${key}"; then REOPENS="${REOPENS} ${key}"; fi
+done
+if [ -n "${REOPENS}" ]; then
+  fail "entitlements reopen what the hardened runtime closes:${REOPENS}"
+else
+  pass "no entitlement reopens injection, JIT or debugging"
+fi
+
+# Library validation can only be on when the app and Sparkle share a Team ID. An ad-hoc build
+# has none, so it carries disable-library-validation; a build with a Team ID must not.
+TEAM=$(printf '%s\n' "${SIG_INFO}" | sed -n 's/^TeamIdentifier=//p' | head -1)
+if printf '%s' "${ENTS}" | grep -q 'disable-library-validation'; then
+  if [ -z "${TEAM}" ] || [ "${TEAM}" = "not set" ]; then
+    pass "library validation is off because no Team ID exists to validate against"
+  else
+    fail "library validation is disabled on a build signed by team ${TEAM}, which does not need it"
+  fi
+else
+  pass "library validation is on"
 fi
 
 # ---------------------------------------------------------------------------
