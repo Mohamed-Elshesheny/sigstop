@@ -314,6 +314,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
     func openSettings() {
         dismiss()
+        model.refreshRollup(force: true)
 
         if let existing = settingsWindow {
             NSApp.activate(ignoringOtherApps: true)
