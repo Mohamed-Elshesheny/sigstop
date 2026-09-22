@@ -18,6 +18,8 @@ final class NonActivatingPanel: NSPanel {
 final class BreakOverlayController {
     private var breakPanels: [NonActivatingPanel] = []
     private var fallbackPanels: [NonActivatingPanel] = []
+    private var shownPrompt: (request: PromptRequest, message: RenderedMessage)?
+    private var promptScreenObserver: NSObjectProtocol?
     private var screenObserver: NSObjectProtocol?
     private var keyMonitor: Any?
     private weak var model: AppModel?
@@ -108,6 +110,19 @@ final class BreakOverlayController {
         dismissPromptPanel()
         let screens = NSScreen.screens
         guard !screens.isEmpty else { return false }
+        self.model = model
+        shownPrompt = (request, message)
+        promptScreenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let model = self.model, let shown = self.shownPrompt,
+                      !self.fallbackPanels.isEmpty else { return }
+                self.presentPromptPanel(shown.request, message: shown.message, model: model)
+            }
+        }
 
         for screen in screens {
             let frame = screen.frame
@@ -178,6 +193,11 @@ final class BreakOverlayController {
             panel.close()
         }
         fallbackPanels.removeAll()
+        shownPrompt = nil
+        if let promptScreenObserver {
+            NotificationCenter.default.removeObserver(promptScreenObserver)
+            self.promptScreenObserver = nil
+        }
     }
 
     func dismissAll() {
