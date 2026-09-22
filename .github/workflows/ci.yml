@@ -83,6 +83,12 @@ jobs:
         working-directory: app
         run: make dmg
 
+      - name: The Intel slice runs too
+        working-directory: app
+        run: |
+          arch -x86_64 /usr/bin/true 2>/dev/null || sudo softwareupdate --install-rosetta --agree-to-license
+          REQUIRE_X86=1 BUNDLE=dist/sigstop.app ./Scripts/smoke.sh
+
       # The rule is about what a user reads, not about the source. A doc comment may
       # contain one; a string literal and the message corpus may not.
       - name: Look for em dashes in user-visible strings

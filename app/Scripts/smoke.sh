@@ -124,6 +124,51 @@ else
   fail "no data directory, so a first run cannot persist anything"
 fi
 
+echo "==> the Intel slice"
+BIN="${STAGE}/sigstop.app/Contents/MacOS/sigstop"
+kill "${LAUNCHED}" 2>/dev/null || true
+wait "${LAUNCHED}" 2>/dev/null || true
+if ! lipo -archs "${BIN}" | grep -qw x86_64; then
+  if [ "${REQUIRE_X86:-0}" = "1" ]; then
+    fail "the bundle has no x86_64 slice, so Intel Macs get nothing"
+  else
+    printf '  skip  native-only bundle, there is no x86_64 slice to run\n'
+  fi
+elif ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+  if [ "${REQUIRE_X86:-0}" = "1" ]; then
+    fail "the x86_64 slice cannot run here without Rosetta. Install it once: softwareupdate --install-rosetta"
+  else
+    printf '  skip  the x86_64 slice was not run: no Rosetta on this Mac\n'
+  fi
+else
+  X86_HOME="$(mktemp -d)"
+  mkdir -p "${X86_HOME}/Library/Application Support"
+  CFFIXED_USER_HOME="${X86_HOME}" HOME="${X86_HOME}" arch -x86_64 "${BIN}" >"${STAGE}/run-x86.log" 2>&1 &
+  X86_PID=$!
+  sleep 6
+  if kill -0 "${X86_PID}" 2>/dev/null; then
+    pass "the x86_64 slice is still running after six seconds"
+  else
+    fail "the x86_64 slice died on launch"
+    sed -n '1,8p' "${STAGE}/run-x86.log" | sed 's/^/        /'
+  fi
+  kill "${X86_PID}" 2>/dev/null || true
+  wait "${X86_PID}" 2>/dev/null || true
+  X86_DOCTOR="$(CFFIXED_USER_HOME="${X86_HOME}" HOME="${X86_HOME}" arch -x86_64 "${BIN}" --doctor 2>&1 || true)"
+  if printf '%s' "${X86_DOCTOR}" | grep -qE '^  slice +x86_64'; then
+    pass "--doctor confirms it was the x86_64 slice that ran"
+  else
+    fail "asked for x86_64, but --doctor says: $(printf '%s' "${X86_DOCTOR}" | grep -E '^  slice' | sed 's/^ *//')"
+  fi
+  X86_N="$(printf '%s' "${X86_DOCTOR}" | grep -oE '[0-9]+ messages loaded' | head -1 | cut -d' ' -f1)"
+  if [ -n "${X86_N}" ] && [ "${X86_N}" -gt 0 ] 2>/dev/null; then
+    pass "the x86_64 slice reads its message corpus (${X86_N} messages)"
+  else
+    fail "the x86_64 slice did not load the corpus"
+  fi
+  rm -rf "${X86_HOME}"
+fi
+
 printf '\n'
 if [ "${FAILURES}" -eq 0 ]; then
   echo "smoke: the shipped app works on a machine that is not this one"

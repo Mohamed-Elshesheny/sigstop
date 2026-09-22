@@ -51,6 +51,17 @@ enum Doctor {
         return out
     }
 
+    private static var runningSlice: String {
+        #if arch(x86_64)
+        var translated: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        let underRosetta = sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0) == 0 && translated == 1
+        return underRosetta ? "x86_64, under Rosetta" : "x86_64"
+        #else
+        return "arm64"
+        #endif
+    }
+
     private static func headerSection(settings: SigstopSettings) -> [String] {
         [
             "sigstop --doctor",
@@ -63,6 +74,7 @@ enum Doctor {
             "PROCESS",
             "  bundle           \(AppPaths.isBundled ? AppPaths.bundleID : "none, running as a bare executable")",
             "  executable       \(CommandLine.arguments.first ?? "unknown")",
+            "  slice            \(runningSlice)",
             "  work interval    \(settings.workIntervalMinutes) min of continuous active work",
             "  break length     \(settings.breakDurationMinutes) min",
             "  tone             \(settings.tone.displayName.uppercased())",

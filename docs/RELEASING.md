@@ -179,8 +179,13 @@ To restore it on a new machine:
 
 ```sh
 cd app
-swift package resolve   # fetches Sparkle's binary artifact, which carries the signing tools
+swift package resolve              # fetches Sparkle's binary artifact, which carries the signing tools
+softwareupdate --install-rosetta   # so the release can run the x86_64 slice before shipping it
 ```
+
+Rosetta is required, not optional. The image carries an x86_64 slice for Intel Macs, and
+`release.sh` runs `smoke.sh` with `REQUIRE_X86=1`: it launches that slice, asks `--doctor` which
+slice answered, and refuses to publish a slice nobody ran. CI does the same on every push.
 
 Nothing else. `Scripts/appcast.sh` locates `generate_appcast` inside `.build/artifacts` itself,
 because the path carries Sparkle's version in it and an exported variable goes stale the first time

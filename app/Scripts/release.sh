@@ -47,17 +47,29 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+quiet() {
+  local log
+  log="$(mktemp)"
+  if ! "$@" >"${log}" 2>&1; then
+    echo "error: '$*' failed:" >&2
+    tail -40 "${log}" >&2
+    rm -f "${log}"
+    exit 1
+  fi
+  rm -f "${log}"
+}
+
 echo "==> proving the claims before publishing them"
-make test >/dev/null
-make verify-shipped >/dev/null
+quiet make test
+quiet make verify-shipped
 # The artifact, not the code. Everything above this line passed for every release that
 # shipped broken, because all of it runs on the machine that built the thing.
-BUNDLE=dist/sigstop.app ./Scripts/smoke.sh >/dev/null
-swift run -c release Scenarios >/dev/null
-echo "    tests, verify, smoke and scenarios all pass"
+quiet env BUNDLE=dist/sigstop.app REQUIRE_X86=1 ./Scripts/smoke.sh
+quiet swift run -c release Scenarios
+echo "    tests, verify, smoke (both slices) and scenarios all pass"
 
 echo "==> building the image"
-STRICT_LAYOUT=1 make dmg >/dev/null
+quiet env STRICT_LAYOUT=1 make dmg
 SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 
 # The step 0.1.0 shipped without. Doing it before the tag means a release that cannot be
