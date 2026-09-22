@@ -125,7 +125,8 @@ public final class SystemStateCollector {
     }
 
     public func sessionState() -> SessionState {
-        SessionState(
+        if let locked = Self.readScreenLockedFromSession() { screenLocked = locked }
+        return SessionState(
             screenLocked: screenLocked,
             displaysAsleep: displaysAsleep || systemAsleep,
             sessionActive: sessionActive
@@ -222,7 +223,7 @@ public final class SystemStateCollector {
 
     static func readScreenLockedFromSession() -> Bool? {
         guard let dict = CGSessionCopyCurrentDictionary() as? [String: Any] else { return nil }
-        return dict["CGSSessionScreenIsLocked"] as? Bool
+        return dict["CGSSessionScreenIsLocked"] as? Bool ?? false
     }
 
     static func readSessionOnConsole() -> Bool? {
