@@ -47,7 +47,7 @@ final class RegexCache: @unchecked Sendable {
     private var cache: [String: NSRegularExpression?] = [:]
 
     func matches(_ pattern: String, _ input: String) -> Bool {
-        guard pattern.count <= Self.maxPatternLength, input.count <= Self.maxInputLength else { return false }
+        guard pattern.utf16.count <= Self.maxPatternLength, input.utf16.count <= Self.maxInputLength else { return false }
         guard let regex = regex(for: pattern) else { return false }
         let range = NSRange(input.startIndex..<input.endIndex, in: input)
         return regex.firstMatch(in: input, options: [], range: range) != nil

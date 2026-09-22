@@ -110,6 +110,8 @@ public final class AccessibilityCollector: @unchecked Sendable {
         )
     }
 
+    static let longestString = 1024
+
     private func copyString(_ element: AXUIElement, _ attribute: String) -> String? {
         var ref: CFTypeRef?
         let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &ref)
@@ -119,7 +121,8 @@ public final class AccessibilityCollector: @unchecked Sendable {
             }
             return nil
         }
-        guard let string = ref as? String else { return nil }
+        guard let whole = ref as? String else { return nil }
+        let string = String(decoding: Array(whole.utf16.prefix(Self.longestString)), as: UTF16.self)
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }

@@ -640,7 +640,6 @@ public final class ContextEngine {
                 switch event {
                 case .titleChanged, .focusedWindowChanged:
                     self.titleDirty = true
-                    await self.sampleAndPublish()
                 case .observationFailed:
                     self.titleDirty = true
                 }

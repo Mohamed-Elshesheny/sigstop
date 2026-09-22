@@ -235,6 +235,8 @@ final class AppModel {
         tickTask = nil
         for task in observerTasks { task.cancel() }
         observerTasks.removeAll()
+        windowTickTask?.cancel()
+        windowTickTask = nil
         overlay.dismissAll()
         notifier.withdrawAll()
         sensors.context.stop()
@@ -1116,6 +1118,18 @@ final class AppModel {
         Task { [weak self] in await self?.tick() }
     }
 
+    @ObservationIgnored private var windowTickTask: Task<Void, Never>?
+
+    private func scheduleWindowTick() {
+        guard windowTickTask == nil else { return }
+        windowTickTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, let self else { return }
+            self.windowTickTask = nil
+            await self.tick()
+        }
+    }
+
     private func subscribeToWindowChanges() {
         let stream = sensors.accessibility.events
         observerTasks.append(
@@ -1124,7 +1138,7 @@ final class AppModel {
                     guard let self else { return }
                     switch event {
                     case .focusedWindowChanged, .titleChanged:
-                        await self.tick()
+                        self.scheduleWindowTick()
                     case .observationFailed:
                         break
                     }
