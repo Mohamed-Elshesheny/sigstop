@@ -15,9 +15,9 @@
 #
 # The window is laid out by telling Finder where things go, which needs an Automation
 # grant on THIS machine, the maintainer's. Nothing is asked of the person downloading it.
-# If the grant is absent the layout step is skipped and a plain image is still produced,
-# because a release that cannot be cut without a permission dialog is worse than an
-# unstyled window.
+# Without the grant a local `make dmg` still produces a plain image, so a contributor can
+# build one. A release cannot: release.sh sets STRICT_LAYOUT=1, and then a refused layout
+# stops the release before anything is tagged.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -47,12 +47,31 @@ RW="dist/.${APP_NAME}-rw.dmg"
 MOUNT="/Volumes/${VOLUME}"
 
 # Finder's coordinates for the two icons. InstallerBackdrop.swift draws the arrow
-# between these exact points, so the two files have to agree and there is a check below.
+# between these exact points, so the two files have to agree, and the check below reads
+# the Swift constants and refuses to build when they do not.
 ICON_X_APP=165
 ICON_X_APPLICATIONS=435
 ICON_Y=195
 WINDOW_W=600
 WINDOW_H=320
+
+BACKDROP_SWIFT="Sources/SigstopApp/Views/InstallerBackdrop.swift"
+swift_pair() {
+  sed -nE "s/^[[:space:]]*static let $1 = $2\($3: ([0-9]+), $4: ([0-9]+)\)\$/\1 \2/p" "${BACKDROP_SWIFT}"
+}
+SWIFT_SIZE="$(swift_pair size CGSize width height)"
+SWIFT_APP="$(swift_pair appIcon CGPoint x y)"
+SWIFT_APPLICATIONS="$(swift_pair applicationsIcon CGPoint x y)"
+HERE="${WINDOW_W} ${WINDOW_H} / ${ICON_X_APP} ${ICON_Y} / ${ICON_X_APPLICATIONS} ${ICON_Y}"
+THERE="${SWIFT_SIZE:-?} / ${SWIFT_APP:-?} / ${SWIFT_APPLICATIONS:-?}"
+if [ "${HERE}" != "${THERE}" ]; then
+  echo "error: dmg.sh and ${BACKDROP_SWIFT} disagree on the installer window." >&2
+  echo "       window w h / app icon x y / Applications icon x y" >&2
+  echo "       dmg.sh:  ${HERE}" >&2
+  echo "       Swift:   ${THERE}" >&2
+  echo "       The arrow is drawn from the Swift numbers and the icons are placed from these." >&2
+  exit 1
+fi
 
 [ -d "${BUNDLE}" ] || { echo "error: ${BUNDLE} not found, run make bundle first" >&2; exit 1; }
 
@@ -68,7 +87,7 @@ esac
 case " ${ARCHS} " in
   *" x86_64 "*) : ;;
   *) echo "error: ${BUNDLE} is ${ARCHS} only. Build it with: UNIVERSAL=1 make bundle" >&2
-     echo "       The release notes promise Intel, so a single-slice image is a lie." >&2
+     echo "       An Intel Mac would download an app it cannot run." >&2
      exit 1 ;;
 esac
 echo "==> ${ARCHS}"
@@ -93,8 +112,15 @@ cp -R "${BUNDLE}" "${STAGE}/"
 ln -s /Applications "${STAGE}/Applications"
 
 mkdir -p "${STAGE}/.background"
-# 1200x800 pixels stamped at 144 dpi is 600x400 points, which is the window, drawn at
+# 1200x640 pixels stamped at 144 dpi is 600x320 points, which is the window, drawn at
 # retina density. Without the stamp Finder reads it as a 1200 point image and scales it.
+PIXELS="$(sips -g pixelWidth -g pixelHeight dist/.dmg-background/backdrop.png \
+  | awk '/pixelWidth/ {w = $2} /pixelHeight/ {h = $2} END {print w "x" h}')"
+if [ "${PIXELS}" != "$((2 * WINDOW_W))x$((2 * WINDOW_H))" ]; then
+  echo "error: backdrop.png is ${PIXELS} pixels. A ${WINDOW_W}x${WINDOW_H} window needs" >&2
+  echo "       $((2 * WINDOW_W))x$((2 * WINDOW_H)), or Finder crops or scales it." >&2
+  exit 1
+fi
 sips -s dpiWidth 144 -s dpiHeight 144 dist/.dmg-background/backdrop.png >/dev/null
 cp dist/.dmg-background/backdrop.png "${STAGE}/.background/"
 
