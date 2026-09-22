@@ -506,10 +506,15 @@ enum Doctor {
             out.append("")
             return out
         }
-        guard
-            let store = try? FileEventStore(root: AppPaths.storageRoot),
-            let events = try? loadToday(store: store, policy: policy)
-        else {
+        let events: [LoggedEvent]
+        do {
+            events = try loadToday(store: FileEventStore(root: AppPaths.storageRoot), policy: policy)
+        } catch StoreError.unreadable(let days) {
+            let list = days.map(\.description).joined(separator: ", ")
+            out.append("  The event log for \(list) would not open, so this cannot be answered honestly.")
+            out.append("")
+            return out
+        } catch {
             out.append("  The event log could not be read, so this cannot be answered honestly.")
             out.append("")
             return out
@@ -531,9 +536,10 @@ enum Doctor {
         let today = CalendarDay.local(
             of: Date(), calendar: .current, boundaryHour: policy.dayBoundaryHour
         )
-        return [today.adding(days: -1), today, today.adding(days: 1)]
-            .flatMap { (try? store.load(day: $0).events) ?? [] }
-            .sorted { $0.at < $1.at }
+        let loads = try store.load(days: [today.adding(days: -1), today, today.adding(days: 1)])
+        let unreadable = loads.filter(\.unreadable).map(\.day)
+        if !unreadable.isEmpty { throw StoreError.unreadable(days: unreadable) }
+        return loads.flatMap(\.events).sorted { $0.at < $1.at }
     }
 
     private static func storageSection() -> [String] {

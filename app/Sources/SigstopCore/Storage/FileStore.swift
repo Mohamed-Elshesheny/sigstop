@@ -134,10 +134,14 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         public let days: Int
         public let events: Int
         public let bytes: Int
+        public let unreadable: [CalendarDay]
 
         public var userFacingSummary: String {
-            "Exported \(events) events across \(days) day(s) "
+            let exported = "Exported \(events) events across \(days) day(s) "
                 + "(\(DeletionReport.humanBytes(bytes))) to \(destination)."
+            guard !unreadable.isEmpty else { return exported }
+            let list = unreadable.map(\.description).joined(separator: ", ")
+            return exported + " Not exported, the file is there but would not open: \(list)."
         }
     }
 
@@ -148,10 +152,14 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         defer { lock.unlock() }
         let data = Data(text.utf8)
         try writeAtomically(data, to: destination)
-        let days = try unlockedAvailableDays()
-        let events = days.reduce(0) { $0 + unlockedLoad(day: $1).events.count }
+        let loads = try unlockedAvailableDays().map { unlockedLoad(day: $0) }
+        let readable = loads.filter { !$0.unreadable }
         return ExportReport(
-            destination: destination.path, days: days.count, events: events, bytes: data.count
+            destination: destination.path,
+            days: readable.count,
+            events: readable.reduce(0) { $0 + $1.events.count },
+            bytes: data.count,
+            unreadable: loads.filter(\.unreadable).map(\.day)
         )
     }
 

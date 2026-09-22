@@ -49,6 +49,29 @@ struct StoreHonestyTests {
         #expect(absent.unreadable == false, "a missing day is empty, not unreadable")
     }
 
+    @Test("an export names the day it could not read and does not count it")
+    func exportNamesUnreadableDays() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+
+        let first = Date(timeIntervalSince1970: 1_758_500_000)
+        let second = first.addingTimeInterval(86_400)
+        try store.append(.breakBegin(at: first, origin: .accepted, cycle: CycleID.initial))
+        try store.append(.breakBegin(at: second, origin: .accepted, cycle: CycleID.initial))
+        let lost = CalendarDay.utc(of: first)
+
+        let path = root.appendingPathComponent("events/\(lost.fileName)")
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: path.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path) }
+
+        let report = try store.export(to: root.appendingPathComponent("export.txt"))
+        #expect(report.days == 1)
+        #expect(report.events == 1)
+        #expect(report.unreadable == [lost])
+        #expect(report.userFacingSummary.contains("would not open: \(lost.description)"))
+    }
+
     @Test("a summaries file that will not decode is set aside, not overwritten")
     func corruptSummaryIsKept() throws {
         let root = scratch()

@@ -842,6 +842,9 @@ final class AppModel {
         } catch StoreError.unreadable(let days) {
             let list = days.map(\.description).joined(separator: ", ")
             lastStoreError = "\(Self.unreadableLogPrefix) \(list), so today's numbers are not shown."
+            todaySummary = nil
+            todayLine = ""
+            todayDetail = ""
             return
         } catch {
             return
@@ -894,8 +897,13 @@ final class AppModel {
 
         let fileDays = (try? store.availableDays()) ?? []
         var loaded: [CalendarDay: [LoggedEvent]] = [:]
+        var unreadable: Set<CalendarDay> = []
         for day in fileDays {
-            loaded[day] = (try? store.load(day: day).events) ?? []
+            guard let load = try? store.load(day: day), !load.unreadable else {
+                unreadable.insert(day)
+                continue
+            }
+            loaded[day] = load.events
         }
         var logicalDays: Set<CalendarDay> = []
         for day in fileDays {
@@ -903,7 +911,9 @@ final class AppModel {
             logicalDays.insert(day.adding(days: -1))
         }
         for day in logicalDays.sorted() {
-            let events = [day.adding(days: -1), day, day.adding(days: 1)]
+            let window = [day.adding(days: -1), day, day.adding(days: 1)]
+            guard !window.contains(where: unreadable.contains) else { continue }
+            let events = window
                 .flatMap { loaded[$0] ?? [] }
                 .sorted { $0.at < $1.at }
             guard !events.isEmpty else { continue }
