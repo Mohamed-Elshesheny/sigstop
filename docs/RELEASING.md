@@ -180,12 +180,16 @@ To restore it on a new machine:
 ```sh
 cd app
 swift package resolve              # fetches Sparkle's binary artifact, which carries the signing tools
-softwareupdate --install-rosetta   # so the release can run the x86_64 slice before shipping it
+softwareupdate --install-rosetta   # optional: lets this Mac run the x86_64 slice itself
 ```
 
-Rosetta is required, not optional. The image carries an x86_64 slice for Intel Macs, and
-`release.sh` runs `smoke.sh` with `REQUIRE_X86=1`: it launches that slice, asks `--doctor` which
-slice answered, and refuses to publish a slice nobody ran. CI does the same on every push.
+Somebody has to run the x86_64 slice before it ships. `Scripts/intel-slice.sh` decides who:
+this Mac under Rosetta when it can, launching the slice and asking `--doctor` which slice
+answered; otherwise CI's run on the exact commit being released, and only if its
+`The Intel slice runs too` step passed. With neither, the release refuses. macOS 28 removes
+Rosetta, so from then on a release waits for CI: push, let it go green, then release. Running
+the slice under Rosetta on macOS 27 makes macOS show an "App Update Required" notice for
+sigstop; that is the test, not a defect, and users on Apple Silicon run the arm64 slice.
 
 Nothing else. `Scripts/appcast.sh` locates `generate_appcast` inside `.build/artifacts` itself,
 because the path carries Sparkle's version in it and an exported variable goes stale the first time

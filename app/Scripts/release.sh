@@ -64,9 +64,11 @@ quiet make test
 quiet make verify-shipped
 # The artifact, not the code. Everything above this line passed for every release that
 # shipped broken, because all of it runs on the machine that built the thing.
-quiet env BUNDLE=dist/sigstop.app REQUIRE_X86=1 ./Scripts/smoke.sh
+quiet env BUNDLE=dist/sigstop.app ./Scripts/smoke.sh
+X86_BY="$(BUNDLE=dist/sigstop.app ./Scripts/intel-slice.sh)"
 quiet swift run -c release Scenarios
-echo "    tests, verify, smoke (both slices) and scenarios all pass"
+echo "    tests, verify, smoke and scenarios all pass"
+echo "    ${X86_BY}"
 
 echo "==> building the image"
 quiet env STRICT_LAYOUT=1 make dmg
