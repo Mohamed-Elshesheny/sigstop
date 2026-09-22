@@ -554,6 +554,12 @@ enum Doctor {
         }
         if let store = try? FileEventStore(root: root), let days = try? store.availableDays() {
             out.append("  days on disk     \(days.count)\(days.isEmpty ? "" : "  (\(days[0]) .. \(days[days.count - 1]))")")
+            let ahead = PruneMath.futureDated(days, asOf: Date())
+            if !ahead.isEmpty {
+                out.append("  dated ahead      \(ahead.map(\.description).joined(separator: ", ")), written while the clock was ahead of now")
+                out.append("                   kept until that date passes: pruning on today's clock would also delete real")
+                out.append("                   days if it is today's clock that is wrong. Delete everything removes them.")
+            }
             let today = CalendarDay.local(of: Date(), calendar: .current, boundaryHour: BreakPolicy.default.dayBoundaryHour)
             do {
                 let summary = try DailyRollup.compute(day: today, from: store)

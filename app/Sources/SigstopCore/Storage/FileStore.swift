@@ -292,7 +292,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         let cutoff = PruneMath.cutoffDay(retentionDays: retentionDays, asOf: now)
         var removedDays: [CalendarDay] = []
         var removedEvents = 0
-        for day in try unlockedAvailableDays() where PruneMath.shouldDrop(day, cutoff: cutoff, today: CalendarDay.utc(of: now)) {
+        for day in try unlockedAvailableDays() where PruneMath.shouldDrop(day, cutoff: cutoff) {
             removedEvents += unlockedLoad(day: day).events.count
             try fm.removeItem(at: url(for: day))
             removedDays.append(day)

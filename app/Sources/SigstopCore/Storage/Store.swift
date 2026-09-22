@@ -215,7 +215,7 @@ public final class InMemoryEventStore: EventStore, @unchecked Sendable {
         let cutoff = PruneMath.cutoffDay(retentionDays: retentionDays, asOf: now)
         var removedDays: [CalendarDay] = []
         var removedEvents = 0
-        for day in days.keys.sorted() where PruneMath.shouldDrop(day, cutoff: cutoff, today: CalendarDay.utc(of: now)) {
+        for day in days.keys.sorted() where PruneMath.shouldDrop(day, cutoff: cutoff) {
             removedEvents += days[day]?.count ?? 0
             days[day] = nil
             injectedMalformed[day] = nil
@@ -252,10 +252,14 @@ public enum PruneMath {
         return today.adding(days: -(retentionDays - 1))
     }
 
-    public static func shouldDrop(_ day: CalendarDay, cutoff: CalendarDay?, today: CalendarDay) -> Bool {
-        if day > today { return true }
+    public static func shouldDrop(_ day: CalendarDay, cutoff: CalendarDay?) -> Bool {
         guard let cutoff else { return true }
         return day < cutoff
+    }
+
+    public static func futureDated(_ days: [CalendarDay], asOf now: Date) -> [CalendarDay] {
+        let today = CalendarDay.utc(of: now)
+        return days.filter { $0 > today }
     }
 }
 
