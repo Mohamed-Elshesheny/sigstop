@@ -254,6 +254,13 @@ check_plist_false() {  # check_plist_false <key> <human description>
 check_plist_false SUEnableAutomaticChecks "no scheduled check, and the app also forces it off at launch"
 check_plist_false SUAutomaticallyUpdate   "nothing downloads or installs without being asked"
 check_plist_false SUEnableSystemProfiling "no system profile is appended to the request"
+# The schedule key was removed with the toggle (§4.3). It is inert while automatic checks
+# are off, but a leftover key is how a removed feature creeps back, so it must stay gone.
+if plutil -extract SUScheduledCheckInterval raw "${PLIST}" >/dev/null 2>&1; then
+  fail "SUScheduledCheckInterval is back in Info.plist; the schedule was removed"
+else
+  pass "no schedule interval key, so nothing describes a check that does not run"
+fi
 
 # ---------------------------------------------------------------------------
 # 8. it runs on a machine that is not this one

@@ -42,7 +42,5 @@
 	<string>https://mohamed-elshesheny.github.io/sigstop/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>v0rY/NWn8izKVHcZl7vVyqRCsrV929pkGNyJpThhv6s=</string>
-	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
 </dict>
 </plist>

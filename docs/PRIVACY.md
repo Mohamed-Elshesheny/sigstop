@@ -351,8 +351,15 @@ only endpoint is a static file.
 
 **What requests exist: one.** An HTTPS `GET` of the appcast at `SUFeedURL`, which is a static XML
 file on GitHub Pages, identical for everyone. It is made when you press **Check for updates**, and
-on a daily schedule only if you ticked the box in Settings → About, which is off by default. If an
-update is offered, pressing the second button fetches the archive itself.
+at no other time: there is no schedule and no launch check. `SUEnableAutomaticChecks` is `false` in
+Info.plist and the app writes `automaticallyChecksForUpdates = false` on every launch, because the
+plist key is only a default and the live value lives where anything on the machine could flip it.
+If an update is offered, pressing the second button fetches the archive itself.
+
+This paragraph used to describe "a daily schedule only if you ticked the box in Settings → About".
+There is no such box — §4.3 removed the toggle so the app could force the value off rather than
+offer a switch that governed a network call — and there is no schedule. The claim outlived the
+feature it described, which in this document is the one thing that must not happen.
 
 **What the app's own binary can do: still nothing.** This is the part that survived intact and is
 worth checking yourself. `sigstop`'s executable links no networking framework and references no
