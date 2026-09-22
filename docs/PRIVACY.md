@@ -1268,7 +1268,6 @@ app/Sources/
 app/Scripts/verify.sh                 the guard. Runs in CI on every push
 .github/scripts/check-ax-isolation.py keeps Accessibility in the two files named above
 .github/scripts/check-corpus.py       the humour rails, HANDBOOK.md §4.5
-.github/scripts/check-em-dashes.py    no em dash reaches a user
 .github/workflows/ci.yml              runs all of the above, plus the test suite
 ```
 
