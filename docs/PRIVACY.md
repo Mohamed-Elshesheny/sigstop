@@ -29,7 +29,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 
 | # | Datum | Producing macOS API | Why it is needed | Storage | Retention | Optional? |
 |---|-------|---------------------|------------------|---------|-----------|-----------|
-| 1 | Frontmost app **bundle identifier** (`com.apple.dt.Xcode`) | `NSWorkspace.didActivateApplicationNotification` → `NSRunningApplication.bundleIdentifier` | Detect that you switched context; classify the activity as coding / meeting / reading / idle-ish so a break is not proposed mid-call | Persisted, `events/YYYY-MM-DD.jsonl` | Default 7 days | Yes — turning it off leaves a pure wall-clock timer |
+| 1 | Frontmost app **bundle identifier** (`com.apple.dt.Xcode`) | `NSWorkspace.didActivateApplicationNotification` → `NSRunningApplication.bundleIdentifier` | Detect that you switched context; classify the activity as coding / meeting / reading / idle-ish so a break is not proposed mid-call | Persisted, `events/YYYY-MM-DD.jsonl` | Default 7 days | No. There is no switch for it |
 | 2 | Frontmost app **localized name** (`Xcode`) | same notification → `NSRunningApplication.localizedName` | Shown in the UI ("you've been in Xcode for 52 min"); fallback identifier for apps with no bundle ID | Persisted only when bundle ID is `nil` (rare: some helper processes) | Same as #1 | Same as #1 |
 | 3 | Frontmost app **pid** | `NSRunningApplication.processIdentifier` | Needed as the argument to `AXUIElementCreateApplication` when window-title fidelity is on | Memory-only | Until the next app switch | n/a |
 | 4 | Frontmost app **icon** | `NSRunningApplication.icon` | Drawn in the menu bar popover | Memory-only | Until the next app switch | n/a |
@@ -40,16 +40,15 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 9 | **Display sleep / wake** | `NSWorkspace.screensDidSleepNotification`, `screensDidWakeNotification` | Same as #8 | Persisted as events | Same as #1 | No |
 | 10 | **System sleep / wake** | `NSWorkspace.willSleepNotification`, `didWakeNotification` | Do not fire a break reminder into a closed lid; reset the streak across a long sleep | Persisted as events | Same as #1 | No |
 | 11 | **Fast user switch** | `NSWorkspace.sessionDidResignActiveNotification` / `sessionDidBecomeActiveNotification` | Another user's session is not your work | Persisted as events | Same as #1 | No |
-| 12 | **Focused window title** | `AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute)` then `kAXTitleAttribute` — **requires Accessibility permission** | Only to answer one question: does this window look like a live meeting, a terminal, an editor, a browser, or a document? A meeting is the one thing worth never interrupting | **The string itself is never persisted by default.** It is classified into a five-value enum inside one function and released. Only the enum is persisted | Enum: same as #1. String: memory-only, lifetime of one function call | **Yes, and off by default** |
-| 13 | **Title classification result** (`meeting`/`terminal`/`editor`/`browser`/`document`/`none`) | Derived from #12 | see #12 | Persisted | Same as #1 | Follows #12 |
+| 12 | **Focused window title** | `AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute)` then `kAXTitleAttribute` — **requires Accessibility permission** | Only to answer one question: does this window look like a live meeting, a terminal, an editor, a browser, or a document? A meeting is the one thing worth never interrupting | **The string itself is never persisted.** The provider that claims the frontmost app matches it against its own patterns (§1.5) and returns an `Activity`. That activity is persisted as `act`, row 32 | `act`: same as #1. String: memory-only, held until the next read replaces it | **Yes, and off by default** |
 | 15 | **Break engine state**: streak start, last break end, snooze count, next fire time | Derived from #1/#5/#7 | The actual product | Memory-only; nothing writes it to disk. The day's budgets that have to survive a relaunch are in `counters.json` (§4.2) | Gone when the process exits | No |
 | 16 | **Break interaction events**: prompted, taken, skipped, snoozed | UI callbacks | "You skipped 6 of 8 breaks today" and nothing more | Persisted as events | Same as #1 | Yes |
-| 17 | **Daily aggregates**: minutes per category, breaks taken/skipped, longest streak | Derived from the event log while the app runs, rewritten when today's numbers change | Weekly view without keeping raw events | Persisted, `summaries/YYYY-MM.json` | Kept until you delete your data; never pruned (§4.5) | Yes |
+| 17 | **Daily aggregates**: minutes per category, breaks taken/skipped, longest streak | Derived from the event log while the app runs, recomputed at most once a minute. Written only when the numbers differ from the last write, and then at most every ten minutes, except at once when the menu bar panel opens, a break ends, the day changes (a last write for the day that ended, then the first for the new one), your data is deleted, the Mac sleeps or locks, or the app quits | Weekly view without keeping raw events | Persisted, `summaries/YYYY-MM.json` | Kept until you delete your data; never pruned (§4.5) | Yes |
 | 18 | **Preferences**: interval, threshold, quiet hours, tone, prompt channel and sound | User input | Configuration | Persisted, `settings.json` (plain JSON, human-editable) | Until you change or delete them | n/a |
-| 19 | **App category map** (`com.apple.dt.Xcode → code`) | Static JSON shipped inside the bundle, plus your own overrides | Classify #1 without heuristics | Read-only in `App.app/Contents/Resources/categories.json`; overrides in `settings.json` | Ships with the app | n/a |
-| 20 | **Break message packs** | Static JSON shipped inside the bundle | Text of the reminder | Read-only resource | Ships with the app | Yes, choose or disable |
+| 19 | **App category map** (`com.apple.dt.Xcode → code`) | Compiled into the binary: `AppKey` in `app/Sources/SigstopCore/Message/MessageContext.swift` names the app's family, and `AppModel.category(for:)` maps the family to one of four words | Classify #1 without heuristics | Code, not data. There is no category file in the bundle and no override in `settings.json` | Ships with the app | n/a |
+| 20 | **Break message corpus** | Static JSON shipped inside the bundle, `Contents/Resources/sigstop_SigstopCore.bundle/corpus.json` | Text of the reminder | Read-only resource | Ships with the app | No. It is one pack and there is no setting to choose or disable it; the tone setting decides which of its lines can fire |
 | 21 | **Unlocked badges**: which of the ten marks have unlocked, and the day each did | Derived from #17 and #16, entirely — no new signal, no new event field, nothing observed that was not already in this table | So a badge earned inside the 7-day event window is not silently lost when those events are pruned | Persisted, `badges.json` (a flat map of badge id to day) | Kept until you delete your data; never expires and never decreases | n/a |
-| 22 | **Login-item registration** | `SMAppService.mainApp.register()` | Start at login, if you ask for it | A registration record owned by `launchservicesd`, outside the app's storage | Until unregistered | Yes — off by default |
+| 22 | **Login-item registration** | `SMAppService.mainApp.register()` | Start at login, if you ask for it | A registration record owned by `launchservicesd`, outside the app's storage | Until you switch it off, or until *Delete my data…*, which unregisters it | Yes — off by default |
 | 23 | **Notification authorization status** | `UNUserNotificationCenter.notificationSettings()` | Decide whether to use a system notification or the in-app fallback window | Memory-only (the real record is TCC's) | n/a | n/a |
 | 24 | **Unified log lines** | `os.Logger` | Debugging | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
 | 25 | **Audio input device in use** (one `Bool` per device, OR'd) | `kAudioDevicePropertyDeviceIsRunningSomewhere` on each device with input channels. **No Microphone permission; none is requested** | Do not interrupt a live call. This is the signal a hard block rests on | Not persisted. Only the derived verdict reaches the log, as a `reason` string | n/a | No — it is what stops a prompt landing in a meeting |
@@ -57,8 +56,13 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 27 | **Bundle identifiers of processes running audio input** | `kAudioHardwarePropertyProcessObjectList`, then `kAudioProcessPropertyBundleID` and `kAudioProcessPropertyIsRunningInput` per process object. **No permission; none is requested** | Say *which* app has the microphone, so the call hold names a fact rather than guessing, and so Siri, dictation and a permanently-open virtual device can be discounted instead of disabling the signal | Not persisted. Each identifier is matched against a fixed list and dropped. Nothing else about the process is read **on this path**: this row is CoreAudio's process object list and it yields a bundle identifier, nothing more. The one place the app reads an executable path is row 30, which is Tier 2, off by default, and bounded there | Memory-only, one sample | No |
 | 28 | **Seconds the call hold has held a break today**, and the day they count for | Derived from #25, #26 and #27 by the call latch | So the three-hour daily ceiling on holding survives a relaunch instead of resetting to zero | Persisted, `call-hold.json` (a day index and a number of seconds) | Overwritten in place; reset on delete | Follows "Hold my break during calls" |
 | 29 | **The focused window's document path** (`/Users/you/p/a.swift`) | `kAXDocument` on the focused window, read in the same call that reads the title. Tier 1 | Names the file you have open when the title does not, and tells the git collector which registered folder you are in | Memory-only, one sample. Anything that is not a local file URL is discarded before it is parsed, which is what keeps a browser's full page URL out (`AccessibilityCollector.fileURL(from:)`) | Until the next sample | Follows Tier 1 |
-| 30 | **Which of a fixed list of developer tools is running**, as an enum case, never a string, plus one `Bool` for whether anything is under a debugger | One `sysctl(KERN_PROC_ALL)`, then `proc_pidpath` for the pids whose `p_comm` already matched the `ToolToken` allowlist in `app/Sources/SigstopSensors/SignalContext.swift`. **No permission is required and none is requested** | The only signal in this product that can tell `DEBUGGING` from `CODING`. Without it the app degrades to `CODING` rather than guess between siblings (`CLAUDE.md` §4.1) | **Not persisted, and nothing but the match survives.** The path is compared and dropped. A process matching nothing is not recorded, not counted, not reported. No command line, environment or working directory is read at all | Memory-only, one sample | **Yes, and off by default** |
+| 30 | **Which of a fixed list of developer tools is running**, as an enum case, never a string, plus one `Bool` for whether anything is under a debugger | One `sysctl(KERN_PROC_ALL)`, then `proc_pidpath` for the pids whose `p_comm` already matched the `ToolToken` allowlist in `app/Sources/SigstopSensors/SignalContext.swift`. **No permission is required and none is requested** | The only signal in this product that can tell `DEBUGGING` from `CODING`. Without it the app degrades to `CODING` rather than guess between siblings ("Never overclaim" in [the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)) | **Not persisted, and nothing but the match survives.** The path is compared and dropped. A process matching nothing is not recorded, not counted, not reported. No command line, environment or working directory is read at all | Memory-only, one sample | **Yes, and off by default** |
 | 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | One read of the first 512 bytes of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`, plus four `access` checks. No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), `--doctor` prints its length rather than the name (§8.12), and it is **withheld from the system-notification channel** so that the one path out of this process cannot carry it (§8.11) | Until the next sample, or process exit | **Yes, and off by default** |
+| 32 | **The activity at a focus event** (`act`: `coding`, `codeReview`, `documentation`…), one of the twelve `Activity` cases | Derived. From #1 alone at Tier 0; **with Tier 1 on, also from the window title (#12) and the document path (#29)**; with Tier 2 process context, also from #30 | So the log can say what kind of work a stretch was, not only which app it was in | Persisted, the `act` field of `focus` events (§4.3). A browser tab titled `Pull Request #12` is logged as `"act":"codeReview"` | Same as #1 | No switch of its own. It is title-derived only while Tier 1 is on |
+| 33 | **The update check's URL cache**: the appcast URL, the time it was fetched, and the appcast itself | Foundation's URL cache, filled by Sparkle's request in this process when you press **Check for updates** | Nothing in this app asks for it. It is what Foundation does with an HTTP response by default | Persisted, `~/Library/Caches/<BUNDLE_ID>/Cache.db` and `fsCachedData/` | Controlled by Foundation and macOS, not by the app. *Delete my data…* does not remove it | Only by never pressing the button |
+| 34 | **Foundation's HTTP storage** for this app | Created by the same request | As #33 | Persisted, `~/Library/HTTPStorages/<BUNDLE_ID>/`. On the Mac this was checked on it held one table, `alt_services`, and it was empty | Controlled by macOS. *Delete my data…* does not remove it | Only by never pressing the button |
+| 35 | **Sparkle's staging folders** | Sparkle | Where a downloaded update waits before `Autoupdate` installs it | `~/Library/Caches/<BUNDLE_ID>.sparkle/org.sparkle-project.Sparkle/`, holding `Installation` and `PersistentDownloads`. Both were empty on the Mac this was checked on | Until Sparkle clears them. *Delete my data…* does not remove them | n/a |
+| 36 | **UserDefaults**: `SULastCheckTime` (when you last pressed **Check for updates**), `SUHasLaunchedBefore`, `SUEnableAutomaticChecks` and `SUSendProfileInfo` (both written `false`), and `NSStatusItem Preferred Position sigstop` (where the menu bar icon sits) | Sparkle, and AppKit's status item autosave | The two `false` values are how the app keeps Sparkle from scheduling a check or sending a profile (§2.7). The rest is Sparkle's and AppKit's own bookkeeping | Persisted, `~/Library/Preferences/<BUNDLE_ID>.plist`, read with `defaults read <BUNDLE_ID>` | Until `defaults delete <BUNDLE_ID>`. *Delete my data…* does not remove it | No |
 
 Rows 25 to 27 are **property reads on device and process objects**. No stream is opened, no capture
 session is created, no frame or sample is ever available to this process, and the capability to do
@@ -82,7 +86,7 @@ calls, on `.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD` and `.git/
 which returns a `Bool` and opens nothing: the app learns a rebase is in progress, never what is
 being rebased. The folder is one you picked in an `NSOpenPanel`. The app never guesses a path from a
 window title or a project name, because guessing a path from a name is the kind of invention
-`CLAUDE.md` §4.1 forbids.
+"Never overclaim" forbids ([the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)).
 
 What a window title and a `kAXDocument` path **do** decide is *which* of the folders you added is
 the one in front, and only that. Two of your folders answering means the app does not know which
@@ -94,7 +98,8 @@ beacon, install ID, or first-run ping, because none of those exist in the code.
 
 There is one row's worth of network activity, and it is not in the table above because nothing about
 it is *collected*: when you press **Check for updates**, the app fetches one static XML file over
-HTTPS. It sends no identifier and stores nothing about the request. What it necessarily reveals is
+HTTPS. It sends no identifier. What it leaves on this Mac is rows 33 to 36: Foundation's cache of
+that file, Sparkle's folders, and the time of the last check. What it necessarily reveals is
 your IP address and the time, to whoever serves that file. §5 is the whole account of it, including
 the parts that cannot be proven from this side.
 
@@ -154,7 +159,7 @@ public func read() -> InputActivity {
 
 The distinction between `CGEventSourceSecondsSinceLastEventType` and `CGEventTapCreate` is the whole
 argument. The first is a counter read. The second is a keylogger primitive, needs Input Monitoring
-or Accessibility, and is never called — see the CI guard in §6.4.
+or Accessibility, and is never called: `.github/scripts/check-forbidden-apis.py` (§6.4) fails CI if it appears.
 
 ### 1.5 The window-title redaction boundary
 
@@ -222,17 +227,32 @@ browser case. `docs/ACTIVITY-DETECTION.md` §5 explains why there is no universa
 against. The consequence for this section is the same either way and is the part that matters: a
 title is matched and dropped inside `observe`, and the string itself is never returned upward.
 
-**Nothing title-derived reaches the disk.** `AppModel.logFocusIfNeeded` writes `titleSignal: nil` on
-every focus event, so the log's `sig` field, which exists and is documented in §4.3, is never
-populated by the shipping app. Not "a redacted class of the title": nothing.
+**What a title decides does reach the disk, as `act`.** This section used to say nothing
+title-derived reached the disk, and that was false. `AppModel.logFocusIfNeeded` writes
+`activity: context.activity` on every focus event, and with Tier 1 on a provider can pick that
+activity from the title: `BrowserProvider` returns `codeReview` when `BrowserTitlePatterns.isReview`
+matches, so a tab titled `Pull Request #12` is logged as `"act":"codeReview"`, and an editor
+title naming a `.md` file can make it `documentation`. The value is one of the twelve `Activity`
+cases, never the string, and it is inventory row 32. What is true is narrower: the `sig` field,
+which exists and is documented in §4.3, is never populated, because `logFocusIfNeeded` passes
+`titleSignal: nil`.
+
+Outside the app's own files there is one more route. On the notification channel, which is off
+by default, a prompt line can carry a project name parsed from a title through the `{project}`
+slot, and macOS keeps notification text in its own store (§8.11). Only `{branch}` is withheld
+there.
 
 **And there is no raw-title debug ring.** Row 14 of the inventory promised "last 20 titles, memory
 only, off by default, and the UI switch is labelled as such". There is no ring, no switch and no
 setting. The row is struck from the table rather than kept as an aspiration, for the same reason
-this section was rewritten.
+this section was rewritten. Row 13, which persisted a six-value "title classification result", is
+struck for the same reason: that vocabulary does not exist, and what a title does leave on disk
+is row 32.
 
-A file path in a title, a pull-request name, a customer's name in a document title: none of it
-leaves the provider that matched it. §8.3 states the limitation honestly — the string does exist in
+A file path in a title, a pull-request name, a customer's name in a document title: none of it is
+written to the app's files. The file and project names an editor's title yields do leave the
+provider, into the evidence lines the menu bar and `--doctor` show, and into the `{project}` slot
+above. §8.3 states the limitation honestly — the string does exist in
 process memory for the duration of the call, and the code, not the operating system, is what stops
 it going further.
 
@@ -248,37 +268,46 @@ absent, and the command that shows you it is absent. `<APP>` is the installed bu
 
 **Mechanism.** The app never opens a file it did not create, except its own read-only bundle
 resources and, with Tier 2 git context on, the few git files §2.10 names, in folders you registered.
-It requests no Full Disk Access. In the sandboxed flavor (§3.6) the App Sandbox confines
-file access to the app's own container; there is no `com.apple.security.files.user-selected.read-only`
-entitlement except in the export path, which is a *write* panel. The file-reading code in the tree is
+It requests no Full Disk Access. The app is not sandboxed (§3.6 describes a sandboxed flavor that is
+planned, not built), so nothing in macOS confines its file access: the bound is the code. The
+file-reading code in the tree is
 `FileEventStore` (`app/Sources/SigstopCore/Storage/FileStore.swift`), `SettingsStore`
 (`app/Sources/SigstopApp/Support.swift`) and `CallHoldLedger`, all scoped to the storage directory,
 plus `GitCollector` for those git files.
 
-**Check.** `scripts/verify-entitlements.sh <APP>` asserts the absence of every file-access
-entitlement. At runtime: `sudo fs_usage -w -f filesys $(pgrep -f '<BUNDLE_ID>')` and watch that the
-only paths touched are the app bundle and the storage directory.
+**Check.** No script asserts anything about file-access entitlements, because without the sandbox
+one would not constrain anything. `make verify` (`app/Scripts/verify.sh`) checks two entitlements,
+neither of them about files (§6.1). Read the whole list yourself:
+`codesign -d --entitlements - --xml <APP>` prints one key, `com.apple.security.automation.apple-events`,
+set to `false`. At runtime: `sudo fs_usage -w -f filesys $(pgrep -f '<BUNDLE_ID>')` and watch that the
+only paths touched are the app bundle and the storage directory, plus, once you press **Check for
+updates**, the caches in inventory rows 33 to 35.
 
 ### 2.2 No keystrokes
 
-**Mechanism.** The app never calls `CGEventTapCreate`, `CGEventTapCreateForPSN`, or
-`NSEvent.addGlobalMonitorForEvents`. Those are the only three ways to observe keystrokes from
-another process. A CI guard (§6.4) fails the build if any of those symbols appear in the source or
-in the binary's symbol table. The app does not appear in
+**Mechanism.** The app never calls `CGEventTapCreate` or `CGEventTapCreateForPSN`, and never reads
+which keys are down. It has one `NSEvent.addGlobalMonitorForEvents`, in `AppMain.swift`, and it
+asks only for `.leftMouseDown`, `.rightMouseDown` and `.otherMouseDown`: a click outside the menu
+bar panel closes the panel. The handler ignores the event it is handed, and the monitor exists only
+while the panel is open. `.github/scripts/check-forbidden-apis.py` fails CI if a global monitor asks
+for anything but mouse events or if a key-reading API appears in the source, and `make verify`
+checks the built binary for the same symbols. This section used to say the app never calls
+`addGlobalMonitorForEvents` at all, which was false. The app does not appear in
 System Settings → Privacy & Security → Input Monitoring, because it never asks.
 
 **Check.**
 ```
-nm -u <BIN> | grep -E 'CGEventTap|addGlobalMonitor'     # expect no output
+nm -u <BIN> | grep -E 'CGEventTap|CGEventSourceKeyState|IOHIDManager'   # expect no output
+python3 .github/scripts/check-forbidden-apis.py                         # from a checkout
 ```
 Note the honest caveat: Accessibility permission, if you grant it, *would* allow a global monitor.
 The defense there is the CI symbol check plus the AX isolation check, not the OS. See §8.2.
 
 ### 2.3 No clipboard access
 
-**Mechanism.** `NSPasteboard` is never referenced. Not to read, not to write. The "copy diagnostics"
-feature deliberately writes a file through `NSSavePanel` instead of putting anything on the
-pasteboard, precisely so that this property stays absolute rather than conditional.
+**Mechanism.** `NSPasteboard` is never referenced. Not to read, not to write. There is no copy
+button anywhere: the export (§4.6) writes a file through `NSSavePanel`, and `--doctor` prints to
+your terminal, so this property stays absolute rather than conditional.
 
 **Check.**
 ```
@@ -439,7 +468,7 @@ sockets, the channels below matter more rather than less. Each is absent, with t
 |---|---|---|
 | The updater's own request | A `GET` can carry data in a query string, a header, or a hostname | The feed URL is a compile-time constant in `Info.plist` with no query string; `SUEnableSystemProfiling` is `false` so Sparkle appends no parameters; `sendsSystemProfile` is set `false` in code as well; the user agent is overridden to the literal `"sigstop"` and does not even carry the app version. `make verify` asserts the plist keys |
 | A second endpoint | One allowed URL is checkable; two is a policy | `make verify` extracts every URL string from the binary and fails on anything that is not an allowlisted `github.com/Mohamed-Elshesheny/sigstop` browser link. The feed URL is not even in the binary — it is a plist key |
-| `NSWorkspace.open(URL)` | Opening `https://collector/?data=…` in the browser exfiltrates without a socket in this process | Allowlisted: the only call sites pass a compile-time constant from the `Links` enum in `SettingsView.swift`, and the URL check above covers them |
+| `NSWorkspace.open(URL)` | Opening `https://collector/?data=…` in the browser exfiltrates without a socket in this process | Every call site passes one of three things. The link rows in Settings pass a compile-time constant from the `Links` enum in `SettingsView.swift`. **Open releases in browser** passes `Links.releases`, or, when the appcast marks a release information-only, the link that release carries, and that link is opened only if it is `https` on `github.com` under `/Mohamed-Elshesheny/sigstop/`; anything else opens `Links.releases`. `PermissionBroker.openAccessibilitySettings` passes a constant `x-apple.systempreferences:` URL for the Accessibility pane. The URL check above covers the constants. The appcast link arrives at runtime, so the scheme, host and path check is what bounds it |
 | `Process` / `NSTask` / `posix_spawn` | Shelling out to `curl` | Forbidden symbols; not referenced anywhere in app code |
 | `NSAppleScript` / `osascript` | Scripting another app into making the request | Forbidden symbols; no Automation usage string |
 | `NSXPCConnection` to a helper | A helper could hold the network code | The app ships no helper of its own. `Sparkle.framework` carries two XPC services, and only one is used. `Downloader.xpc` ships but is idle, because `SUEnableDownloaderService` is not set, so the download runs in this process (§2.7). `Installer.xpc` launches the installer, because `SUEnableInstallerLauncherService` is `true`, and the install itself runs in the separate `Autoupdate` executable. `ls <APP>/Contents/Frameworks` shows exactly one framework |
@@ -537,15 +566,19 @@ hard requirement on the architecture, not an aspiration. Nothing in the break en
 permission being present; every permission-gated signal enters through an optional and has a defined
 `nil` behavior.
 
-There is a test for it: `AppTests/ZeroPermissionModeTests.swift` runs the whole break engine with
-every permission provider stubbed to "denied" and asserts reminders still fire correctly.
+There is no single test named for it, and this paragraph used to cite one,
+`AppTests/ZeroPermissionModeTests.swift`, that does not exist. What does exist: `SigstopCore` cannot
+see a permission at all, so every engine test in `app/Tests/SigstopCoreTests`, driven by
+`EngineHarness`, runs the break engine without one, because the engine takes none as input; and
+`PermissionStatusTests` in `app/Tests/SigstopSensorsTests` asserts that at zero permissions everything
+but the OS facts is off. No test stubs every provider to "denied" and runs a whole day end to end.
 
 ### 3.2 What is requested, and when
 
 | Permission | TCC service | When asked | What it buys | If denied |
 |---|---|---|---|---|
 | **Notifications** | `UNUserNotificationCenter` | At the first break, not at launch | Reminders appear as system notifications, respect Focus modes and Notification Center | Fallback: a borderless `NSWindow` at `.statusBar` level that the app draws itself. Needs no permission. Slightly more intrusive, does not respect Do Not Disturb — so the app's own quiet hours setting becomes the only mute |
-| **Accessibility** | `kTCCServiceAccessibility` | Never. The app does not raise the macOS alert. **Open System Settings** in Settings → Access opens the Accessibility pane, you grant it there, and the "Window titles" switch decides whether the grant is used | Window-title fidelity (inventory rows 12–14): the app can avoid interrupting a live meeting and can tell a terminal from a browser inside the same app | Everything still works from app identity alone. The app may propose a break during a Zoom call, because it can see you are in Zoom but not that a meeting is in progress |
+| **Accessibility** | `kTCCServiceAccessibility` | Never. The app does not raise the macOS alert. **Open System Settings** in Settings → Access opens the Accessibility pane, you grant it there, and the "Window titles" switch decides whether the grant is used | Window-title fidelity (inventory rows 12, 29 and 32): the app can avoid interrupting a live meeting and can tell a terminal from a browser inside the same app | Everything still works from app identity alone. The app may propose a break during a Zoom call, because it can see you are in Zoom but not that a meeting is in progress |
 | **Login item** | `SMAppService` (not TCC) | Only from the settings toggle | Starts at login | Start it yourself |
 | **Git context (Tier 2)** | None. Not a TCC service. What you grant is a folder | Never automatically. Only when you add a project folder in Settings → Access | The branch name, and whether a rebase, merge or bisect is in progress, for the folders you added | Nothing degrades. `branch` is `nil`, the templates that need `{branch}` become unselectable by construction (`docs/MESSAGE-ENGINE.md` §5), every other line still fires |
 | **Process context (Tier 2)** | None. `sysctl(KERN_PROC_ALL)` needs no grant and produces no prompt | Never automatically. Only from its own switch in Settings → Access | `DEBUGGING` becomes reachable instead of collapsing into `CODING` | `CODING`, and the UI says it cannot tell whether you are debugging |
@@ -662,7 +695,7 @@ the operating system." The same pane links to the one file that reads a window,
 The last row is the only one that is not a permission. Tier 2 is two switches, not a grant, and the
 ladder includes it because fidelity is what it changes, not because macOS is involved.
 
-### 3.6 Two build flavors, and why
+### 3.6 One build flavor, a second planned, and why
 
 There is a genuine, unavoidable conflict: **an App-Sandboxed app cannot use the Accessibility API to
 inspect other processes.** The sandbox denies the `com.apple.axserver` mach lookup, and the
@@ -691,17 +724,17 @@ and the updater, and this section is where that trade is written down.
 
 ### 4.1 Location
 
-Unsandboxed (AX) flavor:
 ```
 ~/Library/Application Support/<BUNDLE_ID>/
 ```
-Sandboxed flavor:
-```
-~/Library/Containers/<BUNDLE_ID>/Data/Library/Application Support/<BUNDLE_ID>/
-```
 
-Settings → Data prints whichever of the two is in use, as a path you can select and copy, so you
-never have to guess.
+That is the only location, because the unsandboxed build is the only one there is. The planned
+sandboxed flavor (§3.6), if it is ever built, would keep its data under
+`~/Library/Containers/<BUNDLE_ID>/Data/Library/Application Support/<BUNDLE_ID>/` instead.
+
+Settings → Data prints the path in use, as text you can select and copy, so you never have to
+guess. A few things live outside it, most of them left by the update check, in
+`~/Library/Caches`, `~/Library/HTTPStorages` and `~/Library/Preferences`: inventory rows 33 to 36.
 
 ### 4.2 Layout
 
@@ -743,7 +776,8 @@ chosen so that `cat` is a complete audit tool.
 and it is checked against `EventKind` rather than written from memory. It drifted once:
 `break_open`, `break_begin` and `break_end` shipped without appearing here, which made a
 document that claims to be exhaustive quietly incomplete. Adding a kind without adding it
-below is a bug under CLAUDE.md §7, not a documentation chore.
+below is a bug, not a documentation chore: `docs/` is kept in sync in the same PR as the behaviour
+change ([CONTRIBUTING.md](../CONTRIBUTING.md#commits-and-prs)).
 
 ```
 {"e":"start","t":"2026-09-20T08:58:03Z","v":1}
@@ -751,7 +785,7 @@ below is a bug under CLAUDE.md §7, not a documentation chore.
 {"act":"browsing","app":"com.google.Chrome","cat":"browse","e":"focus","t":"2026-09-20T09:14:41Z","v":1}
 {"e":"idle_begin","t":"2026-09-20T09:31:02Z","v":1}
 {"e":"idle_end","idle_s":378,"t":"2026-09-20T09:37:20Z","v":1}
-{"act":"meeting","app":"us.zoom.xos","cat":"meet","e":"focus","t":"2026-09-20T09:48:10Z","v":1}
+{"act":"communication","app":"us.zoom.xos","cat":"other","e":"focus","t":"2026-09-20T09:48:10Z","v":1}
 {"cycle":4,"e":"break_open","t":"2026-09-20T10:19:55Z","v":1}
 {"cycle":4,"e":"gate","gate":"audioInputInUse","t":"2026-09-20T10:20:00Z","v":1}
 {"cycle":4,"e":"gate","gate":"delivered","t":"2026-09-20T10:34:07Z","v":1}
@@ -773,9 +807,9 @@ Field reference:
 | `v` | int | Schema version. Bumped on any breaking change; readers reject unknown majors |
 | `t` | string | ISO-8601 UTC, second resolution. Sub-second precision is deliberately discarded |
 | `e` | string | One of: `start`, `stop`, `focus`, `idle_begin`, `idle_end`, `lock`, `unlock`, `sleep`, `wake`, `display_sleep`, `display_wake`, `session_out`, `session_in`, `break_open`, `break_prompt`, `break_response`, `break_begin`, `break_end`, `cycle_close`, `gate` |
-| `app` | string? | Bundle identifier. Absent if app tracking is off |
-| `cat` | string? | One of `code`, `browse`, `meet`, `other`, chosen in `AppModel.category(for:)` from the app's family |
-| `act` | string? | The activity inferred at that moment (`context.activity`), one of the `Activity` raw values such as `coding`, `browsing` or `meeting`, and `unknown` when it could not tell |
+| `app` | string? | Bundle identifier. Absent when the frontmost app has none. There is no switch that turns it off |
+| `cat` | string? | One of `code`, `browse`, `meet`, `other`, chosen in `AppModel.category(for:)` from the app's family. `meet` is the chat family, Slack and Discord; Zoom and Teams have no family of their own in `AppKey` and log `other` |
+| `act` | string? | The activity inferred at that moment (`context.activity`), one of the `Activity` raw values such as `coding`, `browsing` or `communication`, and `unknown` when it could not tell. **With Tier 1 on it can be decided by the window title**: a browser tab titled `Pull Request #12` logs `codeReview` (§1.5, inventory row 32) |
 | `sig` | string? | Title signal. In the schema, but the shipping app never writes it: `AppModel.logFocusIfNeeded` passes `titleSignal: nil`. **Never the title itself** |
 | `idle_s` | int? | Length of the idle period that just ended |
 | `cycle` | int? | Which break opportunity this line belongs to, so counters scope to a cycle |
@@ -820,8 +854,9 @@ in the sense that matters here: an app that cannot show its working cannot be au
   day. The value is the `GateReason` enum, a closed vocabulary of twenty-nine listed in
   `app/Sources/SigstopCore/Decision/GateReason.swift`, every one of them a fact about the
   machine or a name for a rate limit. **None of them is derived from a window title, a URL,
-  a file path or anything you typed**, which is the same guarantee every other field here
-  carries (CLAUDE.md §4.4).
+  a file path or anything you typed**, which is the guarantee "Never read content" asks for
+  ([the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)). Every
+  other field here carries it too, except `act`, which a title can decide (§1.5).
 
   Three of the twenty-nine — `userSnoozed`, `userAway`, `breakRunning` — are not gate
   answers at all. They exist because the ten minute rule above was a claim the code did not
@@ -965,12 +1000,13 @@ the log can hold; under it is every event on disk, verbatim, one JSON object per
 day. Nothing is transformed or filtered, so what you audit is what the app recorded. Settings, badges
 and the summaries are not in it: they are the plain files in §4.2, and `cat` is the export for those.
 
-**Delete everything** (one button in Settings → Data, one confirmation): removes the storage
-directory recursively and the settings file, puts the default settings back everywhere they
-apply (the break policy, the sensors, the permission status), resets the call-hold latch and the
-in-memory counters, and reports what it removed. The app keeps running, so the report says a new,
-empty log starts at once. It also tells you the two things the app cannot clean up itself,
-because no app can:
+**Delete everything** (the **Delete my data…** button in Settings → Data, one confirmation):
+removes the storage directory recursively and the settings file, unregisters the login item if it
+is registered, puts the default settings back everywhere they apply (the break policy, the sensors,
+the permission status), resets the call hold's daily total and the in-memory counters (a hold that is
+running keeps running, so a call you declared is still protected), and reports what it
+removed. The app keeps running, so the report says a new, empty log starts at once. It also tells
+you the two things the app cannot clean up itself, because no app can:
 
 ```
 Deleted: ~/Library/Application Support/<BUNDLE_ID>  (23 files, 412 KB)
@@ -980,10 +1016,25 @@ sigstop is still running, so a new, empty log starts from now.
 Two things this app cannot remove for you:
   • The Accessibility permission you granted. Remove it in
     System Settings → Privacy & Security → Accessibility,
-    or run:  tccutil reset Accessibility <BUNDLE_ID>
-  • System log entries macOS wrote. Run:  sudo log erase --all   (clears the whole system log)
+    or run:  tccutil reset Accessibility dev.sigstop.app
+  • What macOS itself logged about the app, such as launches and permission
+    checks. sigstop writes nothing to the system log.
 
 There is no archive, no tombstone, no soft delete, and no copy kept anywhere.
+Removed: the login item.
+```
+
+The last line appears only when the login item was registered. If macOS refuses to remove it,
+that line says so and names System Settings → General → Login Items instead.
+
+What it does not remove, and the report does not mention, is everything outside the storage
+directory in inventory rows 33 to 36: Foundation's cache of the appcast, the app's HTTP storage,
+Sparkle's staging folders and the app's UserDefaults, including the time of your last update check.
+With the app quit, these remove them:
+
+```
+defaults delete <BUNDLE_ID>
+rm -rf ~/Library/Caches/<BUNDLE_ID> ~/Library/Caches/<BUNDLE_ID>.sparkle ~/Library/HTTPStorages/<BUNDLE_ID>
 ```
 
 ---
@@ -1006,7 +1057,7 @@ The single exception is the update check, and it is worth stating precisely rath
 | When | Only when you press **Check for updates**. There is no schedule and no launch check |
 | At launch | Never |
 | What is sent | A plain `GET`. No query string, no body, no cookie, no account, no install id, no machine id, no system profile, and a user agent overridden to the constant `sigstop` — not even the app version |
-| What is stored about it | Nothing, on either side of this codebase |
+| What is stored about it | Nothing in the app's own files, and there is no server side to this codebase. On your Mac, Sparkle records the time of the last check in UserDefaults and Foundation caches the file under `~/Library/Caches` (inventory rows 33 to 36) |
 | What it necessarily reveals | Your IP address and the time of the request, to whoever serves the file. This cannot be avoided by any client |
 | What protects the download | EdDSA signature verification against a public key compiled into the app. See §2.8 |
 
@@ -1037,14 +1088,17 @@ an analytics SDK is a supply-chain dependency with its own update channel; and "
 decay into "opt-in, but we ask every launch".
 
 **Instead:**
-- **Save Diagnostics Report…** writes a plain-text file (OS version, app version, which permissions
-  are granted, last 50 internal log lines with identifiers redacted, no event data). You read it,
-  you decide, you attach it to a GitHub issue yourself. The app never transmits it and never puts
-  it on the pasteboard.
+- **`--doctor`** (`make doctor`, or the app's executable run with `--doctor`) prints to your
+  terminal what the app can observe right now: the settings that shape a break, each permission
+  and switch, every signal it reads and what it inferred from them, and where it stores data. You
+  read it, you decide, you paste what you choose into a GitHub issue yourself. The app never
+  transmits it and never puts it on the pasteboard. This bullet used to describe a
+  "Save Diagnostics Report…" command that was never built.
 - Product questions get answered in the repository's discussions, where the sample is
   self-selected but at least honest about being so.
-- Defaults are argued for in `docs/DECISIONS.md` with the reasoning visible, rather than tuned by
-  telemetry nobody can inspect.
+- Defaults are argued for in `docs/BREAK-DECISION.md` §3.3 and §4.2 with the reasoning visible,
+  rather than tuned by telemetry nobody can inspect. There is no `docs/DECISIONS.md`; this bullet
+  used to name one.
 
 ### 5.3 Update checking — the position, and why it changed
 
@@ -1100,11 +1154,12 @@ APP=/Applications/<App>.app
 codesign -d --entitlements - --xml "$APP" | plutil -convert xml1 -o - -
 ```
 
-Sandboxed flavor — expected, in full:
+The sandboxed flavor is planned, not built (§3.6), so there is no bundle to run this against. If it
+is built, this is what it should carry, in full:
 ```xml
 <key>com.apple.security.app-sandbox</key><true/>
 ```
-That is the entire list. In particular these must be **absent**:
+That would be the entire list. In particular these must be **absent**:
 `com.apple.security.network.client`, `com.apple.security.network.server`,
 `com.apple.security.files.all`, `com.apple.security.device.camera`,
 `com.apple.security.device.microphone`, `com.apple.security.personal-information.*`,
@@ -1113,8 +1168,9 @@ That is the entire list. In particular these must be **absent**:
 `com.apple.security.cs.allow-unsigned-executable-memory`,
 `com.apple.security.cs.allow-dyld-environment-variables`.
 
-AX flavor — the entitlements file is almost empty by design, and the two that matter are the two
-that are *not* there: `com.apple.security.network.server` (nothing listens) and
+The shipped, unsandboxed build: the entitlements file is almost empty by design. It holds one key,
+`com.apple.security.automation.apple-events`, set to `false`, and the two that matter are the two
+that are *not* there, which are the two `make verify` checks: `com.apple.security.network.server` (nothing listens) and
 `com.apple.security.cs.disable-library-validation` (§2.9). Without the App Sandbox, the absence of
 `network.client` is not meaningful and this document does not pretend it is.
 
@@ -1143,7 +1199,7 @@ otool -L "$BIN"
 
 Expected list, and nothing else: `@rpath/Sparkle.framework/Versions/B/Sparkle`, `AppKit`,
 `Foundation`, `CoreGraphics`, `CoreFoundation`, `CoreAudio`, `IOKit`, `UserNotifications`,
-`ServiceManagement`, `ApplicationServices` (AX flavor only), `SwiftUI`, `libobjc`, `libSystem`, and
+`ServiceManagement`, `ApplicationServices`, `SwiftUI`, `libobjc`, `libSystem`, and
 the Swift runtime libraries.
 
 The Sparkle line is the one addition, and it is the whole of the app's network capability. Check
@@ -1251,7 +1307,8 @@ app/Sources/
 
 app/Scripts/verify.sh                 the guard. Runs in CI on every push
 .github/scripts/check-ax-isolation.py keeps Accessibility in the two files named above
-.github/scripts/check-corpus.py       the humour rails, CLAUDE.md §4.5
+.github/scripts/check-forbidden-apis.py no clipboard, screen, keys, processes or AppleScript
+.github/scripts/check-corpus.py       the humour rails, docs/MESSAGE-ENGINE.md §4
 .github/workflows/ci.yml              runs all of the above, plus the test suite
 ```
 
@@ -1319,17 +1376,17 @@ toolchain, and physical access to an unlocked machine.
 | # | Threat | Actor | Structural defense | Residual risk |
 |---|---|---|---|---|
 | 1 | A contributor adds an analytics or "crash reporting" call | Maintainer under commercial pressure, or a contributor | `make verify` fails on any networking symbol in the app's own binary, on any URL literal outside the allowlist, and on ~25 analytics and crash-reporting SDKs by name, checked against the built bundle | Someone with merge rights can also edit the check. There is no `CODEOWNERS` file, so nothing but review protects `app/Scripts/verify.sh`; it runs in CI on every push, so an edit to it is at least visible |
-| 2 | A dependency ships a malicious update | Upstream package | **Exactly one third-party runtime dependency: Sparkle, pinned with `exact:` rather than a range, so a new upstream tag cannot enter a build without a commit that says so.** It is attached to `SigstopApp` only; `SigstopCore` and `SigstopSensors` remain dependency-free, and `make verify` asserts Sparkle is the only embedded framework | A malicious Sparkle release that someone then deliberately bumps to. Mitigation is the pin plus review of the bump. The argument for admitting the dependency at all is in CLAUDE.md §5 |
+| 2 | A dependency ships a malicious update | Upstream package | **Exactly one third-party runtime dependency: Sparkle, pinned with `exact:` rather than a range, so a new upstream tag cannot enter a build without a commit that says so.** It is attached to `SigstopApp` only; `SigstopCore` and `SigstopSensors` remain dependency-free, and `make verify` asserts Sparkle is the only embedded framework | A malicious Sparkle release that someone then deliberately bumps to. Mitigation is the pin plus review of the bump. The argument for admitting the dependency at all is §2.8, and the rule it had to clear is "One dependency" in [the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break) |
 | 3 | Code is loaded at runtime that was never reviewed | Attacker with write access to the bundle | `disable-library-validation` and `allow-unsigned-executable-memory` are absent and `make verify` fails if they appear. No `dlopen`, no plugin directory, no bundle loading, no JavaScriptCore | **Weakened.** Hardened Runtime is no longer enabled in the default ad-hoc build, because Library Validation cannot coexist with an embedded framework when neither has a Team ID (§2.9). `HARDENED=1 make bundle` restores it for anyone with a Developer ID. An attacker who can rewrite `/Applications` could inject a library — though they could equally replace the binary outright |
 | 3b | A malicious update is served to users | Attacker who compromises GitHub, the CDN, or the network path | **EdDSA signature verification (§2.8).** The private key is in the maintainer's login keychain only; the public key is compiled into the app; Sparkle refuses an archive whose signature does not verify | Theft of the private key. Rotation does not reach installs that already hold the old public key. `docs/RELEASING.md` §6 |
 | 4 | A malicious **message pack** exfiltrates or executes | Contributor, or a user installing a third-party pack | Packs are data, not code: strict JSON, schema-validated on load, string fields only, length-capped. No URLs, no format specifiers, no templating engine, no HTML — text is rendered into `NSAttributedString` with attributes disabled. A pack cannot cause a network call: the app's own binary has no networking code at all, and the only URL the bundle can fetch is the compile-time feed constant | A pack could still contain hostile or manipulative *text*. Defense is review: packs ship only in-tree, every pack change requires a human review, and third-party packs are not loadable from disk in the default build |
 | 5 | The Accessibility grant is abused to read message/document contents | Malicious future version of the app | `.github/scripts/check-ax-isolation.py` in CI; the AX code is two files and one `private` reader that touches two attribute constants; the permission is off by default | **Real and unavoidable.** If you grant Accessibility, a future build could read anything. Defenses are social (review, reproducible hashes) not technical. Two of the mitigations this row used to claim — a shell script and a raw-title debug ring — did not exist. See §8.2 |
-| 6 | Exfiltration without a socket (open a URL, spawn `curl`, AppleScript another app) | Contributor | Forbidden-symbol guard covers `NSWorkspace.open` call sites, `Process`, `NSTask`, `posix_spawn`, `NSAppleScript`; the URL-literal allowlist in `make verify` catches a smuggled collector endpoint | A URL assembled at runtime from string fragments could evade the literal check. Partially mitigated: `NSWorkspace.open` may only be called with values from the `Links` enum, enforced by the URL allowlist |
+| 6 | Exfiltration without a socket (open a URL, spawn `curl`, AppleScript another app) | Contributor | `.github/scripts/check-forbidden-apis.py` fails CI on `Process`, `NSTask`, `posix_spawn`, `NSAppleScript`, `NSPasteboard` and screen capture in the source, and `make verify` checks the binary for the same symbols; the URL-literal allowlist in `make verify` catches a smuggled collector endpoint. `NSWorkspace.open` is called with a `Links` constant, the Accessibility pane's constant URL, or an appcast link that must be `https` on `github.com` under `/Mohamed-Elshesheny/sigstop/` (§2.9) | A URL assembled at runtime from string fragments could evade the literal check, and nothing but review stops a new `NSWorkspace.open` call site: no check counts them |
 | 6b | Exfiltration *through* the update request | Contributor | The feed URL is a plist constant with no query string; `SUEnableSystemProfiling` is off and asserted by `make verify`; the user agent is overridden to a constant carrying no version; there is no second endpoint and the allowlist check fails if one appears | A contributor could add a delegate that appends feed parameters. That would be a visible code change to one file, and would have to survive review against this row |
-| 7 | Another local process reads the event log | Malware running as the user | Files are `0600` in a `0700` directory; the sandboxed flavor's container is additionally protected by the sandbox and by TCC's "app data" protections on recent macOS | Any process running as you can read your files. App-level encryption would not help, because the key would have to be available to the app as the same user. FileVault is the real defense. See §8.5 |
+| 7 | Another local process reads the event log | Malware running as the user | Files are `0600` in a `0700` directory. Nothing else: the app is not sandboxed, so there is no container and no sandbox protection on it (§3.6) | Any process running as you can read your files. App-level encryption would not help, because the key would have to be available to the app as the same user. FileVault is the real defense. See §8.5 |
 | 8 | Supply-chain attack on the release artifact | Attacker with repo or CI access | **EdDSA signing, done on the maintainer's machine from a key that is never in the repository or in CI.** An attacker with full repository and CI access can therefore publish a release and still cannot produce one the app will install. The release notes carry no hashes (§6.5). | A compromised signing key defeats this. There is no Developer ID and no notarization to fall back on (§8.1), so the EdDSA key is the single point of failure and is treated as one in `docs/RELEASING.md` |
 | 9 | Data reconstruction from an old backup | Anyone with your Time Machine disk | Retention defaults are short (7 days); the storage path is an ordinary user path, so it honors any backup exclusions you set | The app does not and should not set backup exclusions on your behalf. Documented, not defended |
-| 10 | Someone infers sensitive facts from your event log (therapy appointments, job hunting) | A person with access to your machine | Only bundle IDs, not titles or URLs; short retention; one-click delete; the whole log is human-readable so you can see the inference risk yourself | Bundle IDs alone can be revealing (a job-board app, a health app). If that matters to you, disable app tracking and run the pure timer |
+| 10 | Someone infers sensitive facts from your event log (therapy appointments, job hunting) | A person with access to your machine | Bundle IDs and closed-vocabulary fields (one of which, `act`, a title can decide under Tier 1), not titles or URLs; short retention; one-click delete; the whole log is human-readable so you can see the inference risk yourself | Bundle IDs alone can be revealing (a job-board app, a health app). There is no switch that stops them being logged; the seven-day window and *Delete my data…* are what there is |
 
 ---
 
@@ -1337,8 +1394,8 @@ toolchain, and physical access to an unlocked machine.
 
 These are the places where an honest answer is "we cannot prove that."
 
-**8.1 The app makes one network request, and nothing in the OS stops it making others.** The AX
-flavor is unsandboxed, so `com.apple.security.network.client` being absent means nothing to the
+**8.1 The app makes one network request, and nothing in the OS stops it making others.** The app is
+unsandboxed, and the sandboxed flavor in §3.6 is planned, not built, so `com.apple.security.network.client` being absent means nothing to the
 kernel — unsandboxed processes may open sockets freely, entitlements or not. That was already true
 before the updater existed; what changed is that there is now something in the bundle that uses the
 freedom. What holds the line instead is checkable but static: the app's own binary references no
@@ -1369,7 +1426,8 @@ Every defense listed here is a code-review defense. A malicious future release, 
 team ID, would inherit your existing grant silently.
 
 **8.3 A window title exists in the app's memory, briefly.** The claim is that it is never persisted,
-never logged, never transmitted, and discarded at the end of one function. It is not a claim that
+never logged, never transmitted, and dropped when the next read replaces it, which is at most a
+minute later while you are active (`ContextEngine`'s title cache). It is not a claim that
 the string never existed. It may appear in a memory dump, in a swap file if memory is paged (the
 app does not mark the buffer non-swappable), and potentially in a crash report if a crash occurs
 inside the classification path.
@@ -1442,7 +1500,7 @@ hit it, the app says which one happened instead of looking broken.
 
 **8.10 Idle detection is session-wide.** `CGEventSourceSecondsSinceLastEventType` reflects input to
 every application, not only this one. It reveals no content, but it does mean the app knows whether
-you were typing *somewhere* — including in apps you have excluded from tracking.
+you were typing *somewhere*, in any app. There is no per-app exclusion.
 
 ---
 
