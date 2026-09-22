@@ -47,13 +47,26 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
+NOTES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD "${TAG} ${NAME}")"
+STRAY="$(grep -vE '^(## |### |- |$)' <<<"${NOTES}" || true)"
+if [ -n "${STRAY}" ]; then
+  echo "error: the release notes may only hold headings and bullets. Found:" >&2
+  sed 's/^/       /' <<<"${STRAY}" >&2
+  exit 1
+fi
+if ! grep -q '^- ' <<<"${NOTES}"; then
+  echo "error: nothing that ships changed since ${PREVIOUS_TAG}, so there is nothing to release." >&2
+  exit 1
+fi
+
+LOGS="$(mktemp -d)"
 quiet() {
-  local log
-  log="$(mktemp)"
+  local log="${LOGS}/$(printf '%s' "$*" | tr -c 'A-Za-z0-9' '_' | cut -c1-60).log"
   if ! "$@" >"${log}" 2>&1; then
-    echo "error: '$*' failed:" >&2
+    echo "error: '$*' failed. The last 40 lines:" >&2
     tail -40 "${log}" >&2
-    rm -f "${log}"
+    echo "       Full log: ${log}" >&2
     exit 1
   fi
   rm -f "${log}"
@@ -70,8 +83,8 @@ quiet swift run -c release Scenarios
 echo "    tests, verify, smoke and scenarios all pass"
 echo "    ${X86_BY}"
 
-echo "==> building the image"
-quiet env STRICT_LAYOUT=1 make dmg
+echo "==> packing the bundle just tested into the image"
+quiet env STRICT_LAYOUT=1 ./Scripts/dmg.sh
 SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 
 # The step 0.1.0 shipped without. Doing it before the tag means a release that cannot be
@@ -83,20 +96,7 @@ if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
   echo "    committed updater/appcast.xml"
 fi
 
-PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
-NOTES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD "${TAG} ${NAME}")"
 
-# CLAUDE.md 9: headings and bullets, nothing else.
-STRAY="$(printf '%s\n' "${NOTES}" | grep -vE '^(## |### |- |$)' || true)"
-if [ -n "${STRAY}" ]; then
-  echo "error: the release notes may only hold headings and bullets (CLAUDE.md 9). Found:" >&2
-  printf '%s\n' "${STRAY}" | sed 's/^/       /' >&2
-  exit 1
-fi
-if ! printf '%s\n' "${NOTES}" | grep -q '^- '; then
-  echo "error: nothing that ships changed since ${PREVIOUS_TAG}, so there is nothing to release." >&2
-  exit 1
-fi
 
 echo "==> tagging ${TAG}"
 git tag -a "${TAG}" -m "${TAG} ${NAME}"
