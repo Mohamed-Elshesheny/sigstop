@@ -1,6 +1,8 @@
 import Foundation
 
 public final class FileEventStore: EventStore, @unchecked Sendable {
+    public static let largestDayFile = 32 * 1024 * 1024
+
     public let root: URL
     public let eventsDirectory: URL
     public let summariesDirectory: URL
@@ -105,7 +107,8 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     private func unlockedLoad(day: CalendarDay) -> DayLoad {
         let path = url(for: day)
         guard fm.fileExists(atPath: path.path) else { return .empty(day) }
-        guard let data = fm.contents(atPath: path.path) else {
+        let size = (try? fm.attributesOfItem(atPath: path.path)[.size] as? Int) ?? 0
+        guard size <= Self.largestDayFile, let data = fm.contents(atPath: path.path) else {
             return DayLoad(day: day, events: [], malformedLines: 0, unreadable: true)
         }
         let result = EventLogCodec.decodeLines(String(decoding: data, as: UTF8.self))
@@ -252,7 +255,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
                 let data = fm.contents(atPath: url.path),
                 let file = try? JSONDecoder().decode(SummaryFile.self, from: data)
             else { continue }
-            for (key, value) in file.days {
+            for (key, value) in file.days where value.isPlausible {
                 if let day = CalendarDay.parse(key) { out[day] = value }
             }
         }
@@ -293,8 +296,11 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     public func readCounters() -> DailyCounters? {
         lock.lock()
         defer { lock.unlock() }
-        guard let data = fm.contents(atPath: countersFile.path) else { return nil }
-        return try? JSONDecoder().decode(DailyCounters.self, from: data)
+        guard let data = fm.contents(atPath: countersFile.path),
+              let counters = try? JSONDecoder().decode(DailyCounters.self, from: data),
+              counters.isPlausible
+        else { return nil }
+        return counters
     }
 
     @discardableResult

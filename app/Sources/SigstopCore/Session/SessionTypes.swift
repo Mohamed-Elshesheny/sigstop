@@ -28,7 +28,7 @@ public enum ResetReason: String, Sendable, Codable, Hashable {
 public struct CycleID: Sendable, Codable, Hashable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
-    public func next() -> CycleID { CycleID(rawValue: rawValue + 1) }
+    public func next() -> CycleID { CycleID(rawValue: rawValue == .max ? 0 : rawValue + 1) }
     public static let initial = CycleID(rawValue: 0)
 }
 

@@ -64,9 +64,11 @@ public enum BadgeEvaluator {
         policy: RollupPolicy
     ) {
         let summary = day.summary
-        evidence.breaksTaken += summary.breakCount
+        let taken = evidence.breaksTaken.addingReportingOverflow(summary.breakCount)
+        evidence.breaksTaken = taken.overflow ? .max : taken.partialValue
 
-        let asked = summary.breakOpportunities - summary.excludedOpportunities
+        let asked = summary.breakOpportunities.subtractingReportingOverflow(summary.excludedOpportunities)
+            .partialValue
         if asked > 0, summary.honoredOpportunities == asked {
             evidence.cleanDays += 1
         }

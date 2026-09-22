@@ -72,6 +72,88 @@ struct StoreHonestyTests {
         #expect(report.userFacingSummary.contains("would not open: \(lost.description)"))
     }
 
+    @Test("a summary with impossible numbers is ignored instead of crashing every launch")
+    func impossibleSummaryIsIgnored() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        let day = CalendarDay(year: 2026, month: 8, day: 3)
+        try store.writeSummary(DailySummary(day: day, breakCount: 4))
+        try store.writeSummary(DailySummary(day: CalendarDay(year: 2026, month: 8, day: 4), breakCount: Int.max))
+
+        let read = try store.readAllSummaries()
+        #expect(read[day]?.breakCount == 4)
+        #expect(read.count == 1, "a planted Int.max has to be dropped, not summed")
+        let days = read.values.map { BadgeDay(summary: $0) }
+        let evidence = BadgeEvaluator.evidence(for: days, calendar: Self.utc, policy: .default)
+        #expect(evidence.breaksTaken == 4)
+    }
+
+    @Test("badge sums saturate rather than trap")
+    func badgeSumsSaturate() {
+        let days = (1...2).map { n in
+            BadgeDay(summary: DailySummary(day: CalendarDay(year: 2026, month: 8, day: n), breakCount: Int.max))
+        }
+        let evidence = BadgeEvaluator.evidence(for: days, calendar: Self.utc, policy: .default)
+        #expect(evidence.breaksTaken == .max)
+    }
+
+    @Test("counters with an impossible cycle number start fresh, and the cycle number wraps")
+    func impossibleCountersStartFresh() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        try store.writeCounters(DailyCounters(nextCycle: CycleID(rawValue: .max)))
+        #expect(store.readCounters() == nil)
+        #expect(CycleID(rawValue: .max).next() == CycleID(rawValue: 0))
+    }
+
+    @Test("counters and a summary the app really writes survive a relaunch unchanged")
+    func realFilesRoundTrip() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let counters = DailyCounters(
+            dayIndex: LocalDay.index(of: now, calendar: Self.utc, boundaryHour: 4),
+            notificationsDelivered: 9,
+            lastNotificationAt: now,
+            consecutiveIgnoredCycles: 2,
+            breakOpportunities: 5,
+            honoredOpportunities: 3,
+            excludedOpportunities: 1,
+            nextCycle: CycleID(rawValue: 7)
+        )
+        try store.writeCounters(counters)
+        #expect(store.readCounters() == counters)
+
+        let day = CalendarDay.utc(of: now)
+        let summary = DailySummary(
+            day: day, totalActiveWork: 6 * 3600, longestContinuousSession: 3000,
+            breakCount: 4, breakOpportunities: 6, honoredOpportunities: 4, excludedOpportunities: 1
+        )
+        try store.writeSummary(summary)
+        #expect(try store.readAllSummaries()[day] == summary)
+    }
+
+    @Test("a day file bigger than the cap is reported unreadable, not loaded into memory")
+    func oversizedDayIsUnreadable() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        let at = Date(timeIntervalSince1970: 1_758_500_000)
+        try store.append(.breakBegin(at: at, origin: .accepted, cycle: CycleID.initial))
+        let day = CalendarDay.utc(of: at)
+        let path = root.appendingPathComponent("events/\(day.fileName)")
+        let handle = try FileHandle(forWritingTo: path)
+        try handle.truncate(atOffset: UInt64(FileEventStore.largestDayFile + 1))
+        try handle.close()
+
+        let load = try store.load(day: day)
+        #expect(load.unreadable)
+        #expect(load.events.isEmpty)
+    }
+
     @Test("a summaries file that will not decode is set aside, not overwritten")
     func corruptSummaryIsKept() throws {
         let root = scratch()

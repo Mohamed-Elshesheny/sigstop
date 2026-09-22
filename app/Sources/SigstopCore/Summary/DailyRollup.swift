@@ -142,6 +142,24 @@ public struct DailySummary: Sendable, Codable, Hashable {
     public var isEmptyDay: Bool { totalActiveWork <= 0 && breakOpportunities == 0 }
 }
 
+extension DailySummary {
+    public var isPlausible: Bool {
+        let counts = [
+            breakCount, breaksAccepted, breaksIdleInferred, breaksUserInitiated, breaksAbandoned,
+            skippedBreakCount, snoozeCount, ignoredPromptCount, breakOpportunities,
+            honoredOpportunities, excludedOpportunities, notificationsDelivered, sessionCount,
+        ]
+        let durations = [totalActiveWork, longestContinuousSession]
+            + Array(activeWorkByActivity.values) + Array(applicationDistribution.values)
+        let keys = Array(activeWorkByActivity.keys) + Array(applicationDistribution.keys)
+        return counts.allSatisfy { (0...100_000).contains($0) }
+            && (0...50_000_000).contains(malformedLines)
+            && durations.allSatisfy { $0.isFinite && (0...172_800).contains($0) }
+            && keys.count <= 5_000
+            && keys.allSatisfy { $0.utf8.count <= 512 }
+    }
+}
+
 public enum DailyRollup {
 
     public static let unattributedApplication = "unattributed"

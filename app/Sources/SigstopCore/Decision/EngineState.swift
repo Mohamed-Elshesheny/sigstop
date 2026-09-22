@@ -438,6 +438,15 @@ public struct DailyCounters: Sendable, Codable, Hashable {
     }
 }
 
+extension DailyCounters {
+    public var isPlausible: Bool {
+        [notificationsDelivered, consecutiveIgnoredCycles, breakOpportunities,
+         honoredOpportunities, excludedOpportunities].allSatisfy { (0...100_000).contains($0) }
+            && (0...Int(Int32.max)).contains(nextCycle.rawValue)
+            && (0...99_991_231).contains(dayIndex)
+    }
+}
+
 public enum UserAction: Sendable, Codable, Hashable {
     case acceptBreak
     case snooze
