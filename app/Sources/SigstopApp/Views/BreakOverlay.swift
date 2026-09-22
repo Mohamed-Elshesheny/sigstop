@@ -78,6 +78,7 @@ final class BreakOverlayController {
             panel.hidesOnDeactivate = false
             panel.ignoresMouseEvents = false
             panel.level = .statusBar
+            panel.sharingType = .none
             panel.collectionBehavior = [
                 .canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle,
             ]
@@ -126,6 +127,7 @@ final class BreakOverlayController {
             panel.isMovable = false
             panel.hidesOnDeactivate = false
             panel.level = .statusBar
+            panel.sharingType = .none
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
             panel.setFrame(frame, display: true)
 
