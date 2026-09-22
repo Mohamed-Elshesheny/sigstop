@@ -13,11 +13,11 @@ public final class AudioDeviceCollector: @unchecked Sendable {
     private let queue = DispatchQueue(label: "dev.sigstop.audio", qos: .utility)
 
     private var isRunningRaw: Bool?
-    private var runningSince: Date?
-    private var windowStart: Date
+    private var runningSince: Double?
+    private var windowStart: Double
     private var observedAwakeSeconds: TimeInterval = 0
     private var runningAwakeSeconds: TimeInterval = 0
-    private var lastAccountedAt: Date
+    private var lastAccountedAt: Double
     private var systemAwake = true
     private var started = false
     private var deviceListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
@@ -26,7 +26,7 @@ public final class AudioDeviceCollector: @unchecked Sendable {
 
     public init(time: any TimeSource = SystemTimeSource()) {
         self.time = time
-        let now = time.now
+        let now = time.continuousSeconds
         self.windowStart = now
         self.lastAccountedAt = now
     }
@@ -64,7 +64,7 @@ public final class AudioDeviceCollector: @unchecked Sendable {
 
     public func setSystemAwake(_ awake: Bool) {
         lock.lock()
-        accountLocked(at: time.now)
+        accountLocked(at: time.continuousSeconds)
         systemAwake = awake
         lock.unlock()
         if awake { refresh() }
@@ -72,9 +72,9 @@ public final class AudioDeviceCollector: @unchecked Sendable {
 
     public func state() -> AudioInputState {
         lock.lock()
-        accountLocked(at: time.now)
+        accountLocked(at: time.continuousSeconds)
         let raw = isRunningRaw
-        let unreliable = isUnreliableLocked(at: time.now)
+        let unreliable = isUnreliableLocked(at: time.continuousSeconds)
         lock.unlock()
 
         if unreliable { return .unreliable }
@@ -88,11 +88,11 @@ public final class AudioDeviceCollector: @unchecked Sendable {
     public func unreliabilityExplanation() -> String? {
         lock.lock()
         defer { lock.unlock() }
-        let now = time.now
+        let now = time.continuousSeconds
         accountLocked(at: now)
         guard isUnreliableLocked(at: now) else { return nil }
-        if let since = runningSince, now.timeIntervalSince(since) > Self.continuousRunningUnreliableThreshold {
-            let hours = Int(now.timeIntervalSince(since) / 3600)
+        if let since = runningSince, (now - since) > Self.continuousRunningUnreliableThreshold {
+            let hours = Int((now - since) / 3600)
             return "Microphone signal disabled on this Mac, an input device has been "
                 + "running continuously for \(hours)h. Something (Krisp, Loopback, a headset "
                 + "daemon) is holding it open, so it cannot indicate a meeting."
@@ -119,7 +119,7 @@ public final class AudioDeviceCollector: @unchecked Sendable {
 
     private func update(raw: Bool?) {
         lock.lock()
-        let now = time.now
+        let now = time.continuousSeconds
         accountLocked(at: now)
         let changed = raw != isRunningRaw
         isRunningRaw = raw
@@ -139,8 +139,8 @@ public final class AudioDeviceCollector: @unchecked Sendable {
         for sink in sinks { sink.yield(published) }
     }
 
-    private func accountLocked(at now: Date) {
-        let elapsed = now.timeIntervalSince(lastAccountedAt)
+    private func accountLocked(at now: Double) {
+        let elapsed = (now - lastAccountedAt)
         lastAccountedAt = now
         guard elapsed > 0 else { return }
         guard systemAwake else { return }
@@ -148,15 +148,15 @@ public final class AudioDeviceCollector: @unchecked Sendable {
         observedAwakeSeconds += elapsed
         if isRunningRaw == true { runningAwakeSeconds += elapsed }
 
-        if now.timeIntervalSince(windowStart) > Self.calibrationWindow {
+        if (now - windowStart) > Self.calibrationWindow {
             observedAwakeSeconds *= 0.5
             runningAwakeSeconds *= 0.5
-            windowStart = now.addingTimeInterval(-Self.calibrationWindow / 2)
+            windowStart = now - Self.calibrationWindow / 2
         }
     }
 
-    private func isUnreliableLocked(at now: Date) -> Bool {
-        if let since = runningSince, now.timeIntervalSince(since) > Self.continuousRunningUnreliableThreshold {
+    private func isUnreliableLocked(at now: Double) -> Bool {
+        if let since = runningSince, (now - since) > Self.continuousRunningUnreliableThreshold {
             return true
         }
         guard observedAwakeSeconds >= Self.calibrationMinimumObservation else { return false }
