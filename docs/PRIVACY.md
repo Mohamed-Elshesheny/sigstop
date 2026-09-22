@@ -44,7 +44,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 13 | **Title classification result** (`meeting`/`terminal`/`editor`/`browser`/`document`/`none`) | Derived from #12 | see #12 | Persisted | Same as #1 | Follows #12 |
 | 15 | **Break engine state**: streak start, last break end, snooze count, next fire time | Derived from #1/#5/#7 | The actual product | Memory-only; nothing writes it to disk. The day's budgets that have to survive a relaunch are in `counters.json` (§4.2) | Gone when the process exits | No |
 | 16 | **Break interaction events**: prompted, taken, skipped, snoozed | UI callbacks | "You skipped 6 of 8 breaks today" and nothing more | Persisted as events | Same as #1 | Yes |
-| 17 | **Daily aggregates**: minutes per category, breaks taken/skipped, longest streak | Derived from the event log nightly | Weekly view without keeping raw events | Persisted, `summaries/YYYY-MM.json` | Default 90 days | Yes |
+| 17 | **Daily aggregates**: minutes per category, breaks taken/skipped, longest streak | Derived from the event log while the app runs, rewritten when today's numbers change | Weekly view without keeping raw events | Persisted, `summaries/YYYY-MM.json` | Kept until you delete your data; never pruned (§4.5) | Yes |
 | 18 | **Preferences**: interval, threshold, quiet hours, tone, prompt channel and sound | User input | Configuration | Persisted, `settings.json` (plain JSON, human-editable) | Until you change or delete them | n/a |
 | 19 | **App category map** (`com.apple.dt.Xcode → code`) | Static JSON shipped inside the bundle, plus your own overrides | Classify #1 without heuristics | Read-only in `App.app/Contents/Resources/categories.json`; overrides in `settings.json` | Ships with the app | n/a |
 | 20 | **Break message packs** | Static JSON shipped inside the bundle | Text of the reminder | Read-only resource | Ships with the app | Yes, choose or disable |
@@ -203,8 +203,8 @@ build if a third appears:
     app/Sources/SigstopSensors/Collectors/AccessibilityCollector.swift   the reads
     app/Sources/SigstopSensors/PermissionBroker.swift                    the trust check
 
-**The one reader.** `AccessibilityCollector.read(pid:)` (:133) fetches the focused window and asks
-it for exactly two attributes:
+**The one reader.** `AccessibilityCollector.read(pid:)` hands off to `readSync(pid:)`, which fetches
+the focused window and asks it for exactly two attributes:
 
 ```swift
 let title = copyString(window, kAXTitleAttribute)
@@ -216,30 +216,41 @@ return AXWindowInfo(
 )
 ```
 
-`copyString` (:185) carries its own boundary in a comment that is enforced by the access modifier:
+`AXUIElementCopyAttributeValue` appears twice in the file: once in `readSync` for the focused
+window, and once inside `copyString`, which is `private` and is called only with `kAXTitle` and
+`kAXDocument`:
 
 ```swift
-/// The ONLY attribute reader in this type, and it is used exclusively for `kAXTitle`
-/// and `kAXDocument`. It is deliberately `private`: there is no public path that could
-/// be pointed at `kAXValue`.
-private func copyString(_ element: AXUIElement, _ attribute: String) -> String? { … }
+private func copyString(_ element: AXUIElement, _ attribute: String) -> String? {
+    var ref: CFTypeRef?
+    let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &ref)
+    guard status == .success else {
+        if status != .attributeUnsupported && status != .noValue {
+            record(Self.failure(for: status))
+        }
+        return nil
+    }
+    guard let string = ref as? String else { return nil }
+    let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+}
 ```
 
 `kAXValue` is the attribute that would return a text field's contents. Nothing can reach it: the
-function is private, the two call sites are three lines above, and the CI check means a second
-reader cannot be added in another file without the build failing.
+function is private, its only two call sites are in the listing above, and the CI check means a
+second reader cannot be added in another file without the build failing.
 
 **There is no `TitleClassifier` and no `TitleSignal` enum.** The old listing described a six-value
 vocabulary produced by one classifier. The real design is per-provider: each provider matches the
 title against its own patterns and returns an `Activity`, and `BrowserTitlePatterns`
-(`app/Sources/SigstopSensors/Providers/BuiltinProviders.swift`:298) holds the regexes for the
+(`app/Sources/SigstopSensors/Providers/BuiltinProviders.swift`) holds the regexes for the
 browser case. `docs/ACTIVITY-DETECTION.md` §5 explains why there is no universal format to classify
 against. The consequence for this section is the same either way and is the part that matters: a
 title is matched and dropped inside `observe`, and the string itself is never returned upward.
 
-**Nothing title-derived reaches the disk.** `AppModel.swift`:1034 writes `titleSignal: nil` on every
-focus event, so the log's `sig` field — which exists and is documented in §4.3 — is never populated
-by the shipping app. Not "a redacted class of the title": nothing.
+**Nothing title-derived reaches the disk.** `AppModel.logFocusIfNeeded` writes `titleSignal: nil` on
+every focus event, so the log's `sig` field, which exists and is documented in §4.3, is never
+populated by the shipping app. Not "a redacted class of the title": nothing.
 
 **And there is no raw-title debug ring.** Row 14 of the inventory promised "last 20 titles, memory
 only, off by default, and the UI switch is labelled as such". There is no ring, no switch and no
@@ -357,8 +368,8 @@ plist key is only a default and the live value lives where anything on the machi
 If an update is offered, pressing the second button fetches the archive itself.
 
 This paragraph used to describe "a daily schedule only if you ticked the box in Settings → About".
-There is no such box — §4.3 removed the toggle so the app could force the value off rather than
-offer a switch that governed a network call — and there is no schedule. The claim outlived the
+There is no such box. The toggle was removed so the app could force the value off rather than
+offer a switch that governed a network call, and there is no schedule. The claim outlived the
 feature it described, which in this document is the one thing that must not happen.
 
 **What the app's own binary can do: still nothing.** This is the part that survived intact and is
@@ -380,8 +391,8 @@ signature gate below, and your own runtime monitor. §8.1 states this without so
 
 **What cannot be claimed.** An HTTPS request reveals your IP address and a timestamp to whoever
 serves the file, which today is GitHub. Nothing the client does changes that. If that matters to
-you, never press the button, leave the daily check off, and install from Homebrew instead — the app
-makes no request at all unless you ask it to.
+you, never press the button and download new releases yourself, or build from source. The app makes no request at all
+unless you ask it to.
 
 **What replaces the old guarantee: signature verification.** See §2.8.
 
@@ -454,7 +465,7 @@ sockets, the channels below matter more rather than less. Each is absent, with t
 | `NSWorkspace.open(URL)` | Opening `https://collector/?data=…` in the browser exfiltrates without a socket in this process | Allowlisted: the only call sites pass a compile-time constant from the `Links` enum in `SettingsView.swift`, and the URL check above covers them |
 | `Process` / `NSTask` / `posix_spawn` | Shelling out to `curl` | Forbidden symbols; not referenced anywhere in app code |
 | `NSAppleScript` / `osascript` | Scripting another app into making the request | Forbidden symbols; no Automation usage string |
-| `NSXPCConnection` to a helper | A helper could hold the network code | The app ships no helper of its own. It does ship Sparkle's two XPC services inside `Sparkle.framework`, which is the point — the downloader and the installer are deliberately *not* in the app process. `ls <APP>/Contents/Frameworks` shows exactly one framework |
+| `NSXPCConnection` to a helper | A helper could hold the network code | The app ships no helper of its own. `Sparkle.framework` carries two XPC services, and only one is used. `Downloader.xpc` ships but is idle, because `SUEnableDownloaderService` is not set, so the download runs in this process (§2.7). `Installer.xpc` launches the installer, because `SUEnableInstallerLauncherService` is `true`, and the install itself runs in the separate `Autoupdate` executable. `ls <APP>/Contents/Frameworks` shows exactly one framework |
 | `dlopen` / plugin loading | Loading code not in the reviewed binary | `com.apple.security.cs.disable-library-validation` is absent and `make verify` fails if it ever appears. **But see the honest caveat below: the shipped build no longer has Hardened Runtime enabled.** |
 | Analytics SDK arriving as a transitive dependency | The usual way telemetry actually gets in | Sparkle has no dependencies of its own, and `make verify` greps the whole bundle against a list of ~25 analytics and crash-reporting SDKs by name |
 | DNS via `CFHost` | Data in a hostname | Forbidden symbols; checked by `make verify` |
@@ -511,16 +522,15 @@ is worse than not offering a check at all: the reader's first move is to run it,
 it does is look like the claim is false.
 
 ```sh
-# argv, environment and working directories are never read. The names appear in doc
-# comments explaining that they are never called, so the comment lines are excluded:
-# a line of Swift cannot contain /// outside a string literal.
-grep -rn 'KERN_PROCARGS2\|proc_pidinfo\|PROC_PIDVNODEPATHINFO' app/Sources | grep -v '///'
+# argv, environment and working directories are never read. The names appear nowhere
+# in the source, and the source carries no comments that could mention them:
+grep -rn 'KERN_PROCARGS2\|proc_pidinfo\|PROC_PIDVNODEPATHINFO' app/Sources
 #   (no output)
 
 # git is never shelled out to. `Process(` on its own also matches methods NAMED
 # ...Process( -- Ev.debuggerProcess(, Ev.testRunnerProcess(, Ev.aiCLIProcess( and
 # friends -- so the pattern requires that nothing identifier-shaped precedes it.
-grep -rnE '(^|[^A-Za-z0-9_.])Process\(|NSTask|posix_spawn' app/Sources | grep -v '///'
+grep -rnE '(^|[^A-Za-z0-9_.])Process\(|NSTask|posix_spawn' app/Sources
 #   (no output)
 
 # every path fragment the git collector can build, in one grep. Eight lines: six carry
@@ -633,14 +643,14 @@ What this app actually does with it, in full:
 1. Calls `AXUIElementCreateApplication(pid)` for the frontmost app only.
 2. Reads `kAXFocusedWindowAttribute`, then exactly two attributes on the resulting window:
    `kAXTitleAttribute` and `kAXDocumentAttribute`. Both go through one `private` function
-   (`AccessibilityCollector.copyString`, :185) which exists so there is no public path that could
+   (`AccessibilityCollector.copyString`), which is private so there is no public path that could
    be pointed at `kAXValue`.
 3. Hands them to the provider that claims the frontmost app, which matches the title against its
    own patterns and returns an `Activity`. The document is reduced to a file URL, or — only with
    the separate Tier 1b opt-in — to a bare host.
 4. Lets the strings go out of scope. Not written to disk, not logged, not sent anywhere, not
-   retained. `AppModel.swift`:1034 writes `titleSignal: nil` on every focus event, so the log's
-   `sig` field is never populated at all.
+   retained. `AppModel.logFocusIfNeeded` writes `titleSignal: nil` on every focus event, so the
+   log's `sig` field is never populated at all.
 
 What it never does with it: no `AXUIElementSetAttributeValue` (never writes), no
 `AXObserverCreate` on other processes, no traversal into `kAXChildrenAttribute`, no
@@ -674,13 +684,11 @@ There is a genuine, unavoidable conflict: **an App-Sandboxed app cannot use the 
 inspect other processes.** The sandbox denies the `com.apple.axserver` mach lookup, and the
 exceptions that would restore it are not generally granted. So the choice is real:
 
-- **Default flavor — sandboxed.** `com.apple.security.app-sandbox` = true, **and no network
-  entitlement at all, which also means no in-app updater**: Sparkle needs
-  `com.apple.security.network.client` to make its one request, and a sandboxed build deliberately
-  does not get it. So in this flavor "no network" really is kernel-enforced, and updates come from
-  the Mac App Store or Homebrew instead. No window-title fidelity either: the Accessibility toggle
-  is hidden and the AX code path is compiled out with `#if !SANDBOXED`.
-- **AX flavor — unsandboxed.** Window-title fidelity available, and the in-app updater described in
+- **Planned, not built: a sandboxed flavor.** `com.apple.security.app-sandbox` = true and no network
+  entitlement, so no in-app updater and a kernel-enforced "no network". No window titles either,
+  since the sandbox blocks the Accessibility API. Nothing in the source builds it yet: there is no
+  sandbox entitlement and no compile flag for it.
+- **Shipped: unsandboxed.** Window-title fidelity available, and the in-app updater described in
   §2.7 and §2.8. There is no kernel guarantee here and there never was: an unsandboxed process may
   open sockets freely regardless of entitlements. What holds instead is that the app's own binary
   contains no networking code, all of it lives in one named framework, and every update is
@@ -689,9 +697,9 @@ exceptions that would restore it are not generally granted. So the choice is rea
 **This is the flavor this repository currently builds.** The sandboxed flavor is described above
 because it is the intended second target, not because it exists yet; §8 says so.
 
-Both flavors are built from the same source with the same CI guards. The release page states which
-binary is which and publishes both hashes. Choosing the AX flavor is a deliberate trade of a kernel
-guarantee for a feature, and the download page says so in those words.
+Today there is one binary. If the sandboxed flavor is ever built, it will come from the same
+source with the same CI guards. The unsandboxed build trades a kernel guarantee for window titles
+and the updater, and this section is where that trade is written down.
 
 ---
 
@@ -724,7 +732,8 @@ never have to guess.
 │   ├── 2026-09-19.jsonl
 │   └── 2026-09-20.jsonl
 └── summaries/
-    └── 2026-09.json                   (mode 0600)  one object per day
+    ├── 2026-09.json                   (mode 0600)  one object per day
+    └── 2026-08.json.unreadable        only if that month stopped decoding; see below
 ```
 
 `counters.json` holds the day's budgets: how many notifications have been delivered, when
@@ -733,6 +742,13 @@ next cycle number. It exists because those were rebuilt from nothing on every la
 the "notifications per day" setting was never a real constraint for anyone who restarts the
 app. It is counts and one timestamp; it adds nothing to the inventory in §1.2 that the
 event log does not already hold, and nothing in it says what you were doing.
+
+`summaries/YYYY-MM.json.unreadable` exists only if a month's file stopped decoding. The next
+write moves the bad file aside instead of overwriting it, and a second failure in the same
+month goes to `.unreadable-2`, then `.unreadable-3`, so nothing already set aside is replaced.
+These files are never pruned and never read back, so badge evidence stops counting their days.
+They are still the JSON they were, so a month can be repaired by hand and renamed back.
+*Delete everything* removes them with the rest.
 
 There is no database, no binary blob, no `.sqlite`, and nothing encrypted or encoded. Formats were
 chosen so that `cat` is a complete audit tool.
@@ -774,7 +790,7 @@ Field reference:
 | `t` | string | ISO-8601 UTC, second resolution. Sub-second precision is deliberately discarded |
 | `e` | string | One of: `start`, `stop`, `focus`, `idle_begin`, `idle_end`, `lock`, `unlock`, `sleep`, `wake`, `display_sleep`, `display_wake`, `session_out`, `session_in`, `break_open`, `break_prompt`, `break_response`, `break_begin`, `break_end`, `cycle_close`, `gate` |
 | `app` | string? | Bundle identifier. Absent if app tracking is off |
-| `cat` | string? | One of `code`, `browse`, `meet`, `write`, `other` — from `categories.json` |
+| `cat` | string? | One of `code`, `browse`, `meet`, `other`, chosen in `AppModel.category(for:)` from the app's family |
 | `sig` | string? | Title signal. Present only if Accessibility fidelity is on. **Never the title itself** |
 | `idle_s` | int? | Length of the idle period that just ended |
 | `cycle` | int? | Which break opportunity this line belongs to, so counters scope to a cycle |
@@ -787,12 +803,12 @@ Field reference:
 | `deferred` | string? | On `break_prompt`, why it was withheld: one of the `GateReason` values |
 | `action`, `snooze_s` | | Break engine bookkeeping |
 
-Every one of those is a fixed enum in the source, not a free string. That matters more than
-it looks: the type's own doc comment claims there is no field in `LoggedEvent` that could
-hold a window title, and that this is enforced by the type rather than by review
-convention. `reason` and `deferred` were `String?` and quietly were that field. They are
-`SignalName?` and `GateReason?` now, with the same words on disk, so old logs still parse
-and the claim is true again.
+Every one of those is a fixed enum or a number in the source, apart from three strings: `app`
+holds a bundle identifier, `category` is one of four fixed words chosen from the app's family,
+and `sig` is written as `nil` on every focus event (§1.5). That matters more than it looks,
+because the claim here is that nothing in `LoggedEvent` carries a window title. `reason` and
+`deferred` were `String?` and quietly were that field. They are `SignalName?` and `GateReason?`
+now, with the same words on disk, so old logs still parse and the claim is true again.
 
 **Tier 2 adds no field here, and is not allowed to.** A branch name is free text by definition, so it
 has nowhere to go: the paragraph above is a property of `LoggedEvent`'s type and a branch would have
@@ -864,7 +880,10 @@ something you did should not disappear with the evidence for it; every badge is 
 from rows 16 and 17 of the inventory in §1.2, which were already being kept.
 
 If a line in the event log does not parse, the reader skips it and counts it; a corrupt file never
-crashes the app and never silently changes your history.
+crashes the app and never silently changes your history. A day file that is there but will not
+open is not read as an empty day. When today's numbers need it, the menu bar says "Could not read
+the event log for" that day, `--doctor` says the same, and no summary is computed from the gap,
+so a good one is never replaced by zeros. The export names every such day.
 
 **On ordering.** `t` is when the event happened, not when the line was written, and the
 file is in write order. A session end is discovered after the fact and carries the timestamp
@@ -940,43 +959,47 @@ Append-only with `0600`, one file per day, so retention is a file deletion rathe
 
 ### 4.5 Retention
 
-Defaults, all user-changeable in `settings.json`:
+| Data | Kept |
+|---|---|
+| Raw events | 7 days |
+| Daily summaries | until *Delete everything* |
+| Summary months set aside as `.unreadable` | until *Delete everything* |
+| Unlocked badges | until *Delete everything*, see below |
 
-| Data | Default | Range |
-|---|---|---|
-| Raw events | 7 days | 0 (memory-only mode) – 365 days |
-| Daily summaries | 90 days | 0 – forever |
-| Unlocked badges | kept | not pruned — see below |
-| Debug title ring | 20 entries, memory-only | fixed |
+The seven days are `Retention.defaultEventDays`, a constant. There is no retention setting in
+`settings.json`. This section used to offer one, with a range of 0 to 365 days, a memory-only
+mode, a 90-day window for summaries and a debug title ring. None of that was built, and nothing
+prunes a summary.
 
-Pruning runs at launch and once an hour. "0 days" for raw events is a real mode: the store becomes
-a no-op writer and only the in-memory engine state exists, so the app works and your disk stays
-clean. The summary job then aggregates from memory at midnight.
+Pruning runs at launch and then once an hour, measured on the continuous clock. The rule is
+one-sided: a day file is deleted only when its date is older than the window. This is the real
+code, `PruneMath` in `app/Sources/SigstopCore/Storage/Store.swift`:
 
 ```swift
-// app/Sources/Storage/Retention.swift
-func pruneEvents(olderThan days: Int, in eventsDir: URL, now: Date = Date()) throws {
-    guard days > 0 else {          // 0 == keep nothing; the writer is disabled upstream
-        try FileManager.default.contentsOfDirectory(at: eventsDir, includingPropertiesForKeys: nil)
-            .forEach { try FileManager.default.removeItem(at: $0) }
-        return
-    }
-    let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: now)!
-    let stamp = ISO8601DateFormatter.dayOnly.string(from: cutoff)   // "2026-09-13"
-    for url in try FileManager.default.contentsOfDirectory(at: eventsDir, includingPropertiesForKeys: nil)
-    where url.pathExtension == "jsonl" && url.deletingPathExtension().lastPathComponent < stamp {
-        try FileManager.default.removeItem(at: url)
-    }
+public static func cutoffDay(retentionDays: Int, asOf now: Date) -> CalendarDay? {
+    guard retentionDays > 0 else { return nil }
+    let today = CalendarDay.utc(of: now)
+    return today.adding(days: -(retentionDays - 1))
+}
+
+public static func shouldDrop(_ day: CalendarDay, cutoff: CalendarDay?) -> Bool {
+    guard let cutoff else { return true }
+    return day < cutoff
 }
 ```
 
-String comparison works here because the filenames are zero-padded ISO dates; the test
-`RetentionTests.swift` pins that assumption.
+Day files are named by their UTC date, so today and the six days before it survive. Because only
+the old side is pruned, a clock running slow can only delete less than it should. A day dated
+after today is never deleted, because that would trust today's clock over the file, and a slow
+clock would then delete real days. It is kept until its date passes, and `--doctor` lists it under
+"dated ahead". A clock that is ahead is the case this cannot protect: it moves the window forward
+and prunes days that are still inside the real one. `RetentionTests` pins the window, a clock
+three days behind, a clock reset to 2001, and a day dated 2030 that is kept and reported.
 
-`badges.json` is deliberately not pruned, and it is the one file here that is not. Pruning it would
-mean a badge vanishing a week after it was earned, which is the opposite of what a record of
-something you did is for. It stays a few hundred bytes whatever happens — ten ids and ten dates is
-its maximum size — and "Delete everything" removes it with the rest, because delete means delete.
+`badges.json` is deliberately not pruned either. Pruning it would mean a badge vanishing a week
+after it was earned, which is the opposite of what a record of something you did is for. It stays
+a few hundred bytes whatever happens, since ten ids and ten dates is its maximum size, and "Delete
+everything" removes it with the rest, because delete means delete.
 
 ### 4.6 Export and delete
 
@@ -986,21 +1009,26 @@ the log can hold; under it is every event on disk, verbatim, one JSON object per
 day. Nothing is transformed or filtered, so what you audit is what the app recorded. Settings, badges
 and the summaries are not in it: they are the plain files in §4.2, and `cat` is the export for those.
 
-**Delete everything** (one button in Settings → Data, one confirmation): removes the storage directory recursively,
-resets in-memory state, and reports what it removed. The dialog also tells you the two things the
-app cannot clean up itself, because no app can:
+**Delete everything** (one button in Settings → Data, one confirmation): removes the storage
+directory recursively and the settings file, puts the default settings back everywhere they
+apply (the break policy, the sensors, the permission status), resets the call-hold latch and the
+in-memory counters, and reports what it removed. The app keeps running, so the report says a new,
+empty log starts at once. It also tells you the two things the app cannot clean up itself,
+because no app can:
 
 ```
 Deleted: ~/Library/Application Support/<BUNDLE_ID>  (23 files, 412 KB)
+Removed 555 events across 7 day(s).
+sigstop is still running, so a new, empty log starts from now.
 
 Two things this app cannot remove for you:
   • The Accessibility permission you granted. Remove it in
     System Settings → Privacy & Security → Accessibility,
     or run:  tccutil reset Accessibility <BUNDLE_ID>
   • System log entries macOS wrote. Run:  sudo log erase --all   (clears the whole system log)
-```
 
-There is no "archive", no tombstone, no soft delete, and no copy kept anywhere.
+There is no archive, no tombstone, no soft delete, and no copy kept anywhere.
+```
 
 ---
 
@@ -1090,15 +1118,15 @@ concrete objection in the quoted text is either answered or admitted:
 |---|---|
 | "reveals your app version" | Answered. The user agent is overridden to the constant `sigstop`; `SUEnableSystemProfiling` is off. The version comparison happens on your machine against a file that is the same for everyone |
 | "on a schedule that correlates with when your machine is awake" | Answered outright. There is no schedule. The app writes Sparkle's scheduling flag off on every launch, so there is no daily check, no launch check and no toggle that could turn one on |
-| "reveals your IP address and a timestamp" | **Admitted. Not fixable.** Any HTTPS request does this. If it matters to you, never press the button, and use Homebrew. Nothing else in the app will make the request for you |
+| "reveals your IP address and a timestamp" | **Admitted. Not fixable.** Any HTTPS request does this. If it matters to you, never press the button, and download releases yourself. Nothing else in the app will make the request for you |
 | "to a server that can log it" | Admitted, and defanged where it counts: the server cannot make you install anything, because of §2.8 |
 
 **What did NOT change.** There is still no telemetry, still no payload, still nothing about you in
 the request. "The app can now fetch an update" is not a licence for "the app can now report."
 §5.2 is still a no.
 
-**The other distribution routes still exist and are still the most private option.** Homebrew cask
-and GitHub Releases both work, and in both cases the network request is made by a tool you chose at
+**The other routes still exist and are still the most private option.** Downloading from GitHub
+Releases and building from source both work, and in both cases the network request is made by a tool you chose at
 a moment you chose. The in-app updater is for the people who would otherwise never update at all,
 which — the old text was right about this — is most people.
 
@@ -1267,7 +1295,7 @@ app/Sources/
 
 app/Scripts/verify.sh                 the guard. Runs in CI on every push
 .github/scripts/check-ax-isolation.py keeps Accessibility in the two files named above
-.github/scripts/check-corpus.py       the humour rails, HANDBOOK.md §4.5
+.github/scripts/check-corpus.py       the humour rails, CLAUDE.md §4.5
 .github/workflows/ci.yml              runs all of the above, plus the test suite
 ```
 
@@ -1310,20 +1338,19 @@ runs every assertion against each slice.
 
 What is offered, honestly:
 
-- The build is pinned: exact Xcode version, exact macOS SDK, `SOURCE_DATE_EPOCH` set from the git
-  commit date, no timestamps in resources, deterministic resource ordering. `make verify-build`
-  builds twice in separate directories and diffs.
-- Release notes publish the SHA-256 of the notarized `.dmg`, of the `.app` bundle, and of the
-  **unsigned, signature-stripped** main binary:
-  `codesign --remove-signature` on a copy, then `shasum -a 256`.
-- The third hash is the one you can reproduce. The signature embeds a certificate and a secure
-  timestamp that you cannot reproduce without the signing key, so the `.dmg` hash can only be
+- There is no `make verify-build`, no `SOURCE_DATE_EPOCH` and no pinned Xcode. This bullet used to
+  promise all three.
+- The release notes publish no hashes. They are generated from commit subjects and hold nothing
+  else (`docs/RELEASING.md` §0.5). `make dmg` and `release.sh` print the SHA-256 of the image
+  they built.
+- The hash you can try to reproduce is the main binary's with its signature stripped:
+  `codesign --remove-signature` on a copy, then `shasum -a 256`. The image's hash can only be
   compared, not recreated.
 
 What cannot be promised: bit-identical signed artifacts, and full independence from Apple's
 toolchain. Swift's compiler is not guaranteed deterministic across patch releases, so a mismatch may
-mean "different Xcode" rather than "tampered". The build workflow therefore records the exact
-toolchain build number in the release notes. See §8.4.
+mean "different Xcode" rather than "tampered". The release notes cannot record the toolchain build
+number, because they hold only commit subjects. See §8.7.
 
 ---
 
@@ -1335,7 +1362,7 @@ toolchain, and physical access to an unlocked machine.
 
 | # | Threat | Actor | Structural defense | Residual risk |
 |---|---|---|---|---|
-| 1 | A contributor adds an analytics or "crash reporting" call | Maintainer under commercial pressure, or a contributor | `make verify` fails on any networking symbol in the app's own binary, on any URL literal outside the allowlist, and on ~25 analytics and crash-reporting SDKs by name, checked against the built bundle | Someone with merge rights can also edit the check. Mitigation: `app/Scripts/verify.sh` lives in a `CODEOWNERS`-protected path requiring two approvals |
+| 1 | A contributor adds an analytics or "crash reporting" call | Maintainer under commercial pressure, or a contributor | `make verify` fails on any networking symbol in the app's own binary, on any URL literal outside the allowlist, and on ~25 analytics and crash-reporting SDKs by name, checked against the built bundle | Someone with merge rights can also edit the check. There is no `CODEOWNERS` file, so nothing but review protects `app/Scripts/verify.sh`; it runs in CI on every push, so an edit to it is at least visible |
 | 2 | A dependency ships a malicious update | Upstream package | **Exactly one third-party runtime dependency: Sparkle, pinned with `exact:` rather than a range, so a new upstream tag cannot enter a build without a commit that says so.** It is attached to `SigstopApp` only; `SigstopCore` and `SigstopSensors` remain dependency-free, and `make verify` asserts Sparkle is the only embedded framework | A malicious Sparkle release that someone then deliberately bumps to. Mitigation is the pin plus review of the bump. The argument for admitting the dependency at all is in CLAUDE.md §5 |
 | 3 | Code is loaded at runtime that was never reviewed | Attacker with write access to the bundle | `disable-library-validation` and `allow-unsigned-executable-memory` are absent and `make verify` fails if they appear. No `dlopen`, no plugin directory, no bundle loading, no JavaScriptCore | **Weakened.** Hardened Runtime is no longer enabled in the default ad-hoc build, because Library Validation cannot coexist with an embedded framework when neither has a Team ID (§2.9). `HARDENED=1 make bundle` restores it for anyone with a Developer ID. An attacker who can rewrite `/Applications` could inject a library — though they could equally replace the binary outright |
 | 3b | A malicious update is served to users | Attacker who compromises GitHub, the CDN, or the network path | **EdDSA signature verification (§2.8).** The private key is in the maintainer's login keychain only; the public key is compiled into the app; Sparkle refuses an archive whose signature does not verify | Theft of the private key. Rotation does not reach installs that already hold the old public key. `docs/RELEASING.md` §6 |
@@ -1344,7 +1371,7 @@ toolchain, and physical access to an unlocked machine.
 | 6 | Exfiltration without a socket (open a URL, spawn `curl`, AppleScript another app) | Contributor | Forbidden-symbol guard covers `NSWorkspace.open` call sites, `Process`, `NSTask`, `posix_spawn`, `NSAppleScript`; the URL-literal allowlist in `make verify` catches a smuggled collector endpoint | A URL assembled at runtime from string fragments could evade the literal check. Partially mitigated: `NSWorkspace.open` may only be called with values from the `Links` enum, enforced by the URL allowlist |
 | 6b | Exfiltration *through* the update request | Contributor | The feed URL is a plist constant with no query string; `SUEnableSystemProfiling` is off and asserted by `make verify`; the user agent is overridden to a constant carrying no version; there is no second endpoint and the allowlist check fails if one appears | A contributor could add a delegate that appends feed parameters. That would be a visible code change to one file, and would have to survive review against this row |
 | 7 | Another local process reads the event log | Malware running as the user | Files are `0600` in a `0700` directory; the sandboxed flavor's container is additionally protected by the sandbox and by TCC's "app data" protections on recent macOS | Any process running as you can read your files. App-level encryption would not help, because the key would have to be available to the app as the same user. FileVault is the real defense. See §8.5 |
-| 8 | Supply-chain attack on the release artifact | Attacker with repo or CI access | **EdDSA signing, done on the maintainer's machine from a key that is never in the repository or in CI.** An attacker with full repository and CI access can therefore publish a release and still cannot produce one the app will install. Hashes are published in release notes; the Homebrew cask carries its own `sha256` which the tap must also update | A compromised signing key defeats this. There is no Developer ID and no notarization to fall back on (§8.1), so the EdDSA key is the single point of failure and is treated as one in `docs/RELEASING.md` |
+| 8 | Supply-chain attack on the release artifact | Attacker with repo or CI access | **EdDSA signing, done on the maintainer's machine from a key that is never in the repository or in CI.** An attacker with full repository and CI access can therefore publish a release and still cannot produce one the app will install. The release notes carry no hashes (§6.5). | A compromised signing key defeats this. There is no Developer ID and no notarization to fall back on (§8.1), so the EdDSA key is the single point of failure and is treated as one in `docs/RELEASING.md` |
 | 9 | Data reconstruction from an old backup | Anyone with your Time Machine disk | Retention defaults are short (7 days); the storage path is an ordinary user path, so it honors any backup exclusions you set | The app does not and should not set backup exclusions on your behalf. Documented, not defended |
 | 10 | Someone infers sensitive facts from your event log (therapy appointments, job hunting) | A person with access to your machine | Only bundle IDs, not titles or URLs; short retention; one-click delete; the whole log is human-readable so you can see the inference risk yourself | Bundle IDs alone can be revealing (a job-board app, a health app). If that matters to you, disable app tracking and run the pure timer |
 
@@ -1365,8 +1392,8 @@ conclusive test, and it only proves what happened while it was watching.
 
 **8.1b The update channel reveals your IP address and the time you checked.** Not to this project —
 there is no server here — but to GitHub, which serves the file. No client-side choice avoids it. If
-that matters, leave the daily check off, never press the button, and install and upgrade through
-Homebrew instead. The app makes no request at all unless you ask it to.
+that matters, never press the button, and download releases yourself or build from source. The app
+makes no request at all unless you ask it to.
 
 **8.1c The EdDSA private key is a single point of failure.** Update integrity rests entirely on it,
 because the build has no Developer ID and no notarization to fall back on. If it is stolen, an
@@ -1408,11 +1435,11 @@ the unified log; the app logs no bundle identifiers at default level and marks d
 an app behavior, and the app cannot suppress it.
 
 **8.7 Reproducible builds are partial.** Signed artifacts are not bit-reproducible. Only the
-signature-stripped binary hash can be independently recreated, and only with the exact pinned
+signature-stripped binary hash can be independently recreated, and only with the exact same
 toolchain.
 
-**8.8 Installing and upgrading makes network requests whichever route you take.** Through Homebrew
-it is Homebrew contacting GitHub; through the in-app updater it is this app contacting GitHub. The
+**8.8 Installing and upgrading makes network requests whichever route you take.** Through a browser
+or `git` it is you contacting GitHub; through the in-app updater it is this app contacting GitHub. The
 difference between those is agency and auditability, not the absence of packets, and this document
 says so rather than claiming "zero network, period."
 
@@ -1467,8 +1494,11 @@ you were typing *somewhere* — including in apps you have excluded from trackin
 
 This file is versioned with the code. Any change to the data inventory, permissions, retention
 defaults, or the network position requires a PR that also updates §1 and that carries the
-`privacy-impacting` label; `CODEOWNERS` requires two approvals on that path. The release notes call
-out any such change in the first line, not in a footnote.
+`privacy-impacting` label. There is no `CODEOWNERS` file, so no second approval is enforced. The
+release notes hold nothing but commit subjects, and only commits that change what ships are
+eligible, so they cannot call such a change out, and a change to this file alone does not reach
+them at all. This file and §9.1 are
+where the change is recorded.
 
 ### 9.1 Changelog of positions
 

@@ -617,12 +617,11 @@ preserved, not consumed and not fired stale. The work clock's own behavior durin
 governed by §4 rows 6 and 7, independently.
 
 This paragraph used to say `totalElapsed` pauses too. It does not: `handleBreakDue` adds `dt` to it
-unconditionally, before the verdict is even computed, and the comment on `BreakDue.totalElapsed`
-calls this document out by name. §7.4 depends on the code's behaviour, not on the old sentence, so
-the doc was the bug and this is the fix. It matters more now that the call latch makes long hard
-blocks ordinary: a cycle that spends an hour blocked hits the stale ceiling and is abandoned as an
-*excluded* opportunity, which is what stops a call quietly turning into a prompt nobody asked for
-an hour later.
+unconditionally, before the verdict is even computed. §7.4 depends on the code's behaviour, not on
+the old sentence, so the doc was the bug and this is the fix. It matters more now that the call
+latch makes long hard blocks ordinary: a cycle that spends an hour blocked hits the stale ceiling
+and is abandoned as an *excluded* opportunity, which is what stops a call quietly turning into a
+prompt nobody asked for an hour later.
 
 Also true, and worth stating because nothing else in this document does: while hard-blocked, **a
 prompt already on screen is withdrawn** (`WithdrawReason.blocked`) and the prompt stamp is cleared
@@ -746,22 +745,23 @@ Summary of the two extremes and the specific mechanisms against each:
 | Passive menu-bar indicator (icon state + title) | no | **always**, including quiet hours, DND, daily cap, hard blocks |
 | Standard notification (`.active`, silent by default) | yes | not hard-blocked, not rate-limited |
 | Notification with sound | yes | escalation level 3+ only, never twice in a cycle, and never while a microphone or camera is live |
-| Panel / HUD overlay (dismissible, non-modal, never key-window-stealing, never fullscreen) | yes | escalation level 4 only; downgraded to a notification on battery < 20 % or Low Power Mode |
+| Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 on AC power, and any rung the system will not show as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears. Level 4 becomes a notification on battery < 20 % or Low Power Mode |
 
-Nothing in the app is ever modal, ever blocks input, or ever takes keyboard focus. There is no
+Nothing in the app is ever modal, and the panel never activates the app. It does cover every
+display until it is answered, and *Ignore it* is always one of its answers, so there is no
 configuration in which the app can prevent the user from working.
 
 Live capture suppresses the sound channel for the same reason low battery does, and it matters more
 now that §7.1.1 lets a prompt reach a Mac with a microphone open: the rung still arrives, it just
 does not chime into somebody's recording.
 
-**One correction to the row above, which the implementation got wrong for a while.** When system
-notifications are off, which is the default, every rung is drawn by the app itself, because there is
-no other channel. That is fine; what was not fine is that the panel was built at `screen.frame` on
-every display and filled at 78 % black, so an L1 `SIGTSTP` blacked out the machine. Below level 4
-the app's own prompt is a card in the corner of one screen. Level 4 takes every display, and that is
-the only rung that does, because `SIGSTOP` is the one the product says cannot be ignored and the
-bluff has to cost something.
+**Every rung is full screen.** When system notifications are off, which is the default, every rung
+is drawn by the app itself, because there is no other channel. This section used to say that below
+level 4 that drawing is a card in the corner of one screen. It is not, and no corner card exists in
+the code: every rung is a panel built at `screen.frame` on every display and filled at 78 % black,
+so an L1 `SIGTSTP` covers the machine exactly as `SIGSTOP` does. What separates the rungs is what
+the panel offers. A rung whose channel is a notification (L1 to L3, and L4 on low power) offers the
+notification's answers, as §9 lists. L4 on AC power offers *Take it* and *Ignore it*.
 
 ### 7.6 Low battery
 
@@ -991,7 +991,17 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   does not call it. Escape and *Not now* leave the prompt standing in the engine: it times out after
   `promptTimeout` and the ladder climbs, which is what §10 means by ignored and what the product
   means by a rung you are allowed to catch.
-- **The same answers with or without notification permission.** When notifications are denied, the L1 prompt is drawn as a panel instead, and that panel offers what the notification would have: *Take it*, *Snooze* when `snoozeOffered` is not empty, *Skip*, and *Ignore it*. It used to offer only *Take it* and *Ignore it*, which made Skip and Snooze unreachable without a permission, against CLAUDE.md §4.2. Both surfaces label Skip with what it costs, `rearmAfterSkip` read from the policy: *Skip, quiet for 20m*.
+- **The same answers with or without system notifications.** Any rung whose channel is a
+  notification (L1, L2, L3, and L4 on low power) is drawn as a panel when system notifications are
+  off, which is the default, or denied, and that panel offers what the notification would have:
+  *Take it*, *Snooze (SIGALRM)* when `snoozeOffered` is not empty, *Skip*, and *Ignore it*. L4 on
+  AC power is a panel by channel and offers *Take it* and *Ignore it*, so whether L4 offers Skip
+  depends on the power state. The stand-in panel used to offer only *Take it* and *Ignore it*,
+  which made Skip and Snooze unreachable without a permission, against CLAUDE.md §4.2. Both
+  surfaces label Skip with what it costs, `rearmAfterSkip` read from the policy: *Skip, quiet for
+  20m*.
+- **An ignored prompt keeps the snoozes already used.** The count travels into `ignored` and back,
+  so letting a prompt time out cannot reset the per-cycle cap. `SnoozeCapTests` pins it.
 - **Skip leaves `consecutiveIgnoredCycles` alone.** It used to reset it, which made waving a prompt
   off worth as much to the ladder backoff as taking the break, while the same act still counted
   against compliance. It is an answer, so it is not an ignore; it is not a break, so it does not earn
@@ -1120,9 +1130,13 @@ are three different claims:
 Deadlines in it are wall-clock times and never countdowns, and every one of them comes from a value
 the engine already holds (`cooldownUntilMono`, `snoozeUntil`, `plannedEnd`, `pausedUntil`, the quiet
 window, the audio ceiling). Nothing is scheduled to make them true and nothing polls. They are
-rendered in the reader's locale, short style, which is the style the panel's own subtitle one row
-above uses; the 24-hour `HH:mm` form is reserved for the quiet-hours window, where the reader is
-comparing two ends of a range against the settings field that produced it.
+rendered short style through `DisplayLocale.english(from:)`: English with Latin digits, keeping the
+reader's region and 12 or 24 hour clock, which is what the menu bar subtitle one row above uses. An
+Arabic or Persian Mac would otherwise print native digits inside an English sentence. Every clock
+and number the app prints goes through the same locale: the corpus slots, `WaitingLine`, the menu
+bar subtitle and every SwiftUI root. The 24-hour `HH:mm` form is reserved for the quiet-hours
+window, where the reader is comparing two ends of a range against the settings field that produced
+it.
 
 **Nothing is checked ahead of the state.** The confirmation that "ignore this input device" worked
 used to be, and it therefore answered for every state for the full 30 minutes of the inhibit: on the
@@ -1186,14 +1200,16 @@ struct QuietHours: Codable, Equatable {
 
 ## 13. Persistence & recovery
 
-- Local store (SQLite via GRDB or Core Data) in the app container. Nothing here is ever uploaded,
-  and the app's own binary references no networking symbol at all (`docs/PRIVACY.md` §2.7).
+- Local store: plain JSON files under Application Support, one append-only event file per day
+  (`docs/PRIVACY.md` §4). Nothing here is ever uploaded, and the app's own binary references no
+  networking symbol at all (`docs/PRIVACY.md` §2.7).
 - Persisted: session records, classified gaps, break records, cycle outcomes, per-minute app
   attribution buckets (bundle id + credited seconds), daily counters.
 - Not persisted: raw idle samples, keystroke timings, window titles, URLs.
 - The last tick timestamp is written every 15 s. On launch, the gap since it is classified by §4 row 16,
   so a crash, a force-quit, or a reboot resolves as an ordinary gap rather than as fabricated work.
-- Retention default 90 days, user-configurable, with a one-click erase.
+- Raw events are kept 7 days, a constant rather than a setting. Summaries and badges are kept until
+  *Delete everything*, the one-click erase (`docs/PRIVACY.md` §4.5).
 
 ---
 
@@ -1201,7 +1217,7 @@ struct QuietHours: Codable, Equatable {
 
 ```swift
 struct DailySummary: Codable, Equatable {
-    let day: DateComponents               // local y/m/d, day boundary at 04:00
+    let day: CalendarDay                  // Gregorian y/m/d, user time zone, boundary 04:00
 
     let codingTime: TimeInterval          // credited active work across all sessions
     let activeWorkByActivity: [ActivityType: TimeInterval]
@@ -1229,6 +1245,15 @@ struct DailySummary: Codable, Equatable {
     }
 }
 ```
+
+**The day is Gregorian, whatever calendar the Mac uses.**
+`CalendarDay.local(of:calendar:boundaryHour:)` takes only the time zone from the caller's calendar.
+It numbers the day in Gregorian y/m/d, starting at the boundary hour, and never in the era of
+`Calendar.current`. It has to: the store finds a day's events by loading the event files dated the
+day before, the day itself and the day after, and those file names are Gregorian dates in UTC.
+Measured on the same instant: the writer files it under `2025-09-22`, and Islamic Umm al-Qura
+calls it `1447-03-30`, a file that never exists. `interval(boundaryHour:calendar:)` makes the same
+substitution, and `CalendarSystemTests` pins both.
 
 ### 14.1 Definitions, exactly
 

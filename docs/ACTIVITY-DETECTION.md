@@ -233,9 +233,10 @@ Three jobs, and it is used for nothing else:
    an interruption bug. And the empty reading has to hold for 30 s before it drops a block, because
    the per-object listener's latency against the device property has never been measured.
 
-   What this does **not** cover, said plainly because the collector's own doc comment names Krisp
-   first: Krisp is an app and holds input through its own process, so the table is not empty and
-   attribution buys nothing there. That case is covered by the Core ceiling in §7.1.1, not here.
+   What this does **not** cover, said plainly because `AudioDeviceCollector`'s own warning names
+   Krisp first: Krisp is an app and holds input through its own process, so the table is not
+   empty and attribution buys nothing there. That case is covered by the Core ceiling in §7.1.1,
+   not here.
 
 Caveats that do not go away, and are printed in `--doctor` rather than smoothed over:
 

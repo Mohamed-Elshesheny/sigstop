@@ -1013,9 +1013,14 @@ Humor does not translate; it gets rewritten. The format is built for that.
   Reading a ROAST in a second language reads meaner than it is; clamping is the cheap fix.
 - **Slots are named, never positional.** `{branch}`, not `%@` or `%1$s`. Translators can
   reorder freely, and the lint's slot invariant still applies per locale.
-- **Numbers and times format at fill time.** `{minutes}`, `{count}`, `{streak}` go through
-  `NumberFormatter`; `{hour}` through `Date.FormatStyle` with the user's locale and 12/24h
-  preference. Never `"\(minutes)"`.
+- **Numbers and times format at fill time, in English with Latin digits.** `{minutes}` and
+  `{streak}` are formatted as numbers and `{hour}` through `Date.FormatStyle`, all with the
+  locale `DisplayLocale.english(from:)` builds: English, Latin digits, and the user's region and
+  12 or 24 hour clock. An Arabic or Persian Mac would otherwise put native digits inside an
+  English sentence. Every clock and number the app prints uses the same locale: these slots,
+  `WaitingLine`, the menu bar subtitle and every SwiftUI root. That is right for the one pack
+  that ships, `en-US`, and a pack in another language would have to change it. Never
+  `"\(minutes)"`.
 - **Plurals use the `plural` map**, keyed by slot and CLDR category — the JSON equivalent of
   a `.stringsdict`. English needs `one`/`other`; Arabic, Polish and Russian need more, and the
   schema already accepts all six categories.
@@ -1037,8 +1042,8 @@ Humor does not translate; it gets rewritten. The format is built for that.
 1. **Activity inference accuracy is unmeasured.** The confidence thresholds in §6 are
    reasoned, not fitted. They need calibration against labeled sessions before the 0.85 tier
    can be trusted; until then, ship conservative (raise floors, accept more generic lines).
-2. **The ledger's 72h cooldown assumes a ~40-line-per-context corpus.** With the 139-line
-   starter corpus, a heavy user in one app will hit relaxation stage 2–3 within a week. Either
+2. **The ledger's 72h cooldown assumes a ~40-line-per-context corpus.** With the 187-line
+   corpus, a heavy user in one app will hit relaxation stage 2–3 within a week. Either
    the corpus grows or the cooldown shortens — instrument before choosing.
 3. **NUCLEAR opt-in default.** Defaulting it off means most users never see the best lines;
    defaulting it on risks a bad first impression. Suggest: off by default, offered explicitly

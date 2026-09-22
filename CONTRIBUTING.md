@@ -24,7 +24,7 @@ window title as `readable` only when the process is genuinely trusted.
 git clone https://github.com/Mohamed-Elshesheny/sigstop
 cd sigstop/app
 make run      # build, bundle, launch
-make test     # 281 tests, no GUI session required
+make test     # the badge export check, then the suites; no GUI session required
 make doctor   # exactly what the app can observe right now
 make verify   # assert the privacy properties against the built binary
 ```
@@ -60,11 +60,13 @@ To test one, construct a `SignalContext` literal.
 2. Declare its `AppClaim`s. Resolution ranks exact bundle id > prefix > executable name, so
    `com.jetbrains.` covers the family.
 3. Confirm the bundle id rather than inventing it: `osascript -e 'id of app "Zed"'`. If you
-   cannot, mark it `// UNVERIFIED`.
+   cannot, cap the verdict low with `ProviderVerdict.maximumConfidence` and add the id to the
+   table in `docs/ACTIVITY-DETECTION.md` §5.6 marked ⚠️ UNVERIFIED. That table is where
+   verification status lives; Swift source carries no comments, so there is nowhere else.
 
 ## Writing a joke
 
-The 155 lines live in `app/Sources/SigstopCore/Message/corpus.json` with structured
+The 187 lines live in `app/Sources/SigstopCore/Message/corpus.json` with structured
 preconditions, so a line can fire only in the situation it is about:
 
 ```json
@@ -104,7 +106,9 @@ that it has to.
 ## Commits and PRs
 
 [Conventional Commits](https://www.conventionalcommits.org). Types: `feat` `fix` `refactor`
-`perf` `docs` `test` `build` `ci` `chore`. Scopes: `core` `sensors` `app` `docs`.
+`perf` `docs` `test` `build` `ci` `chore`. Scopes: `core` `sensors` `app` `docs` `ui`.
+`ui` files a `feat`, `fix` or `perf` under 🎨 UI in the release notes, as does any such change
+whose shipped files are all under `SigstopApp/Views/` or are `Scripts/dmg.sh`.
 
 **Keep them short.** Most commits are a subject line. A body is for the one thing the diff
 cannot say, two or three lines.

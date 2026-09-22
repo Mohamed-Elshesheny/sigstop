@@ -78,7 +78,8 @@ moment it is fixed. That is the whole list of exceptions.
 ## 0.5 What the notes say
 
 Sections and bullets, generated from the log by `Scripts/changelog.py`. The format and the rules
-are CLAUDE.md §9; `release.sh` refuses to publish notes with any other kind of line in them.
+are CLAUDE.md §9; `release.sh` refuses to publish notes with any other kind of line in them. There
+is no prose in them, so nothing can be said in the notes that is not a commit subject.
 
 ## 1. What makes this safe, in one paragraph
 
@@ -252,14 +253,18 @@ make release VERSION=0.2.0 NAME="Wood Frog 🐸"
 
 In order, it:
 
-1. runs `make test`, `make verify-shipped` and the `Scenarios` harness, and stops on any failure;
-2. builds the disk image with `UNIVERSAL=1`, and `dmg.sh` **refuses a single-slice bundle** — 0.1.0
-   went out arm64 only under release notes promising Intel, and this is the check that replaced the
-   good intentions;
-3. runs `Scripts/appcast.sh`, which signs the image just built and writes `updater/appcast.xml`,
+1. builds the notes from the commit subjects since the last tag and checks them before anything
+   is built: headings and bullets only, and at least one bullet, or there is nothing to release;
+2. runs `make test`, then `make verify-shipped`, which builds the universal bundle and checks it,
+   then `Scripts/smoke.sh` on that same bundle, then `Scripts/intel-slice.sh` (§3.0), then the
+   `Scenarios` harness, and stops on any failure;
+3. packs that same bundle with `Scripts/dmg.sh` and `STRICT_LAYOUT=1`. `dmg.sh` **refuses a
+   single-slice bundle**, because 0.1.0 went out arm64 only under release notes promising Intel, and
+   with `STRICT_LAYOUT=1` it refuses to ship an unstyled window when Finder will not lay it out;
+4. runs `Scripts/appcast.sh`, which signs the image just built and writes `updater/appcast.xml`,
    then commits it. **This happens before the tag**, so a release whose feed cannot be signed fails
    with nothing published rather than after the announcement;
-4. tags, pushes the tag, and creates the GitHub release with both disk image names — the stable
+5. tags, pushes the tag, and creates the GitHub release with both disk image names: the stable
    `sigstop.dmg` the site links to, and the versioned one a human can read a year later.
 
 Then push `main`, which is what publishes the feed:
@@ -432,10 +437,10 @@ codesign --verify --deep --strict dist/sigstop.app
 ```
 
 Do **not** run `make bundle` again after step 3: it re-runs `swift build` and copies the
-native-only product back over the fat one, silently undoing all of it. If you would rather not carry
-this dance, ship arm64-only and say so in the release notes. Shipping arm64-only by accident, while
-the appcast quietly tells every Intel user there is no update, is the outcome this paragraph exists
-to prevent.
+native-only product back over the fat one, silently undoing all of it. There is no arm64-only
+release to fall back on: `dmg.sh` refuses a single-slice bundle, and the notes hold no prose that
+could say so. Shipping arm64-only by accident, while the appcast quietly tells every Intel user
+there is no update, is the outcome this paragraph exists to prevent.
 
 Sparkle's own framework is already universal, so nothing else needs doing.
 
@@ -443,8 +448,9 @@ Sparkle's own framework is already universal, so nothing else needs doing.
 
 **Assuming Gatekeeper protects anything here.** It does not. There is no Developer ID. `spctl` will
 not say "Notarized Developer ID" and users will see the unidentified-developer dialog on first
-launch. The EdDSA signature is what protects updates; say so in the release notes rather than letting
-people assume Apple is checking.
+launch. The EdDSA signature is what protects updates. The notes carry only commit subjects, so that
+is said in `docs/PRIVACY.md` §2.8, which is where a reader who wonders whether Apple is checking
+should be sent.
 
 ---
 
@@ -465,11 +471,8 @@ already have. Do all of these, in this order:
 1. Publish a security advisory on the repository. Loudly. Before anything else.
 2. Generate a new key pair (§2.3, after deleting the compromised keychain item).
 3. Ship a new release carrying the new `SUPublicEDKey`, distributed **by hand**: GitHub release,
-   Homebrew cask, and the website. Not through the in-app updater, which the attacker can also
-   reach.
-4. Get the Homebrew cask updated, since `brew upgrade` is the route most likely to reach people who
-   are not reading advisories.
-5. Take the old appcast down, so the compromised feed URL serves nothing rather than serving what the
+   and the website. Not through the in-app updater, which the attacker can also reach.
+4. Take the old appcast down, so the compromised feed URL serves nothing rather than serving what the
    attacker put there.
 
 Note what is *not* on that list: revoking anything. There is no certificate authority in this design
