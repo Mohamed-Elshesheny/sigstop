@@ -7,8 +7,26 @@ enum Doctor {
 
     static func run() async {
         for line in await report() {
-            print(line)
+            print(visible(line))
         }
+    }
+
+    static func visible(_ line: String) -> String {
+        var out = ""
+        for scalar in line.unicodeScalars {
+            let reorders = (0x202A...0x202E).contains(scalar.value) || (0x2066...0x2069).contains(scalar.value)
+            switch scalar.properties.generalCategory {
+            case .control, .lineSeparator, .paragraphSeparator:
+                out += "\\u{\(String(scalar.value, radix: 16, uppercase: true))}"
+            case .format where reorders:
+                out += "\\u{\(String(scalar.value, radix: 16, uppercase: true))}"
+            case .format:
+                continue
+            default:
+                out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
     }
 
     static func report() async -> [String] {
