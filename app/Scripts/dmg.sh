@@ -50,9 +50,9 @@ MOUNT="/Volumes/${VOLUME}"
 # between these exact points, so the two files have to agree and there is a check below.
 ICON_X_APP=165
 ICON_X_APPLICATIONS=435
-ICON_Y=148
+ICON_Y=195
 WINDOW_W=600
-WINDOW_H=400
+WINDOW_H=320
 
 [ -d "${BUNDLE}" ] || { echo "error: ${BUNDLE} not found, run make bundle first" >&2; exit 1; }
 
@@ -122,7 +122,7 @@ tell application "Finder"
     set the bounds of container window to {200, 140, ${WINDOW_W} + 200, ${WINDOW_H} + 140 + 28}
     set theOptions to the icon view options of container window
     set arrangement of theOptions to not arranged
-    set icon size of theOptions to 76
+    set icon size of theOptions to 92
     set background picture of theOptions to file ".background:backdrop.png"
     set position of item "${APP_NAME}.app" of container window to {${ICON_X_APP}, ${ICON_Y}}
     set position of item "Applications" of container window to {${ICON_X_APPLICATIONS}, ${ICON_Y}}

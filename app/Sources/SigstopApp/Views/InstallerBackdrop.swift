@@ -20,9 +20,9 @@ struct InstallerBackdrop: View {
 
     /// Where Finder is told to put the two icons, in the window's own coordinates. The
     /// arrow is drawn between them, so the two have to agree.
-    static let appIcon = CGPoint(x: 165, y: 205)
-    static let applicationsIcon = CGPoint(x: 435, y: 205)
-    static let size = CGSize(width: 600, height: 400)
+    static let appIcon = CGPoint(x: 165, y: 195)
+    static let applicationsIcon = CGPoint(x: 435, y: 195)
+    static let size = CGSize(width: 600, height: 320)
 
     /// The light palette, fixed rather than resolved.
     ///

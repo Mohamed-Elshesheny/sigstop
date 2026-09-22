@@ -95,17 +95,17 @@ if [ -s Resources/RELEASE_HIGHLIGHTS.md ]; then
   echo "    highlights used and cleared"
 fi
 
-NOTES="$(cat <<EOF
-${CHANGES}
-
----
-
-\`sigstop.dmg\` · macOS 14+ · Apple Silicon and Intel · \`${SHA}\`
-
-[How to install it](https://github.com/${REPO}#install), including what to do about the
-first-launch refusal, and how to build it yourself instead.
-EOF
-)"
+# The notes are what changed and nothing else.
+#
+# They used to end with the filename, the platforms, the checksum and a link to the install
+# steps, on every tag. GitHub already prints the asset and its size under the notes, the
+# platforms have not changed since the first release, and the install steps are in the
+# README where somebody looks for them. None of it answered the question a release page is
+# opened to answer, and all of it pushed the answer further up the scrollbar.
+#
+# The checksum is still published, in `dist/` and in this script's own output, for anyone
+# cutting or auditing a build. It is not a line a downloader reads.
+NOTES="${CHANGES}"
 
 echo "==> tagging ${TAG}"
 git tag -a "${TAG}" -m "${TAG} ${NAME}"
