@@ -3,8 +3,9 @@
 # is the part that notices.
 #
 # Swift is here too, for the one dependency the app has. A bump to Sparkle is a security
-# question, not a chore, and CLAUDE.md §5 says an exact pin: a pull request that proposes
-# the new one and is read by a person is exactly the shape that argument wants.
+# question, not a chore, and the rules table in CONTRIBUTING.md says an exact pin: a pull
+# request that proposes the new one and is read by a person is exactly the shape that
+# argument wants.
 version: 2
 updates:
   - package-ecosystem: "github-actions"

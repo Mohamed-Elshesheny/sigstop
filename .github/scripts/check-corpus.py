@@ -5,9 +5,8 @@ It did not. Section 4.4 described a `swift package corpus-lint` plugin, twelve h
 checks, four warnings and a `Lint/banned-lexicon.json`, run on every pull request
 touching `docs/corpus-*.json` or `Resources/packs/**`. There was no plugin, no lexicon,
 no schema, no packs directory and no CI step, and the corpus lives at neither of those
-paths. CLAUDE.md 4.5 points at that section as the thing enforcing the humour rails, so
-the project's stated safety net for the one part of it that can hurt somebody was a
-paragraph.
+paths. The humour rails named that section as the thing enforcing them, so the project's
+stated safety net for the one part of it that can hurt somebody was a paragraph.
 
 This is the real one, against the corpus that actually ships. It is smaller than the
 paragraph: the checks that assume a field the corpus does not have are not here, and

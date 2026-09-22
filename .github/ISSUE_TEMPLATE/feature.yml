@@ -62,13 +62,13 @@ body:
     attributes:
       label: The constraints this has to live inside
       description: >-
-        These are in [CLAUDE.md](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CLAUDE.md) in full. A request that breaks one of them
+        These are in [CONTRIBUTING.md](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md#the-rules-a-pr-cannot-break), each linked to its reasoning. A request that breaks one of them
         is not refused out of hand, but it has to argue the case explicitly, and that argument
-        changes `CLAUDE.md` in its own PR before any code moves. Tick what holds.
+        changes that table in its own PR before any code moves. Tick what holds.
       options:
         - label: It works with zero permissions granted, or it degrades cleanly when they are not. A feature that hard requires a permission is a design error.
           required: false
-        - label: It reads no content. Window titles only, redacted. Never document bodies, keystrokes, the clipboard, screen contents, or message text.
+        - label: It reads no content. Window titles and file paths at Tier 1, and a web page's host only behind its own opt-in. Never document bodies, keystrokes, the clipboard, screen contents, message text, or a URL path or query.
           required: false
         - label: It adds no network call. There is exactly one, and it is the update check.
           required: false

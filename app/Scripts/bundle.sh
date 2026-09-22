@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Assemble sigstop.app from the SwiftPM build product.
 #
-# There is no .xcodeproj in this repo on purpose (see CLAUDE.md §2), so the app
+# There is no .xcodeproj in this repo on purpose (see CONTRIBUTING.md), so the app
 # bundle is assembled by hand. This is ~30 lines and works with Command Line
 # Tools alone, which means CI needs no Xcode install.
 set -euo pipefail

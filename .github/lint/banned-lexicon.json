@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "The six families CLAUDE.md 4.5 forbids a message from being about, as regexes over",
+    "The six families docs/MESSAGE-ENGINE.md 4.2 forbids a message from being about, as regexes over",
     "text and altText. Append-only: an entry is removed only with the argument written",
     "into the pull request, because the reason a rail exists is not visible from the line",
     "that trips it.",
@@ -22,7 +22,7 @@
     },
     {
       "family": "medical",
-      "rationale": "CLAUDE.md 4.5: no medical claims, at all. The app says 'your posture', never 'your health'. It is not a health product and has no business behaving like one.",
+      "rationale": "docs/MESSAGE-ENGINE.md 4.2: no medical claims, at all. The app says 'your posture', never 'your health'. It is not a health product and has no business behaving like one.",
       "patterns": ["\\bhealth(y|ier)?\\b", "\\beye ?strain\\b", "\\bcarpal\\b", "\\bRSI\\b", "\\binjur\\w*", "\\btendon\\w*", "\\bchronic\\b", "\\bdiagnos\\w*", "\\bprevents?\\b.{0,20}\\b(pain|injury|damage)\\b"]
     },
     {

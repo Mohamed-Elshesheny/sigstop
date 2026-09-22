@@ -39,16 +39,19 @@ The landing site is a separate repository,
 
 ## The rules a PR cannot break
 
-All of these are in [`CLAUDE.md`](CLAUDE.md) with the reasoning. The short version:
+This table is where they are stated. The reasoning lives in the design doc each row names.
+Changing a row is its own PR, with the argument written out, landing before the code.
 
 | | |
 |---|---|
-| **Layering is one way** | `App -> Sensors -> Core`. `SigstopCore` never imports AppKit. |
-| **Core never reads the clock** | It takes an injected `TimeSource`. That is why the engine is testable without a window server. |
-| **Never overclaim** | When two activities cannot be told apart, degrade to their shared parent. Never guess between siblings. |
-| **Zero permissions works** | Accessibility and git context are upgrades. A feature that requires a permission is a design error. |
-| **Never read content** | Window titles only, redacted. Never bodies, keystrokes, clipboard, screen or messages. |
-| **One network call** | The update check. `make verify` enforces it. A second one changes `CLAUDE.md` first, in its own PR. |
+| **Layering is one way** | `App -> Sensors -> Core`. `SigstopCore` never imports AppKit. The target graph in [`app/Package.swift`](app/Package.swift) holds the direction. |
+| **Core never reads the clock** | It takes an injected `TimeSource`. That is why the engine is testable without a window server. Elapsed time is diffed from real timestamps, never counted in ticks: [BREAK-DECISION §3.2](docs/BREAK-DECISION.md). |
+| **Never overclaim** | When two activities cannot be told apart, degrade to their shared parent. Never guess between siblings. [ACTIVITY-DETECTION §0, §6](docs/ACTIVITY-DETECTION.md). |
+| **Zero permissions works** | Accessibility and git context are upgrades. A feature that requires a permission is a design error. [PRIVACY §3](docs/PRIVACY.md). |
+| **Never read content** | Tier 1 reads window titles and `kAXDocument` file paths. The strings stay in memory; only the activity decided from them is logged. A web page's host, never its path or query, only behind its own switch, off by default. Never bodies, keystrokes, clipboard, screen or messages. [PRIVACY §1.5, §2](docs/PRIVACY.md). |
+| **One network call** | The update check, only when you press it. `make verify` enforces it. A second one changes this table and `docs/PRIVACY.md` first, in its own PR. [PRIVACY §2.7](docs/PRIVACY.md). |
+| **Humour has rails** | Never about body weight, appearance, medical conditions, mental health, competence or job security. No medical claims. CI lints the corpus: [MESSAGE-ENGINE §4](docs/MESSAGE-ENGINE.md). |
+| **One dependency** | Sparkle, pinned exactly, linked into `SigstopApp` only. `SigstopCore` and `SigstopSensors` stay dependency-free. A second one needs an argument as strong as Sparkle's: [PRIVACY §2.8](docs/PRIVACY.md). |
 
 ## Adding support for an app
 

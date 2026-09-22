@@ -10,7 +10,6 @@ import PackageDescription
 //
 // Layering is enforced by the dependency graph below and must stay one-way:
 //     SigstopApp -> SigstopSensors -> SigstopCore
-// SigstopCore must never import AppKit. See CLAUDE.md §3.1.
 //
 // THE ONE DEPENDENCY. Sparkle is attached to SigstopApp and to nothing else. SigstopCore
 // and SigstopSensors stay dependency-free and must never import it, so the engines still

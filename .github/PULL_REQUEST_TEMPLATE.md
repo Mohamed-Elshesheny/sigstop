@@ -16,8 +16,10 @@ needs in front of them.
 - [ ] One concern. A change that spans several is several pull requests.
 - [ ] `make test`, `make verify` and `swift run -c release Scenarios` all pass locally.
 - [ ] `docs/` updated in this PR if behaviour changed. Design docs are normative.
-- [ ] No invariant in `CLAUDE.md` §4 is weakened. If one has to change, that is its own
-      PR with the argument written out, landing before the code.
+- [ ] No rule in the table in
+      [`CONTRIBUTING.md`](https://github.com/Mohamed-Elshesheny/sigstop/blob/main/CONTRIBUTING.md#the-rules-a-pr-cannot-break)
+      is weakened. If one has to change, that is its own PR with the argument written out,
+      landing before the code.
 - [ ] Commit messages are Conventional Commits, imperative, and short.
 
 ## If this touches the message corpus
