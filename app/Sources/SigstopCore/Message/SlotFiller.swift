@@ -51,11 +51,11 @@ public struct SlotResolver: Sendable {
         var out: [SlotKey: SlotValue] = [:]
 
         out[.minutes] = SlotValue(
-            text: format(integer: ctx.continuousWorkMinutes, locale: ctx.locale),
+            text: format(integer: ctx.continuousWorkMinutes),
             confidence: 0.99, provenance: .derived)
 
         out[.hour] = SlotValue(
-            text: format(time: ctx.now, locale: ctx.locale, timeZone: ctx.calendar.timeZone),
+            text: format(time: ctx.now, timeZone: ctx.calendar.timeZone),
             confidence: 0.99, provenance: .derived)
 
         if let name = ctx.appDisplayName {
@@ -76,7 +76,7 @@ public struct SlotResolver: Sendable {
 
         if let skipped = ctx.streaks[.skippedConsecutive] ?? ctx.streaks[.skippedToday] {
             out[.streak] = SlotValue(
-                text: format(integer: skipped, locale: ctx.locale),
+                text: format(integer: skipped),
                 confidence: 0.99, provenance: .exact)
         }
 
@@ -151,13 +151,15 @@ public struct SlotResolver: Sendable {
         }
     }
 
-    private func format(integer: Int, locale: Locale) -> String {
-        integer.formatted(.number.locale(locale))
+    private static let corpusLocale = Locale(identifier: "en_US_POSIX")
+
+    private func format(integer: Int) -> String {
+        integer.formatted(.number.locale(Self.corpusLocale))
     }
 
-    private func format(time: Date, locale: Locale, timeZone: TimeZone) -> String {
+    private func format(time: Date, timeZone: TimeZone) -> String {
         var style = Date.FormatStyle(date: .omitted, time: .shortened)
-        style.locale = locale
+        style.locale = Self.corpusLocale
         style.timeZone = timeZone
         return time.formatted(style)
     }

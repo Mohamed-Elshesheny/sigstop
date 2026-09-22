@@ -68,7 +68,8 @@ private func makeContext(
     streaks: [StreakKey: Int] = [:],
     facts: [FactKey: FactValue] = [:],
     slotOverrides: [SlotKey: SlotValue] = [:],
-    withheldSlots: Set<SlotKey> = []
+    withheldSlots: Set<SlotKey> = [],
+    locale: Locale = Locale(identifier: "en_US_POSIX")
 ) -> MessageContext {
     let dev = DeveloperContext(
         timestamp: date(hour: hour, day: day),
@@ -88,7 +89,7 @@ private func makeContext(
         facts: facts,
         slotOverrides: slotOverrides,
         calendar: fixedCalendar,
-        locale: Locale(identifier: "en_US_POSIX"),
+        locale: locale,
         withheldSlots: withheldSlots
     )
 }
@@ -603,6 +604,22 @@ struct SlotFillerTests {
         #expect(table[.minutes]?.text == "94")
         #expect(table[.hour]?.text.contains("2") == true)
         #expect(table[.minutes]?.provenance == .derived)
+    }
+
+    @Test("The corpus is English, so its numbers stay Western even on an Arabic Mac")
+    func numbersStayEnglishUnderArabicLocale() throws {
+        let resolver = SlotResolver()
+        let ctx = makeContext(minutes: 45, hour: 15, locale: Locale(identifier: "ar_EG"))
+        let table = resolver.table(for: ctx)
+        #expect(table[.minutes]?.text == "45", "got \(table[.minutes]?.text ?? "nil")")
+
+        func onlyWesternDigits(_ text: String?) -> Bool {
+            (text ?? "").allSatisfy { !$0.isNumber || ("0"..."9").contains($0) }
+        }
+        #expect(onlyWesternDigits(table[.minutes]?.text),
+                "an English sentence must not carry Arabic-Indic digits")
+        #expect(onlyWesternDigits(table[.hour]?.text),
+                "the time slot too: got \(table[.hour]?.text ?? "nil")")
     }
 
     @Test("An optional slot degrades; a required one does not")
