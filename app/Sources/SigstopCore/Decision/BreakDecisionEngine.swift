@@ -266,7 +266,7 @@ public struct BreakDecisionEngine: Sendable {
            input.monotonic - promptedMono >= policy.promptTimeout {
             effects.append(.recordIgnoredPrompt(cycle: d.cycle))
             effects.append(.setIndicator(.escalating))
-            return (.ignored(Escalation(
+            var escalation = Escalation(
                 cycle: d.cycle,
                 dueSince: d.dueSince,
                 ignoredAt: input.now,
@@ -274,7 +274,10 @@ public struct BreakDecisionEngine: Sendable {
                 uncorroboratedAudioElapsed: d.uncorroboratedAudioElapsed,
                 totalElapsed: d.totalElapsed,
                 lastStepMono: input.monotonic
-            )), verdict)
+            )
+            escalation.snoozesUsed = d.snoozesUsed
+            escalation.snoozeTotal = d.snoozeTotal
+            return (.ignored(escalation), verdict)
         }
 
         switch verdict {
@@ -686,6 +689,8 @@ public struct BreakDecisionEngine: Sendable {
             var d = BreakDue(cycle: e.cycle, dueSince: e.dueSince, lastStepMono: e.lastStepMono)
             d.totalElapsed = e.totalElapsed
             d.notificationsThisCycle = e.notificationsThisCycle
+            d.snoozesUsed = e.snoozesUsed
+            d.snoozeTotal = e.snoozeTotal
             return d
         case .working, .breakActive, .idle, .quiet: return nil
         }

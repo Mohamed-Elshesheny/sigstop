@@ -253,6 +253,8 @@ public struct Escalation: Sendable, Codable, Hashable {
     public var deliveredLevels: Set<EscalationLevel> = []
     public var finalDeliveredAt: TimeInterval?
     public var withdrawnForBlock: Bool = false
+    public var snoozesUsed: Int = 0
+    public var snoozeTotal: TimeInterval = 0
     public var lastStepMono: Double
 
     public init(
