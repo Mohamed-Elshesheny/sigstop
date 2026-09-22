@@ -172,6 +172,19 @@ else
   pass "none of the known analytics or crash-reporting SDKs are present"
 fi
 
+# docs/PRIVACY.md §2 says the app never reads the clipboard, the screen or keystrokes, and never
+# starts another process or scripts another app. These are the symbols each of those needs. An
+# NSEvent monitor is an Objective-C method and invisible to nm; the source check in
+# .github/scripts/check-forbidden-apis.py covers that one.
+FORBIDDEN='^ *_(OBJC_CLASS_\$_(NSPasteboard|NSTask|NSAppleScript|OSAScript|SCStream|SCShareableContent|SCScreenshotManager|AVCaptureSession|AVAudioRecorder|AVAudioEngine)|posix_spawnp?|fork|vfork|execve|execv|execvp|system|popen|AESendMessage|CGEventTapCreate|CGEventTapCreateForPid|CGEventTapCreateForPSN|CGWindowListCreateImage|CGDisplayCreateImage|IOHIDManagerCreate|CGEventSourceKeyState)$'
+FORBIDDEN_HITS=$(all_slices nm -u 2>/dev/null | grep -E "${FORBIDDEN}" | sort -u || true)
+if [ -n "${FORBIDDEN_HITS}" ]; then
+  fail "the app binary references an API that reads content or starts another process"
+  printf '%s\n' "${FORBIDDEN_HITS}" | sed 's/^/        /'
+else
+  pass "no clipboard, screen capture, key reading, process spawning or AppleScript symbol"
+fi
+
 # ---------------------------------------------------------------------------
 head2 "4. entitlements"
 

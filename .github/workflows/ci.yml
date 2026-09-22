@@ -64,6 +64,11 @@ jobs:
       - name: Accessibility stays in the two files PRIVACY.md names
         run: python3 .github/scripts/check-ax-isolation.py
 
+      # docs/PRIVACY.md §2 says the app never reads the clipboard, the screen or keystrokes, and
+      # never starts another process. Its threat table named a guard for that which did not exist.
+      - name: No API that reads content or runs other code
+        run: python3 .github/scripts/check-forbidden-apis.py
+
       # The privacy claims, asserted against the built binary rather than the source:
       # no networking symbol in the app's own executable, exactly one embedded framework,
       # no analytics SDK, one endpoint, nothing scheduled.
