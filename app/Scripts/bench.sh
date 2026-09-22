@@ -18,7 +18,7 @@ BREAK="${BREAK:-45}"
 
 WORK="$(mktemp -d)"
 trap 'pkill -f "${WORK}/" 2>/dev/null || true; rm -rf "${WORK}"' EXIT
-swiftc -O -o "${WORK}/rusage" Scripts/rusage.swift 2>/dev/null
+swiftc -O -o "${WORK}/rusage" Scripts/rusage.swift
 
 run() {
   local label="$1" warm="$2" secs="$3"; shift 3
@@ -29,7 +29,9 @@ run() {
   local pid=$!
   sleep "${warm}"
   local a b
-  a="$("${WORK}/rusage" "${pid}")"; sleep "${secs}"; b="$("${WORK}/rusage" "${pid}")"
+  a="$("${WORK}/rusage" "${pid}")" || { echo "error: sigstop exited during the ${warm}s warm-up" >&2; exit 1; }
+  sleep "${secs}"
+  b="$("${WORK}/rusage" "${pid}")" || { echo "error: sigstop exited during the ${secs}s measurement" >&2; exit 1; }
   kill "${pid}" 2>/dev/null || true; wait "${pid}" 2>/dev/null || true
   python3 - "${label}" "${secs}" "${a}" "${b}" <<'PY'
 import sys
