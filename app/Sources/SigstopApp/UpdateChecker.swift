@@ -125,7 +125,7 @@ final class UpdateChecker {
         }
         if let reply = pendingChoice {
             pendingChoice = nil
-            reply(.dismiss)
+            if case .readyToInstall = state { reply(.skip) } else { reply(.dismiss) }
         }
         if let ack = acknowledge {
             acknowledge = nil
