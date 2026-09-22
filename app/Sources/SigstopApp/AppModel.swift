@@ -954,7 +954,6 @@ final class AppModel {
         do {
             let store = try FileEventStore(root: AppPaths.storageRoot)
             self.store = store
-            try store.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
             badges = store.readBadges()
             if let stored = store.readCounters() {
                 day = stored
@@ -964,6 +963,17 @@ final class AppModel {
         } catch {
             store = nil
             lastStoreError = "Could not open \(AppPaths.storageRoot.path), \(error)"
+            return
+        }
+        // Pruning gets its own boundary. It ran on the same path as opening the store, so
+        // one file that would not delete threw into the catch above and left `store = nil`,
+        // taking logging, the badges and the restored day counters down with a cleanup
+        // failure. Housekeeping does not get to disable the app; a prune that fails is noted
+        // and the store stays open.
+        do {
+            try store?.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
+        } catch {
+            lastStoreError = "Could not prune old logs, \(error)"
         }
     }
 
@@ -1321,6 +1331,15 @@ final class AppModel {
         do {
             let report = try store.deleteEverything()
             try? FileManager.default.removeItem(at: AppPaths.settingsFile)
+            // Reset the LIVE settings too. Removing the file is not enough: the old value is
+            // still in memory, so the next `update(settings:)` writes it straight back to
+            // disk and the delete was undone by the first thing the user touched. One button
+            // must not have two outcomes depending on what happens next. The callbacks fire
+            // so the Dock policy and appearance follow the reset the way they follow any
+            // other settings change.
+            settings = .default
+            onSettingsChanged?()
+            onAppearanceChanged?(settings.appearance)
             todaySummary = nil
             todayLine = ""
             todayDetail = ""
