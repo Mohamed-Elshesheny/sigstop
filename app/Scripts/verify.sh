@@ -31,6 +31,19 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+SLICE_DIR=""
+BUILD_DIR="$(pwd)/.build"
+BUILD_HIDDEN="${BUILD_DIR}-verify-hidden"
+HIDDEN=0
+# An interrupt during section 8 would otherwise leave the build directory hidden.
+cleanup() {
+  [ -n "${SLICE_DIR}" ] && rm -rf "${SLICE_DIR}"
+  if [ "${HIDDEN}" -eq 1 ] && [ -d "${BUILD_HIDDEN}" ] && [ ! -e "${BUILD_DIR}" ]; then
+    mv "${BUILD_HIDDEN}" "${BUILD_DIR}"
+  fi
+}
+trap cleanup EXIT
+
 APP_NAME="sigstop"
 BUNDLE="${BUNDLE:-dist/${APP_NAME}.app}"
 BIN="${BUNDLE}/Contents/MacOS/${APP_NAME}"
@@ -56,7 +69,6 @@ ARCHS="$(lipo -archs "${BIN}" 2>/dev/null || echo "")"
 SLICES=()
 if [ "$(printf '%s ' ${ARCHS} | wc -w | tr -d ' ')" -gt 1 ]; then
   SLICE_DIR="$(mktemp -d)"
-  trap 'rm -rf "${SLICE_DIR}"' EXIT
   for a in ${ARCHS}; do
     lipo -thin "${a}" "${BIN}" -output "${SLICE_DIR}/${a}" 2>/dev/null \
       || { echo "error: could not split ${a} out of ${BIN}" >&2; exit 1; }
@@ -280,17 +292,20 @@ fi
 # somebody else's. A fresh HOME as well, so a launch here cannot touch real data.
 head2 "8. it starts on a machine with no build directory"
 
-BUILD_DIR="$(cd "$(dirname "$0")/.." && pwd)/.build"
 PROBE_HOME="$(mktemp -d)"
 PROBE_LOG="$(mktemp)"
-HIDDEN=0
-if [ -d "${BUILD_DIR}" ]; then mv "${BUILD_DIR}" "${BUILD_DIR}-verify-hidden"; HIDDEN=1; fi
+if [ -e "${BUILD_HIDDEN}" ]; then
+  echo "error: ${BUILD_HIDDEN} already exists, left by an interrupted run." >&2
+  echo "       Move it back to ${BUILD_DIR} (or delete it) before running verify again." >&2
+  exit 1
+fi
+if [ -d "${BUILD_DIR}" ]; then mv "${BUILD_DIR}" "${BUILD_HIDDEN}"; HIDDEN=1; fi
 
 CFFIXED_USER_HOME="${PROBE_HOME}" HOME="${PROBE_HOME}" \
   "${BUNDLE}/Contents/MacOS/sigstop" --doctor >"${PROBE_LOG}" 2>&1
 PROBE_STATUS=$?
 
-[ "${HIDDEN}" -eq 1 ] && mv "${BUILD_DIR}-verify-hidden" "${BUILD_DIR}"
+if [ "${HIDDEN}" -eq 1 ]; then mv "${BUILD_HIDDEN}" "${BUILD_DIR}"; HIDDEN=0; fi
 
 # The probe has to READ something, not merely start. The first version of this check
 # asked `--doctor` for its output and passed while the bug was live, because `--doctor`

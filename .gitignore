@@ -25,3 +25,4 @@ DerivedData/
 CLAUDE.md
 __pycache__/
 app/.build-smoke-hidden/
+app/.build-verify-hidden/
