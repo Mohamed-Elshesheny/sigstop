@@ -267,6 +267,7 @@ struct BreakOverlayView: View {
                 .foregroundStyle(Brand.Dark.fgMuted)
                 TransferBar(
                     fraction: min(1, max(0, 1 - remaining / total)),
+                    animated: false,
                     tint: Brand.Dark.amber,
                     track: Brand.Dark.line,
                     height: 3

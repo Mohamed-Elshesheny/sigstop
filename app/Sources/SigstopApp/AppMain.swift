@@ -154,17 +154,37 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
     private var dismissedAt = Date.distantPast
 
+    private struct IconKey: Equatable {
+        let step: Int
+        let indicator: IndicatorState
+        let dark: Bool
+        let scale: CGFloat
+    }
+
+    private var lastIconKey: IconKey?
+
     private func renderIcon() {
         let appearance = item.button?.effectiveAppearance ?? NSApp.effectiveAppearance
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let tooltip = model.iconTooltip
+        if item.button?.toolTip != tooltip { item.button?.toolTip = tooltip }
+
+        let scale = item.button?.window?.backingScaleFactor ?? 2
+        let key = IconKey(
+            step: Int((model.workFraction * 64).rounded()),
+            indicator: model.indicator,
+            dark: isDark,
+            scale: scale
+        )
+        guard key != lastIconKey else { return }
+        lastIconKey = key
+
         let renderer = ImageRenderer(
-            content: MenuBarIcon(fraction: model.workFraction, indicator: model.indicator, dark: isDark)
+            content: MenuBarIcon(fraction: Double(key.step) / 64, indicator: key.indicator, dark: isDark)
                 .frame(width: 18, height: 18)
                 .transaction { $0.animation = nil }
         )
-        renderer.scale = item.button?.window?.backingScaleFactor ?? 2
-
-        item.button?.toolTip = model.iconTooltip
+        renderer.scale = scale
 
         guard let image = renderer.nsImage else { return }
         image.isTemplate = false

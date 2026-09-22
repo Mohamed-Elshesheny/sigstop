@@ -491,6 +491,7 @@ struct TerminalSegmented<Value: Hashable>: View {
 
 struct TransferBar: View {
     let fraction: Double?
+    var animated: Bool = true
     var tint: Color = Brand.amberFill
     var track: Color = Brand.surfaceHi
     var height: CGFloat = 3
@@ -506,7 +507,7 @@ struct TransferBar: View {
                     Rectangle()
                         .fill(tint)
                         .frame(width: geometry.size.width * min(1, max(0, fraction)))
-                        .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: fraction)
+                        .animation(reduceMotion || !animated ? nil : .easeOut(duration: 0.4), value: fraction)
                 } else if reduceMotion {
                     Rectangle().fill(tint.opacity(0.45))
                 } else {

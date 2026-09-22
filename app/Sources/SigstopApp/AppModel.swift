@@ -141,6 +141,8 @@ final class AppModel {
     @ObservationIgnored private var lastVerdict: InterruptionVerdict?
     @ObservationIgnored private var rollupComputedAt: Date?
     @ObservationIgnored private var lastWrittenSummary: DailySummary?
+    @ObservationIgnored private var lastSummaryWriteMono: Double = 0
+    private static let summaryWriteInterval: TimeInterval = 600
 
     @ObservationIgnored private var presentation: PromptPresentation?
 
@@ -850,17 +852,21 @@ final class AppModel {
         let seed = UInt64(bitPattern: Int64(today.year * 10_000 + today.month * 100 + today.day))
         todayLine = narrator.line(for: summary, seed: seed)
         todayDetail = narrator.detail(for: summary)
-        refreshBadges(today: summary, store: store)
+        refreshBadges(today: summary, store: store, force: force)
     }
 
-    private func refreshBadges(today: DailySummary, store: FileEventStore) {
-        if lastWrittenSummary != today {
-            do {
-                try store.writeSummary(today)
-                lastWrittenSummary = today
-            } catch {
-                lastStoreError = "Could not write the daily summary, \(error)"
-            }
+    private func refreshBadges(today: DailySummary, store: FileEventStore, force: Bool) {
+        guard lastWrittenSummary != today else { return }
+        let due = force
+            || lastWrittenSummary?.day != today.day
+            || time.continuousSeconds - lastSummaryWriteMono >= Self.summaryWriteInterval
+        guard due else { return }
+        do {
+            try store.writeSummary(today)
+            lastWrittenSummary = today
+            lastSummaryWriteMono = time.continuousSeconds
+        } catch {
+            lastStoreError = "Could not write the daily summary, \(error)"
         }
 
         let days = badgeDays(store: store)
