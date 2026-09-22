@@ -235,6 +235,7 @@ final class AppModel {
         sensors.context.stop()
         sensors.stopExtraCollectors()
         append(.stop(at: time.now))
+        refreshRollup(force: true)
     }
 
     func takeBreakNow() { enqueue(.startBreakNow) }
@@ -863,6 +864,9 @@ final class AppModel {
             || lastWrittenSummary?.day != today.day
             || time.continuousSeconds - lastSummaryWriteMono >= Self.summaryWriteInterval
         guard due else { return }
+        if let previous = lastWrittenSummary, previous.day != today.day {
+            finalize(previous, store: store)
+        }
         do {
             try store.writeSummary(today)
             lastWrittenSummary = today
@@ -887,6 +891,15 @@ final class AppModel {
         badges = updated
         try? store.writeBadges(updated)
         if let note = Self.badgeNote(for: fresh) { badgeNote = note }
+    }
+
+    private func finalize(_ previous: DailySummary, store: FileEventStore) {
+        guard let final = try? DailyRollup.compute(day: previous.day, from: store), final != previous else { return }
+        do {
+            try store.writeSummary(final)
+        } catch {
+            lastStoreError = "Could not write the daily summary, \(error)"
+        }
     }
 
     private func badgeDays(store: FileEventStore) -> [BadgeDay] {
@@ -1019,11 +1032,13 @@ final class AppModel {
         switch event {
         case .screenLocked:
             append(.system(at: at, .lock))
+            refreshRollup(force: true)
         case .screenUnlocked:
             append(.system(at: at, .unlock))
             seamsForNextStep.insert(.idleBlip)
         case .willSleep:
             append(.system(at: at, .sleep))
+            refreshRollup(force: true)
             sensors.audio.setSystemAwake(false)
             sensors.camera.setSystemAwake(false)
         case .didWake:
