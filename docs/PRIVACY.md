@@ -628,9 +628,16 @@ What this app actually does with it, in full:
    retained. `AppModel.logFocusIfNeeded` writes `titleSignal: nil` on every focus event, so the
    log's `sig` field is never populated at all.
 
-What it never does with it: no `AXUIElementSetAttributeValue` (never writes), no
-`AXObserverCreate` on other processes, no traversal into `kAXChildrenAttribute`, no
-`kAXValueAttribute`, no `AXUIElementPostKeyboardEvent`. `.github/scripts/check-ax-isolation.py`
+It does register one observer, only while Accessibility is granted.
+`AccessibilityCollector.startObserving(pid:)` calls
+`AXObserverCreate` on the frontmost app and subscribes to exactly two notifications,
+`kAXFocusedWindowChangedNotification` and `kAXTitleChangedNotification`. The callback carries no
+content: it only says that something changed, and the app then reads the same two attributes
+again, so a window switch is noticed without polling. It is torn down when that app leaves the
+front.
+
+What it never does: no `AXUIElementSetAttributeValue` (never writes), no traversal into
+`kAXChildrenAttribute`, no `kAXValueAttribute`, no `AXUIElementPostKeyboardEvent`. `.github/scripts/check-ax-isolation.py`
 fails the build if Accessibility code appears outside `AccessibilityCollector.swift` and the trust
 check in `PermissionBroker.swift`. It runs on every push; it is the check the old text claimed for a
 shell script that did not exist.
@@ -738,24 +745,24 @@ document that claims to be exhaustive quietly incomplete. Adding a kind without 
 below is a bug under CLAUDE.md §7, not a documentation chore.
 
 ```
-{"v":1,"t":"2026-09-20T08:58:03Z","e":"start"}
-{"v":1,"t":"2026-09-20T08:58:03Z","e":"focus","app":"com.apple.dt.Xcode","cat":"code","sig":"editor"}
-{"v":1,"t":"2026-09-20T09:14:41Z","e":"focus","app":"com.google.Chrome","cat":"browse","sig":"browser"}
-{"v":1,"t":"2026-09-20T09:31:02Z","e":"idle_begin"}
-{"v":1,"t":"2026-09-20T09:37:20Z","e":"idle_end","idle_s":378}
-{"v":1,"t":"2026-09-20T09:48:10Z","e":"focus","app":"us.zoom.xos","cat":"meet","sig":"meeting"}
-{"v":1,"t":"2026-09-20T10:19:55Z","e":"break_open","cycle":4}
-{"v":1,"t":"2026-09-20T10:20:00Z","e":"gate","gate":"audioInputInUse","cycle":4}
-{"v":1,"t":"2026-09-20T10:34:07Z","e":"gate","gate":"delivered","cycle":4}
-{"v":1,"t":"2026-09-20T10:34:12Z","e":"break_prompt","reason":"SIGTSTP","cycle":4}
-{"v":1,"t":"2026-09-20T10:34:31Z","e":"break_response","action":"snoozed","snooze_s":300,"cycle":4}
-{"v":1,"t":"2026-09-20T10:39:31Z","e":"break_response","action":"taken","cycle":4}
-{"v":1,"t":"2026-09-20T10:39:31Z","e":"break_begin","origin":"accepted","cycle":4}
-{"v":1,"t":"2026-09-20T10:44:34Z","e":"break_end","origin":"accepted","dur_s":303,"plan_s":300,"cycle":4}
-{"v":1,"t":"2026-09-20T10:44:34Z","e":"cycle_close","outcome":"honored","cycle":4}
-{"v":1,"t":"2026-09-20T10:52:04Z","e":"lock"}
-{"v":1,"t":"2026-09-20T11:31:55Z","e":"unlock"}
-{"v":1,"t":"2026-09-20T18:02:11Z","e":"stop"}
+{"e":"start","t":"2026-09-20T08:58:03Z","v":1}
+{"act":"coding","app":"com.apple.dt.Xcode","cat":"code","e":"focus","t":"2026-09-20T08:58:03Z","v":1}
+{"act":"browsing","app":"com.google.Chrome","cat":"browse","e":"focus","t":"2026-09-20T09:14:41Z","v":1}
+{"e":"idle_begin","t":"2026-09-20T09:31:02Z","v":1}
+{"e":"idle_end","idle_s":378,"t":"2026-09-20T09:37:20Z","v":1}
+{"act":"meeting","app":"us.zoom.xos","cat":"meet","e":"focus","t":"2026-09-20T09:48:10Z","v":1}
+{"cycle":4,"e":"break_open","t":"2026-09-20T10:19:55Z","v":1}
+{"cycle":4,"e":"gate","gate":"audioInputInUse","t":"2026-09-20T10:20:00Z","v":1}
+{"cycle":4,"e":"gate","gate":"delivered","t":"2026-09-20T10:34:07Z","v":1}
+{"cycle":4,"e":"break_prompt","reason":"SIGTSTP","t":"2026-09-20T10:34:12Z","v":1}
+{"action":"snoozed","cycle":4,"e":"break_response","snooze_s":300,"t":"2026-09-20T10:34:31Z","v":1}
+{"action":"taken","cycle":4,"e":"break_response","t":"2026-09-20T10:39:31Z","v":1}
+{"cycle":4,"e":"break_begin","origin":"accepted","t":"2026-09-20T10:39:31Z","v":1}
+{"cycle":4,"dur_s":303,"e":"break_end","origin":"accepted","plan_s":300,"t":"2026-09-20T10:44:34Z","v":1}
+{"cycle":4,"e":"cycle_close","outcome":"honored","t":"2026-09-20T10:44:34Z","v":1}
+{"e":"lock","t":"2026-09-20T10:52:04Z","v":1}
+{"e":"unlock","t":"2026-09-20T11:31:55Z","v":1}
+{"e":"stop","t":"2026-09-20T18:02:11Z","v":1}
 ```
 
 Field reference:
@@ -767,7 +774,8 @@ Field reference:
 | `e` | string | One of: `start`, `stop`, `focus`, `idle_begin`, `idle_end`, `lock`, `unlock`, `sleep`, `wake`, `display_sleep`, `display_wake`, `session_out`, `session_in`, `break_open`, `break_prompt`, `break_response`, `break_begin`, `break_end`, `cycle_close`, `gate` |
 | `app` | string? | Bundle identifier. Absent if app tracking is off |
 | `cat` | string? | One of `code`, `browse`, `meet`, `other`, chosen in `AppModel.category(for:)` from the app's family |
-| `sig` | string? | Title signal. Present only if Accessibility fidelity is on. **Never the title itself** |
+| `act` | string? | The activity inferred at that moment (`context.activity`), one of the `Activity` raw values such as `coding`, `browsing` or `meeting`, and `unknown` when it could not tell |
+| `sig` | string? | Title signal. In the schema, but the shipping app never writes it: `AppModel.logFocusIfNeeded` passes `titleSignal: nil`. **Never the title itself** |
 | `idle_s` | int? | Length of the idle period that just ended |
 | `cycle` | int? | Which break opportunity this line belongs to, so counters scope to a cycle |
 | `origin` | string? | How a break started: `accepted`, `idleInferred`, `userInitiated` |
@@ -994,7 +1002,7 @@ The single exception is the update check, and it is worth stating precisely rath
 | | |
 |---|---|
 | How many endpoints | One. A static `appcast.xml`, the same bytes for everyone |
-| When | When you press **Check for updates**, and daily only if you switched that on. Off by default |
+| When | Only when you press **Check for updates**. There is no schedule and no launch check |
 | At launch | Never |
 | What is sent | A plain `GET`. No query string, no body, no cookie, no account, no install id, no machine id, no system profile, and a user agent overridden to the constant `sigstop` — not even the app version |
 | What is stored about it | Nothing, on either side of this codebase |

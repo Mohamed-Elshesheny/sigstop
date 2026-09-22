@@ -523,9 +523,8 @@ loadable, not disable-able, `isFallback: true`). A unit test asserts the emergen
 non-empty at every escalation level, so `select` is total — it has no failure return and
 cannot throw.
 
-Stage is surfaced in the debug panel and in telemetry (opt-in, counts only). A user reaching
-stage ≥ 3 regularly means their enabled packs are too small for their usage pattern, and the
-app suggests enabling another pack rather than silently repeating itself.
+The stage is not shown anywhere yet, and there is no telemetry to carry it: the app sends nothing
+(PRIVACY.md). A pack suggestion for users who keep reaching stage 3 was designed and not built.
 
 ---
 
@@ -728,9 +727,10 @@ Two non-negotiables, enforced in the notification layer rather than the engine:
   (`NSWindow.StyleMask.nonactivatingPanel`, `becomesKeyOnlyIfNeeded = true`). It is visually
   loud and input-transparent to the app underneath. A break reminder that eats a keystroke
   mid-edit gets uninstalled that afternoon, correctly.
-- **Screen sharing, Do Not Disturb, full-screen presentation, and camera-on states suppress
-  L3 and L4 entirely**, downgrading them to L1 banners held until the state clears. Nobody
-  wants a NUCLEAR roast rendering on a projector during a demo.
+- **A live camera, or a full-screen presentation, holds every rung** until it ends, so nothing
+  renders on a projector during a demo. Screen sharing and Do Not Disturb are not detected:
+  `SensorStack` passes `displayCaptured: false` and `focusModeActive: nil`, because neither can
+  be read without a permission the app does not ask for.
 
 ---
 
@@ -836,8 +836,8 @@ be a consolation prize; it carries ~10% of the corpus and gets the same rubric.
                            "browser","figma","docker","slack","discord","unknown"] },
     "appFamily":{ "enum": ["aiEditor","editor","ide","terminal","browser",
                            "design","containers","chat","other"] },
-    "activity": { "enum": ["aiPairing","editing","debugging","testing","building",
-                           "reviewing","reading","chatting","browsing","designing","unknown"] },
+    "activity": { "enum": ["coding","debugging","testing","codeReview","terminalWork","aiCoding",
+                           "documentation","browsing","communication","meeting","idle","unknown"] },
     "workBand": { "enum": ["short","focused","deep","marathon","absurd"] },
     "timeBand": { "enum": ["earlyMorning","morning","afternoon","evening","night","lateNight"] },
     "weekday":  { "enum": ["mon","tue","wed","thu","fri","sat","sun"] },

@@ -44,7 +44,9 @@ A timer fires in the middle of your standup. sigstop doesn't.
 
 Keep ignoring it and it asks a little louder, in signals your shell already knows. The last one claims it can't be ignored. It can.
 
-<img src="docs/images/ladder.png" width="760" alt="The escalation ladder: SIGTSTP, a nudge. SIGINT, a bit rude. SIGTERM, your warning. SIGSTOP, the bluff. Snooze is SIGALRM, and coming back is SIGCONT, right where you left off.">
+<p align="center">
+  <img src="docs/images/ladder.png" width="760" alt="The escalation ladder: SIGTSTP, a nudge. SIGINT, a bit rude. SIGTERM, your warning. SIGSTOP, the bluff. Snooze is SIGALRM, and coming back is SIGCONT, right where you left off.">
+</p>
 
 <a id="install"></a>
 

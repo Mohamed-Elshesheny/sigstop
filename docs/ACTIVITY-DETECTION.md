@@ -72,15 +72,12 @@ evaporates after every `swift build`**, and the app appears in System Settings a
 Mitigation, required in the dev workflow:
 
 ```sh
-# Scripts/bundle.sh — stable identity so TCC keeps the grant across rebuilds
-swift build -c release
-mkdir -p build/App.app/Contents/MacOS build/App.app/Contents/Resources
-cp Resources/Info.plist build/App.app/Contents/
-cp .build/release/AppExecutable build/App.app/Contents/MacOS/
-codesign --force --options runtime \
-         --sign "Developer ID Application: ..." \
-         build/App.app        # or a stable self-signed cert locally
+cd app
+make dev-cert                          # once: a stable self-signed identity called sigstop-dev
+SIGN_IDENTITY=sigstop-dev make run     # every build after that keeps the grant
 ```
+
+`Scripts/bundle.sh` signs with `SIGN_IDENTITY`, which defaults to ad-hoc (`-`).
 
 Without a *stable* signing identity, expect to re-grant Accessibility dozens of times a day. Note
 this in `CONTRIBUTING`, not just here.
@@ -795,8 +792,8 @@ everything else is evidence fed into it via `SignalContext`.
 Two mechanisms, in order of preference. Neither was built: nothing reads a manifest from disk, and
 there is no `DeclarativeProvider`.
 
-**(a) Declarative manifest — no code, no rebuild.** Drop a JSON file into
-`~/Library/Application Support/<the app>/providers/`. It is parsed into a `DeclarativeProvider` at
+**(a) Declarative manifest, designed and not built.** A JSON file dropped into
+`~/Library/Application Support/<the app>/providers/` would be parsed into a `DeclarativeProvider` at
 launch (and on an FSEvents change). This covers the ~80% case, which is "recognise my editor and
 parse its title".
 
@@ -826,7 +823,7 @@ parse its title".
 }
 ```
 
-Safety properties that make this acceptable to load from disk:
+Safety properties the design requires before anything is loaded from disk:
 
 - It is **data, not code**. No dyld loading, no scripting engine, no eval.
 - Regexes are compiled with `NSRegularExpression` under a **match timeout and a complexity budget**;
@@ -837,7 +834,7 @@ Safety properties that make this acceptable to load from disk:
 - Unknown `activity` strings fail the manifest at load time with a visible error, rather than
   silently mapping to `unknown`.
 
-**(b) Swift package.** For providers that need real logic (cross-referencing processes, custom
+**(b) Swift package, also not built.** For providers that need real logic (cross-referencing processes, custom
 state machines), a third party depends on the `ActivityCore` module, conforms to `ActivityProvider`,
 and exposes a `ProviderBundle`:
 

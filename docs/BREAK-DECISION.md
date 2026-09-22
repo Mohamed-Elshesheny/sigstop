@@ -668,7 +668,7 @@ These are in `app/Sources/SigstopCore/Decision/InterruptionPolicy.swift`, just b
 | `recentCallContinuing` | The call latch: a capture device ran continuously for >= 45 s and stopped less than the hold budget ago | See §7.7. Named after what it asserts, not after what you might conclude from it. |
 | `screenBeingShared` | **Nothing. This block cannot fire.** | `CGDisplayIsCaptured`, which this row used to name, is annotated `API_DEPRECATED("No longer supported", macos(10.0,10.9))` and does not compile from Swift. CoreMediaIO enumerates no display-capture device. ScreenCaptureKit needs the Screen Recording grant CLAUDE.md 4.2 forbids hard-requiring. The weaker and honest claim: someone looked for a permission-free signal and did not find one. The mitigation this row promised was a manual toggle, and it never shipped; it does now, as "I am in a meeting" in the menu, time-boxed to two hours. `--doctor` prints this block as UNOBSERVABLE with the reason and says out loud that it never fires. |
 | `presentationFullscreen` | AX `kAXFullscreenAttribute` on the focused window **AND** (presentation-capable app **OR** camera/mic live) | Fullscreen **alone is not a block** — developers work fullscreen all day, and blocking on it would mean never firing for half the user base. |
-| `focusModeActive` | Parse `~/Library/DoNotDisturb/DB/ModeConfigurations.json` when readable; otherwise unknown | **Honest limitation:** no public API. Mitigation that always works: the app posts at `UNNotificationInterruptionLevel.active` and *never* `.timeSensitive` or `.critical`, so macOS itself suppresses the banner during any Focus mode. When Focus is undetectable the engine still "delivers" and the OS may swallow it — the passive indicator is the safety net, and the cycle is recorded as `.deliveryUnconfirmed` rather than counted as ignored. |
+| `focusModeActive` | Not read. `SensorStack` passes `nil`, because there is no public API and the Focus database is not something this app opens | **Honest limitation:** Focus is not detected. What still holds: notifications go out at `.passive` for L1 and `.active` for L2 and L3 (`Notifier.interruptionLevel(for:)`), so a Focus mode silences them. L4 goes out as `.timeSensitive` and breaks through only if you allowed time-sensitive notifications for sigstop in that Focus. When Focus swallows a notification the engine cannot tell; the menu bar indicator is the safety net. |
 | `screenLocked` / `systemSleeping` / `fastUserSwitched` | Workspace + distributed notifications | Nobody is there. |
 | `settleInAfterBreak` | `now - lastBreakEndedAt < 5 min` | You do not tell someone who just sat back down to get up. |
 | `imminentMeeting` | `minutesUntilNextBusyEvent <= 2` | The two minutes before a call are not free time. |
@@ -1106,8 +1106,10 @@ Condition 3 is what keeps the ladder honest. If they walked away, that is not an
 `idle`, and if it lasts 5 minutes it is a break and the cycle closes as honored. Escalating at someone
 who is not there is the purest form of the failure this design is trying to avoid.
 
-If `focusModeActive` is unknown and the OS may have swallowed the banner, the cycle is recorded
-`.deliveryUnconfirmed` and **cannot** advance past ladder level 2.
+A rule that kept an unconfirmed notification from climbing past level 2 was designed and not
+built: Focus is never known, so the ladder climbs the same way whether or not a notification was
+seen. The default is unaffected, because with system notifications off every rung is the app's own
+panel, which no Focus mode can swallow.
 
 ---
 
@@ -1275,9 +1277,9 @@ public struct QuietHours: Sendable, Codable, Hashable {
   (an *excluded* opportunity, §14).
 - **Leaving** quiet hours never flushes a backlog. If work is currently owed a break, a fresh cycle
   opens with fresh deferral clocks.
-- A system Focus mode that has been continuously on for more than 10 minutes promotes the engine to
-  `quiet(.sustainedFocusMode)` rather than leaving it stuck hard-blocked in `breakDue`, which keeps the
-  state machine truthful about what it is doing.
+- `quiet(.sustainedFocusMode)` exists for a Focus mode left on for more than 10 minutes, but nothing
+  enters it today: Focus is never detected (`focusModeActive` is always `nil`), so the case is
+  designed and unreachable.
 
 ---
 
