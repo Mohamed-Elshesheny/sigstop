@@ -137,6 +137,7 @@ private func collector(gitOn: Bool) -> GitCollector {
     let box = Sandbox()
     let real = box.repository("main1", head: "ref: refs/heads/main\n")
     box.write("ref: refs/heads/feature/ticket-123\n", to: "main1/.git/worktrees/wt/HEAD")
+    box.write("../..\n", to: "main1/.git/worktrees/wt/commondir")
     let tree = box.folder("wt")
     box.write("gitdir: \(real)/.git/worktrees/wt\n", to: "wt/.git")
     let signal = try! GitCollector.readRepository(at: tree, now: Date()).get()
@@ -147,12 +148,67 @@ private func collector(gitOn: Bool) -> GitCollector {
     let box = Sandbox()
     _ = box.repository("super", head: "ref: refs/heads/main\n")
     box.write("ref: refs/heads/vendored\n", to: "super/.git/modules/vendor/HEAD")
+    _ = box.folder("super/.git/modules/vendor/objects")
     _ = box.folder("super/vendor")
     box.write("gitdir: ../.git/modules/vendor\n", to: "super/vendor/.git")
     let signal = try! GitCollector.readRepository(
         at: box.root.appendingPathComponent("super/vendor").path, now: Date()
     ).get()
     #expect(signal.branch == "vendored")
+}
+
+@Test func aGitdirPointingOutsideTheFolderIsNotFollowed() {
+    let box = Sandbox()
+    box.write("ref: refs/heads/read-from-outside-the-folder\n", to: "outside/secret/HEAD")
+    let absolute = box.folder("gitdir-abs")
+    box.write("gitdir: \(box.root.path)/outside/secret\n", to: "gitdir-abs/.git")
+    let relative = box.folder("gitdir-rel")
+    box.write("gitdir: ../outside/secret\n", to: "gitdir-rel/.git")
+    for folder in [absolute, relative] {
+        if case .success(let signal) = GitCollector.readRepository(at: folder, now: Date()) {
+            Issue.record("read \(signal.branch ?? "?") through a gitdir outside \(folder)")
+        }
+    }
+}
+
+@Test func aBareRepositoryWorktreeAndASeparateGitDirStillResolve() {
+    let box = Sandbox()
+    box.write("ref: refs/heads/main\n", to: "repo.git/HEAD")
+    _ = box.folder("repo.git/objects")
+    box.write("ref: refs/heads/from-bare\n", to: "repo.git/worktrees/wt/HEAD")
+    box.write("../..\n", to: "repo.git/worktrees/wt/commondir")
+    let worktree = box.folder("wt")
+    box.write("gitdir: \(box.root.path)/repo.git/worktrees/wt\n", to: "wt/.git")
+    #expect(try! GitCollector.readRepository(at: worktree, now: Date()).get().branch == "from-bare")
+
+    box.write("ref: refs/heads/separate\n", to: "elsewhere/sepgit/HEAD")
+    _ = box.folder("elsewhere/sepgit/objects")
+    let separate = box.folder("separate")
+    box.write("gitdir: \(box.root.path)/elsewhere/sepgit\n", to: "separate/.git")
+    #expect(try! GitCollector.readRepository(at: separate, now: Date()).get().branch == "separate")
+}
+
+@Test func aLinkedDotGitIsNotFollowed() throws {
+    let box = Sandbox()
+    box.write("ref: refs/heads/read-from-outside-the-folder\n", to: "outside/secret/HEAD")
+    let folder = box.folder("dotgit-link")
+    try FileManager.default.createSymbolicLink(
+        atPath: folder + "/.git", withDestinationPath: box.root.appendingPathComponent("outside/secret").path
+    )
+    if case .success(let signal) = GitCollector.readRepository(at: folder, now: Date()) {
+        Issue.record("read \(signal.branch ?? "?") through a linked .git")
+    }
+}
+
+@Test func aFifoHeadReturnsAtOnceInsteadOfBlocking() {
+    let box = Sandbox()
+    let folder = box.folder("fifo-head")
+    try? FileManager.default.createDirectory(atPath: folder + "/.git", withIntermediateDirectories: true)
+    #expect(mkfifo(folder + "/.git/HEAD", 0o600) == 0)
+    let started = Date()
+    let result = GitCollector.readRepository(at: folder, now: Date())
+    #expect(Date().timeIntervalSince(started) < 0.5, "a FIFO must not hold the read open")
+    if case .success = result { Issue.record("a FIFO was read as a HEAD file") }
 }
 
 @Test func aFolderWithNoRepositoryIsReportedAsSuchAndNotWalkedOutOf() {

@@ -564,7 +564,7 @@ struct SettingsView: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Add"
-        panel.message = "Pick the root of a repository. sigstop reads one line of its .git/HEAD "
+        panel.message = "Pick the root of a repository. sigstop reads one line of its HEAD file, "
             + "and nothing else in it."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         var updated = model.settings

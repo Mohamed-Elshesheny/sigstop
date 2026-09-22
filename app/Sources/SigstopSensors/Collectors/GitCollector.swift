@@ -283,10 +283,11 @@ public final class GitCollector: @unchecked Sendable {
     static func resolveGitDirectory(at folder: String) -> Result<String, GitReadFailure> {
         let dot = folder + "/.git"
         var info = stat()
-        guard stat(dot, &info) == 0 else {
+        guard lstat(dot, &info) == 0 else {
             return .failure(errno == EACCES || errno == EPERM ? .notPermitted : .noRepository)
         }
         if info.st_mode & S_IFMT == S_IFDIR { return .success(dot) }
+        guard info.st_mode & S_IFMT == S_IFREG else { return .failure(.noRepository) }
 
         switch readFirstLine(dot) {
         case .failure(let failure):
@@ -296,8 +297,28 @@ public final class GitCollector: @unchecked Sendable {
             guard line.hasPrefix(prefix) else { return .failure(.noRepository) }
             let raw = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
             guard !raw.isEmpty else { return .failure(.noRepository) }
-            return .success(raw.hasPrefix("/") ? raw : folder + "/" + raw)
+            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
+            guard let resolved = realPath(target), isGitDirectory(resolved) else {
+                return .failure(.noRepository)
+            }
+            return .success(resolved)
         }
+    }
+
+    static func isGitDirectory(_ path: String) -> Bool {
+        func kind(_ suffix: String) -> mode_t? {
+            var info = stat()
+            guard lstat(path + suffix, &info) == 0 else { return nil }
+            return info.st_mode & S_IFMT
+        }
+        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
+        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
+    }
+
+    static func realPath(_ path: String) -> String? {
+        guard let resolved = realpath(path, nil) else { return nil }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
 
     static func parseHEAD(_ line: String) -> (branch: String?, detached: Bool) {
@@ -332,11 +353,15 @@ public final class GitCollector: @unchecked Sendable {
     }
 
     static func readFirstLine(_ path: String) -> Result<String, GitReadFailure> {
-        let descriptor = open(path, O_RDONLY)
+        let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
             return .failure(errno == EACCES || errno == EPERM ? .notPermitted : .noRepository)
         }
         defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
+            return .failure(.noRepository)
+        }
 
         var buffer = [UInt8](repeating: 0, count: headReadLimit)
         let count = buffer.withUnsafeMutableBytes { raw -> Int in

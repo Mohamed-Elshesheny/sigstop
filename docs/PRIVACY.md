@@ -514,7 +514,11 @@ one line, and matches `ref: refs/heads/<name>`. Forty hex characters is a detach
 reported as one rather than presented as a branch name. One indirection is followed and only one: in
 a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that line is read and
 `HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
-containing folder for a submodule. Mid-rebase, `HEAD` is a detached sha and the branch you are on is
+containing folder for a submodule. That directory is followed only if, after resolving links, it is
+inside the folder you picked or has the shape git gives a worktree or submodule
+(`…/.git/worktrees/<name>`, `…/.git/modules/<path>`); a `.git` that is itself a link is refused.
+Every file is opened with `O_NOFOLLOW | O_NONBLOCK` and read only if it is a plain file, so a link
+cannot point the read elsewhere and a FIFO cannot hold it open. Mid-rebase, `HEAD` is a detached sha and the branch you are on is
 in `rebase-merge/head-name`, which is read for the same reason and nothing else in that directory is.
 Every other filesystem call is one of the four `access` checks above, which return a `Bool` and open
 nothing. `git` is never spawned: `Process`, `NSTask` and `posix_spawn` remain forbidden symbols
