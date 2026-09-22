@@ -141,6 +141,18 @@ OSA
 then
   echo "    laid out"
 else
+  # A release must not ship the unstyled window silently, which is what 0.1.0 did. When
+  # STRICT_LAYOUT is set (release.sh sets it), a skipped layout is a hard failure on stderr
+  # so it survives `make dmg >/dev/null` and stops the release before the tag. A local
+  # `make dmg` still succeeds with a plain window, because a contributor without the
+  # Automation grant should be able to build.
+  if [ "${STRICT_LAYOUT:-0}" = "1" ]; then
+    echo "error: Finder refused to lay out the disk image, so it would ship as a plain" >&2
+    echo "       window with no arrow. Run 'make dmg' once by hand first: the usual cause" >&2
+    echo "       is a timing race that a second run clears, and the next is a missing" >&2
+    echo "       Automation grant for Finder on this machine." >&2
+    exit 1
+  fi
   echo "    skipped: Finder refused the layout. The image is still valid, it just"
   echo "    opens as a plain window. Run the script again before assuming a"
   echo "    permission problem: the first cause of this was a timing race, not TCC."

@@ -57,7 +57,7 @@ swift run -c release Scenarios >/dev/null
 echo "    tests, verify, smoke and scenarios all pass"
 
 echo "==> building the image"
-make dmg >/dev/null
+STRICT_LAYOUT=1 make dmg >/dev/null
 SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 
 # The step 0.1.0 shipped without. Doing it before the tag means a release that cannot be
