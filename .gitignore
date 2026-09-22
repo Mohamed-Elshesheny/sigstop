@@ -20,3 +20,8 @@ DerivedData/
 
 # Agent worktrees
 .claude/worktrees/
+
+# ---- Local only ----
+CLAUDE.md
+__pycache__/
+app/.build-smoke-hidden/
