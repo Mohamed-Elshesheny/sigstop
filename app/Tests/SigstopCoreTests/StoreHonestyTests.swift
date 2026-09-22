@@ -73,5 +73,12 @@ struct StoreHonestyTests {
 
         let rewritten = try store.readSummaries(year: 2026, month: 9)
         #expect(rewritten.count == 1, "the new month starts from today, which is the only honest option")
+
+        let first = try Data(contentsOf: aside)
+        try Data("{\"v\":1,\"days\":{\"broken\":true}}".utf8).write(to: path)
+        try store.writeSummary(DailySummary(day: CalendarDay(year: 2026, month: 9, day: 24)))
+        let second = root.appendingPathComponent("summaries/2026-09.json.unreadable-2")
+        #expect(try Data(contentsOf: aside) == first, "a second failure must not overwrite the first month set aside")
+        #expect(FileManager.default.fileExists(atPath: second.path), "the second one goes beside it")
     }
 }

@@ -192,9 +192,13 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
             if let decoded = try? JSONDecoder().decode(SummaryFile.self, from: data) {
                 file = decoded
             } else {
-                let aside = path.appendingPathExtension("unreadable")
-                try? fm.removeItem(at: aside)
-                try? fm.moveItem(at: path, to: aside)
+                var aside = path.appendingPathExtension("unreadable")
+                var n = 2
+                while fm.fileExists(atPath: aside.path) {
+                    aside = path.appendingPathExtension("unreadable-\(n)")
+                    n += 1
+                }
+                try fm.moveItem(at: path, to: aside)
                 file = SummaryFile(v: EventSchema.version, days: [:])
             }
         } else {
