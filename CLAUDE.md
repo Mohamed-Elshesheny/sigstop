@@ -299,6 +299,10 @@ attached to `SigstopApp` only.** `SigstopCore` and `SigstopSensors` are dependen
 stay that way: they must not import Sparkle, and the layering rule in §3.1 still holds. A second
 dependency needs the same argument Sparkle had to make, below.
 
+**No comments in Swift source.** No `//` and no `///`, in `Sources` or `Tests`. The code says
+what it does; why it does it lives in `docs/`; anything a user must be told goes where they will
+see it. The shell and Python scripts keep theirs.
+
 **Motion.** Every animation must respect `@Environment(\.accessibilityReduceMotion)` and resolve
 to no animation when it is on, not to a faster one.
 
@@ -376,7 +380,8 @@ not a lost grant, and that bug was real and is fixed.
 ## 7. Working style in this repo
 
 - Prefer being correct and honest over being impressive. The audience reads source adversarially.
-- When a detection heuristic is unreliable, say so in the code and degrade. Do not paper over it.
+- When a detection heuristic is unreliable, say so where a person can see it (the `Evidence`
+  summary, `--doctor`) and degrade. Do not paper over it.
 - Landing copy is developer-native. No "revolutionize your productivity." If a sentence could
   appear on a generic SaaS page, delete it.
 - Keep `docs/` in sync in the same PR as the behavior change.
@@ -402,9 +407,8 @@ Rules:
   footer explaining the migration.
 - **Keep it short.** Most commits are a subject line and nothing else. A body is for the one
   thing a future reader cannot reconstruct from the diff, and it is two or three lines, not an
-  essay. If the reasoning genuinely needs paragraphs it belongs in `docs/` or in a doc comment
-  next to the code, where someone will actually find it. A commit log nobody reads is a commit
-  log nobody reads, however well argued.
+  essay. If the reasoning genuinely needs paragraphs it belongs in `docs/`, where someone will
+  actually find it. A commit log nobody reads is a commit log nobody reads, however well argued.
 
 ```
 feat(core): degrade to the parent activity below the confidence floor
@@ -412,6 +416,22 @@ fix(app): half fill the menu bar mark so it reads as a timer
 refactor(sensors): resolve providers by claim specificity
 chore: scaffold repo, architecture docs and Core contract
 ```
+
+**Nothing is pushed until it has survived a short adversarial check. This is not optional.**
+
+Before every `git push`, over every commit in `origin/main..main`:
+
+1. **Run every step of `.github/workflows/ci.yml` locally, in order.** All of them, not the ones
+   that seem relevant. A report of "CI passes" built from a subset is how `main` went red here
+   while being described as green.
+2. **Try to refute each change, as somebody who did not write it.** For an agent that means
+   independent subagents told to break the claim, not to approve it. For each commit: does the
+   fix fix the thing it names, does its test fail with the fix removed, did it break anything
+   next to it, and does any doc or claim now disagree with the code.
+3. **Every finding is fixed, or written down for the person deciding to push.** Never pushed
+   silently.
+
+Short means minutes, scaled to the diff. It is a check, not an audit.
 
 **One fix, one commit, straight onto `main`. No merge commits.**
 
