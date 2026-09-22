@@ -266,7 +266,7 @@ public final class InMemoryEventStore: EventStore, @unchecked Sendable {
         let cutoff = PruneMath.cutoffDay(retentionDays: retentionDays, asOf: now)
         var removedDays: [CalendarDay] = []
         var removedEvents = 0
-        for day in days.keys.sorted() where PruneMath.shouldDrop(day, cutoff: cutoff) {
+        for day in days.keys.sorted() where PruneMath.shouldDrop(day, cutoff: cutoff, today: CalendarDay.utc(of: now)) {
             removedEvents += days[day]?.count ?? 0
             days[day] = nil
             injectedMalformed[day] = nil
@@ -307,7 +307,15 @@ public enum PruneMath {
         return today.adding(days: -(retentionDays - 1))
     }
 
-    public static func shouldDrop(_ day: CalendarDay, cutoff: CalendarDay?) -> Bool {
+    /// Two-sided: older than the cutoff, OR later than today.
+    ///
+    /// The lower bound is the retention window. The upper bound is the one that was missing:
+    /// a file named for a day in the future is never `< cutoff`, so it survived every prune
+    /// forever, and the seven-day promise quietly did not hold for anyone whose clock had
+    /// been wrong when an event was written. A day after now cannot be real data, and is
+    /// exactly what retention should reach.
+    public static func shouldDrop(_ day: CalendarDay, cutoff: CalendarDay?, today: CalendarDay) -> Bool {
+        if day > today { return true }
         guard let cutoff else { return true }
         return day < cutoff
     }
