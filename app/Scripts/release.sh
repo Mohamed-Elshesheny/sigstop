@@ -61,14 +61,6 @@ SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 # signed fails here, with nothing published, rather than after the announcement.
 echo "==> signing the update feed"
 ./Scripts/appcast.sh >/dev/null
-# The highlights belong to the release that shipped them. Clearing the file is what stops
-# v0.2.0's sentence appearing again on v0.2.1, which is the failure mode of every
-# hand-kept notes file.
-if [ -s Resources/RELEASE_HIGHLIGHTS.md ]; then
-  : > Resources/RELEASE_HIGHLIGHTS.md
-  (cd .. && git add app/Resources/RELEASE_HIGHLIGHTS.md)
-fi
-
 if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
   (cd .. && git add updater/appcast.xml && git commit -q -m "build: publish the appcast for v${VERSION}")
   echo "    committed updater/appcast.xml"
@@ -93,6 +85,16 @@ fi
 # them again on each tag made the page mostly boilerplate and buried the changelog under
 # it. The checksum stays because it is the one line here that is per-build and the one a
 # careful reader actually uses.
+# The highlights belong to the release that shipped them, so the file is emptied once the
+# notes have been built FROM it. It was cleared a few lines earlier at first, before the
+# generator ran, which meant the one release it was written for was the one release that
+# did not print it.
+if [ -s Resources/RELEASE_HIGHLIGHTS.md ]; then
+  : > Resources/RELEASE_HIGHLIGHTS.md
+  (cd .. && git add app/Resources/RELEASE_HIGHLIGHTS.md)
+  echo "    highlights used and cleared"
+fi
+
 NOTES="$(cat <<EOF
 ${CHANGES}
 
