@@ -290,7 +290,14 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        guard notification.object as? NSWindow === panel else { return }
         dismiss()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === settingsWindow else { return }
+        window.contentViewController = nil
+        settingsWindow = nil
     }
 
     private static func centredOrigin(for size: NSSize) -> NSPoint {
@@ -326,6 +333,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             rootView: SettingsView(model: model).environment(\.locale, DisplayLocale.english(from: .current))
         )
         window.isReleasedWhenClosed = false
+        window.delegate = self
         var frame = window.frameRect(forContentRect: content)
         frame.origin = Self.centredOrigin(for: frame.size)
         window.setFrame(frame, display: false)
