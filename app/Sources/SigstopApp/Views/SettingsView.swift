@@ -810,7 +810,7 @@ struct SettingsView: View {
         case .downloading:
             return "Downloading…"
         case .extracting:
-            return "Signature verified. Unpacking…"
+            return "Checking the signature, then unpacking…"
         case .downloaded(let version):
             return "\(version) is downloaded. Installing checks its signature first."
         case .informational(let version, _):

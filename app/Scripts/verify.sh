@@ -266,6 +266,15 @@ check_plist_false() {  # check_plist_false <key> <human description>
 check_plist_false SUEnableAutomaticChecks "no scheduled check, and the app also forces it off at launch"
 check_plist_false SUAutomaticallyUpdate   "nothing downloads or installs without being asked"
 check_plist_false SUEnableSystemProfiling "no system profile is appended to the request"
+# Without this Sparkle unpacks a downloaded image first and checks it after, and accepts an app
+# whose code signature matches the installed one in place of the EdDSA signature. With it, the
+# archive's EdDSA signature is checked before anything is unpacked, and the only fallback Sparkle
+# offers needs a Developer ID team this app does not have, so the key is the only way in.
+if [ "$(/usr/libexec/PlistBuddy -c "Print :SUVerifyUpdateBeforeExtraction" "${PLIST}" 2>/dev/null)" = "true" ]; then
+  pass "an update's EdDSA signature is checked before it is unpacked"
+else
+  fail "SUVerifyUpdateBeforeExtraction is not true, so an update is unpacked before it is verified"
+fi
 # The schedule key was removed with the toggle (§4.3). It is inert while automatic checks
 # are off, but a leftover key is how a removed feature creeps back, so it must stay gone.
 if plutil -extract SUScheduledCheckInterval raw "${PLIST}" >/dev/null 2>&1; then
