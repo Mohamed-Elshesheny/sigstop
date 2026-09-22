@@ -1,6 +1,6 @@
 # sigstop, build with Command Line Tools only. No Xcode required.
 .DEFAULT_GOAL := help
-.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify verify-shipped dmg appcast release badges badges-check
+.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify verify-shipped dmg release badges badges-check
 
 APP     := sigstop
 CONFIG  ?= release
@@ -54,9 +54,6 @@ release: ## Cut a release: VERSION=0.2.0 NAME="Wood Frog 🐸"
 dmg: ## Build the disk image people download (both architectures)
 	@UNIVERSAL=1 CONFIG=$(CONFIG) ./Scripts/bundle.sh
 	@./Scripts/dmg.sh
-
-appcast: ## Sign the built image and write updater/appcast.xml
-	@./Scripts/appcast.sh
 
 badges: ## Rewrite Exports/badges.json from the Swift catalogue
 	@./Scripts/badges.sh > Exports/badges.json && echo "wrote Exports/badges.json"

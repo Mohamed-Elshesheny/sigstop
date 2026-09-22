@@ -20,6 +20,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Signing is publishing: a signature cannot be withdrawn and every installed copy accepts it.
+# So this runs only inside `make release`, for the commit that release built and tested. Run
+# on its own, it would sign whatever `make dmg` last left in dist/ under the released name.
+if [ -z "${SIGSTOP_RELEASING:-}" ] || [ "${SIGSTOP_RELEASING}" != "$(git rev-parse HEAD)" ]; then
+  echo "error: appcast.sh signs a release, so it runs from 'make release' only." >&2
+  exit 1
+fi
+
 APP_NAME="sigstop"
 KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-sigstop}"
 REPO="Mohamed-Elshesheny/sigstop"

@@ -47,6 +47,42 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+# What gets signed has to be what everybody else can see: pushed, on main, and green in CI.
+git fetch -q origin
+RELEASED_SHA="$(git rev-parse HEAD)"
+if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ] || [ "${RELEASED_SHA}" != "$(git rev-parse origin/main)" ]; then
+  echo "error: HEAD is not origin/main. Push main and let CI finish, then release from it." >&2
+  exit 1
+fi
+CI_RESULT="$(gh run list -R Mohamed-Elshesheny/sigstop --commit "${RELEASED_SHA}" --workflow CI \
+  --json conclusion --jq '.[0].conclusion' 2>/dev/null || true)"
+if [ "${CI_RESULT}" != "success" ]; then
+  echo "error: CI on ${RELEASED_SHA} is '${CI_RESULT:-not run}', not success." >&2
+  exit 1
+fi
+
+# Sparkle orders updates by CFBundleVersion, not by the version people read. An unbumped build
+# number would tell every installed copy it is already up to date.
+LAST_TAG="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
+PREVIOUS_BUILD=0
+if [ -n "${LAST_TAG}" ]; then
+  PREVIOUS_BUILD="$(git show "${LAST_TAG}:app/Resources/Info.plist" 2>/dev/null \
+    | plutil -extract CFBundleVersion raw - 2>/dev/null || echo 0)"
+fi
+BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Resources/Info.plist)"
+if [ "${BUILD}" -le "${PREVIOUS_BUILD}" ]; then
+  echo "error: CFBundleVersion is ${BUILD}, the last release was ${PREVIOUS_BUILD}. Bump it." >&2
+  exit 1
+fi
+
+# An update is installed only if it matches what the installed copy trusts. A self-signed
+# identity would make every later build signed with it inherit the users' Accessibility grants.
+case "${SIGN_IDENTITY:--}" in
+  -|"Developer ID Application"*) ;;
+  *) echo "error: SIGN_IDENTITY is '${SIGN_IDENTITY}'. Release ad-hoc, or with a Developer ID." >&2; exit 1 ;;
+esac
+export SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
 NOTES="$(python3 Scripts/changelog.py "${PREVIOUS_TAG}" HEAD "${TAG} ${NAME}")"
 STRAY="$(grep -vE '^(## |### |- |$)' <<<"${NOTES}" || true)"
@@ -83,14 +119,27 @@ quiet swift run -c release Scenarios
 echo "    tests, verify, smoke and scenarios all pass"
 echo "    ${X86_BY}"
 
+SIGNATURE="$(codesign -dv dist/sigstop.app 2>&1 | sed -n 's/^Signature=//p')"
+if [ "${SIGN_IDENTITY}" = "-" ] && [ "${SIGNATURE}" != "adhoc" ]; then
+  echo "error: the tested bundle is signed '${SIGNATURE}', not ad-hoc." >&2
+  exit 1
+fi
+
 echo "==> packing the bundle just tested into the image"
 quiet env STRICT_LAYOUT=1 ./Scripts/dmg.sh
 SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 
 # The step 0.1.0 shipped without. Doing it before the tag means a release that cannot be
 # signed fails here, with nothing published, rather than after the announcement.
+# Checked before anything is signed: a signature cannot be withdrawn, and a feed commit left
+# behind by a failed run would publish an update whose download does not exist yet.
+if [ -n "$(git status --porcelain)" ] || [ "$(git rev-parse HEAD)" != "${RELEASED_SHA}" ]; then
+  echo "error: the tree changed while the release was building. Nothing was signed or tagged." >&2
+  exit 1
+fi
+
 echo "==> signing the update feed"
-./Scripts/appcast.sh >/dev/null
+SIGSTOP_RELEASING="${RELEASED_SHA}" ./Scripts/appcast.sh >/dev/null
 if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
   (cd .. && git add updater/appcast.xml && git commit -q -m "build: publish the appcast for v${VERSION}")
   echo "    committed updater/appcast.xml"
@@ -98,8 +147,20 @@ fi
 
 
 
+# Nothing may have changed while the build ran but the feed commit this script made.
+if [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASED_SHA}" HEAD -- ':(top)' ':(top,exclude)updater/appcast.xml')" ]; then
+  echo "error: the tree changed while the feed was being signed. Nothing was tagged." >&2
+  if git reset -q --keep "${RELEASED_SHA}"; then
+    echo "       The feed commit was undone. Do not push main until a release succeeds." >&2
+  else
+    echo "       Reset main to ${RELEASED_SHA} by hand before pushing: the feed commit names a" >&2
+    echo "       download that does not exist." >&2
+  fi
+  exit 1
+fi
+
 echo "==> tagging ${TAG}"
-git tag -a "${TAG}" -m "${TAG} ${NAME}"
+git tag -a "${TAG}" -m "${TAG} ${NAME}" "${RELEASED_SHA}"
 git push -q origin "${TAG}"
 
 echo "==> publishing"

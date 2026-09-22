@@ -398,9 +398,17 @@ questions.
 
 **Forgetting `CFBundleVersion`.** Sparkle orders updates by it. Two releases with the same build
 number produce a feed it cannot order, and the symptom is an update that is never offered.
+`release.sh` refuses a build number that is not greater than the last tag's.
 
-**Editing `appcast.xml` by hand after signing.** The appcast itself can be signed; any manual edit
-invalidates it. Re-run `generate_appcast` rather than patching the XML.
+**Editing `appcast.xml` by hand after signing.** Each enclosure's signature covers its archive, so
+a manual edit to the XML can point an item at an archive the signature does not match. The feed
+itself is not signed yet (`SURequireSignedFeed` is not set), so its text is trusted as served.
+Re-run `generate_appcast` rather than patching the XML.
+
+**Before 0.1.8 the archive was unpacked before it was verified.** `SUVerifyUpdateBeforeExtraction`
+is read from the installed copy, and releases up to 0.1.7 do not set it, so their next update is
+mounted before its EdDSA signature is checked. It still will not install unsigned, and from the
+first release that carries the key the check comes first.
 
 **Changing `SUFeedURL`.** An installed build only ever reads the URL compiled into *itself*. If the
 site moves to a custom domain, you must ship a release pointing at the new URL **and keep the old URL
