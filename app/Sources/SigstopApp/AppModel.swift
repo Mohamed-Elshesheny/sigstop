@@ -213,7 +213,6 @@ final class AppModel {
         let id: String
         let summary: String
         let logOdds: Double
-        let tier: SignalTier
     }
 
     enum NotificationAvailability: Sendable, Hashable {
@@ -1086,7 +1085,7 @@ final class AppModel {
         confidence = context.confidence.value
         evidenceLines = context.evidence
             .sorted { abs($0.logOdds) > abs($1.logOdds) }
-            .map { EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds, tier: $0.tier) }
+            .map { EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds) }
         caveats = sample.caveats
         publishGitReading(context: context)
         engineStateName = engineState.name

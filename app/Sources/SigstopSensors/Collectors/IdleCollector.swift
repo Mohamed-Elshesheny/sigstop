@@ -1,7 +1,6 @@
 import CoreGraphics
 import Foundation
 import IOKit
-import SigstopCore
 
 /// Tier 0. Seconds since the last **human** HID event.
 ///

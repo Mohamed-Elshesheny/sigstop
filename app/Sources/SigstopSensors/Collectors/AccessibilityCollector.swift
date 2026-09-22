@@ -1,6 +1,5 @@
 import ApplicationServices
 import Foundation
-import SigstopCore
 
 // MARK: - Public shapes
 

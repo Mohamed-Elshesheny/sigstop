@@ -1,5 +1,4 @@
 import AppKit
-import SigstopCore
 import SwiftUI
 
 /// The backdrop of the disk image people download, drawn by the app itself.

@@ -1,5 +1,4 @@
 import Foundation
-import SigstopCore
 
 /// How many seconds the call latch has held a break back today, across relaunches.
 ///
