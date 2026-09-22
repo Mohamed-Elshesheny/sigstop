@@ -210,11 +210,23 @@ public enum TitleParsing {
         if let first = parts.first, let file = fileComponent(first) {
             parsed.fileName = file.name
             parsed.fileExtension = file.ext
-            parsed.projectName = parts.dropFirst().first
-        } else {
-            parsed.projectName = parts.count > 1 ? parts[1] : parts[0]
+            parsed.projectName = plausibleProject(parts.dropFirst().first)
+        } else if parts.count > 1 {
+            parsed.projectName = plausibleProject(parts.last)
         }
         return parsed.isEmpty ? nil : parsed
+    }
+
+    static let notAProject = ["•", "://", "@", "=", "Untitled-"]
+
+    static func plausibleProject(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let name = (value.components(separatedBy: " [").first ?? value)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.count <= 60,
+              !notAProject.contains(where: { name.contains($0) })
+        else { return nil }
+        return name
     }
 
     public static func projectFirst(_ title: String) -> ParsedTitle? {

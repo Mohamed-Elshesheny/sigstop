@@ -237,10 +237,13 @@ cases, never the string, and it is inventory row 32. What is true is narrower: t
 which exists and is documented in §4.3, is never populated, because `logFocusIfNeeded` passes
 `titleSignal: nil`.
 
-Outside the app's own files there is one more route. On the notification channel, which is off
-by default, a prompt line can carry a project name parsed from a title through the `{project}`
-slot, and macOS keeps notification text in its own store (§8.11). Only `{branch}` is withheld
-there.
+Outside the app's own files there was one more route, and it is closed. On the notification
+channel, which is off by default, a prompt line could carry a project name parsed from a title
+through the `{project}` slot, and macOS keeps notification text in its own store (§8.11). Both
+`{branch}` and `{project}` are now withheld there. The parser also takes a project only from the
+folder position in the title, never from a lone component, and refuses anything that looks like a
+buffer's text rather than a folder (`•`, `://`, `@`, `=`, `Untitled-`), because the first line of
+an untitled editor buffer can be the window title.
 
 **And there is no raw-title debug ring.** Row 14 of the inventory promised "last 20 titles, memory
 only, off by default, and the UI switch is labelled as such". There is no ring, no switch and no
@@ -1477,11 +1480,13 @@ If that matters to you, leave Tier 2 off, which is where it ships.
 handed to `UNUserNotificationCenter`, and those are not the same thing. A notification body is
 copied into notificationd's own store under `~/Library/Group Containers/group.com.apple.usernoted`,
 drawn on the lock screen, and mirrored to whatever display is attached; there is no call this app
-can make that takes it back. Two lines in the corpus name a branch, and on the notification route
-they are simply not selectable: `AppModel.deliver` withholds the `{branch}` slot before a line is
-chosen, so the branch is absent from the slot table rather than trusted to stay out of the string.
-Turning "Deliver prompts through macOS notifications" off, or hitting escalation 4, which the app
-always draws itself, gets you those two lines back in a window this process owns. Without the
+can make that takes it back. Lines in the corpus that name a branch or a project are, on the
+notification route, simply not selectable, or fall back to their generic wording:
+`AppModel.deliver` withholds the `{branch}` and `{project}` slots before a line is chosen, so both
+are absent from the slot table rather than trusted to stay out of the string. `{project}` is parsed
+from a window title, which can be a buffer's first line. Turning "Deliver prompts through macOS
+notifications" off, or hitting escalation 4, which the app always draws itself, gets you those
+lines back in a window this process owns. Without the
 withholding, the switch would have quietly written a branch name to somebody else's database, and
 "memory-only" in row 31 would have been false through a switch rather than through a bug.
 

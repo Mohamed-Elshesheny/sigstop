@@ -563,7 +563,7 @@ final class AppModel {
                 .takenToday: tracker.session.breakCount,
             ],
             facts: Self.facts(from: context),
-            withheldSlots: goesToTheSystem ? [.branch] : []
+            withheldSlots: goesToTheSystem ? [.branch, .project] : []
         )
         let message = messages.select(for: messageContext).message
         PromptSound.play(for: request.level, enabled: settings.promptSound && !captureLive)
