@@ -16,7 +16,7 @@ macOS 14+ · Apple Silicon and Intel · Free and open source · [Website](https:
 [![336 tests](https://img.shields.io/badge/tests-336%20passing-3fb950?style=flat-square)](#build)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 
-<img src="docs/images/prompt.png" width="100%" alt="A sigstop break prompt over a Mac desktop: Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five and go meet your new codebase.">
+<img src="docs/images/prompt.png" width="100%" alt="A sigstop break prompt on a Mac screen: Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five and go meet your new codebase.">
 
 </div>
 
