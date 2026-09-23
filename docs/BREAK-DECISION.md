@@ -349,7 +349,9 @@ a session end however long it ran. The work clock's pause is relabelled with the
 `clockPaused` is emitted for it, so the event log records the absence as idle; `AppModel` writes
 no idle line for a `userPaused` pause. The tracker learns that a pause is over one tick late,
 because `AppModel` builds the tick's sample from the engine's state before the step, so the end of
-the pause is taken to be the previous tick.
+the pause is taken to be the previous tick. The same lag means a Mac that sleeps through the end of
+a pause and wakes unlocked wakes into the pause, so that sleep is not counted as time away, only
+the idle after the wake; a Mac that wakes locked is different, because the lock takes the gap over.
 
 A break the engine is running owns the clock. `beginBreak` pauses it as `breakActive` even when it
 was already paused, because a break taken from a pause used to leave the clock paused as
