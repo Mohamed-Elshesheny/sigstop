@@ -287,7 +287,10 @@ In order, it:
 
 If anything changes in the tree while it runs, it stops before signing. If that happens after the
 feed commit, it undoes the commit, because a pushed feed naming a download that does not exist
-would offer every installed copy an update that 404s.
+would offer every installed copy an update that 404s. It undoes that commit and nothing else: if
+`main` picked up a commit of yours meanwhile, it leaves `main` alone, lists what it found, and
+prints the one command that drops only the feed commit. The feed commit holds the feed file only,
+so a change you staged while it ran stays staged.
 
 **If `make release` fails after signing.** From the feed commit on, a failure in the tag, the tag
 push or `gh release create` leaves that commit on local `main` with no release behind it.

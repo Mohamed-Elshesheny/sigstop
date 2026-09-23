@@ -190,9 +190,11 @@ fi
 
 echo "==> signing the update feed"
 SIGSTOP_RELEASING="${RELEASED_SHA}" ./Scripts/appcast.sh >/dev/null
+# The feed and nothing else: with the path named, a change somebody staged meanwhile stays staged
+# instead of riding along in this commit and being thrown away with it.
 FEED_SHA=""
 if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
-  (cd .. && git add updater/appcast.xml && git commit -q -m "${FEED_SUBJECT} v${VERSION}")
+  (cd .. && git add updater/appcast.xml && git commit -q -m "${FEED_SUBJECT} v${VERSION}" -- updater/appcast.xml)
   FEED_SHA="$(git rev-parse HEAD)"
   echo "    committed updater/appcast.xml"
 fi
@@ -206,11 +208,21 @@ FEED_URL="$(sed -n '/url="[^"]*\.dmg"/{s/.*url="\([^"]*\.dmg\)".*/\1/p;q;}' ../u
 # Nothing may have changed while the build ran but the feed commit this script made.
 if [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASED_SHA}" HEAD -- ':(top)' ':(top,exclude)updater/appcast.xml')" ]; then
   echo "error: the tree changed while the feed was being signed. Nothing was tagged." >&2
-  if git reset -q --keep "${RELEASED_SHA}"; then
+  # Only the feed commit is this script's to undo. A commit somebody made meanwhile is theirs,
+  # and resetting main to the released commit would take it with the feed.
+  OTHERS="$(git log --format='%H %s' "${RELEASED_SHA}..HEAD" | grep -v "^${FEED_SHA:-none} " || true)"
+  if [ -z "${FEED_SHA}" ]; then
+    echo "       There was no feed commit to undo." >&2
+  elif [ -n "${OTHERS}" ]; then
+    echo "       main also holds commits this release did not make, so it was left as it is:" >&2
+    sed -n '1,20s/^/         /p' <<<"${OTHERS}" >&2
+    echo "       Before pushing, drop only the feed commit ${FEED_SHA}, which names a" >&2
+    echo "       download that does not exist: $(drop_cmd "${FEED_SHA}")" >&2
+  elif git reset -q --keep "${FEED_SHA}^"; then
     echo "       The feed commit was undone. Do not push main until a release succeeds." >&2
   else
-    echo "       Reset main to ${RELEASED_SHA} by hand before pushing: the feed commit names a" >&2
-    echo "       download that does not exist." >&2
+    echo "       Before pushing, drop the feed commit ${FEED_SHA} by hand, it names a" >&2
+    echo "       download that does not exist: $(drop_cmd "${FEED_SHA}")" >&2
   fi
   exit 1
 fi
