@@ -3,7 +3,7 @@ import Testing
 
 @testable import SigstopCore
 
-@Suite("retention never deletes on the word of a clock that may be wrong")
+@Suite("retention drops only days past the window, and nothing for a slow or reset clock or a day dated ahead")
 struct RetentionTests {
     static let now = Date(timeIntervalSince1970: 1_758_500_000)
     static var today: CalendarDay { CalendarDay.utc(of: now) }
