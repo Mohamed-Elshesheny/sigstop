@@ -826,7 +826,10 @@ the last one was, how many cycles in a row went unanswered, the compliance talli
 next cycle number. It exists because those were rebuilt from nothing on every launch, so
 the "notifications per day" setting was never a real constraint for anyone who restarts the
 app. It is counts and one timestamp; it adds nothing to the inventory in §1.2 that the
-event log does not already hold, and nothing in it says what you were doing.
+event log does not already hold, and nothing in it says what you were doing. When a launch
+cannot restore it (not there, will not open, will not decode), cycle numbers start again from 0,
+so the app first withdraws every sigstop notification still showing, including any an earlier run
+left: a prompt answered from an old banner must not reach a new cycle with the same number.
 
 `summaries/YYYY-MM.json.unreadable` exists only if a month's file stopped decoding. The next
 write moves the bad file aside instead of overwriting it, and a second failure in the same
@@ -1120,8 +1123,8 @@ and the summaries are not in it: they are the plain files in §4.2, and `cat` is
 removes everything in the storage directory, the settings file with it, except its empty `.lock`:
 that stays held for the whole run, so a second copy started meanwhile still sees sigstop running and
 leaves. A `.lock` that is not a plain file goes with the rest, and the app takes a new one at once.
-It withdraws any sigstop notification still showing, unregisters the login item if it
-is registered, puts the default settings back everywhere they apply (the break policy, the sensors,
+It withdraws every sigstop notification still showing, an earlier run's too, unregisters the login
+item if it is registered, puts the default settings back everywhere they apply (the break policy, the sensors,
 the permission status), resets the call hold's daily total and the in-memory counters (a hold that is
 running keeps running, so a call you declared is still protected), and reports what it
 removed. The app keeps running, so the report says a new, empty log starts at once. It also tells

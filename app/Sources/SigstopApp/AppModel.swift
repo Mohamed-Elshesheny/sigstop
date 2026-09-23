@@ -668,6 +668,8 @@ final class AppModel {
     }
 
     private func openStore() {
+        var countersRestored = false
+        defer { if !countersRestored { notifier.withdrawEverything() } }
         let store: FileEventStore
         do {
             store = try FileEventStore(root: AppPaths.storageRoot)
@@ -688,6 +690,7 @@ final class AppModel {
             if let stored = try store.readCounters() {
                 day = stored
                 persistedDay = stored
+                countersRestored = true
             }
             countersLeftAlone = false
         } catch {
@@ -1066,7 +1069,7 @@ final class AppModel {
         do {
             let report = try store.deleteEverything()
             _ = InstanceLock.acquire(in: AppPaths.storageRoot)
-            notifier.withdrawAll()
+            notifier.withdrawEverything()
             try? FileManager.default.removeItem(at: AppPaths.settingsFile)
             apply(settings: .default)
             latch = latch.resettingDailyHold()

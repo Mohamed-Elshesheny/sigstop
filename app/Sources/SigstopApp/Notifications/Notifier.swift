@@ -118,6 +118,13 @@ final class Notifier: NSObject {
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 
+    func withdrawEverything() {
+        withdrawAll()
+        guard let center = resolveCenter() else { return }
+        center.removeAllDeliveredNotifications()
+        center.removeAllPendingNotificationRequests()
+    }
+
     private func identifier(for request: PromptRequest) -> String {
         serial += 1
         return "dev.sigstop.\(request.cycle.rawValue).\(request.level.rawValue).\(serial)"
