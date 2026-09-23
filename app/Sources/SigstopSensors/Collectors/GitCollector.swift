@@ -30,6 +30,7 @@ public final class GitCollector: @unchecked Sendable {
     private let queue = DispatchQueue(
         label: "dev.sigstop.git", qos: .utility, attributes: .concurrent
     )
+    private let deadlineQueue = DispatchQueue(label: "dev.sigstop.git.deadline", qos: .userInitiated)
     private let lock = NSLock()
     private let permissions: PermissionBroker
     private let memoWindow: TimeInterval
@@ -144,7 +145,7 @@ public final class GitCollector: @unchecked Sendable {
         return await withCheckedContinuation { continuation in
             once.attach(continuation)
             queue.async { [reader] in once.resume(reader(folder, now)) }
-            queue.asyncAfter(deadline: .now() + deadline) { once.resume(nil) }
+            deadlineQueue.asyncAfter(deadline: .now() + deadline) { once.resume(nil) }
         }
     }
 

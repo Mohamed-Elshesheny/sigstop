@@ -59,7 +59,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         memoWindow: 0,
         deadline: 0.1,
         reader: { folder, now in
-            if folder.hasSuffix("dead") { _ = stuck.wait(timeout: .now() + 2) }
+            if folder.hasSuffix("dead") { _ = stuck.wait(timeout: .now() + 10) }
             return .success(GitSignal(
                 branch: "main", repoState: .clean,
                 repoName: (folder as NSString).lastPathComponent, readAt: now
@@ -75,7 +75,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         )
         #expect(attempt == nil)
         let spent = Date().timeIntervalSince(started)
-        #expect(spent < 2)
+        #expect(spent < 5, "the deadline, not the ten-second reader, decides when the caller gets back")
         #expect(spent >= 0.1)
         #expect(collector.lastOutcome == .timedOut(folder: "dead"))
     }
@@ -95,7 +95,7 @@ private func collector(gitOn: Bool) -> GitCollector {
     )
     #expect(live?.branch == "main")
 
-    stuck.signal()
+    for _ in 0..<GitCollector.strikesBeforeSettingAside { stuck.signal() }
 }
 
 @Test func aNormalRepositoryYieldsItsBranch() {
