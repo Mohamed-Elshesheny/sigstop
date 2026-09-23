@@ -186,4 +186,29 @@ struct StoreHonestyTests {
         #expect(try Data(contentsOf: aside) == first, "a second failure must not overwrite the first month set aside")
         #expect(FileManager.default.fileExists(atPath: second.path), "the second one goes beside it")
     }
+
+    @Test("a summaries month that will not open is left alone, not replaced by a month of one day")
+    func unopenableSummaryMonthIsKept() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        for n in 1...20 {
+            try store.writeSummary(DailySummary(day: CalendarDay(year: 2026, month: 9, day: n), breakCount: n))
+        }
+
+        let path = root.appendingPathComponent("summaries/2026-09.json")
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: path.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path) }
+
+        #expect(throws: StoreError.self, "a month that will not open must refuse the write, not start over") {
+            try store.writeSummary(DailySummary(day: CalendarDay(year: 2026, month: 9, day: 23)))
+        }
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path)
+        let kept = try store.readSummaries(year: 2026, month: 9)
+        #expect(kept.count == 20, "every earlier day of the month is still there")
+        #expect(kept[CalendarDay(year: 2026, month: 9, day: 7)]?.breakCount == 7)
+        let names = try FileManager.default.contentsOfDirectory(atPath: store.summariesDirectory.path)
+        #expect(names == ["2026-09.json"], "nothing was set aside or written beside it")
+    }
 }

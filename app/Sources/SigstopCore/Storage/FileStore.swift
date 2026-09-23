@@ -2,6 +2,8 @@ import Foundation
 
 public final class FileEventStore: EventStore, @unchecked Sendable {
     public static let largestDayFile = 32 * 1024 * 1024
+    static let largestRecordFile = 32 * 1024 * 1024
+    static let leftAsItIs = "it is there but will not open, so it is left as it is rather than replaced"
 
     public let root: URL
     public let eventsDirectory: URL
@@ -162,7 +164,12 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         let path = summariesDirectory.appendingPathComponent(name)
 
         var file: SummaryFile
-        if let data = fm.contents(atPath: path.path) {
+        switch SecureFile.read(path, limit: Self.largestRecordFile) {
+        case .absent:
+            file = SummaryFile(v: EventSchema.version, days: [:])
+        case .unreadable:
+            throw StoreError.notWritable(path: path.path, reason: Self.leftAsItIs)
+        case .contents(let data):
             if let decoded = try? JSONDecoder().decode(SummaryFile.self, from: data) {
                 file = decoded
             } else {
@@ -175,8 +182,6 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
                 try fm.moveItem(at: path, to: aside)
                 file = SummaryFile(v: EventSchema.version, days: [:])
             }
-        } else {
-            file = SummaryFile(v: EventSchema.version, days: [:])
         }
         file.days[summary.day.description] = summary
 
