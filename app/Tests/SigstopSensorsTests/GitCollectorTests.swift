@@ -201,6 +201,66 @@ private func collector(gitOn: Bool) -> GitCollector {
     #expect((try? GitCollector.readRepository(at: absolute, now: Date()).get())?.branch == "crlf-branch")
 }
 
+@Test func aGitdirFileGitRefusesIsRefusedToo() {
+    let box = Sandbox()
+    box.write("ref: refs/heads/should-not-be-read\n", to: "gd/sepstore/HEAD")
+    _ = box.folder("gd/sepstore/objects")
+    let refused: [(String, String)] = [
+        ("vertical-tab", "gitdir: ../sepstore\u{0B}\n"),
+        ("no-space", "gitdir:../sepstore\n"),
+        ("trailing-spaces", "gitdir: ../sepstore  \n"),
+        ("trailing-tab", "gitdir: ../sepstore\t\n"),
+        ("two-spaces", "gitdir:  ../sepstore\n"),
+        ("leading-space", " gitdir: ../sepstore\n"),
+        ("upper-case", "GITDIR: ../sepstore\n"),
+        ("second-line", "gitdir: ../sepstore\nsecond\n"),
+        ("too-long", "gitdir: ../sepstore\n" + String(repeating: "x", count: 600) + "\n"),
+    ]
+    for (name, contents) in refused {
+        let folder = box.folder("gd/\(name)")
+        box.write(contents, to: "gd/\(name)/.git")
+        switch GitCollector.readRepository(at: folder, now: Date()) {
+        case .success(let signal):
+            Issue.record("\(name): followed a .git file git refuses, read \(signal.branch ?? "?")")
+        case .failure(let failure):
+            #expect(failure == .noRepository, "\(name)")
+        }
+    }
+}
+
+@Test func aGitdirFileGitAcceptsIsFollowed() {
+    let box = Sandbox()
+    box.write("ref: refs/heads/accepted\n", to: "gd/sepstore/HEAD")
+    _ = box.folder("gd/sepstore/objects")
+    let accepted: [(String, String)] = [
+        ("lf", "gitdir: ../sepstore\n"),
+        ("crlf", "gitdir: ../sepstore\r\n"),
+        ("no-newline", "gitdir: ../sepstore"),
+        ("several", "gitdir: ../sepstore\r\r\n\n"),
+        ("lf-cr-lf", "gitdir: ../sepstore\n\r\n"),
+    ]
+    for (name, contents) in accepted {
+        let folder = box.folder("gd/\(name)")
+        box.write(contents, to: "gd/\(name)/.git")
+        let branch = (try? GitCollector.readRepository(at: folder, now: Date()).get())?.branch
+        #expect(branch == "accepted", "\(name)")
+    }
+}
+
+@Test func theGitdirTargetIsWhatFollowsTheExactPrefix() {
+    func target(_ text: String) -> String? { GitCollector.gitdirTarget(Array(text.utf8)) }
+    #expect(target("gitdir: /abs/path\n") == "/abs/path")
+    #expect(target("gitdir: rel\r\n") == "rel")
+    #expect(target("gitdir: a b\n") == "a b")
+    #expect(target("gitdir:  rel\n") == " rel")
+    #expect(target("gitdir: rel \n") == "rel ")
+    #expect(target("gitdir: rel\nmore\n") == "rel\nmore")
+    #expect(target("gitdir:rel\n") == nil)
+    #expect(target("gitdir: \n") == nil)
+    #expect(target("gitdir: \r\n") == nil)
+    #expect(target("") == nil)
+}
+
 @Test func aLinkedDotGitIsNotFollowed() throws {
     let box = Sandbox()
     box.write("ref: refs/heads/read-from-outside-the-folder\n", to: "outside/secret/HEAD")

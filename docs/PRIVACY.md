@@ -57,7 +57,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 28 | **Seconds the call hold has held a break today**, and the day they count for | Derived from #25, #26 and #27 by the call latch | So the three-hour daily ceiling on holding survives a relaunch instead of resetting to zero | Persisted, `call-hold.json` (a day index and a number of seconds) | Overwritten in place; reset on delete | Follows "Hold my break during calls" |
 | 29 | **The focused window's document path** (`/Users/you/p/a.swift`) | `kAXDocument` on the focused window, read in the same call that reads the title. Tier 1 | Names the file you have open when the title does not, and tells the git collector which registered folder you are in | Memory-only, one sample. Anything that is not a local file URL is discarded before it is parsed, which is what keeps a browser's full page URL out (`AccessibilityCollector.fileURL(from:)`) | Until the next sample | Follows Tier 1 |
 | 30 | **Which of a fixed list of developer tools is running**, as an enum case, never a string, plus one `Bool` for whether anything is under a debugger | One `sysctl(KERN_PROC_ALL)`, then `proc_pidpath` for the pids whose `p_comm` already matched the `ToolToken` allowlist in `app/Sources/SigstopSensors/SignalContext.swift`. **No permission is required and none is requested** | The only signal in this product that can tell `DEBUGGING` from `CODING`. Without it the app degrades to `CODING` rather than guess between siblings ("Never overclaim" in [the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)) | **Not persisted, and nothing but the match survives.** The path is compared and dropped. A process matching nothing is not recorded, not counted, not reported. No command line, environment or working directory is read at all | Memory-only, one sample | **Yes, and off by default** |
-| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | The first line, at most 512 bytes, of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`. In a worktree or submodule, first the `gitdir:` line of the `.git` file; mid-rebase, the `head-name` line. Plus `lstat` on `.git` and on the git directory, its `HEAD`, `objects` and `commondir`, one `realpath` of a `gitdir:` target, and four `access` checks, none of which opens a file (§2.10). No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), `--doctor` prints its length rather than the name (§8.12), and it is **withheld from the system-notification channel** so that the one path out of this process cannot carry it (§8.11) | Until the next sample, or process exit | **Yes, and off by default** |
+| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | The first line, at most 512 bytes, of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`. In a worktree or submodule, first the `.git` file, at most 512 bytes and refused unless it is one `gitdir:` line as git requires; mid-rebase, the `head-name` line. Plus `lstat` on `.git` and on the git directory, its `HEAD`, `objects` and `commondir`, one `realpath` of a `gitdir:` target, and four `access` checks, none of which opens a file (§2.10). No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), `--doctor` prints its length rather than the name (§8.12), and it is **withheld from the system-notification channel** so that the one path out of this process cannot carry it (§8.11) | Until the next sample, or process exit | **Yes, and off by default** |
 | 32 | **The activity at a focus event** (`act`: `coding`, `codeReview`, `documentation`…), one of the twelve `Activity` cases | Derived. From #1 alone at Tier 0; **with Tier 1 on, also from the window title (#12) and the document path (#29)**; with Tier 2 process context, also from #30 | So the log can say what kind of work a stretch was, not only which app it was in | Persisted, the `act` field of `focus` events (§4.3). A browser tab titled `Pull Request #12` is logged as `"act":"codeReview"` | Same as #1 | No switch of its own. It is title-derived only while Tier 1 is on |
 | 33 | **The update check's URL cache**: the appcast URL, the time it was fetched, and the appcast itself | Foundation's URL cache, filled by Sparkle's request in this process when you press **Check for updates** | Nothing in this app asks for it. It is what Foundation does with an HTTP response by default | Persisted, `~/Library/Caches/<BUNDLE_ID>/Cache.db` and `fsCachedData/` | Controlled by Foundation and macOS, not by the app. *Delete my data…* does not remove it | Only by never pressing the button |
 | 34 | **Foundation's HTTP storage** for this app | Created by the same request | As #33 | Persisted, `~/Library/HTTPStorages/<BUNDLE_ID>/`. On the Mac this was checked on it held one table, `alt_services`, and it was empty. Beside it, `~/Library/HTTPStorages/<BUNDLE_ID>.binarycookies` holds any cookie a server set | The folder: controlled by macOS. The cookie file: deleted by the app at every launch, before the updater starts (§2.9), so it can be left over from the last run. *Delete my data…* removes neither | Only by never pressing the button |
@@ -549,8 +549,11 @@ a name git itself refuses, and reads the same on a branch and on a detached HEAD
 `.git/reftable`, which is never opened, so that line is reported as a HEAD kept in a format sigstop
 does not read: never as a branch, least of all one called `.invalid`, and never as a detached HEAD.
 One indirection is followed and only one: in
-a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that line is read (a
-trailing carriage return ignored, as git ignores it) and `HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
+a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that file is read the
+way git reads it: whole, and at most 512 bytes, or it is refused rather than read in part. It must
+begin with exactly `gitdir: `, and only the line feeds and carriage returns at its end are dropped,
+so a stray space, tab or second line stays in the path and a file git refuses is refused here too.
+`HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
 containing folder for a submodule. That directory is followed only if, after resolving links, it is
 a git directory: it holds a `HEAD` file and either an `objects` folder or a `commondir` file, which
 is what git writes for a repository, a worktree, a submodule and a `--separate-git-dir`. A `.git`
@@ -561,7 +564,8 @@ and the branch you are on is in `rebase-merge/head-name` (or `rebase-apply/head-
 for the same reason and nothing else in that directory is.
 Every other filesystem call opens nothing: `lstat` on `.git` and on the git directory, its `HEAD`,
 `objects` and `commondir`, which is how a link is refused and a git directory recognised; one
-`realpath` on a `gitdir:` target; `fstat` on a file already opened, to check it is a plain file; and
+`realpath` on a `gitdir:` target; `fstat` on a file already opened, to check it is a plain file and,
+for a `.git` file, that it fits in the 512 bytes; and
 the four `access` checks in row 31, which return a `Bool`. `git` is never spawned: `Process`,
 `NSTask` and `posix_spawn` remain forbidden symbols (§2.9), so shelling out is not something this
 binary can do, whatever a future contributor intends.
@@ -598,21 +602,23 @@ grep -n '\"/' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 #   224:            let inside = roots.filter { path == $0 || path.hasPrefix($0 + "/") }
 #   269:            switch readFirstLine(gitDirectory + "/HEAD") {
 #   287:        let dot = folder + "/.git"
-#   303:            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
-#   317:        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
-#   318:        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
-#   342:        for candidate in ["/rebase-merge/head-name", "/rebase-apply/head-name"] {
-#   355:        if exists("/rebase-merge") || exists("/rebase-apply") { return .rebaseInProgress }
-#   356:        if exists("/MERGE_HEAD") { return .mergeInProgress }
-#   357:        if exists("/BISECT_LOG") { return .bisecting }
+#   300:            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
+#   326:        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
+#   327:        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
+#   351:        for candidate in ["/rebase-merge/head-name", "/rebase-apply/head-name"] {
+#   364:        if exists("/rebase-merge") || exists("/rebase-apply") { return .rebaseInProgress }
+#   365:        if exists("/MERGE_HEAD") { return .mergeInProgress }
+#   366:        if exists("/BISECT_LOG") { return .bisecting }
 # names:  /.git  /HEAD  /objects  /commondir  /rebase-merge  /rebase-apply  /MERGE_HEAD
 #         /BISECT_LOG  /rebase-merge/head-name  /rebase-apply/head-name
 
-# and the bound on how much of any of those files is read, which is 512 bytes
+# and the bound on how much of any of those files is read, which is 512 bytes, with a
+# .git file longer than that refused rather than read in part
 grep -n 'headReadLimit' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 #   22:    private static let headReadLimit = 512
-#   372:        var buffer = [UInt8](repeating: 0, count: headReadLimit)
-#   374:            Darwin.read(descriptor, raw.baseAddress, headReadLimit)
+#   387:        if wholeFile, info.st_size > headReadLimit { return .failure(.noRepository) }
+#   389:        var buffer = [UInt8](repeating: 0, count: headReadLimit)
+#   391:            Darwin.read(descriptor, raw.baseAddress, headReadLimit)
 ```
 
 If you would rather not take the source's word for it, the same two claims hold against the built

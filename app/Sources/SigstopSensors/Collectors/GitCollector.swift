@@ -292,20 +292,29 @@ public final class GitCollector: @unchecked Sendable {
         if info.st_mode & S_IFMT == S_IFDIR { return .success(dot) }
         guard info.st_mode & S_IFMT == S_IFREG else { return .failure(.noRepository) }
 
-        switch readFirstLine(dot) {
+        switch readStart(of: dot, wholeFile: true) {
         case .failure(let failure):
             return .failure(failure)
-        case .success(let line):
-            let prefix = "gitdir:"
-            guard line.hasPrefix(prefix) else { return .failure(.noRepository) }
-            let raw = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty else { return .failure(.noRepository) }
+        case .success(let contents):
+            guard let raw = gitdirTarget(contents) else { return .failure(.noRepository) }
             let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
             guard let resolved = realPath(target), isGitDirectory(resolved) else {
                 return .failure(.noRepository)
             }
             return .success(resolved)
         }
+    }
+
+    static func gitdirTarget(_ contents: [UInt8]) -> String? {
+        let prefix = Array("gitdir: ".utf8)
+        guard contents.starts(with: prefix) else { return nil }
+        var end = contents.count
+        while end > prefix.count,
+              contents[end - 1] == UInt8(ascii: "\n") || contents[end - 1] == UInt8(ascii: "\r") {
+            end -= 1
+        }
+        guard end > prefix.count else { return nil }
+        return String(decoding: contents[prefix.count..<end], as: UTF8.self)
     }
 
     static func isGitDirectory(_ path: String) -> Bool {
@@ -359,6 +368,13 @@ public final class GitCollector: @unchecked Sendable {
     }
 
     static func readFirstLine(_ path: String) -> Result<String, GitReadFailure> {
+        readStart(of: path, wholeFile: false).map { bytes in
+            let end = bytes.firstIndex(of: UInt8(ascii: "\n")) ?? bytes.count
+            return String(decoding: bytes[0..<end], as: UTF8.self)
+        }
+    }
+
+    static func readStart(of path: String, wholeFile: Bool) -> Result<[UInt8], GitReadFailure> {
         let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
             return .failure(errno == EACCES || errno == EPERM ? .notPermitted : .noRepository)
@@ -368,13 +384,14 @@ public final class GitCollector: @unchecked Sendable {
         guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
             return .failure(.noRepository)
         }
+        if wholeFile, info.st_size > headReadLimit { return .failure(.noRepository) }
 
         var buffer = [UInt8](repeating: 0, count: headReadLimit)
         let count = buffer.withUnsafeMutableBytes { raw -> Int in
             Darwin.read(descriptor, raw.baseAddress, headReadLimit)
         }
         guard count > 0 else { return .failure(.noRepository) }
-        let end = buffer.prefix(count).firstIndex(of: UInt8(ascii: "\n")) ?? count
-        return .success(String(decoding: buffer[0..<end], as: UTF8.self))
+        if wholeFile, count != Int(info.st_size) { return .failure(.noRepository) }
+        return .success(Array(buffer[0..<count]))
     }
 }
