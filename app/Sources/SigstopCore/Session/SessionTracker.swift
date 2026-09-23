@@ -61,7 +61,7 @@ public enum GapClassificationKind: String, Sendable, Codable, Hashable {
 
 public struct SessionTracker: Sendable {
 
-    public let policy: BreakPolicy
+    public private(set) var policy: BreakPolicy
     private let time: any TimeSource
     private let calendar: Calendar
 
@@ -103,6 +103,8 @@ public struct SessionTracker: Sendable {
     }
 
     public mutating func noteSystemWake() { pendingWakeCause = .systemSleep }
+
+    public mutating func retarget(policy: BreakPolicy) { self.policy = policy }
 
     @discardableResult
     public mutating func beginBreak(origin: BreakOrigin) -> [SessionEvent] {
@@ -256,7 +258,7 @@ public struct SessionTracker: Sendable {
             }
             gap = existing
         }
-        if cause == .systemSleep { pendingWakeCause = nil }
+        if cause == .systemSleep || discontinuity { pendingWakeCause = nil }
     }
 
     private func beginSegment(_ segment: inout ActiveGap, at anchor: Double, now: Date, mono: Double) {

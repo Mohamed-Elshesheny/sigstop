@@ -288,6 +288,7 @@ final class AppModel {
         let previousTarget = policy.targetContinuousWork
         policy = Self.policy(for: newValue)
         decision = BreakDecisionEngine(policy: policy)
+        tracker.retarget(policy: policy)
         engineState = engineState.retargeted(from: previousTarget, to: policy.targetContinuousWork)
         sensors.context.reloadSettings(newValue)
         permissionStatus = sensors.permissions.status()

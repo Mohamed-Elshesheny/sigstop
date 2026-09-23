@@ -68,6 +68,27 @@ struct SessionTrackerBreakTests {
         #expect(events.contains { if case .breakRecorded = $0 { return true } else { return false } })
     }
 
+    @Test("A wake into a pause does not label a later stall as sleep")
+    func wakeIntoAPauseIsForgotten() {
+        var (tracker, time) = makeTracker()
+        for _ in 0..<12 { time.advance(by: 5); _ = tracker.tick(sample()) }
+        tracker.noteSystemWake()
+        time.advance(by: 600)
+        _ = tracker.tick(TickSample(idleSeconds: 0, userPaused: true))
+        for _ in 0..<12 { time.advance(by: 5); _ = tracker.tick(TickSample(idleSeconds: 0, userPaused: true)) }
+        for _ in 0..<12 { time.advance(by: 5); _ = tracker.tick(sample()) }
+
+        time.advance(by: 30)
+        let events = tracker.tick(sample(idle: 30))
+        let causes = events.compactMap { event -> PauseCause? in
+            switch event {
+            case .gapClassified(_, _, let cause): return cause
+            case .clockPaused(let cause, _): return cause
+            default: return nil
+            }
+        }
+        #expect(!causes.contains(.systemSleep), "the wake was spent on the pause, so this stall is not sleep: \(causes)")
+    }
 
     @Test("a break taken while paused keeps the work clock stopped through a lock and unlock")
     func breakFromAPauseSurvivesALock() {
