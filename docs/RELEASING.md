@@ -215,23 +215,28 @@ the pin moves.
 
 ### 3.1 Bump the version
 
-Two keys in `app/Resources/Info.plist`:
+Two keys in `app/Resources/Info.plist`, three for a new minor version:
 
-- `CFBundleShortVersionString` — the human version, e.g. `0.2.0`. This is what Sparkle compares and
-  what the About pane shows.
-- `CFBundleVersion` — a monotonically increasing build number. Sparkle uses it to order updates.
-  **It must go up every release, without exception.** Two releases sharing a build number produce an
-  appcast Sparkle cannot order.
+- `CFBundleShortVersionString`: the human version, e.g. `0.2.0`. It is what the About pane and the
+  update prompt show. Sparkle does not compare it.
+- `CFBundleVersion`: the build number, a plain integer. This is what Sparkle compares to order
+  updates, so **it must go up every release, without exception.** Two releases sharing a build
+  number produce an appcast Sparkle cannot order.
+- `SGReleaseName`: the codename (§0). It changes with the minor version and stays put across its
+  patches. The About pane shows it, and `release.sh` refuses a `NAME` that does not match it.
 
 ```sh
 cd app
-plutil -replace CFBundleShortVersionString -string "0.2.0" Resources/Info.plist
-plutil -replace CFBundleVersion            -string "2"     Resources/Info.plist
+plutil -replace CFBundleShortVersionString -string "0.2.0"        Resources/Info.plist
+plutil -replace CFBundleVersion            -string "10"           Resources/Info.plist
+plutil -replace SGReleaseName              -string "Wood Frog 🐸" Resources/Info.plist  # new minor only
 ```
 
 Commit this on its own, as a `chore` or `build` commit, before anything is built. Then push
 `main` and wait for CI to pass on that commit: `release.sh` releases only a pushed commit whose
-CI run succeeded, so what is signed is what everybody else can see and what CI built.
+CI run succeeded, so what is signed is what everybody else can see and what CI built. A bump that
+misses one of the three costs a second commit and a second CI run, because `release.sh` checks
+all of them.
 
 ### 3.2 Build, and prove the claims still hold
 
@@ -328,8 +333,9 @@ everyone. Nothing upstream noticed, because nothing upstream can: the feed lives
 
 ### 3.4 Signing by hand, if you ever have to
 
-`Scripts/appcast.sh` is the supported path. These are the same commands, for when something has gone
-wrong and you need to see it happen.
+`Scripts/appcast.sh` does this, and it runs only from `make release`: signing is publishing, so run
+on its own it refuses rather than sign whatever `dist/` last held. These are the same commands by
+hand, for when something has gone wrong and you need to see it happen.
 
 ```sh
 cd app
@@ -403,7 +409,8 @@ All three of those have happened here.
 
 ## 4. The release checklist
 
-Copy this into the release PR.
+Go down it for every release. There is no release PR to paste it into: the bump and the feed
+commit land straight on `main`, like everything else here.
 
 - [ ] `CFBundleShortVersionString` bumped
 - [ ] `CFBundleVersion` bumped, and higher than the last release
@@ -465,37 +472,29 @@ Command Line Tools ([`CONTRIBUTING.md`](../CONTRIBUTING.md#setup)). It fails wit
 
 Build the two slices separately and `lipo` them, which does work with CLT alone. **Order matters:**
 `lipo` invalidates the code signature, so the fattening has to happen before the bundle is sealed,
-not after.
+not after. `Scripts/bundle.sh` does exactly that when asked, and `make verify-shipped`, which
+`make release` runs, and `make dmg` always ask. By hand, on an Apple silicon Mac:
 
 ```sh
 cd app
-
-# 1. Both slices.
-swift build -c release                                       # native (arm64 here)
-swift build -c release --triple x86_64-apple-macosx14.0 \
-                       --scratch-path .build-x86             # the other one
-
-# 2. Assemble and sign as usual.
-make bundle
-
-# 3. Replace the executable with the fat one, then re-seal the bundle.
-lipo -create -output /tmp/sigstop-universal \
-     .build/release/sigstop .build-x86/x86_64-apple-macosx/release/sigstop
-cp /tmp/sigstop-universal dist/sigstop.app/Contents/MacOS/sigstop
-codesign --force --sign "${SIGN_IDENTITY:--}" \
-         --entitlements Resources/sigstop.entitlements dist/sigstop.app
-
-# 4. Confirm, and re-run the checks against what you actually just signed.
-lipo -info dist/sigstop.app/Contents/MacOS/sigstop           # expect: x86_64 arm64
-codesign --verify --deep --strict dist/sigstop.app
-./Scripts/verify.sh
+UNIVERSAL=1 CONFIG=release ./Scripts/bundle.sh
+lipo -archs dist/sigstop.app/Contents/MacOS/sigstop   # expect: x86_64 arm64
+./Scripts/verify.sh                                   # every check, against each slice
 ```
 
-Do **not** run `make bundle` again after step 3: it re-runs `swift build` and copies the
-native-only product back over the fat one, silently undoing all of it. There is no arm64-only
-release to fall back on: `dmg.sh` refuses a single-slice bundle, and the notes hold no prose that
-could say so. Shipping arm64-only by accident, while the appcast quietly tells every Intel user
-there is no update, is the outcome this paragraph exists to prevent.
+It builds the x86_64 slice with `--triple x86_64-apple-macosx14.0`, then the native one, `lipo`s
+them, and only then assembles the bundle: the rpath set to `@executable_path/../Frameworks`,
+Sparkle's nested code signed from the inside out, and the app sealed with the Hardened Runtime.
+
+Do not fatten a finished bundle instead. This section used to say how, and the recipe stopped
+working: a plain `codesign --force` with the entitlements file drops the Hardened Runtime and the
+`disable-library-validation` entitlement an ad-hoc build needs, and the binary straight out of
+`swift build` still carries SwiftPM's `@loader_path` rpath rather than the one `bundle.sh` sets, so
+`verify.sh` fails and the app dies in dyld before it opens. Nor run a plain `make bundle` after a
+universal one: it builds the native slice only and replaces `dist/sigstop.app` with it. There is no
+arm64-only release to fall back on: `dmg.sh` refuses a single-slice bundle, and the notes hold no
+prose that could say so. Shipping arm64-only by accident, while the appcast quietly tells every
+Intel user there is no update, is the outcome this paragraph exists to prevent.
 
 Sparkle's own framework is already universal, so nothing else needs doing.
 
