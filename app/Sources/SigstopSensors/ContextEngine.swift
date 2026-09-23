@@ -566,6 +566,7 @@ public final class ContextEngine {
         if let previous = observedPID { accessibilityCollector.stopObserving(pid: previous) }
         accessibilityCollector.startObserving(pid: pid)
         observedPID = pid
+        titleDirty = true
     }
 
     private func subscribeToWorkspace() {
@@ -669,6 +670,7 @@ public final class ContextEngine {
         guard !session.userDefinitelyAway else { return }
         guard !SystemStateCollector.readThermal().shouldShedLoad else { return }
         suspended = false
+        startObservingFrontmostWindow()
         scheduleNextWake()
     }
 
