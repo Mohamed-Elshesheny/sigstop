@@ -215,6 +215,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         ("upper-case", "GITDIR: ../sepstore\n"),
         ("second-line", "gitdir: ../sepstore\nsecond\n"),
         ("too-long", "gitdir: ../sepstore\n" + String(repeating: "x", count: 600) + "\n"),
+        ("second-line-past-the-bound", "gitdir: ../sepstore" + String(repeating: "\n", count: 500) + "junk\n"),
     ]
     for (name, contents) in refused {
         let folder = box.folder("gd/\(name)")
