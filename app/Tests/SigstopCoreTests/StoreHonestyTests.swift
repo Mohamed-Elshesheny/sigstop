@@ -331,6 +331,22 @@ struct StoreHonestyTests {
         }
     }
 
+    @Test("an empty badge ledger is read as no badges yet, and can be written again")
+    func emptyLedgerIsEmpty() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        var derived = BadgeLedger()
+        derived.record(.stoppedOnce, on: CalendarDay(year: 2026, month: 9, day: 20))
+
+        for bytes in [Data(), Data("  \n\t\r\n".utf8)] {
+            try bytes.write(to: store.badgesFile)
+            #expect(try store.readBadges() == .empty)
+            try store.writeBadges(derived)
+            #expect(try store.readBadges() == derived)
+        }
+    }
+
     private func inode(_ url: URL) -> UInt64? {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return nil }

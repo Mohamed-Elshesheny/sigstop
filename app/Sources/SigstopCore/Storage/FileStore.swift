@@ -273,6 +273,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         case .unreadable:
             throw StoreError.wouldNotOpen(path: badgesFile.path)
         case .contents(let data):
+            if data.allSatisfy({ [0x20, 0x09, 0x0A, 0x0D].contains($0) }) { return .empty }
             guard let ledger = try? JSONDecoder().decode(BadgeLedger.self, from: data) else {
                 throw StoreError.wouldNotDecode(path: badgesFile.path)
             }
