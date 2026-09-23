@@ -22,8 +22,9 @@
 #   6. Exactly one fetchable endpoint exists, it is HTTPS, and it is the feed.
 #   7. Nothing checks on its own: automatic checks and system profiling are off
 #      in the shipped Info.plist.
-#   8. The entitlement that would let this process load unreviewed code is still
-#      absent (docs/PRIVACY.md §2.8).
+#   8. The hardened runtime is on, so dyld refuses DYLD_* injection; nothing
+#      reopens injection, JIT or debugging; and library validation is off only
+#      because an ad-hoc build has no Team ID to validate against (PRIVACY §2.9).
 #
 # Every one of these is a property of the artifact a user downloads, checkable
 # with tools they already have. Run it yourself: `make verify`.
