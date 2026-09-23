@@ -28,7 +28,7 @@ public final class GitCollector: @unchecked Sendable {
     static let strikesBeforeSettingAside = 2
 
     private let queue = DispatchQueue(
-        label: "dev.sigstop.git", qos: .utility, attributes: .concurrent
+        label: "dev.sigstop.git", qos: .userInitiated, attributes: .concurrent
     )
     private let deadlineQueue = DispatchQueue(label: "dev.sigstop.git.deadline", qos: .userInitiated)
     private let lock = NSLock()
