@@ -93,8 +93,9 @@ public struct DeletionReport: Sendable, Hashable {
           • The Accessibility permission you granted. Remove it in
             System Settings → Privacy & Security → Accessibility,
             or run:  tccutil reset Accessibility dev.sigstop.app
-          • What macOS itself logged about the app, such as launches and permission
-            checks. sigstop writes nothing to the system log.
+          • What the system log holds about the app: what macOS logged, such as
+            launches and permission checks, and what the updater logged. None of
+            it comes from sigstop's own code, which writes nothing there.
 
         There is no archive, no tombstone, no soft delete, and no copy kept anywhere.
         """

@@ -50,7 +50,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 21 | **Unlocked badges**: which of the ten marks have unlocked, and the day each did | Derived from #17 and #16, entirely — no new signal, no new event field, nothing observed that was not already in this table | So a badge earned inside the 7-day event window is not silently lost when those events are pruned | Persisted, `badges.json` (a flat map of badge id to day) | Kept until you delete your data; never expires and never decreases | n/a |
 | 22 | **Login-item registration** | `SMAppService.mainApp.register()` | Start at login, if you ask for it | A registration record owned by `launchservicesd`, outside the app's storage | Until you switch it off, or until *Delete my data…*, which unregisters it | Yes — off by default |
 | 23 | **Notification authorization status** | `UNUserNotificationCenter.notificationSettings()` | Decide whether to use a system notification or the in-app fallback window | Memory-only (the real record is TCC's) | n/a | n/a |
-| 24 | **Unified log lines** | `os.Logger` | Debugging | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
+| 24 | **Unified log lines** | None from the app's own code: nothing in `app/Sources` calls `os_log`, `Logger` or `NSLog`. Sparkle, which runs in this process, logs through `os_log` under the subsystem `org.sparkle-project.Sparkle`, and Apple's frameworks log about any app they run in | The app needs none of it | System log, `/var/db/diagnostics`, rotated by macOS | Controlled by macOS, not by the app | See §8.6 |
 | 25 | **Audio input device in use** (one `Bool` per device, OR'd) | `kAudioDevicePropertyDeviceIsRunningSomewhere` on each device with input channels. **No Microphone permission; none is requested** | Do not interrupt a live call. This is the signal a hard block rests on | Not persisted. Only the derived verdict reaches the log, as a `reason` string | n/a | No — it is what stops a prompt landing in a meeting |
 | 26 | **Camera device in use** (one `Bool` per device, OR'd) and the **device names** | `kCMIODevicePropertyDeviceIsRunningSomewhere` over `kCMIOHardwarePropertyDevices`. **No Camera permission; none is requested, and a probe generated no `tccd` activity** | Same, for the camera-on / microphone-muted posture, which is the normal one on Teams and Meet | Not persisted. Device names are printed by `--doctor` on request and held in memory only | Process lifetime | No |
 | 27 | **Bundle identifiers of processes running audio input** | `kAudioHardwarePropertyProcessObjectList`, then `kAudioProcessPropertyBundleID` and `kAudioProcessPropertyIsRunningInput` per process object. **No permission; none is requested** | Say *which* app has the microphone, so the call hold names a fact rather than guessing, and so Siri, dictation and a permanently-open virtual device can be discounted instead of disabling the signal | Not persisted. Each identifier is matched against a fixed list and dropped. Nothing else about the process is read **on this path**: this row is CoreAudio's process object list and it yields a bundle identifier, nothing more. The one place the app reads an executable path is row 30, which is Tier 2, off by default, and bounded there | Memory-only, one sample | No |
@@ -1116,8 +1116,9 @@ Two things this app cannot remove for you:
   • The Accessibility permission you granted. Remove it in
     System Settings → Privacy & Security → Accessibility,
     or run:  tccutil reset Accessibility dev.sigstop.app
-  • What macOS itself logged about the app, such as launches and permission
-    checks. sigstop writes nothing to the system log.
+  • What the system log holds about the app: what macOS logged, such as
+    launches and permission checks, and what the updater logged. None of
+    it comes from sigstop's own code, which writes nothing there.
 
 There is no archive, no tombstone, no soft delete, and no copy kept anywhere.
 Removed: the login item.
@@ -1542,11 +1543,17 @@ your user can read them. Encrypting with a Keychain-held key would be theater: t
 the key as the same user, so the same attacker gets both. FileVault is the correct control and it is
 not this app's to provide.
 
-**8.6 System logs and crash reports are outside the app's control.** `os_log` lines may persist in
-the unified log; the app logs no bundle identifiers at default level and marks dynamic values
-`%{private}`, but it does not control retention. Separately, if macOS crash reporting is enabled in
-*your* system settings, a crash report may be sent to Apple by the OS. That is a system setting, not
-an app behavior, and the app cannot suppress it.
+**8.6 System logs and crash reports are outside the app's control.** The app's own code writes
+nothing to the unified log: `grep -rnE 'os_log|Logger|NSLog|OSLog' app/Sources` prints nothing. What
+does write there from inside the process is code this repository did not write. Sparkle logs through
+`os_log` under the subsystem `org.sparkle-project.Sparkle` (`nm -u` on its binary lists
+`__os_log_impl` and `__os_log_error_impl`), SwiftUI compiles a runtime-issue `os_log` call into the
+app's binary (`nm -u <BIN> | xcrun swift-demangle | grep -i log` shows it as
+`SwiftUI.Log.runtimeIssuesLog`), and AppKit and the rest of macOS log about any app they run, such
+as its launch and its permission checks. The app controls none of those lines and none of their
+retention. Separately, if macOS crash reporting is enabled in *your* system settings, a crash report
+may be sent to Apple by the OS. That is a system setting, not an app behavior, and the app cannot
+suppress it.
 
 **8.7 Reproducible builds are partial.** Signed artifacts are not bit-reproducible. Only the
 signature-stripped binary hash can be independently recreated, and only with the exact same

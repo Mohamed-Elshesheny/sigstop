@@ -517,6 +517,18 @@ struct StoreTests {
         #expect(try store.load(day: Fix.day).events.isEmpty)
     }
 
+    @Test func delete_report_names_the_updater_as_a_writer_to_the_system_log() {
+        let report = DeletionReport(
+            location: "~/Library/Application Support/dev.sigstop.app",
+            removedFiles: 1, removedBytes: 1, removedDays: [Fix.day], removedEvents: 1
+        )
+        let text = report.userFacingSummary
+        #expect(!text.contains("sigstop writes nothing to the system log"))
+        #expect(text.contains("what the updater logged"))
+        #expect(text.contains("sigstop's own code, which writes nothing there"))
+        #expect(!text.contains("\u{2014}"))
+    }
+
     @Test func malformed_lines_are_reported_through_to_the_summary() throws {
         let store = InMemoryEventStore(events: [
             .start(at: Fix.t(0)),
