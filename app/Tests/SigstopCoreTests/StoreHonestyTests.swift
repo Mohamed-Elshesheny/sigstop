@@ -49,6 +49,28 @@ struct StoreHonestyTests {
         #expect(absent.unreadable == false, "a missing day is empty, not unreadable")
     }
 
+    @Test("a day file that opens and then fails to read is unreadable, not an empty day")
+    func dayFileWhoseReadThrows() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+
+        let at = Date(timeIntervalSince1970: 1_758_500_000)
+        try store.append(.breakBegin(at: at, origin: .accepted, cycle: CycleID.initial))
+        let path = store.url(for: CalendarDay.utc(of: at))
+
+        guard case .contents(let data) = SecureFile.read(path, limit: FileEventStore.largestDayFile) else {
+            Issue.record("the day file the store just wrote has to read back")
+            return
+        }
+        #expect(!data.isEmpty)
+
+        let failed = SecureFile.read(path, limit: FileEventStore.largestDayFile) { _, _ in
+            throw POSIXError(.EIO)
+        }
+        #expect(failed == .unreadable, "a read that fails after the open must not pass for an empty file")
+    }
+
     @Test("an export names the day it could not read and does not count it")
     func exportNamesUnreadableDays() throws {
         let root = scratch()

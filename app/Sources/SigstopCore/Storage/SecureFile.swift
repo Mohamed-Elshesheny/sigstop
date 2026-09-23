@@ -60,6 +60,14 @@ public enum SecureFile {
     }
 
     public static func read(_ url: URL, limit: Int) -> ReadResult {
+        read(url, limit: limit) { handle, count in try handle.read(upToCount: count) }
+    }
+
+    static func read(
+        _ url: URL,
+        limit: Int,
+        reader: (FileHandle, Int) throws -> Data?
+    ) -> ReadResult {
         let fd = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
         guard fd >= 0 else { return errno == ENOENT ? .absent : .unreadable }
         let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
@@ -69,7 +77,7 @@ public enum SecureFile {
         }
         let read: Data?
         do {
-            read = try handle.read(upToCount: limit + 1)
+            read = try reader(handle, limit + 1)
         } catch {
             return .unreadable
         }
