@@ -283,12 +283,26 @@ file-reading code in the tree is
 plus `GitCollector` for those git files.
 
 **Check.** No script asserts anything about file-access entitlements, because without the sandbox
-one would not constrain anything. `make verify` (`app/Scripts/verify.sh`) checks two entitlements,
-neither of them about files (§6.1). Read the whole list yourself:
-`codesign -d --entitlements - --xml <APP>` prints one key, `com.apple.security.automation.apple-events`,
-set to `false`. At runtime: `sudo fs_usage -w -f filesys $(pgrep -x sigstop)` and watch that the
-only paths touched are the app bundle and the storage directory, plus, once you press **Check for
-updates**, the caches in inventory rows 33 to 35.
+one would not constrain anything. `make verify` (`app/Scripts/verify.sh`) checks the entitlements
+for a network server key, for any key that reopens injection, JIT or debugging, and for Library
+Validation switched off on a build that has a Team ID; none of that is about files (§6.1). Read the
+whole list yourself. On the shipped app, which is ad-hoc signed, it is two keys:
+
+```
+$ codesign -d --entitlements - --xml <APP> 2>/dev/null | plutil -p -
+{
+  "com.apple.security.automation.apple-events" => false
+  "com.apple.security.cs.disable-library-validation" => true
+}
+```
+
+The first is the one key in `app/Resources/sigstop.entitlements`. The second is added by
+`app/Scripts/bundle.sh` to a build with no Team ID, because the Hardened Runtime could not load
+`Sparkle.framework` without it (§2.9). Neither grants access to a file.
+
+At runtime: `sudo fs_usage -w -f filesys $(pgrep -x sigstop)` and watch that the only paths touched
+are the app bundle and the storage directory, plus, once you press **Check for updates**, the caches
+in inventory rows 33 to 35.
 
 ### 2.2 No keystrokes
 
