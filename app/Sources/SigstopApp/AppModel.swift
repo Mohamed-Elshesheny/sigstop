@@ -735,7 +735,9 @@ final class AppModel {
             try store?.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
             clearStoreError(prefixed: Self.pruneFailurePrefix)
         } catch {
-            if lastStoreError == nil || lastStoreError?.hasPrefix(Self.pruneFailurePrefix) == true {
+            if lastStoreError == nil
+                || lastStoreError?.hasPrefix(Self.pruneFailurePrefix) == true
+                || lastStoreError?.hasPrefix(Self.leftAlonePrefix) == true {
                 lastStoreError = "\(Self.pruneFailurePrefix), \(error)"
             }
         }
