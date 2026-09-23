@@ -425,7 +425,8 @@ enum Doctor {
             case .detached:
                 return "read from \(folder): detached HEAD, so there is no branch to name"
             case .reftable:
-                return "read from \(folder): the branch is kept in reftable, which sigstop does not read"
+                return "read from \(folder): HEAD is kept in reftable, which sigstop does not read, "
+                    + "so no branch is named"
             }
         }
     }
@@ -456,9 +457,9 @@ enum Doctor {
         case .read(_, _, .reftable, let route):
             return [
                 "Which folder was decided by \(route).",
-                "A reftable repository's HEAD file is a placeholder. The real HEAD",
-                "is in .git/reftable, which is not opened, so no branch is claimed",
-                "rather than one guessed.",
+                "A reftable repository's HEAD file is the same placeholder on a branch",
+                "and detached. The real HEAD is in .git/reftable, which is not opened,",
+                "so neither a branch nor a detached HEAD is claimed.",
             ]
         case .read(_, _, _, let route):
             return [

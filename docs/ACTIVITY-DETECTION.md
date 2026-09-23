@@ -522,9 +522,10 @@ Two independent opt-ins, each with its own switch:
 **(a) Git context.** For user-registered project folders only (chosen via `NSOpenPanel`, so the user
 grants the folder explicitly):
 
-- Read the first line of `.git/HEAD` → branch, or detached HEAD, or, in a reftable repository, no
-  branch: its `HEAD` is a placeholder (`ref: refs/heads/.invalid`) and the real one is in
-  `.git/reftable`, which is not read. In a worktree or submodule the
+- Read the first line of `.git/HEAD` → branch, or detached HEAD, or, in a reftable repository,
+  neither: its `HEAD` is the same placeholder (`ref: refs/heads/.invalid`) on a branch and on a
+  detached HEAD, and the real one is in `.git/reftable`, which is not read, so HEAD is reported as
+  kept in reftable and no branch is named. In a worktree or submodule the
   `.git` file's `gitdir:` line is read first, and mid-rebase the branch comes from `head-name`.
   `docs/PRIVACY.md` §2.10 lists every filesystem call the collector makes.
 - Presence of `.git/rebase-merge/`, `.git/rebase-apply/`, `.git/MERGE_HEAD`, `.git/BISECT_LOG` →

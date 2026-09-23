@@ -88,7 +88,7 @@ final class AppModel {
         var branchText: String {
             guard let branch else {
                 return head == .reftable
-                    ? "no branch to name: this repository keeps it in reftable, which sigstop does not read"
+                    ? "no branch to name: HEAD is kept in reftable, which sigstop does not read"
                     : "detached HEAD, no branch to name"
             }
             return SlotResolver.outsideText(branch) ?? "a branch whose name is only invisible characters"

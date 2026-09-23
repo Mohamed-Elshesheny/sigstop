@@ -545,9 +545,10 @@ code is *capable* of, not by what it chooses, which is the only kind of bound wo
 one line, and matches `ref: refs/heads/<name>`. Forty hex characters, or sixty-four in a SHA-256 repository, is a detached HEAD and is
 reported as one rather than presented as a branch name. A repository that keeps its refs in
 reftable (`git init --ref-format=reftable`) has a `HEAD` that always reads `ref: refs/heads/.invalid`,
-a name git itself refuses; the real one is in `.git/reftable`, which is never opened, so that line is
-reported as a branch kept in a format sigstop does not read, never as a branch called `.invalid` and
-never as a detached HEAD. One indirection is followed and only one: in
+a name git itself refuses, and reads the same on a branch and on a detached HEAD; the real one is in
+`.git/reftable`, which is never opened, so that line is reported as a HEAD kept in a format sigstop
+does not read: never as a branch, least of all one called `.invalid`, and never as a detached HEAD.
+One indirection is followed and only one: in
 a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that line is read (a
 trailing carriage return ignored, as git ignores it) and `HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
 containing folder for a submodule. That directory is followed only if, after resolving links, it is
