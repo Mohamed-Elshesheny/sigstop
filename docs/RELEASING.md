@@ -52,9 +52,9 @@ make release VERSION=0.2.0 NAME="Wood Frog 🐸"
 
 It refuses to run if `Info.plist` disagrees with the version or the name, if the tag exists,
 if the working tree is dirty, if `HEAD` is not `main` and exactly `origin/main`, if CI on that
-commit did not pass, if `CFBundleVersion` is not higher than the last tag's, if `SIGN_IDENTITY` is
-neither ad hoc nor a Developer ID, or if the notes hold anything but headings and bullets or no
-bullet at all. Then it runs the tests, `make verify-shipped`, `Scripts/smoke.sh`,
+commit did not pass, if `CFBundleVersion` is not a plain integer higher than the last tag's, if
+`SIGN_IDENTITY` is neither ad hoc nor a Developer ID, or if the notes hold anything but headings
+and bullets or no bullet at all. Then it runs the tests, `make verify-shipped`, `Scripts/smoke.sh`,
 `Scripts/intel-slice.sh` and the scenario suite before it publishes anything; §3.3 has the
 order. A release that cannot prove its own claims does not go out.
 
@@ -424,7 +424,7 @@ questions.
 
 **Forgetting `CFBundleVersion`.** Sparkle orders updates by it. Two releases with the same build
 number produce a feed it cannot order, and the symptom is an update that is never offered.
-`release.sh` refuses a build number that is not greater than the last tag's.
+`release.sh` refuses a build number that is not a plain integer greater than the last tag's.
 
 **Editing `appcast.xml` by hand after signing.** Each enclosure's signature covers its archive, so
 a manual edit to the XML can point an item at an archive the signature does not match. The feed

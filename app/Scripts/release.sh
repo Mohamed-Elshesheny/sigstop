@@ -116,6 +116,14 @@ if [ -n "${LAST_TAG}" ]; then
     | plutil -extract CFBundleVersion raw - 2>/dev/null || echo 0)"
 fi
 BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' Resources/Info.plist)"
+# `[ -le ]` compares integers only. Handed "9.1" it printed an error, the `if` read that as false,
+# and the release went ahead unchecked.
+is_integer() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
+if ! is_integer "${BUILD}" || ! is_integer "${PREVIOUS_BUILD}"; then
+  echo "error: CFBundleVersion has to be a plain integer. It is '${BUILD}' now, and was" >&2
+  echo "       '${PREVIOUS_BUILD}' at ${LAST_TAG:-the last release}." >&2
+  exit 1
+fi
 if [ "${BUILD}" -le "${PREVIOUS_BUILD}" ]; then
   echo "error: CFBundleVersion is ${BUILD}, the last release was ${PREVIOUS_BUILD}. Bump it." >&2
   exit 1
