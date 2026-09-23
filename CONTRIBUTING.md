@@ -113,7 +113,9 @@ that it has to.
 [Conventional Commits](https://www.conventionalcommits.org). Types: `feat` `fix` `refactor`
 `perf` `docs` `test` `build` `ci` `chore`. Scopes: `core` `sensors` `app` `docs` `ui`.
 `ui` files a `feat`, `fix` or `perf` under 🎨 UI in the release notes, as does any such change
-whose shipped files are all under `SigstopApp/Views/` or are `Scripts/dmg.sh`.
+whose shipped files are all under `SigstopApp/Views/` or are `Scripts/dmg.sh`. The subject is the
+bullet, so write it for a stranger and without an em dash; the notes write one as a comma
+([`docs/RELEASING.md`](docs/RELEASING.md) §0.5), and it reads like the repair it is.
 
 **Keep them short.** Most commits are a subject line. A body is for the one thing the diff
 cannot say, two or three lines.

@@ -17,6 +17,19 @@ SHIPS = re.compile(
 )
 UI = re.compile(r"^app/(Sources/SigstopApp/Views/|Scripts/dmg\.sh$)")
 
+# The one change a subject gets on its way into the notes. Nothing a user reads carries an em dash,
+# and release.sh refuses notes that do, but a subject is already on origin/main by then and cannot
+# be reworded, so a refusal alone would block the release with no way on. With or without spaces
+# around it, an em dash becomes a comma and a space; one at either end is dropped.
+EM_DASH = "\u2014"
+AROUND_EM_DASH = re.compile("[\\s,]*\u2014[\\s,\u2014]*")
+
+
+def without_em_dash(subject):
+    if EM_DASH not in subject:
+        return subject
+    return AROUND_EM_DASH.sub(", ", subject).strip(", ")
+
 
 def git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
@@ -62,7 +75,7 @@ def main():
             continue
         key = section_for(m.group("type"), m.group("scope"), bool(m.group("breaking")), files, not previous)
         if key:
-            subject = m.group("subject")
+            subject = without_em_dash(m.group("subject"))
             rows[key].append(subject[:1].upper() + subject[1:])
 
     parts = [f"## {title}", ""] if title else []

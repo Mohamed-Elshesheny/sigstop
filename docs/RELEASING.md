@@ -87,8 +87,14 @@ moment it is fixed. That is the whole list of exceptions.
 Sections and bullets, generated from the log by `Scripts/changelog.py`. The format and the rules
 are that script's; `release.sh` refuses to publish notes with any other kind of line in them, or
 with an em dash anywhere. There is no prose in them, so nothing can be said in the notes that is
-not a commit subject. That makes the subjects the place to keep the em dash out: by the time
-`release.sh` reads one it is on `origin/main` and cannot be reworded.
+not a commit subject.
+
+A bullet is its subject with one change: **an em dash is written as a comma.** With or without
+spaces around it, it becomes a comma and a space, and one at either end is dropped. That is there
+because by the time `release.sh` reads a subject it is on `origin/main` and cannot be reworded, so a
+refusal alone would leave a release no way on. Keep the em dash out of subjects anyway: the comma is
+a repair, and it reads like one. `release.sh` still refuses an em dash it finds in the notes, which
+after the rewrite can only be in the heading, from `NAME`, or be `changelog.py` no longer doing it.
 
 ## 1. What makes this safe, in one paragraph
 
