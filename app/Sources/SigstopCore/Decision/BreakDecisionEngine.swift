@@ -115,6 +115,11 @@ public struct BreakDecisionEngine: Sendable {
         }
 
         if input.qualifyingBreakObserved, !isBreakActive(state) {
+            if case .quiet(let quiet) = state, stillQuiet(quiet, input: input, day: day) {
+                day.consecutiveIgnoredCycles = 0
+                effects.append(.setIndicator(.quiet))
+                return EngineOutcome(state: state, effects: effects, day: day, verdict: nil)
+            }
             if let cycle = state.openCycle {
                 effects.append(.withdrawPrompt(cycle: cycle, reason: .userLeft))
                 effects.append(.closeCycle(cycle, .honored))
@@ -534,8 +539,26 @@ public struct BreakDecisionEngine: Sendable {
             if honored { day.honoredOpportunities += 1 }
         }
         if honored { day.consecutiveIgnoredCycles = 0 }
+        if let quiet = active.quietBefore, stillQuiet(quiet, input: input, day: day) {
+            effects.append(.setIndicator(.quiet))
+            return .quiet(quiet)
+        }
         effects.append(.setIndicator(.working))
         return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: 0))
+    }
+
+    private func stillQuiet(_ quiet: QuietState, input: EngineInput, day: DailyCounters) -> Bool {
+        switch quiet.cause {
+        case .userPaused:
+            guard let untilMono = quiet.untilMono else { return true }
+            return input.monotonic < untilMono
+        case .scheduledQuietHours:
+            return input.settings.quietHours.contains(input.now, calendar: input.calendarSystem)
+        case .sustainedFocusMode:
+            return input.signals.focusModeActive == true
+        case .dailyCapReached:
+            return day.notificationsDelivered >= policy.dailyNotificationCap
+        }
     }
 
     private func handleIdle(
@@ -634,13 +657,17 @@ public struct BreakDecisionEngine: Sendable {
             let plannedEnd = input.now.addingTimeInterval(duration)
             effects.append(.beginBreak(cycle: cycle, origin: origin, plannedEnd: plannedEnd))
             effects.append(.setIndicator(.onBreak))
+            let quietBefore: QuietState? = {
+                if case .quiet(let q) = state { return q } else { return nil }
+            }()
             return .breakActive(BreakActive(
                 cycle: cycle,
                 startedAt: input.now,
                 plannedEnd: plannedEnd,
                 startedMono: input.monotonic,
                 plannedDuration: duration,
-                origin: origin
+                origin: origin,
+                quietBefore: quietBefore
             ))
 
         case .snooze:

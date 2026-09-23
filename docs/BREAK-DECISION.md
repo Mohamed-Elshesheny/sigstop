@@ -520,6 +520,7 @@ engine is allowed to *say*.
 | `breakActive` | tick | `now >= plannedEnd` | `working` | reset clock, record break, `lastBreakEndedAt = now` |
 | `breakActive` | user ends early | elapsed `>= qualifyingBreak` | `working` | as above |
 | `breakActive` | user ends early | elapsed `< qualifyingBreak` | `working` | **no reset, no break recorded**, log `.abandoned` |
+| `breakActive` | the break ends, any of the three ways above | it started from `quiet` and that quiet still holds | that `quiet`, unchanged | as above, but the pause keeps its own end (rule 3) |
 | `breakActive` | input resumes | elapsed `< qualifyingBreak` | `breakActive` | keep the timer; do not nag; a break is not a jail |
 | `idle` | input resumes | gap `< qualifyingBreak`, ladder parked | `ignored` | **resume the ladder at its rung**; gap ages `totalElapsed`, not `ladderElapsed` |
 | `idle` | input resumes | gap `< qualifyingBreak` | `working` or `breakDue` | resume clock; re-evaluate `W >= T` |
@@ -527,14 +528,30 @@ engine is allowed to *say*.
 | `idle` | gap `>= sessionGap` | — | `working` (new session) | finalize session |
 | `quiet` | window ends | `W >= T` | `breakDue` | fresh cycle, fresh deferral clocks — **never a backlog** |
 | `quiet` | window ends | `W < T` | `working` | — |
+| `quiet` | user picks "break now" | — | `breakActive` | begin break, `origin: .userInitiated`; the break keeps the quiet state (`BreakActive.quietBefore`) |
+| `quiet` | gap ≥ `qualifyingBreak` | the quiet still holds | `quiet` | break recorded, backoff reset, the quiet state is left alone (rule 3) |
 | any | user pauses the app | — | `quiet(.userPaused)` | duration chosen by user; measurement continues |
 
-Two structural rules the table encodes:
+Three structural rules the table encodes:
 
 1. **A break taken without being asked always closes the open cycle as honored.** The user walking away
    on their own is the success case, not a missed prompt.
 2. **Quiet hours withdraw, never queue.** Nothing the engine wanted to say at 18:55 is allowed to
    arrive at 09:00.
+3. **A break never ends the quiet it was taken in.** The menu offers *Take a break now* while the
+   app is paused, and the break used to end in `working` whatever it started from, so an hour's pause
+   lasted until the first break and prompts came back before the hour was up. Locking the screen
+   inside a pause did the same once the pause was five minutes old, because the session model
+   records that gap as a break.
+   A break that starts from `quiet` now carries that state in `BreakActive.quietBefore` (optional, so
+   an older encoding still decodes) and goes back to it when the break ends, however it ends, if it
+   still holds: a pause until its own `until`, quiet hours while the window is open, the daily cap
+   until the day boundary, and focus-mode quiet while Focus is on (nothing enters that state today).
+   A pause that ran out during the break ends in `working`, as before. A break the session model
+   infers inside a quiet state leaves it in place the same way, and still resets the backoff, as
+   every qualifying break does. Quiet hours and the daily cap used to come back on their own at the
+   next due point, by opening a cycle and closing it in the same step; going straight back means the
+   indicator says quiet in between rather than working, and no cycle is opened only to be excluded.
 
 ---
 

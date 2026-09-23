@@ -198,14 +198,24 @@ public struct BreakActive: Sendable, Codable, Hashable {
     public var startedMono: Double
     public var plannedDuration: TimeInterval
     public var origin: BreakOrigin
+    public var quietBefore: QuietState?
 
-    public init(cycle: CycleID?, startedAt: Date, plannedEnd: Date, startedMono: Double, plannedDuration: TimeInterval, origin: BreakOrigin) {
+    public init(
+        cycle: CycleID?,
+        startedAt: Date,
+        plannedEnd: Date,
+        startedMono: Double,
+        plannedDuration: TimeInterval,
+        origin: BreakOrigin,
+        quietBefore: QuietState? = nil
+    ) {
         self.cycle = cycle
         self.startedAt = startedAt
         self.plannedEnd = plannedEnd
         self.startedMono = startedMono
         self.plannedDuration = plannedDuration
         self.origin = origin
+        self.quietBefore = quietBefore
     }
 }
 
