@@ -1444,14 +1444,21 @@ Notes that matter under strict concurrency:
 - **Everything stays on the device.** No network code exists in this subsystem, and nothing it
   produces is ever transmitted. The app's single network request is the update check in
   `docs/PRIVACY.md` §5, which sends nothing and knows nothing about any of this.
-- **What is stored:** timestamp, activity class, confidence, evidence IDs and summaries, bundle ID,
-  and the optional `ActivityContext` fields the user's tier choices populate.
+- **What is stored:** the event log fields in `docs/PRIVACY.md` §4.3, which for a focus change are
+  the timestamp, the bundle ID, the app's category and the activity class (`act`); and, per day,
+  the seconds of active work by bundle ID and by activity in the summaries. **Confidence, evidence
+  and every `ActivityContext` field** (`projectName`, `fileName`, `fileExtension`, `documentURL`,
+  `branch`, `repoState`, `browserHost`) are held in memory for the menu bar and `--doctor` and are
+  never written: `LoggedEvent` has no field that could hold them.
 - **What is never stored, at any tier:** keystrokes, keystroke counts, text-field contents,
   screenshots, full URLs, process argv, clipboard contents, file contents.
-- Window titles are stored only as **parsed fields** (`projectName`, `fileName`, `fileExtension`).
-  The raw title is used for matching and discarded. Titles routinely contain customer names and
-  ticket subjects; retaining them wholesale is not justified by anything the product does with them.
-- Browser data is reduced to a **host** and only under the separate Tier 1b opt-in.
+- Window titles are **not stored, not even as parsed fields**. The raw title is used for matching
+  and discarded, and what is parsed from it (`projectName`, `fileName`, `fileExtension`) lives in
+  memory until the next sample. What reaches the log is the activity a title decided, as `act`.
+  Titles routinely contain customer names and ticket subjects; retaining them, whole or in parts,
+  is not justified by anything the product does with them.
+- Browser data is reduced to a **host**, only under the separate Tier 1b opt-in, and the host is
+  not stored either. It can decide the activity, which is logged as `act`.
 - Every observation is **explainable**: the menu bar can show "why?" and list the evidence summaries.
   If the app cannot explain a conclusion in one sentence, it should not be drawing it.
 - A visible, always-available **pause** that suspends all collection, and a one-click **delete all
