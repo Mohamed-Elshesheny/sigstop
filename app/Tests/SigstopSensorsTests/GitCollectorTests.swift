@@ -308,6 +308,16 @@ private extension Sandbox {
     #expect(!GitCollector.parseHEAD("ref: refs/heads/main").reftable)
 }
 
+@Test func aDetachedHeadIsRecognisedInEitherObjectFormat() {
+    let sha1 = String(repeating: "a1", count: 20)
+    let sha256 = String(repeating: "b2", count: 32)
+    #expect(GitCollector.parseHEAD(sha1).detached)
+    #expect(GitCollector.parseHEAD(sha256 + "\n").detached)
+    #expect(GitCollector.parseHEAD(sha256).branch == nil)
+    #expect(!GitCollector.parseHEAD(String(repeating: "c", count: 50)).detached)
+    #expect(!GitCollector.parseHEAD(String(repeating: "d", count: 65)).detached)
+}
+
 @Test func aDocumentPathInsideARegisteredFolderPicksThatFolder() {
     let folders = ["/Users/x/code/sigstop", "/Users/x/code/other"]
     let match = GitCollector.match(

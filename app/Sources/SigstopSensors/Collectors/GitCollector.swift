@@ -332,7 +332,9 @@ public final class GitCollector: @unchecked Sendable {
             if name == reftablePlaceholder { return (nil, false, true) }
             return (name.isEmpty ? nil : name, false, false)
         }
-        if trimmed.count == 40, trimmed.allSatisfy(\.isHexDigit) { return (nil, true, false) }
+        if trimmed.count == 40 || trimmed.count == 64, trimmed.allSatisfy(\.isHexDigit) {
+            return (nil, true, false)
+        }
         return (nil, false, false)
     }
 
