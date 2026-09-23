@@ -188,6 +188,19 @@ private func collector(gitOn: Bool) -> GitCollector {
     #expect(try! GitCollector.readRepository(at: separate, now: Date()).get().branch == "separate")
 }
 
+@Test func aGitdirLineEndingInCRLFIsReadAsGitReadsIt() {
+    let box = Sandbox()
+    box.write("ref: refs/heads/crlf-branch\n", to: "crlf/sepstore/HEAD")
+    _ = box.folder("crlf/sepstore/objects")
+    let relative = box.folder("crlf/work")
+    box.write("gitdir: ../sepstore\r\n", to: "crlf/work/.git")
+    #expect((try? GitCollector.readRepository(at: relative, now: Date()).get())?.branch == "crlf-branch")
+
+    let absolute = box.folder("crlf/abs")
+    box.write("gitdir: \(box.root.path)/crlf/sepstore\r\n", to: "crlf/abs/.git")
+    #expect((try? GitCollector.readRepository(at: absolute, now: Date()).get())?.branch == "crlf-branch")
+}
+
 @Test func aLinkedDotGitIsNotFollowed() throws {
     let box = Sandbox()
     box.write("ref: refs/heads/read-from-outside-the-folder\n", to: "outside/secret/HEAD")

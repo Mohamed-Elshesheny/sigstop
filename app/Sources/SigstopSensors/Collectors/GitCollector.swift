@@ -298,7 +298,7 @@ public final class GitCollector: @unchecked Sendable {
         case .success(let line):
             let prefix = "gitdir:"
             guard line.hasPrefix(prefix) else { return .failure(.noRepository) }
-            let raw = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+            let raw = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !raw.isEmpty else { return .failure(.noRepository) }
             let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
             guard let resolved = realPath(target), isGitDirectory(resolved) else {
