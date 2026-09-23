@@ -94,6 +94,36 @@ struct StoreHonestyTests {
         #expect(report.userFacingSummary.contains("would not open: \(lost.description)"))
     }
 
+    @Test("an export says it is the log as read, and counts the lines it left out")
+    func exportSaysWhatItHolds() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+
+        let at = Date(timeIntervalSince1970: 1_758_500_000)
+        try store.append(.start(at: at))
+        let day = CalendarDay.utc(of: at)
+
+        let clean = try store.exportText()
+        #expect(clean.contains("# skipped: none\n"))
+        #expect(!clean.contains("nothing here is transformed"), "the header must not claim a byte copy")
+        #expect(clean.contains("not a byte copy"))
+
+        let path = store.url(for: day)
+        let handle = try FileHandle(forWritingTo: path)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data("{\"e\":\"focus\",\"t\":\"broken\nnot json either\n".utf8))
+        try handle.close()
+
+        let text = try store.exportText()
+        #expect(text.contains("# skipped: 2 line(s) that would not parse, on \(day)\n"))
+        #expect(EventLogCodec.decodeLines(text).malformedLines == 0, "the skipped lines are counted, not copied")
+
+        let report = try store.export(to: root.appendingPathComponent("export.txt"))
+        #expect(report.skippedLines == 2)
+        #expect(report.userFacingSummary.contains("Left out 2 line(s) that would not parse."))
+    }
+
     @Test("a summary with impossible numbers is ignored instead of crashing every launch")
     func impossibleSummaryIsIgnored() throws {
         let root = scratch()

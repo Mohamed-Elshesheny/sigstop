@@ -202,8 +202,11 @@ public final class InMemoryEventStore: EventStore, @unchecked Sendable {
     public func exportText() throws -> String {
         lock.lock()
         let snapshot = days
+        let skipped = injectedMalformed
         lock.unlock()
-        return try ExportWriter.render(location: "(memory)", days: snapshot.keys.sorted()) { day in
+        return try ExportWriter.render(
+            location: "(memory)", days: snapshot.keys.sorted(), skipped: skipped
+        ) { day in
             snapshot[day] ?? []
         }
     }
@@ -267,6 +270,7 @@ enum ExportWriter {
     static func render(
         location: String,
         days: [CalendarDay],
+        skipped: [CalendarDay: Int],
         events: (CalendarDay) -> [LoggedEvent]
     ) throws -> String {
         var out = ""
@@ -290,7 +294,18 @@ enum ExportWriter {
         for (i, line) in LoggedEvent.fieldGuide().enumerated() {
             out += i == 0 ? "# fields: \(line)\n" : "#         \(line)\n"
         }
-        out += "# nothing here is transformed or filtered; this is a copy of what is on disk.\n"
+        out += "# this is the log as sigstop reads it, not a byte copy: every line that parses,\n"
+        out += "# written back out and put in time order within its day. A line that does not parse\n"
+        out += "# is left out and counted below, and a field this version does not know is dropped.\n"
+        out += "# The files in events/ are the bytes themselves.\n"
+        let lost = skipped.filter { $0.value > 0 }
+        if lost.isEmpty {
+            out += "# skipped: none\n"
+        } else {
+            let lines = lost.values.reduce(0, +)
+            let on = lost.keys.sorted().map(\.description).joined(separator: ", ")
+            out += "# skipped: \(lines) line(s) that would not parse, on \(on)\n"
+        }
         out += body
         return out
     }

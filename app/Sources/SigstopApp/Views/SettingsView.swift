@@ -535,8 +535,10 @@ struct SettingsView: View {
 
             SettingsSection("export") {
                 Note(
-                    "The event log as one text file, a copy rather than a report. Nothing is "
-                        + "filtered or transformed, so what you audit is what the app recorded."
+                    "The event log as one text file, as sigstop reads it: every line that parses, "
+                        + "in time order within each day. A line that does not parse is left out and "
+                        + "counted at the top, and a field this version does not know is dropped. For "
+                        + "the bytes themselves, read the files in events/."
                 )
                 TerminalButton("Export…") { export() }
                     .fixedSize()
@@ -589,7 +591,7 @@ struct SettingsView: View {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "sigstop-export.txt"
         panel.canCreateDirectories = true
-        panel.message = "The event log as one readable file, every line on disk, unchanged."
+        panel.message = "The event log as one readable file: every event that parses, in time order."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         dataReport = model.exportData(to: url)
     }

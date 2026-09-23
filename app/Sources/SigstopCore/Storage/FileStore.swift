@@ -108,14 +108,18 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         defer { lock.unlock() }
         let days = try unlockedAvailableDays()
         var cache: [CalendarDay: [LoggedEvent]] = [:]
+        var skipped: [CalendarDay: Int] = [:]
         var unreadable: [CalendarDay] = []
         for day in days {
             let loaded = unlockedLoad(day: day)
             cache[day] = loaded.events
+            skipped[day] = loaded.malformedLines
             if loaded.unreadable { unreadable.append(day) }
         }
         let location = (root.path as NSString).abbreviatingWithTildeInPath
-        let text = try ExportWriter.render(location: location, days: days) { cache[$0] ?? [] }
+        let text = try ExportWriter.render(location: location, days: days, skipped: skipped) {
+            cache[$0] ?? []
+        }
         guard !unreadable.isEmpty else { return text }
         let list = unreadable.map(\.description).joined(separator: ", ")
         return text + "\nNot exported, the file is there but would not open: \(list)\n"
@@ -127,13 +131,17 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         public let events: Int
         public let bytes: Int
         public let unreadable: [CalendarDay]
+        public let skippedLines: Int
 
         public var userFacingSummary: String {
-            let exported = "Exported \(events) events across \(days) day(s) "
+            var out = "Exported \(events) events across \(days) day(s) "
                 + "(\(DeletionReport.humanBytes(bytes))) to \(destination)."
-            guard !unreadable.isEmpty else { return exported }
+            if skippedLines > 0 {
+                out += " Left out \(skippedLines) line(s) that would not parse."
+            }
+            guard !unreadable.isEmpty else { return out }
             let list = unreadable.map(\.description).joined(separator: ", ")
-            return exported + " Not exported, the file is there but would not open: \(list)."
+            return out + " Not exported, the file is there but would not open: \(list)."
         }
     }
 
@@ -151,7 +159,8 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
             days: readable.count,
             events: readable.reduce(0) { $0 + $1.events.count },
             bytes: data.count,
-            unreadable: loads.filter(\.unreadable).map(\.day)
+            unreadable: loads.filter(\.unreadable).map(\.day),
+            skippedLines: readable.reduce(0) { $0 + $1.malformedLines }
         )
     }
 

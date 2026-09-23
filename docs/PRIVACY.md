@@ -1124,9 +1124,14 @@ everything" removes it with the rest, because delete means delete.
 
 **Export** (one button in Settings → Data, `NSSavePanel`, no permission needed): writes one text
 file. A commented header names the schema version, the source folder, the day range and every field
-the log can hold; under it is every event on disk, verbatim, one JSON object per line, grouped by
-day. Nothing is transformed or filtered, so what you audit is what the app recorded. Settings, badges
-and the summaries are not in it: they are the plain files in §4.2, and `cat` is the export for those.
+the log can hold; under it, grouped by day, is every event that parses, one JSON object per line.
+It is the log as sigstop reads it, not a byte copy, and the header says so: each line is written
+back out by this version, so a field it does not know is dropped; the lines are put in time order
+within their day, where the day file is in write order (§4.3); and a line that does not parse is
+left out: the header says how many and on which days, and the report in Settings says how many. A
+day file that will not open is named at the end. For the bytes themselves, `cat` the files in
+`events/`. Settings, badges and the summaries are not in it: they are the plain files in §4.2, and
+`cat` is the export for those.
 
 **Delete everything** (the **Delete my data…** button in Settings → Data, one confirmation):
 removes everything in the storage directory, the settings file with it, except its empty `.lock`:
