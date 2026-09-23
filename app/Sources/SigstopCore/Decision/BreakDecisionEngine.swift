@@ -412,7 +412,9 @@ public struct BreakDecisionEngine: Sendable {
                 e.notificationsThisCycle += 1
                 day.notificationsDelivered += 1
                 day.lastNotificationAt = input.now
-                if e.level == .incident { e.finalDeliveredAt = e.ladderElapsed }
+                if e.level == .incident || interruption.ladderIsSpent(input, budget: e.budget) {
+                    e.finalDeliveredAt = e.ladderElapsed
+                }
             }
         }
 

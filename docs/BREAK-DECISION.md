@@ -516,7 +516,7 @@ engine is allowed to *say*.
 | `ignored` | no input for `microIdleGrace` | gap `< qualifyingBreak` | `idle` | not an ignore; retract prompt and **park the ladder** |
 | `ignored` | gap ≥ `qualifyingBreak` | — | `working` | break recorded; cycle closed honored |
 | `ignored` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
-| `ignored` | level 4 delivered + no response | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1 |
+| `ignored` | the last prompt the cycle allows + no response for `promptTimeout` | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1 |
 | `breakActive` | tick | `now >= plannedEnd` | `working` | reset clock, record break, `lastBreakEndedAt = now` |
 | `breakActive` | user ends early | elapsed `>= qualifyingBreak` | `working` | as above |
 | `breakActive` | user ends early | elapsed `< qualifyingBreak` | `working` | **no reset, no break recorded**, log `.abandoned` |
@@ -1066,6 +1066,10 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
 - **On snooze expiry:** re-enter `breakDue` with `seamWaitElapsed = 0` (a fresh seam window — the
   deferral machinery gets to do its job again) but `totalElapsed` continuing from the original
   `dueSince`, so snoozing cannot be used to outrun the stale ceiling.
+- **A snooze costs a notification.** On expiry level 1 is sent again, it counts toward the four a
+  cycle may send (§11, invariant 2), and if it is ignored the ladder starts again from its own `t0`.
+  So a cycle snoozed once can spend its fourth notification on level 2 or 3, and that rung is then
+  the last one: it gets the full `promptTimeout` to be answered, the same as level 4 (§11).
 - **Snooze while hard-blocked** cannot happen — there is no prompt to snooze.
 - **Skip** (`UserAction.skip`): closes the cycle, `skippedBreakCount += 1`, no reset, no break recorded,
   counted as a *missed* opportunity in compliance (it was a real, answered opportunity). The engine
@@ -1078,7 +1082,8 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   you are in, which may be showing a password field), so the
   prompt stands in the engine: `promptTimeout` (90 s) after it was delivered it is classified
   ignored, which is what §10 means by ignored and what the product means by a rung you are allowed
-  to catch. The next rung waits for its own ladder time (§11, L2 at `t0 + 5 min`), and after L4 the
+  to catch. The next rung waits for its own ladder time (§11, L2 at `t0 + 5 min`), and after L4, or
+  whichever rung spends the cycle's four notifications, has had its own `promptTimeout`, the
   cycle closes as `.ignoredExhausted` with its 25-minute cooldown.
 - **The same answers with or without system notifications.** Any rung whose channel is a
   notification (L1, L2, L3, and L4 on low power) is drawn as a panel when system notifications are
@@ -1148,6 +1153,19 @@ notifications instead* off, the default, a `.notification` rung is drawn as the 
 After level 4 with no response: cycle → `.ignoredExhausted`, `consecutiveIgnoredCycles += 1`, engine
 returns to `working` with a **25-minute cooldown** before a new cycle may open. No further
 notification about this cycle is ever emitted.
+
+**The last prompt a cycle allows always gets `promptTimeout` to be answered, whichever rung it is.**
+Level 4 is the last rung, but not always the last prompt: a snooze sends level 1 again and spends one
+of the cycle's four notifications (invariant 2 below), so a cycle snoozed once meets the cap at level 2
+or 3. The engine used to decide exhaustion in the same step that delivered that rung, so the step
+carried `deliverPrompt`, `withdrawPrompt` and `closeCycle` together: the prompt sound played for a
+prompt that was taken down in the same instant, and with system notifications the banner was posted
+after its own withdrawal and stayed in Notification Center with buttons that did nothing. Whichever
+delivery spends the ladder now records `Escalation.finalDeliveredAt`, exactly as level 4 always did,
+and exhaustion waits `promptTimeout` of ladder time after it. No step delivers a prompt and withdraws
+or closes its cycle; `DeliverAndWithdrawPropertyTests` holds that over random sequences of ticks,
+snoozes, skips, breaks, pauses, absences and microphone holds, and `LastPromptTests` pins both
+snoozed paths.
 
 **A ladder ends when it has nothing left to deliver, not when its timer runs out.** The engine used
 to decide exhaustion by waiting for `ladderLevel4 + promptTimeout` whenever level 4 had not been

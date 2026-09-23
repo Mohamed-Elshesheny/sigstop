@@ -33,6 +33,9 @@ enum EngineHarness {
         var micRunning = false
         var cameraRunning = false
         var idleSeconds: TimeInterval = 0
+        var sessionEvents: [SessionEvent] = []
+        var lastBreakEndedAt: Date?
+        var calendarSystem: Calendar = .current
 
         private(set) var effects: [Effect] = []
         private(set) var lastVerdict: InterruptionVerdict?
@@ -66,9 +69,13 @@ enum EngineHarness {
                 context: context,
                 signals: SystemSignals(audioInputRunning: micRunning, cameraRunning: cameraRunning),
                 settings: settings,
+                calendarSystem: calendarSystem,
+                lastBreakEndedAt: lastBreakEndedAt,
                 day: day,
-                userAction: action
+                userAction: action,
+                sessionEvents: sessionEvents
             )
+            sessionEvents = []
 
             let outcome = engine.step(state, input)
             state = outcome.state
