@@ -5,6 +5,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     public static let lockFileName = ".lock"
     static let largestRecordFile = 32 * 1024 * 1024
     static let leftAsItIs = "it is there but will not open, so it is left as it is rather than replaced"
+    static let undecodableLeftAsItIs = "it is there but will not decode, so it is left as it is rather than replaced"
 
     public let root: URL
     public let eventsDirectory: URL
@@ -238,7 +239,13 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     public func writeBadges(_ ledger: BadgeLedger) throws {
         lock.lock()
         defer { lock.unlock() }
-        try refuseToReplaceUnopenable(badgesFile)
+        do {
+            _ = try unlockedReadBadges()
+        } catch StoreError.wouldNotDecode {
+            throw StoreError.notWritable(path: badgesFile.path, reason: Self.undecodableLeftAsItIs)
+        } catch {
+            throw StoreError.notWritable(path: badgesFile.path, reason: Self.leftAsItIs)
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try writeAtomically(try encoder.encode(ledger), to: badgesFile)
@@ -247,13 +254,20 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     public func readBadges() throws -> BadgeLedger {
         lock.lock()
         defer { lock.unlock() }
+        return try unlockedReadBadges()
+    }
+
+    private func unlockedReadBadges() throws -> BadgeLedger {
         switch SecureFile.read(badgesFile, limit: Self.largestRecordFile) {
         case .absent:
             return .empty
         case .unreadable:
             throw StoreError.wouldNotOpen(path: badgesFile.path)
         case .contents(let data):
-            return (try? JSONDecoder().decode(BadgeLedger.self, from: data)) ?? .empty
+            guard let ledger = try? JSONDecoder().decode(BadgeLedger.self, from: data) else {
+                throw StoreError.wouldNotDecode(path: badgesFile.path)
+            }
+            return ledger
         }
     }
 

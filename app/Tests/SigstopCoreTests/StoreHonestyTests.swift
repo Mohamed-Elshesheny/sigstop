@@ -277,6 +277,30 @@ struct StoreHonestyTests {
         #expect(try store.readCounters() == counters)
     }
 
+    @Test("a badge ledger that opens but will not decode is left alone, not read as empty and replaced")
+    func undecodableLedgerIsLeftAlone() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+
+        let newer = Data("{\"v\":2,\"unlocked\":{\"stopped-1\":\"2026-09-01\"}}".utf8)
+        let truncated = Data("{\"v\":1,\"unlocked\":{\"stopped-1\":\"2026-0".utf8)
+        var derived = BadgeLedger()
+        derived.record(.stoppedOnce, on: CalendarDay(year: 2026, month: 9, day: 20))
+
+        for bytes in [newer, truncated] {
+            try bytes.write(to: store.badgesFile)
+
+            #expect(throws: StoreError.wouldNotDecode(path: store.badgesFile.path)) { _ = try store.readBadges() }
+            #expect(throws: StoreError.self, "a ledger that will not decode is not replaced by a derived one") {
+                try store.writeBadges(derived)
+            }
+            #expect(try Data(contentsOf: store.badgesFile) == bytes, "the file is exactly as it was")
+            let names = try FileManager.default.contentsOfDirectory(atPath: root.path).sorted()
+            #expect(names == ["badges.json", "events", "summaries"], "nothing was set aside or written beside it")
+        }
+    }
+
     private func inode(_ url: URL) -> UInt64? {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return nil }

@@ -844,12 +844,21 @@ screen locks or the Mac sleeps, and the message goes once that month is written.
 month that has just ended: once the new month's first day is saved it is not tried again, and the
 message stays until the next launch.
 
-`badges.json` and `counters.json` get the same rule. If one is there but will not open, the app
+`badges.json` and `counters.json` are never set aside. If one is there but will not open, the app
 carries on from what it holds in memory, writes nothing over the file, posts no "unlocked" note
 while the ledger is out of reach, and says in the menu bar which file it left as it is. It reads
-the file again at the next launch. A badge write that fails for any other reason says "Could not
-write the badges", is tried again with the next summary write, and the message goes once one
-succeeds.
+the file again at the next launch. `badges.json` is treated the same way when it opens but will
+not decode, a ledger written by a newer sigstop before a downgrade included, because it is the
+only record of a badge whose evidence has been pruned. A `counters.json` that will not decode, or
+holds impossible numbers, is only the day's budgets, so the app starts them fresh and the next
+write replaces the file. A badge write that fails for any other reason says "Could not write the
+badges", is tried again with the next summary write, and the message goes once one succeeds.
+
+| File | There, but will not open | Opens, but will not decode |
+|---|---|---|
+| `summaries/YYYY-MM.json` | left as it is, that month is not written | moved aside to `.unreadable`, the month starts again |
+| `badges.json` | left as it is, nothing written over it | left as it is, nothing written over it |
+| `counters.json` | left as it is, nothing written over it | started fresh, replaced at the next write |
 
 There is no database, no binary blob, no `.sqlite`, and nothing encrypted or encoded. Formats were
 chosen so that `cat` is a complete audit tool.

@@ -702,7 +702,7 @@ final class AppModel {
 
     private static let pruneFailurePrefix = "Could not prune old logs"
     private static let settingsFailurePrefix = "Could not save your settings"
-    private static let leftAlonePrefix = "Would not open, so left as it is:"
+    private static let leftAlonePrefix = "Could not read, so left as it is:"
     private static let summaryFailurePrefix = "Could not write the daily summary"
     private static let badgesFailurePrefix = "Could not write the badges"
 
