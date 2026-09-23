@@ -67,7 +67,13 @@ public enum SecureFile {
         guard fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_size <= limit else {
             return .unreadable
         }
-        guard let data = try? handle.read(upToCount: limit + 1) else { return .contents(Data()) }
+        let read: Data?
+        do {
+            read = try handle.read(upToCount: limit + 1)
+        } catch {
+            return .unreadable
+        }
+        guard let data = read else { return .contents(Data()) }
         return data.count > limit ? .unreadable : .contents(data)
     }
 
