@@ -599,16 +599,16 @@ grep -rnE '(^|[^A-Za-z0-9_.])Process\(|NSTask|posix_spawn' app/Sources
 # every path fragment the git collector can build, in one grep. Ten lines: eight carry
 # the only names it ever appends, and two use a bare "/" as a separator
 grep -n '\"/' app/Sources/SigstopSensors/Collectors/GitCollector.swift
-#   224:            let inside = roots.filter { path == $0 || path.hasPrefix($0 + "/") }
-#   269:            switch readFirstLine(gitDirectory + "/HEAD") {
-#   287:        let dot = folder + "/.git"
-#   300:            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
-#   326:        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
-#   327:        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
-#   351:        for candidate in ["/rebase-merge/head-name", "/rebase-apply/head-name"] {
-#   364:        if exists("/rebase-merge") || exists("/rebase-apply") { return .rebaseInProgress }
-#   365:        if exists("/MERGE_HEAD") { return .mergeInProgress }
-#   366:        if exists("/BISECT_LOG") { return .bisecting }
+#   230:            let inside = roots.filter { path == $0 || path.hasPrefix($0 + "/") }
+#   275:            switch readFirstLine(gitDirectory + "/HEAD") {
+#   293:        let dot = folder + "/.git"
+#   306:            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
+#   332:        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
+#   333:        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
+#   357:        for candidate in ["/rebase-merge/head-name", "/rebase-apply/head-name"] {
+#   370:        if exists("/rebase-merge") || exists("/rebase-apply") { return .rebaseInProgress }
+#   371:        if exists("/MERGE_HEAD") { return .mergeInProgress }
+#   372:        if exists("/BISECT_LOG") { return .bisecting }
 # names:  /.git  /HEAD  /objects  /commondir  /rebase-merge  /rebase-apply  /MERGE_HEAD
 #         /BISECT_LOG  /rebase-merge/head-name  /rebase-apply/head-name
 
@@ -616,9 +616,9 @@ grep -n '\"/' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 # .git file longer than that refused rather than read in part
 grep -n 'headReadLimit' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 #   22:    private static let headReadLimit = 512
-#   387:        if wholeFile, info.st_size > headReadLimit { return .failure(.noRepository) }
-#   389:        var buffer = [UInt8](repeating: 0, count: headReadLimit)
-#   391:            Darwin.read(descriptor, raw.baseAddress, headReadLimit)
+#   393:        if wholeFile, info.st_size > headReadLimit { return .failure(.noRepository) }
+#   395:        var buffer = [UInt8](repeating: 0, count: headReadLimit)
+#   397:            Darwin.read(descriptor, raw.baseAddress, headReadLimit)
 ```
 
 If you would rather not take the source's word for it, the same two claims hold against the built

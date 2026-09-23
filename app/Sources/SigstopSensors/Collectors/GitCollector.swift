@@ -71,6 +71,12 @@ public final class GitCollector: @unchecked Sendable {
         return outcome
     }
 
+    public var lastScan: (outcome: GitScanOutcome, signal: GitSignal?) {
+        lock.lock(); defer { lock.unlock() }
+        guard case .read = outcome else { return (outcome, nil) }
+        return (outcome, memo?.signal)
+    }
+
     public func read(
         frontmost: AppIdentity,
         folders: [String],

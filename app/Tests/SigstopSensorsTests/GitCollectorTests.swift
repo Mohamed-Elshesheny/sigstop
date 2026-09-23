@@ -480,6 +480,54 @@ private extension Sandbox {
     box.keepAlive()
 }
 
+@Test func theLastScanPairsEachOutcomeWithTheReadThatMadeIt() async {
+    let box = Sandbox()
+    let alpha = box.repository("alpha", head: "ref: refs/heads/feature/a\n")
+    box.write("abc\n", to: "alpha/.git/MERGE_HEAD")
+    let beta = box.repository("beta", head: String(repeating: "c3", count: 20) + "\n")
+    let collector = collector(gitOn: true)
+    let start = Date()
+
+    _ = await collector.read(
+        frontmost: editor, folders: [alpha, beta], documentURL: nil,
+        windowTitle: "main.swift — alpha", now: start
+    )
+    var scan = collector.lastScan
+    #expect(scan.outcome == .read(
+        folder: "alpha", branchLength: 9, head: .branch, route: GitFolderRoute.windowTitle.rawValue
+    ))
+    #expect(scan.signal?.branch == "feature/a")
+    #expect(scan.signal?.repoState == .mergeInProgress)
+
+    _ = await collector.read(
+        frontmost: editor, folders: [alpha, beta], documentURL: nil,
+        windowTitle: "main.swift — alpha", now: start.addingTimeInterval(1)
+    )
+    #expect(collector.lastScan.signal?.branch == "feature/a")
+
+    _ = await collector.read(
+        frontmost: browser, folders: [alpha, beta], documentURL: nil,
+        windowTitle: "main.swift — alpha", now: start.addingTimeInterval(2)
+    )
+    scan = collector.lastScan
+    if case .skipped = scan.outcome {} else { Issue.record("expected skipped, got \(scan.outcome)") }
+    #expect(scan.signal == nil)
+
+    _ = await collector.read(
+        frontmost: editor, folders: [alpha, beta], documentURL: nil,
+        windowTitle: "lib.rs — beta", now: start.addingTimeInterval(3)
+    )
+    scan = collector.lastScan
+    #expect(scan.outcome == .read(
+        folder: "beta", branchLength: 0, head: .detached, route: GitFolderRoute.windowTitle.rawValue
+    ))
+    #expect(scan.signal?.branch == nil)
+    #expect(scan.signal?.head == .detached)
+    #expect(scan.signal?.repoState == .detachedHead)
+    #expect(scan.signal?.repoName == "beta")
+    box.keepAlive()
+}
+
 @Test func theOutcomeDoctorPrintsDoesNotCarryTheBranchName() async {
     let box = Sandbox()
     let repo = box.repository("sigstop", head: "ref: refs/heads/acme-4417-billing\n")

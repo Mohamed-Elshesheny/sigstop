@@ -829,7 +829,7 @@ final class AppModel {
             .sorted { abs($0.logOdds) > abs($1.logOdds) }
             .map { EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds) }
         caveats = sample.caveats
-        publishGitReading(context: context)
+        publishGitReading()
         engineStateName = engineState.name
         permissionStatus = sensors.permissions.status()
 
@@ -847,8 +847,9 @@ final class AppModel {
         if time.continuousSeconds - lastPruneMono >= 3600 { pruneOldLogs() }
     }
 
-    private func publishGitReading(context: DeveloperContext) {
-        switch sensors.git.lastOutcome {
+    private func publishGitReading() {
+        let scan = sensors.git.lastScan
+        switch scan.outcome {
         case .optedOut:
             gitReading = nil
             gitStatusLine = "off, nothing is read"
@@ -871,14 +872,16 @@ final class AppModel {
             gitReading = nil
             gitStatusLine = "\(folder) did not answer in time and is being left alone until "
                 + "you change the folders below"
-        case .read(let folder, _, let head, let route):
-            gitReading = GitReading(
-                folder: folder,
-                branch: context.context.branch,
-                head: head,
-                repoState: context.context.repoState,
-                route: route
-            )
+        case .read(let folder, _, _, let route):
+            gitReading = scan.signal.map { signal in
+                GitReading(
+                    folder: folder,
+                    branch: signal.branch,
+                    head: signal.head,
+                    repoState: signal.repoState,
+                    route: route
+                )
+            }
             gitStatusLine = ""
         }
     }
