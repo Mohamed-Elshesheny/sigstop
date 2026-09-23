@@ -554,7 +554,7 @@ engine is allowed to *say*.
 | `ignored` | gap ≥ `qualifyingBreak` | — | `working` | break recorded; cycle closed honored |
 | `ignored` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
 | `ignored` | the last prompt the cycle allows + no response for `promptTimeout` | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1; `quiet(.dailyCapReached)` instead of the cooldown when the day's cap is spent |
-| `ignored` | the prompt that reached the daily cap + no response for `promptTimeout` | the ladder had rungs left | `quiet(.dailyCapReached)` | cycle `.dailyCapReached`; consecutive-ignore counter **unchanged** |
+| `ignored` | the prompt that reached the daily cap + no response for `promptTimeout` | the ladder had rungs left | `quiet(.dailyCapReached)` | cycle `.dailyCapReached`; consecutive-ignore counter **unchanged**; a *missed* opportunity, not an excluded one, since its prompts were delivered (§14) |
 | `breakActive` | tick | `now >= plannedEnd` | `working` | reset clock, record break, `lastBreakEndedAt = now` |
 | `breakActive` | user ends early | elapsed `>= qualifyingBreak` | `working` | as above |
 | `breakActive` | user ends early | elapsed `< qualifyingBreak` | `working` | **no reset, no break recorded**, log `.abandoned` |
@@ -1250,7 +1250,8 @@ backoff, though the ladder had been cut short by the day rather than waved off b
 delivery that meets the cap now records `finalDeliveredAt` like any last prompt, and
 `promptTimeout` later the cycle closes `.dailyCapReached` into `quiet(.dailyCapReached)`, as
 `handleBreakDue` closes a cycle the cap reaches before it has prompted, with
-`consecutiveIgnoredCycles` left alone. A level 1 that meets the cap gets the same time:
+`consecutiveIgnoredCycles` left alone. It stays a missed opportunity rather than an excluded one,
+because its prompts were real, delivered questions (§14). A level 1 that meets the cap gets the same time:
 `handleBreakDue` used to close its cycle on the next tick, taking the prompt down five seconds after
 it appeared, and it now leaves a prompt that is up standing until `promptTimeout` makes it ignored.
 A ladder already spent by its own rules when the cap is reached (level 4 sent, the fourth prompt

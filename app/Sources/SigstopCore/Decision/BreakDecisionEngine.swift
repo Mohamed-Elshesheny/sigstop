@@ -444,7 +444,7 @@ public struct BreakDecisionEngine: Sendable {
         if exhausted, capped, !spent, !e.deliveredLevels.contains(.incident) {
             effects.append(.withdrawPrompt(cycle: e.cycle, reason: .dailyCapReached))
             effects.append(.closeCycle(e.cycle, .dailyCapReached))
-            day.excludedOpportunities += 1
+            if e.notificationsThisCycle == 0 { day.excludedOpportunities += 1 }
             effects.append(.setIndicator(.quiet))
             return (.quiet(QuietState(cause: .dailyCapReached)), verdict)
         }

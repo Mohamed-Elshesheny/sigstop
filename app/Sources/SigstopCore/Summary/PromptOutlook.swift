@@ -97,7 +97,7 @@ public struct PromptOutlook: Sendable, Hashable {
             )
         case .dailyCapReached:
             return PromptOutlook(
-                headline: "Today's notification budget was spent at \(at).",
+                headline: "The last opportunity closed at \(at), because today's notification budget is spent.",
                 detail: ["Passive only from here. The budget is Settings, notifications per day."]
             )
         case .honored:
