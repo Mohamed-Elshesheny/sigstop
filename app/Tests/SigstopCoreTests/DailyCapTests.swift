@@ -215,3 +215,31 @@ struct DailyCapTests {
         #expect(Self.cappedQuiet(driver.state), "no cooldown to a prompt the day cannot send: \(driver.state)")
     }
 }
+
+@Suite("a new day starts with a new budget")
+struct DayRolloverBudgetTests {
+
+    @Test("the tick that crosses into a new day does not hold on to yesterday's spent budget")
+    func rolloverClearsTheCap() {
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC") ?? .current
+        driver.calendarSystem = utc
+        let policy = BreakPolicy(settings: EngineHarness.ownerSettings)
+        let today = LocalDay.index(
+            of: driver.now.addingTimeInterval(EngineHarness.Driver.tick), calendar: utc, boundaryHour: policy.dayBoundaryHour
+        )
+        driver.day.dayIndex = today - 1
+        driver.day.notificationsDelivered = policy.dailyNotificationCap
+        driver.state = .quiet(QuietState(cause: .dailyCapReached))
+        driver.continuousWork = policy.targetContinuousWork + 60
+
+        driver.step()
+
+        if case .quiet(let quiet) = driver.state, quiet.cause == .dailyCapReached {
+            Issue.record("the new day went straight back to yesterday's spent budget")
+        }
+        #expect(driver.day.dayIndex == today)
+        #expect(driver.day.notificationsDelivered < policy.dailyNotificationCap, "today's count starts again from zero")
+    }
+}

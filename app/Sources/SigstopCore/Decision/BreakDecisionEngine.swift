@@ -92,6 +92,7 @@ public struct BreakDecisionEngine: Sendable {
     }
 
     public func step(_ state: EngineState, _ input: EngineInput) -> EngineOutcome {
+        var input = input
         var day = input.day
         var effects: [Effect] = []
         var verdict: InterruptionVerdict?
@@ -104,6 +105,7 @@ public struct BreakDecisionEngine: Sendable {
                 return false
             }()
             day = day.rolledOver(to: today)
+            input.day = day
             if wasCapped {
                 state = .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
             }
