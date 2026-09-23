@@ -181,6 +181,16 @@ if [ -n "${STRAY}" ]; then
   sed 's/^/       /' <<<"${STRAY}" >&2
   exit 1
 fi
+# No em dash in anything a user reads, and the notes are read. Nothing earlier than this checks a
+# subject for one, and by now every subject is on origin/main and cannot be reworded.
+DASHED="$(grep -F "$(printf '\342\200\224')" <<<"${NOTES}" || true)"
+if [ -n "${DASHED}" ]; then
+  echo "error: the release notes carry an em dash, and nothing a user reads may:" >&2
+  sed 's/^/       /' <<<"${DASHED}" >&2
+  echo "       A bullet is a commit subject, and a pushed one cannot be reworded. Scripts/changelog.py" >&2
+  echo "       writes the notes, so that is where one is changed." >&2
+  exit 1
+fi
 if ! grep -q '^- ' <<<"${NOTES}"; then
   echo "error: nothing that ships changed since ${PREVIOUS_TAG}, so there is nothing to release." >&2
   exit 1

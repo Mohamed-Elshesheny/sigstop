@@ -55,9 +55,10 @@ if the working tree is dirty, if `HEAD` is not `main` and exactly `origin/main`,
 commit has not finished and passed, if the account `gh` is signed in as cannot push to the
 repository or a dry run of the tag push fails, if `CFBundleVersion` is not a plain integer higher
 than the last tag's, if `SIGN_IDENTITY` is neither ad hoc nor a Developer ID, or if the notes hold
-anything but headings and bullets or no bullet at all. Then it runs the tests, `make verify-shipped`, `Scripts/smoke.sh`,
-`Scripts/intel-slice.sh` and the scenario suite before it publishes anything; §3.3 has the
-order. A release that cannot prove its own claims does not go out.
+anything but headings and bullets, no bullet at all, or an em dash. Then it runs the tests,
+`make verify-shipped`, `Scripts/smoke.sh`, `Scripts/intel-slice.sh` and the scenario suite before
+it publishes anything; §3.3 has the order. A release that cannot prove its own claims does not go
+out.
 
 ## 0.4 When to cut one
 
@@ -84,8 +85,10 @@ moment it is fixed. That is the whole list of exceptions.
 ## 0.5 What the notes say
 
 Sections and bullets, generated from the log by `Scripts/changelog.py`. The format and the rules
-are that script's; `release.sh` refuses to publish notes with any other kind of line in them. There
-is no prose in them, so nothing can be said in the notes that is not a commit subject.
+are that script's; `release.sh` refuses to publish notes with any other kind of line in them, or
+with an em dash anywhere. There is no prose in them, so nothing can be said in the notes that is
+not a commit subject. That makes the subjects the place to keep the em dash out: by the time
+`release.sh` reads one it is on `origin/main` and cannot be reworded.
 
 ## 1. What makes this safe, in one paragraph
 
@@ -272,7 +275,8 @@ make release VERSION=0.2.0 NAME="Wood Frog 🐸"
 In order, it:
 
 1. builds the notes from the commit subjects since the last tag and checks them before anything
-   is built: headings and bullets only, and at least one bullet, or there is nothing to release;
+   is built: headings and bullets only, no em dash, and at least one bullet, or there is nothing
+   to release;
 2. runs `make test`, then `make verify-shipped`, which builds the universal bundle and checks it,
    then `Scripts/smoke.sh` on that same bundle, then `Scripts/intel-slice.sh` (§3.0), then the
    `Scenarios` harness, and stops on any failure;
