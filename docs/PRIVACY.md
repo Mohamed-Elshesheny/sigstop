@@ -209,11 +209,15 @@ private func copyString(_ element: AXUIElement, _ attribute: String) -> String? 
         }
         return nil
     }
-    guard let string = ref as? String else { return nil }
+    guard let whole = ref as? String else { return nil }
+    let string = String(decoding: Array(whole.utf16.prefix(Self.longestString)), as: UTF16.self)
     let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
 }
 ```
+
+A value is cut to its first 1,024 UTF-16 units (`longestString`) before anything reads it: no
+provider needs more, and a page that sets a megabyte-long title cannot make every sample slow.
 
 `kAXValue` is the attribute that would return a text field's contents. Nothing can reach it: the
 function is private, its only two call sites are in the listing above, and the CI check means a
@@ -282,7 +286,7 @@ plus `GitCollector` for those git files.
 one would not constrain anything. `make verify` (`app/Scripts/verify.sh`) checks two entitlements,
 neither of them about files (§6.1). Read the whole list yourself:
 `codesign -d --entitlements - --xml <APP>` prints one key, `com.apple.security.automation.apple-events`,
-set to `false`. At runtime: `sudo fs_usage -w -f filesys $(pgrep -f '<BUNDLE_ID>')` and watch that the
+set to `false`. At runtime: `sudo fs_usage -w -f filesys $(pgrep -x sigstop)` and watch that the
 only paths touched are the app bundle and the storage directory, plus, once you press **Check for
 updates**, the caches in inventory rows 33 to 35.
 
@@ -427,7 +431,7 @@ plutil -p <APP>/Contents/Info.plist | grep -E 'SUFeedURL|SUEnableAutomaticChecks
 codesign -d --entitlements - --xml <APP> | plutil -p - | grep network.server   # expect none
 
 # while it is running and you have not pressed anything
-sudo lsof -i -a -p "$(pgrep -f '<BUNDLE_ID>')"                                 # expect no sockets
+sudo lsof -i -a -p "$(pgrep -x sigstop)"                                        # expect no sockets
 ```
 `make verify` runs the whole set against a built bundle and prints a line per assertion. See §6.3
 for the Little Snitch / `nettop` procedure, and §8.1 for what `otool -L` can and cannot prove.
@@ -526,8 +530,9 @@ reported as one rather than presented as a branch name. One indirection is follo
 a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that line is read and
 `HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
 containing folder for a submodule. That directory is followed only if, after resolving links, it is
-inside the folder you picked or has the shape git gives a worktree or submodule
-(`…/.git/worktrees/<name>`, `…/.git/modules/<path>`); a `.git` that is itself a link is refused.
+a git directory: it holds a `HEAD` file and either an `objects` folder or a `commondir` file, which
+is what git writes for a repository, a worktree, a submodule and a `--separate-git-dir`. A `.git`
+that is itself a link is refused.
 Every file is opened with `O_NOFOLLOW | O_NONBLOCK` and read only if it is a plain file, so a link
 cannot point the read elsewhere and a FIFO cannot hold it open. Mid-rebase, `HEAD` is a detached sha and the branch you are on is
 in `rebase-merge/head-name`, which is read for the same reason and nothing else in that directory is.
@@ -940,36 +945,32 @@ file look tidier, because either would mean buffering in front of a log you are 
 The writer is `FileEventStore` in `app/Sources/SigstopCore/Storage/FileStore.swift`, behind the
 `EventStore` protocol in `Store.swift`. A line is a `LoggedEvent` from `EventLog.swift`, encoded by
 `EventLogCodec`. `append(contentsOf:)` groups events by their UTC day and hands each day's lines to
-this:
+`SecureFile.append` in `SecureFile.swift`:
 
 ```swift
-private func appendRaw(_ text: String, to url: URL) throws {
-    if !fm.fileExists(atPath: url.path) {
-        guard fm.createFile(
-            atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]
-        ) else {
-            throw StoreError.notWritable(path: url.path, reason: "could not create file")
-        }
+public static func append(_ data: Data, to url: URL) throws {
+    let fd = open(url.path, O_RDWR | O_APPEND | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+    guard fd >= 0 else {
+        throw StoreError.notWritable(path: url.path, reason: String(cString: strerror(errno)))
     }
-    let handle = try FileHandle(forUpdating: url)
-    defer { try? handle.close() }
-
-    let end = try handle.seekToEnd()
-    if end > 0 {
-        try handle.seek(toOffset: end - 1)
-        let last = try handle.read(upToCount: 1)
-        if last != Data([0x0A]) {
-            try handle.seekToEnd()
-            try handle.write(contentsOf: Data([0x0A]))
-        }
+    defer { close(fd) }
+    var info = stat()
+    guard fstat(fd, &info) == 0,
+          info.st_mode & S_IFMT == S_IFREG,
+          info.st_uid == getuid(),
+          info.st_nlink == 1
+    else {
+        throw StoreError.notWritable(path: url.path, reason: "not a plain file of yours")
     }
-    try handle.seekToEnd()
-    try handle.write(contentsOf: Data(text.utf8))
-    try handle.synchronize()
-}
 ```
 
+The rest writes a newline if the file does not already end in one, then the lines, then `fsync`.
 Append-only with `0600`, one file per day, so retention is a file deletion rather than a rewrite.
+The file is opened without following a link and must be a plain file you own with one name, so a
+link planted in the folder cannot steer the write elsewhere. Every other file here (settings,
+counters, summaries, badges, the call hold) is written to a temporary file created with
+`O_EXCL | O_NOFOLLOW` and renamed over the old one, which replaces a link rather than writing
+through it.
 
 ### 4.5 Retention
 
@@ -1221,9 +1222,9 @@ otool -L "$BIN"
 ```
 
 Expected list, and nothing else: `@rpath/Sparkle.framework/Versions/B/Sparkle`, `AppKit`,
-`Foundation`, `CoreGraphics`, `CoreFoundation`, `CoreAudio`, `IOKit`, `UserNotifications`,
-`ServiceManagement`, `ApplicationServices`, `SwiftUI`, `libobjc`, `libSystem`, and
-the Swift runtime libraries.
+`Foundation`, `CoreGraphics`, `CoreFoundation`, `CoreAudio`, `CoreMediaIO` (the camera's in-use
+flag), `IOKit`, `UserNotifications`, `ServiceManagement`, `ApplicationServices`, `SwiftUI`,
+`libobjc`, `libSystem`, and the Swift runtime libraries.
 
 The Sparkle line is the one addition, and it is the whole of the app's network capability. Check
 what is behind it:
@@ -1267,7 +1268,7 @@ one, because you get to choose the moment and watch both halves of it.
 
 ```bash
 # 1. Sockets held by the process, sampled
-PID=$(pgrep -f '<BUNDLE_ID>')
+PID=$(pgrep -x sigstop)
 sudo lsof -i -a -p "$PID"              # expect: nothing, until you press Check for updates
 
 # 2. Per-process network accounting, live
