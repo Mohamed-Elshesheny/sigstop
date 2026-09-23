@@ -81,11 +81,16 @@ final class AppModel {
     struct GitReading: Hashable, Sendable {
         let folder: String
         let branch: String?
+        let head: GitHead
         let repoState: RepoState?
         let route: String
 
         var branchText: String {
-            guard let branch else { return "detached HEAD, no branch to name" }
+            guard let branch else {
+                return head == .reftable
+                    ? "no branch to name: this repository keeps it in reftable, which sigstop does not read"
+                    : "detached HEAD, no branch to name"
+            }
             return SlotResolver.outsideText(branch) ?? "a branch whose name is only invisible characters"
         }
         var stateText: String? {
@@ -852,10 +857,11 @@ final class AppModel {
             gitReading = nil
             gitStatusLine = "\(folder) did not answer in time and is being left alone until "
                 + "you change the folders below"
-        case .read(let folder, _, _, let route):
+        case .read(let folder, _, let head, let route):
             gitReading = GitReading(
                 folder: folder,
                 branch: context.context.branch,
+                head: head,
                 repoState: context.context.repoState,
                 route: route
             )

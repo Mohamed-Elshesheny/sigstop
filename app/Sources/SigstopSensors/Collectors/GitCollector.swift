@@ -10,7 +10,7 @@ public enum GitScanOutcome: Sendable, Hashable {
     case notPermitted(folder: String)
     case noRepository(folder: String)
     case timedOut(folder: String)
-    case read(folder: String, branchLength: Int, detached: Bool, route: String)
+    case read(folder: String, branchLength: Int, head: GitHead, route: String)
 }
 
 public enum GitFolderRoute: String, Sendable, Hashable {
@@ -20,6 +20,8 @@ public enum GitFolderRoute: String, Sendable, Hashable {
 
 public final class GitCollector: @unchecked Sendable {
     private static let headReadLimit = 512
+
+    static let reftablePlaceholder = ".invalid"
 
     public static let defaultDeadline: TimeInterval = 1.0
 
@@ -176,7 +178,7 @@ public final class GitCollector: @unchecked Sendable {
         outcome = .read(
             folder: name,
             branchLength: signal.branch?.count ?? 0,
-            detached: signal.branch == nil,
+            head: signal.head,
             route: route.rawValue
         )
     }
@@ -274,7 +276,8 @@ public final class GitCollector: @unchecked Sendable {
                     branch: branch,
                     repoState: repoState(in: gitDirectory, detached: parsed.detached && branch == nil),
                     repoName: (folder as NSString).lastPathComponent,
-                    readAt: now
+                    readAt: now,
+                    headInReftable: parsed.reftable
                 ))
             }
         }
@@ -321,15 +324,16 @@ public final class GitCollector: @unchecked Sendable {
         return String(cString: resolved)
     }
 
-    static func parseHEAD(_ line: String) -> (branch: String?, detached: Bool) {
+    static func parseHEAD(_ line: String) -> (branch: String?, detached: Bool, reftable: Bool) {
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         let prefix = "ref: refs/heads/"
         if trimmed.hasPrefix(prefix) {
             let name = String(trimmed.dropFirst(prefix.count))
-            return (name.isEmpty ? nil : name, false)
+            if name == reftablePlaceholder { return (nil, false, true) }
+            return (name.isEmpty ? nil : name, false, false)
         }
-        if trimmed.count == 40, trimmed.allSatisfy(\.isHexDigit) { return (nil, true) }
-        return (nil, false)
+        if trimmed.count == 40, trimmed.allSatisfy(\.isHexDigit) { return (nil, true, false) }
+        return (nil, false, false)
     }
 
     static func rebaseBranch(in gitDirectory: String) -> String? {

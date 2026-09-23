@@ -223,12 +223,76 @@ private func collector(gitOn: Bool) -> GitCollector {
     }
 }
 
+private extension Sandbox {
+    @discardableResult
+    func reftableRepository(_ name: String) -> String {
+        let folder = repository(name, head: "ref: refs/heads/.invalid\n")
+        write("this repository uses the reftable format\n", to: "\(name)/.git/refs/heads")
+        write("0x000000000001-0x000000000002-00000000.ref\n", to: "\(name)/.git/reftable/tables.list")
+        _ = self.folder("\(name)/.git/objects")
+        return folder
+    }
+}
+
+@Test func aReftableRepositoryNamesNoBranchAndIsNotCalledDetached() {
+    let box = Sandbox()
+    let repo = box.reftableRepository("rt")
+    let signal = try! GitCollector.readRepository(at: repo, now: Date()).get()
+    #expect(signal.branch == nil)
+    #expect(signal.repoState == .clean)
+    #expect(signal.headInReftable)
+    #expect(signal.head == .reftable)
+}
+
+@Test func aReftableWorktreeNamesNoBranchEither() {
+    let box = Sandbox()
+    let real = box.reftableRepository("rt-main")
+    box.write("ref: refs/heads/.invalid\n", to: "rt-main/.git/worktrees/wt/HEAD")
+    box.write("../..\n", to: "rt-main/.git/worktrees/wt/commondir")
+    let tree = box.folder("rt-wt")
+    box.write("gitdir: \(real)/.git/worktrees/wt\n", to: "rt-wt/.git")
+    let signal = try! GitCollector.readRepository(at: tree, now: Date()).get()
+    #expect(signal.branch == nil)
+    #expect(signal.head == .reftable)
+}
+
+@Test func aReftableRepositoryMidRebaseStillNamesTheBranchFromHeadName() {
+    let box = Sandbox()
+    let repo = box.reftableRepository("rt")
+    box.write("refs/heads/topic\n", to: "rt/.git/rebase-merge/head-name")
+    let signal = try! GitCollector.readRepository(at: repo, now: Date()).get()
+    #expect(signal.branch == "topic")
+    #expect(signal.head == .branch)
+    #expect(signal.repoState == .rebaseInProgress)
+}
+
+@Test func theOutcomeForAReftableRepositoryIsNotADetachedHead() async {
+    let box = Sandbox()
+    let repo = box.reftableRepository("sigstop")
+    let collector = collector(gitOn: true)
+    let signal = await collector.read(
+        frontmost: editor, folders: [repo], documentURL: nil,
+        windowTitle: "main.swift — sigstop", now: Date()
+    )
+    #expect(signal != nil)
+    #expect(signal?.branch == nil)
+    #expect(collector.lastOutcome == .read(
+        folder: "sigstop", branchLength: 0, head: .reftable, route: GitFolderRoute.windowTitle.rawValue
+    ))
+    box.keepAlive()
+}
+
 @Test func headParsingRejectsThingsThatAreNotBranches() {
     #expect(GitCollector.parseHEAD("ref: refs/heads/main").branch == "main")
     #expect(GitCollector.parseHEAD("ref: refs/heads/").branch == nil)
     #expect(GitCollector.parseHEAD("ref: refs/tags/v1").branch == nil)
     #expect(GitCollector.parseHEAD("").branch == nil)
     #expect(GitCollector.parseHEAD("zzz5bcf24e49d1e645dba8fb117c803f035aaab5").detached == false)
+    let placeholder = GitCollector.parseHEAD("ref: refs/heads/.invalid")
+    #expect(placeholder.branch == nil)
+    #expect(!placeholder.detached)
+    #expect(placeholder.reftable)
+    #expect(!GitCollector.parseHEAD("ref: refs/heads/main").reftable)
 }
 
 @Test func aDocumentPathInsideARegisteredFolderPicksThatFolder() {
@@ -323,13 +387,13 @@ private func collector(gitOn: Bool) -> GitCollector {
         windowTitle: "main.swift — sigstop", now: Date()
     )
     #expect(signal?.branch == "fix/retry-loop")
-    guard case .read(let folder, let length, let detached, _) = collector.lastOutcome else {
+    guard case .read(let folder, let length, let head, _) = collector.lastOutcome else {
         Issue.record("expected a read, got \(collector.lastOutcome)")
         return
     }
     #expect(folder == "sigstop")
     #expect(length == "fix/retry-loop".count)
-    #expect(!detached)
+    #expect(head == .branch)
     box.keepAlive()
 }
 

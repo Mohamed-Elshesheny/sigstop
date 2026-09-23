@@ -418,10 +418,15 @@ enum Doctor {
             return "on, and there is no repository at the root of \(folder)"
         case .timedOut(let folder):
             return "on, and \(folder) did not answer in time, so it is being left alone"
-        case .read(let folder, let length, let detached, _):
-            return detached
-                ? "read from \(folder): detached HEAD, so there is no branch to name"
-                : "read from \(folder): a branch \(length) characters long, not printed here"
+        case .read(let folder, let length, let head, _):
+            switch head {
+            case .branch:
+                return "read from \(folder): a branch \(length) characters long, not printed here"
+            case .detached:
+                return "read from \(folder): detached HEAD, so there is no branch to name"
+            case .reftable:
+                return "read from \(folder): the branch is kept in reftable, which sigstop does not read"
+            }
         }
     }
 
@@ -447,6 +452,13 @@ enum Doctor {
                 "as the filesystem takes. The read is given a quarter of a second and",
                 "then abandoned, so nothing else in the app waits behind it. It will",
                 "be tried again when you next change the folders in Settings.",
+            ]
+        case .read(_, _, .reftable, let route):
+            return [
+                "Which folder was decided by \(route).",
+                "A reftable repository's HEAD file is a placeholder. The real HEAD",
+                "is in .git/reftable, which is not opened, so no branch is claimed",
+                "rather than one guessed.",
             ]
         case .read(_, _, _, let route):
             return [
