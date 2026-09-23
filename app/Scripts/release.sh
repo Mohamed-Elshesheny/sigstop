@@ -247,7 +247,8 @@ SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 # behind by a failed run would publish an update whose download does not exist yet.
 if ! on_main; then
   echo "error: HEAD left main while the release was building: $(head_is) now." >&2
-  echo "       Nothing was signed or tagged." >&2
+  echo "       Nothing was signed or tagged. Check out main again (git checkout main), then run" >&2
+  echo "       make release again." >&2
   exit 1
 fi
 if [ -n "$(git status --porcelain)" ] || [ "$(git rev-parse HEAD)" != "${RELEASED_SHA}" ]; then
@@ -299,6 +300,7 @@ elif [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEA
 fi
 if [ -n "${MOVED}" ]; then
   echo "error: ${MOVED} Nothing was tagged." >&2
+  on_main || echo "       Check out main again (git checkout main) before anything else." >&2
   if on_main && ! git merge-base --is-ancestor "${RELEASED_SHA}" HEAD; then
     echo "       main no longer holds ${RELEASED_SHA}, the commit this release built." >&2
   fi
