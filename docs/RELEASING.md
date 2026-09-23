@@ -306,15 +306,21 @@ the tag here and on `origin` if it got that far). **Do not push `main` until one
 done.** A later run that finds a feed commit which never reached `origin` refuses and says the
 same, rather than telling you to push.
 
-Then push `main`, which is what publishes the feed:
+Then push `main`, which is what publishes the feed, wait for that deploy, and check what it serves:
 
 ```sh
 git push
+gh run watch --exit-status -R Mohamed-Elshesheny/sigstop \
+  "$(gh run list -R Mohamed-Elshesheny/sigstop --workflow Pages --commit "$(git rev-parse HEAD)" --json databaseId --jq '.[0].databaseId')"
+curl -s https://mohamed-elshesheny.github.io/sigstop/appcast.xml | grep -o '<sparkle:shortVersionString>[^<]*'
 ```
 
 `.github/workflows/pages.yml` deploys `updater/` to
 `https://mohamed-elshesheny.github.io/sigstop/`, which is `SUFeedURL`. It refuses to deploy a feed
-whose enclosure carries no `sparkle:edSignature`.
+whose enclosure carries no `sparkle:edSignature`. The last line has to end in the version you just
+released. A 200 from the feed URL is not the check: the previous release's feed answers 200 before
+the push, and still does if the deploy fails or the validator refuses the new one. The Pages run
+can take a few seconds to appear after the push; if `gh run list` finds nothing, run it again.
 
 **This is the step 0.1.0 shipped without.** The feed URL was compiled into every copy of the app,
 GitHub Pages was never enabled, and the address returned 404, so *Check for updates* failed for
@@ -366,8 +372,9 @@ wrong copy fails verification on every machine while looking perfectly well-form
 Do not skip this. The feed is the one artifact no local command can prove.
 
 ```sh
-# 1. The feed is reachable and is XML
+# 1. The feed is reachable, is XML, and is this release rather than the last one
 curl -sSI https://mohamed-elshesheny.github.io/sigstop/appcast.xml | head -3
+curl -s https://mohamed-elshesheny.github.io/sigstop/appcast.xml | grep -o '<sparkle:shortVersionString>[^<]*'
 
 # 2. The download URL in the feed resolves, and is the size the feed claims
 URL=$(curl -s https://mohamed-elshesheny.github.io/sigstop/appcast.xml \
@@ -405,7 +412,7 @@ Copy this into the release PR.
 - [ ] `make release VERSION=… NAME=…` ran clean, with no step skipped
 - [ ] The published image is `x86_64 arm64`, checked against the uploaded file, not the local one
 - [ ] `sparkle:edSignature` present on the new enclosure in `updater/appcast.xml`
-- [ ] `main` pushed, Pages deployed, and the feed URL returns 200
+- [ ] `main` pushed, its Pages run green, and the served feed carries the new version, not just a 200
 - [ ] Previous build updates itself successfully, end to end
 - [ ] `docs/PRIVACY.md` reviewed if anything about the network behaviour changed (§9 requires it)
 

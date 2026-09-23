@@ -333,5 +333,12 @@ echo "  https://github.com/${REPO}/releases/tag/${TAG}"
 echo
 echo "  The site links to the asset by name, so nothing there needs changing."
 echo
-echo "  Push main so Pages deploys the feed, then check it as a user would:"
-echo "    git push && curl -sSI https://mohamed-elshesheny.github.io/sigstop/appcast.xml | head -1"
+# A 200 from the feed URL proves nothing: the last release's feed is already there and answers
+# 200 before the push, and still does if the deploy fails. The version in it is the check.
+echo "  Push main, which is what publishes the feed, then wait for its Pages deploy to finish:"
+echo "    git push"
+echo "    gh run watch --exit-status -R ${REPO} \\"
+echo "      \"\$(gh run list -R ${REPO} --workflow Pages --commit \"\$(git rev-parse HEAD)\" --json databaseId --jq '.[0].databaseId')\""
+echo "  Then the feed it serves has to be this release, not the last one. This has to end in ${VERSION}:"
+echo "    curl -s https://mohamed-elshesheny.github.io/sigstop/appcast.xml | grep -o '<sparkle:shortVersionString>[^<]*'"
+echo "  docs/RELEASING.md 3.5 has the rest of the check."
