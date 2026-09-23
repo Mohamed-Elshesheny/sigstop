@@ -356,6 +356,19 @@ public struct InterruptionPolicy: Sendable {
         return input.context.continuousWork >= 0.8 * policy.targetContinuousWork && (6...15).contains(minutes)
     }
 
+    public func canAskAgain(day: DailyCounters, sentThisCycle: Int) -> Bool {
+        if day.notificationsDelivered >= policy.dailyNotificationCap { return false }
+        if sentThisCycle >= policy.maxNotificationsPerCycle { return false }
+        return day.consecutiveIgnoredCycles < policy.ignoreBackoffThreshold || sentThisCycle < 1
+    }
+
+    public func offeredSnoozes(
+        day: DailyCounters, sentThisCycle: Int, used: Int, total: TimeInterval
+    ) -> [TimeInterval] {
+        guard canAskAgain(day: day, sentThisCycle: sentThisCycle) else { return [] }
+        return offeredSnoozes(used: used, total: total)
+    }
+
     public func offeredSnoozes(used: Int, total: TimeInterval) -> [TimeInterval] {
         guard used < policy.maxSnoozesPerCycle else { return [] }
         let remaining = policy.maxSnoozeTotalPerCycle - total

@@ -331,21 +331,24 @@ public struct BreakDecisionEngine: Sendable {
 
         case .deliver:
             if d.promptedAt == nil {
+                d.promptedAt = input.now
+                d.promptedAtMono = input.monotonic
+                d.notificationsThisCycle += 1
+                day.notificationsDelivered += 1
+                day.lastNotificationAt = input.now
                 let prompt = PromptRequest(
                     cycle: d.cycle,
                     level: .first,
                     channel: channelFor(level: .first, signals: input.signals),
                     at: input.now,
                     continuousWork: input.context.continuousWork,
-                    snoozeOffered: interruption.offeredSnoozes(used: d.snoozesUsed, total: d.snoozeTotal)
+                    snoozeOffered: interruption.offeredSnoozes(
+                        day: day, sentThisCycle: d.notificationsThisCycle,
+                        used: d.snoozesUsed, total: d.snoozeTotal
+                    )
                 )
                 effects.append(.deliverPrompt(prompt))
                 effects.append(.setIndicator(.breakDue))
-                d.promptedAt = input.now
-                d.promptedAtMono = input.monotonic
-                d.notificationsThisCycle += 1
-                day.notificationsDelivered += 1
-                day.lastNotificationAt = input.now
                 return (.breakDue(d), verdict)
             }
             effects.append(.setIndicator(.breakDue))
@@ -691,7 +694,10 @@ public struct BreakDecisionEngine: Sendable {
 
         case .snooze:
             guard var d = pendingCycle(state) else { return state }
-            let offered = interruption.offeredSnoozes(used: d.snoozesUsed, total: d.snoozeTotal)
+            let offered = interruption.offeredSnoozes(
+                day: day, sentThisCycle: d.notificationsThisCycle,
+                used: d.snoozesUsed, total: d.snoozeTotal
+            )
             guard let duration = offered.first else {
                 return state
             }

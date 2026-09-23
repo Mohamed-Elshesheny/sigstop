@@ -1123,6 +1123,13 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   cycle may send (§11, invariant 2), and if it is ignored the ladder starts again from its own `t0`.
   So a cycle snoozed once can spend its fourth notification on level 2 or 3, and that rung is then
   the last one: it gets the full `promptTimeout` to be answered, the same as level 4 (§11).
+- **A snooze is offered only when that level 1 can still be sent.** `InterruptionPolicy.canAskAgain`
+  says no once the cycle has sent its four, in the backoff (§11, rule 5), whose single prompt is the
+  one being snoozed, and on the prompt that reaches the daily cap. The prompt then offers no snooze,
+  and a `.snooze` that arrives anyway, from an older notification, is refused and leaves the cycle
+  where it was. The backoff used to offer one: the snooze was accepted, `rateLimit` refused the
+  level 1 it promised with `.ignoreBackoff`, and the cycle sat in `breakDue` until the 60-minute
+  stale ceiling while the menu said *asking again at* a time when nothing would ask.
 - **Snooze while hard-blocked** cannot happen — there is no prompt to snooze.
 - **Skip** (`UserAction.skip`): closes the cycle, `skippedBreakCount += 1`, no reset, no break recorded,
   counted as a *missed* opportunity in compliance (it was a real, answered opportunity). The engine
