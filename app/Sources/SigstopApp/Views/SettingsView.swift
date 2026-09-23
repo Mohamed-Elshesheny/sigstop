@@ -570,9 +570,9 @@ struct SettingsView: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Add"
-        panel.message = "Pick the root of a repository. sigstop reads the first line of a few of "
-            + "git's own files: HEAD, the .git file of a worktree or submodule, and during a "
-            + "rebase the branch name. It never opens a file of yours."
+        panel.message = "Pick the root of a repository. sigstop reads only git's own small files: "
+            + "the first line of HEAD, the .git file of a worktree or submodule (at most 512 bytes), "
+            + "and during a rebase the branch name. It never opens a file of yours."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         var updated = model.settings
         let path = url.standardizedFileURL.path

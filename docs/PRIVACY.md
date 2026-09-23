@@ -80,8 +80,9 @@ password is routinely written in plain text, `psql "postgres://user:hunter2@host
 canonical example, which is exactly why `KERN_PROCARGS2` is not called. §2.10 gives the mechanism
 and the commands that check it.
 
-**Row 31 reads first lines, and only of git's own pointer files**: `HEAD`, the `.git` file a
-worktree or submodule has instead of a folder, and mid-rebase the `head-name` file that says which
+**Row 31 reads at most 512 bytes, and only of git's own pointer files**: the first line of `HEAD`,
+the whole `.git` file a worktree or submodule has instead of a folder (refused if it is longer, or
+more than one `gitdir:` line), and mid-rebase the first line of the `head-name` file that says which
 branch is being rebased. Not a diff, not a commit message, not `.git/config`, not an object, not the
 index, and never a file in your working tree. The repository state is four `access` calls, on
 `.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD` and `.git/BISECT_LOG`, each of which
