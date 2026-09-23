@@ -274,7 +274,7 @@ final class AppModel {
     func update(settings newValue: SigstopSettings) {
         guard newValue != settings else { return }
         if SettingsStore.save(newValue) {
-            if lastStoreError?.hasPrefix(Self.settingsFailurePrefix) == true { lastStoreError = nil }
+            clearStoreError(prefixed: Self.settingsFailurePrefix)
         } else {
             lastStoreError = "\(Self.settingsFailurePrefix) to \(AppPaths.settingsFile.path), "
                 + "so this change lasts only until sigstop quits."
@@ -707,7 +707,9 @@ final class AppModel {
     private static let badgesFailurePrefix = "Could not write the badges"
 
     private func clearStoreError(prefixed prefix: String) {
-        if lastStoreError?.hasPrefix(prefix) == true { lastStoreError = nil }
+        guard lastStoreError?.hasPrefix(prefix) == true else { return }
+        lastStoreError = nil
+        surfaceFilesLeftAlone()
     }
 
     private func surfaceFilesLeftAlone() {
@@ -730,7 +732,7 @@ final class AppModel {
         lastPruneMono = time.continuousSeconds
         do {
             try store?.prune(retentionDays: Retention.defaultEventDays, asOf: time.now)
-            if lastStoreError?.hasPrefix(Self.pruneFailurePrefix) == true { lastStoreError = nil }
+            clearStoreError(prefixed: Self.pruneFailurePrefix)
         } catch {
             if lastStoreError == nil || lastStoreError?.hasPrefix(Self.pruneFailurePrefix) == true {
                 lastStoreError = "\(Self.pruneFailurePrefix), \(error)"
@@ -928,7 +930,7 @@ final class AppModel {
         let summary: DailySummary
         do {
             summary = try DailyRollup.compute(day: today, from: store)
-            if lastStoreError?.hasPrefix(Self.unreadableLogPrefix) == true { lastStoreError = nil }
+            clearStoreError(prefixed: Self.unreadableLogPrefix)
         } catch StoreError.unreadable(let days) {
             let list = days.map(\.description).joined(separator: ", ")
             lastStoreError = "\(Self.unreadableLogPrefix) \(list), so today's numbers are not shown."
