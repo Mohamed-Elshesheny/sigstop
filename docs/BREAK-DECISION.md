@@ -328,10 +328,15 @@ all `.pause(cause)`, the 20-minute reset is applied to a pause by `applyGapThres
 sketch was not built.
 
 A gap keeps its start when its cause changes, so idling and then locking the screen counts from the
-last input, as it should. The one exception is a gap that began as `userPaused`: typing goes on
-during a pause, so when a lock, sleep or user switch takes over, the gap is moved to start at the last
-input. Without that, locking the screen five minutes into a pause recorded the whole pause as a break
-nobody took.
+last input, as it should. The one exception is a gap whose cause is `userPaused`: typing goes on
+during a pause, so when another cause takes it over after input the pause has seen, the gap is moved
+to start at the last input and begins again as a fresh stretch, with no break or session end
+recorded against it yet. While the pause runs, only a screen lock can take over: `pauseCause(for:)`
+ranks the pause above a user switch, a sleep and idle, so those take over only once the pause has
+ended. Without the move, locking the screen five minutes into a pause recorded the whole pause as a
+break nobody took. Without the fresh start, a second lock inside the same pause was never recorded,
+because the first had already spent the gap's one break. A session that has already ended stays
+ended: the move still happens, but nothing more is recorded until a new session starts.
 
 ### 4.1 Work-clock transitions
 

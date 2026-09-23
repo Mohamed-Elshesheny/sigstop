@@ -239,15 +239,22 @@ public struct SessionTracker: Sendable {
         } else if var existing = gap, existing.cause != cause {
             if cause != .microIdleExceeded {
                 if existing.cause == .userPaused, lastInputMono > existing.startMono {
-                    let anchor = min(lastInputMono, mono)
-                    existing.startMono = anchor
-                    existing.startWall = now.addingTimeInterval(-(mono - anchor))
+                    beginSegment(&existing, at: min(lastInputMono, mono), now: now, mono: mono)
                 }
                 existing.cause = cause
             }
             gap = existing
         }
         if cause == .systemSleep { pendingWakeCause = nil }
+    }
+
+    private func beginSegment(_ segment: inout ActiveGap, at anchor: Double, now: Date, mono: Double) {
+        segment.startMono = anchor
+        segment.startWall = now.addingTimeInterval(-(mono - anchor))
+        guard !session.isStopped else { return }
+        segment.didRecordBreak = false
+        segment.didEndSession = false
+        segment.lastReportedKind = nil
     }
 
     private func lastTickMonoBefore(mono: Double, discontinuity: Bool) -> Double {
