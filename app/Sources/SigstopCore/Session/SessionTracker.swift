@@ -117,13 +117,13 @@ public struct SessionTracker: Sendable {
     }
 
     @discardableResult
-    public mutating func endBreak(origin: BreakOrigin) -> [SessionEvent] {
+    public mutating func endBreak(origin: BreakOrigin, threshold: TimeInterval? = nil) -> [SessionEvent] {
         let now = time.now
         let mono = time.continuousSeconds
         var events: [SessionEvent] = []
         let start = breakStart?.wall ?? gap?.startWall ?? now
         let duration = mono - (breakStart?.mono ?? gap?.startMono ?? mono)
-        if duration >= policy.qualifyingBreak {
+        if duration >= (threshold ?? policy.qualifyingBreak) {
             session.reset(reason: .qualifyingBreak)
             session.recordBreak(start: start, end: now)
             events.append(.clockReset(reason: .qualifyingBreak))

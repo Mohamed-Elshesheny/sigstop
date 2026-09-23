@@ -54,6 +54,21 @@ struct SessionTrackerBreakTests {
         #expect(tracker.session.breakCount == 0)
     }
 
+    @Test("A break set shorter than the idle threshold counts once it has run its length")
+    func shortPlannedBreakCounts() {
+        var (tracker, time) = makeTracker()
+        for _ in 0..<72 { time.advance(by: 5); _ = tracker.tick(sample()) }
+
+        _ = tracker.beginBreak(origin: .accepted)
+        for _ in 0..<24 { time.advance(by: 5); _ = tracker.tick(sample()) }
+        let events = tracker.endBreak(origin: .accepted, threshold: 120)
+
+        #expect(tracker.session.continuousActiveWork == 0, "a two minute break the user set and took resets the clock")
+        #expect(tracker.session.breakCount == 1)
+        #expect(events.contains { if case .breakRecorded = $0 { return true } else { return false } })
+    }
+
+
     @Test("a break taken while paused keeps the work clock stopped through a lock and unlock")
     func breakFromAPauseSurvivesALock() {
         var (tracker, time) = makeTracker()
