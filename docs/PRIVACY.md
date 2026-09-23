@@ -60,7 +60,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | The first line, at most 512 bytes, of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`. In a worktree or submodule, first the `gitdir:` line of the `.git` file; mid-rebase, the `head-name` line. Plus `lstat` on `.git` and on the git directory, its `HEAD`, `objects` and `commondir`, one `realpath` of a `gitdir:` target, and four `access` checks, none of which opens a file (§2.10). No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), `--doctor` prints its length rather than the name (§8.12), and it is **withheld from the system-notification channel** so that the one path out of this process cannot carry it (§8.11) | Until the next sample, or process exit | **Yes, and off by default** |
 | 32 | **The activity at a focus event** (`act`: `coding`, `codeReview`, `documentation`…), one of the twelve `Activity` cases | Derived. From #1 alone at Tier 0; **with Tier 1 on, also from the window title (#12) and the document path (#29)**; with Tier 2 process context, also from #30 | So the log can say what kind of work a stretch was, not only which app it was in | Persisted, the `act` field of `focus` events (§4.3). A browser tab titled `Pull Request #12` is logged as `"act":"codeReview"` | Same as #1 | No switch of its own. It is title-derived only while Tier 1 is on |
 | 33 | **The update check's URL cache**: the appcast URL, the time it was fetched, and the appcast itself | Foundation's URL cache, filled by Sparkle's request in this process when you press **Check for updates** | Nothing in this app asks for it. It is what Foundation does with an HTTP response by default | Persisted, `~/Library/Caches/<BUNDLE_ID>/Cache.db` and `fsCachedData/` | Controlled by Foundation and macOS, not by the app. *Delete my data…* does not remove it | Only by never pressing the button |
-| 34 | **Foundation's HTTP storage** for this app | Created by the same request | As #33 | Persisted, `~/Library/HTTPStorages/<BUNDLE_ID>/`. On the Mac this was checked on it held one table, `alt_services`, and it was empty | Controlled by macOS. *Delete my data…* does not remove it | Only by never pressing the button |
+| 34 | **Foundation's HTTP storage** for this app | Created by the same request | As #33 | Persisted, `~/Library/HTTPStorages/<BUNDLE_ID>/`. On the Mac this was checked on it held one table, `alt_services`, and it was empty. Beside it, `~/Library/HTTPStorages/<BUNDLE_ID>.binarycookies` holds any cookie a server set | The folder: controlled by macOS. The cookie file: deleted by the app at every launch, before the updater starts (§2.9), so it can be left over from the last run. *Delete my data…* removes neither | Only by never pressing the button |
 | 35 | **Sparkle's staging folders** | Sparkle | Where a downloaded update waits before `Autoupdate` installs it | `~/Library/Caches/<BUNDLE_ID>.sparkle/org.sparkle-project.Sparkle/`, holding `Installation` and `PersistentDownloads`. Both were empty on the Mac this was checked on | Until Sparkle clears them. *Delete my data…* does not remove them | n/a |
 | 36 | **UserDefaults**: `SULastCheckTime` (when you last pressed **Check for updates**), `SUHasLaunchedBefore`, `SUEnableAutomaticChecks` and `SUSendProfileInfo` (both written `false`), and `NSStatusItem Preferred Position sigstop` (where the menu bar icon sits) | Sparkle, and AppKit's status item autosave | The two `false` values are how the app keeps Sparkle from scheduling a check or sending a profile (§2.7). The rest is Sparkle's and AppKit's own bookkeeping | Persisted, `~/Library/Preferences/<BUNDLE_ID>.plist`, read with `defaults read <BUNDLE_ID>` | Until `defaults delete <BUNDLE_ID>`. *Delete my data…* does not remove it | No |
 
@@ -1128,13 +1128,15 @@ The last line appears only when the login item was registered. If macOS refuses 
 that line says so and names System Settings → General → Login Items instead.
 
 What it does not remove, and the report does not mention, is everything outside the storage
-directory in inventory rows 33 to 36: Foundation's cache of the appcast, the app's HTTP storage,
-Sparkle's staging folders and the app's UserDefaults, including the time of your last update check.
+directory in inventory rows 33 to 36: Foundation's cache of the appcast, the app's HTTP storage and
+cookie file, Sparkle's staging folders and the app's UserDefaults, including the time of your last
+update check.
 With the app quit, these remove them:
 
 ```
 defaults delete <BUNDLE_ID>
-rm -rf ~/Library/Caches/<BUNDLE_ID> ~/Library/Caches/<BUNDLE_ID>.sparkle ~/Library/HTTPStorages/<BUNDLE_ID>
+rm -rf ~/Library/Caches/<BUNDLE_ID> ~/Library/Caches/<BUNDLE_ID>.sparkle
+rm -rf ~/Library/HTTPStorages/<BUNDLE_ID> ~/Library/HTTPStorages/<BUNDLE_ID>.binarycookies
 ```
 
 ---
@@ -1324,10 +1326,22 @@ nm -u "$BIN" | grep -E 'CGEventTap|CGWindowListCreateImage|CGDisplayStream|SCStr
 strings -a "$BIN" | grep -E '^https?://' | sort -u
 ```
 
-All of the above should produce no output except the last, which should show only the project's
-repository, releases and privacy-document URLs — the links the app hands to your browser. Note what
-is *not* in that list: the update feed URL. It is not a string in the executable at all; it lives in
-`Info.plist` as `SUFeedURL`, where `plutil -p` will show it to you.
+All of the above should produce no output except the last, which should show only links into
+`github.com/Mohamed-Elshesheny/sigstop`, the ones the app hands to your browser. On the current
+build that is six: the repository, the Accessibility collector's source, this document, the
+new-issue page, the releases and the docs folder.
+
+```
+https://github.com/Mohamed-Elshesheny/sigstop
+https://github.com/Mohamed-Elshesheny/sigstop/blob/main/app/Sources/SigstopSensors/Collectors/AccessibilityCollector.swift
+https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/PRIVACY.md
+https://github.com/Mohamed-Elshesheny/sigstop/issues/new/choose
+https://github.com/Mohamed-Elshesheny/sigstop/releases
+https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs
+```
+
+Note what is *not* in that list: the update feed URL. It is not a string in the executable at all;
+it lives in `Info.plist` as `SUFeedURL`, where `plutil -p` will show it to you.
 
 **This is the check that carries the claim now.** "The app's own binary contains no networking" is
 still literally true and still mechanically checkable, even though the bundle as a whole can make
