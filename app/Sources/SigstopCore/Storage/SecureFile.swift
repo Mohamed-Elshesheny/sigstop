@@ -83,12 +83,6 @@ public enum SecureFile {
         return info.st_mode & S_IFMT == S_IFDIR && info.st_uid == getuid()
     }
 
-    public static func isPlainFileOrAbsent(_ url: URL) -> Bool {
-        var info = stat()
-        guard lstat(url.path, &info) == 0 else { return errno == ENOENT }
-        return info.st_mode & S_IFMT == S_IFREG
-    }
-
     private static func writeAll(_ data: Data, to fd: Int32, path: String) throws {
         try data.withUnsafeBytes { raw in
             guard var base = raw.baseAddress else { return }
