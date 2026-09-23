@@ -461,6 +461,42 @@ private extension Sandbox {
     box.keepAlive()
 }
 
+@Test func antigravityIsClaimedAsTheAgentAppItIsAndItsGitIsNotRead() async {
+    let antigravity = AppIdentity(
+        bundleID: BundleIDs.antigravity, localizedName: "Antigravity", pid: 104
+    )
+    #expect(!BundleIDs.isEditorOrTerminal(antigravity))
+
+    let box = Sandbox()
+    let repo = box.repository("sigstop", head: "ref: refs/heads/main\n")
+    let collector = collector(gitOn: true)
+    let signal = await collector.read(
+        frontmost: antigravity, folders: [repo], documentURL: nil,
+        windowTitle: "main.swift — sigstop", now: Date()
+    )
+    #expect(signal == nil)
+    if case .skipped = collector.lastOutcome {} else {
+        Issue.record("expected skipped, got \(collector.lastOutcome)")
+    }
+
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    let alone = ProviderRegistry().classify(SignalContext(
+        now: now, available: [.tier0, .tier1, .tier2], frontmost: antigravity
+    ))
+    #expect(alone.providerID == AIAssistantProvider.identifier)
+    #expect(alone.verdict.activity == .unknown)
+
+    let afterEditing = ProviderRegistry().classify(SignalContext(
+        now: now, available: [.tier0, .tier1, .tier2], frontmost: antigravity,
+        recentApps: [AppSwitch(
+            app: editor, enteredAt: now.addingTimeInterval(-600), leftAt: now.addingTimeInterval(-60)
+        )]
+    ))
+    #expect(afterEditing.providerID == AIAssistantProvider.identifier)
+    #expect(afterEditing.verdict.activity == .aiCoding)
+    box.keepAlive()
+}
+
 @Test func aMatchedFolderIsReadEndToEnd() async {
     let box = Sandbox()
     let repo = box.repository("sigstop", head: "ref: refs/heads/fix/retry-loop\n")

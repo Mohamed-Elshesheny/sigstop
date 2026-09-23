@@ -802,7 +802,7 @@ everything else is evidence fed into it via `SignalContext`.
 | `DesignProvider` | Figma | a single low-confidence class; we do not pretend to read Figma state |
 | `APIToolProvider` | Postman | CODING, marked degraded: an API client does not say which kind of work it is |
 | `ContainerProvider` | Docker Desktop, and its Electron helper ID (§5.6) | TERMINAL_WORK |
-| `AIAssistantProvider` | Claude, ChatGPT/Codex (and the legacy ID), Gemini | AI_CODING only with corroboration (§7.6) |
+| `AIAssistantProvider` | Claude, ChatGPT/Codex (and the legacy ID), Gemini, Antigravity (§5.6) | AI_CODING only with corroboration (§7.6) |
 | `NotesProvider` | Notion, Obsidian, Linear | DOCUMENTATION capped at 0.55; Linear is an issue tracker and reads BROWSING |
 | `GenericProvider` | `.*` | category from `GenericProvider.categories`, a Swift dictionary of bundle IDs, else UNKNOWN |
 
@@ -937,6 +937,7 @@ osascript -e 'id of app "Zed"'
 | Docker Desktop | `com.docker.docker` | ✅ VERIFIED (read from `/Applications/Docker.app`). **Caveat worth recording:** LaunchServices on the authoring machine resolved the *name* "Docker Desktop" to `com.electron.dockerdesktop`, which is an Electron helper, not the app. Claim `com.docker.docker` and treat `com.electron.dockerdesktop` as a secondary claim. This is a concrete example of why name-based lookup is untrustworthy and bundles must be read directly. |
 | Claude (desktop) | `com.anthropic.claudefordesktop` | ✅ VERIFIED |
 | ChatGPT (desktop) | `com.openai.codex` | ✅ VERIFIED — **and this is a surprise worth flagging.** `/Applications/ChatGPT.app` on the authoring machine (v26.901.51231) reports `com.openai.codex`, not the historically documented `com.openai.chat`. Claim **both**; treat `com.openai.chat` as ⚠️ UNVERIFIED-legacy. Do not assume either is correct on an arbitrary user's machine. |
+| Antigravity | `com.google.antigravity` | ✅ VERIFIED (read from `/Applications/Antigravity.app`, 2.13.0). **Not an editor, whatever the name suggests.** Its own `package.json` calls it an "Agentic Desktop Application", and it offers to install the editor separately as `Antigravity IDE.app`. So this ID is claimed by `AIAssistantProvider` and is not in `BundleIDs.editors`, which is what gates the git and process reads. The IDE's own ID is ⚠️ UNVERIFIED (not installed on the authoring machine) and is not claimed; it falls to `GenericProvider` until someone reads it from the bundle |
 | Linear | `com.linear` | ✅ VERIFIED |
 | Notion | `notion.id` | ✅ VERIFIED |
 | Obsidian | `md.obsidian` | ⚠️ UNVERIFIED |

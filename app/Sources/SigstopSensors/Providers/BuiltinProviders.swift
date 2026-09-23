@@ -49,7 +49,7 @@ public enum BundleIDs {
     public static let conferencing: Set<String> = [zoom, teams, slack, discord]
 
     public static let editors: Set<String> = [
-        vscode, vscodeInsiders, vscodium, cursor, xcode, androidStudio, antigravity,
+        vscode, vscodeInsiders, vscodium, cursor, xcode, androidStudio,
     ]
     public static let editorPrefixes: [String] = [zedPrefix, jetbrainsPrefix]
     public static let terminals: Set<String> = [terminal, iterm2, warp, ghostty, alacritty, kitty]
@@ -870,6 +870,7 @@ public struct AIAssistantProvider: ActivityProvider {
         AppClaim(.bundleID(BundleIDs.chatgpt)),
         AppClaim(.bundleID(BundleIDs.chatgptLegacy)),
         AppClaim(.bundleID(BundleIDs.gemini)),
+        AppClaim(.bundleID(BundleIDs.antigravity)),
     ]
     public static let corroborationWindow: TimeInterval = 5 * 60
 
