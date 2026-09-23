@@ -83,7 +83,7 @@ That proves the file matches what GitHub serves, not who built it. For that, [bu
 - 👀 Reads **which** app is in front, never what's in it. No code, keystrokes, clipboard or screen.
 - 🙅 **Needs zero permissions.** Accessibility (window titles and file paths) and your git branch are optional upgrades.
 - 📡 **One request when you press Check for updates**, plus the download if you choose to install. No analytics, no account, no ID.
-- 💾 **Stays on your Mac.** Raw events are deleted after 7 days.
+- 💾 **Stays on your Mac.** Raw events are deleted after 7 days; the daily totals per app stay until you delete them.
 
 Don't take our word for it: `make verify` checks the network and privacy claims against an app you build yourself, and [PRIVACY.md](docs/PRIVACY.md) lists everything it stores.
 

@@ -516,14 +516,14 @@ struct SettingsView: View {
             SettingsSection("where it lives") {
                 Note(
                     "Plain JSON, nothing encoded. Raw events are kept for "
-                        + "\(Retention.defaultEventDays) days; daily summaries outlive them because "
-                        + "they are a hundredth of the data."
+                        + "\(Retention.defaultEventDays) days. Daily summaries, which hold the seconds "
+                        + "spent in each app, stay until you delete them."
                 )
                 CodeBlock(AppPaths.storageRoot.path)
                     .padding(.top, 10)
                 VStack(alignment: .leading, spacing: 5) {
                     FileRow("events/", "one file per day, appended, never rewritten")
-                    FileRow("summaries/", "one object per day, kept after the events age out")
+                    FileRow("summaries/", "one object per day: seconds per app and per activity, break counts, kept until you delete them")
                     FileRow("badges.json", "which of the ten unlocked, and when")
                     FileRow("counters.json", "today's budgets: prompts delivered, cycles unanswered, the compliance tally")
                     FileRow("call-hold.json", "seconds a call has held a break today; exists once one has")
