@@ -110,6 +110,7 @@ public struct SessionTracker: Sendable {
         let mono = time.continuousSeconds
         session.revokeProvisionalCredit()
         session.pauseClock(cause: .breakActive, since: now)
+        session.relabelPause(cause: .breakActive, since: now)
         gap = ActiveGap(cause: .breakActive, startMono: mono, startWall: now, paused: true)
         breakStart = (mono: mono, wall: now)
         return [.clockPaused(cause: .breakActive, since: now)]
@@ -324,7 +325,7 @@ public struct SessionTracker: Sendable {
                 current.paused = true
                 events.append(.clockPaused(cause: current.cause, since: current.startWall))
             }
-            if !current.didRecordBreak {
+            if !current.didRecordBreak, breakStart == nil {
                 current.didRecordBreak = true
                 current.didReset = true
                 session.reset(reason: .qualifyingBreak)

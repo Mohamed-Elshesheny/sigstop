@@ -351,6 +351,14 @@ no idle line for a `userPaused` pause. The tracker learns that a pause is over o
 because `AppModel` builds the tick's sample from the engine's state before the step, so the end of
 the pause is taken to be the previous tick.
 
+A break the engine is running owns the clock. `beginBreak` pauses it as `breakActive` even when it
+was already paused, because a break taken from a pause used to leave the clock paused as
+`userPaused`, and once a lock inside the break ended nothing kept the gap open, so the work clock
+ran through the rest of the break. A lock or user switch inside a break still takes the gap over,
+so a Mac that wakes locked after a long sleep still ends the session, but no break is inferred
+while the engine's break runs: `endBreak` records that one, and a lock of `qualifyingBreak` or
+more inside it used to be recorded as a second.
+
 ### 4.1 Work-clock transitions
 
 | # | Trigger / gap | Duration | Context | Classification | Clock | Break recorded | Session |
