@@ -1473,6 +1473,10 @@ long form keeps it a description of a day.
 11. `breakCompliance` is `nil`, never `0.0` or `1.0`, when `breakOpportunities == excludedOpportunities`.
 12. Every state transition in §5.1 has a test; the engine is a pure function of
     `(state, snapshot, session, policy)` precisely so this is cheap.
+13. No step both delivers a prompt and withdraws or closes the same cycle, and the last prompt of a
+    cycle closed `ignoredExhausted` was delivered at least `promptTimeout` before the close.
+    `DeliverAndWithdrawPropertyTests` drives the engine through seeded random sequences of ticks,
+    snoozes, skips, breaks, pauses and calls to hold it.
 
 ---
 

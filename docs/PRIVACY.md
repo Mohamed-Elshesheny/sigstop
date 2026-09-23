@@ -542,10 +542,14 @@ process table. Both are off by default, each behind its own switch. Both are bou
 code is *capable* of, not by what it chooses, which is the only kind of bound worth writing down.
 
 **Mechanism, git.** The collector opens `<folder>/.git/HEAD`, reads **at most 512 bytes**, which is
-one line, and matches `ref: refs/heads/<name>`. Forty hex characters is a detached HEAD and is
-reported as one rather than presented as a branch name. One indirection is followed and only one: in
-a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that line is read and
-`HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
+one line, and matches `ref: refs/heads/<name>`. Forty hex characters, or sixty-four in a SHA-256 repository, is a detached HEAD and is
+reported as one rather than presented as a branch name. A repository that keeps its refs in
+reftable (`git init --ref-format=reftable`) has a `HEAD` that always reads `ref: refs/heads/.invalid`,
+a name git itself refuses; the real one is in `.git/reftable`, which is never opened, so that line is
+reported as a branch kept in a format sigstop does not read, never as a branch called `.invalid` and
+never as a detached HEAD. One indirection is followed and only one: in
+a git worktree or a submodule `.git` is a *file* holding a `gitdir:` line, so that line is read (a
+trailing carriage return ignored, as git ignores it) and `HEAD` is taken from the directory it names, absolute for a worktree and resolved against the
 containing folder for a submodule. That directory is followed only if, after resolving links, it is
 a git directory: it holds a `HEAD` file and either an `objects` folder or a `commondir` file, which
 is what git writes for a repository, a worktree, a submodule and a `--separate-git-dir`. A `.git`
@@ -590,24 +594,24 @@ grep -rnE '(^|[^A-Za-z0-9_.])Process\(|NSTask|posix_spawn' app/Sources
 # every path fragment the git collector can build, in one grep. Ten lines: eight carry
 # the only names it ever appends, and two use a bare "/" as a separator
 grep -n '\"/' app/Sources/SigstopSensors/Collectors/GitCollector.swift
-#   222:            let inside = roots.filter { path == $0 || path.hasPrefix($0 + "/") }
-#   267:            switch readFirstLine(gitDirectory + "/HEAD") {
-#   284:        let dot = folder + "/.git"
-#   300:            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
-#   314:        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
-#   315:        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
-#   336:        for candidate in ["/rebase-merge/head-name", "/rebase-apply/head-name"] {
-#   349:        if exists("/rebase-merge") || exists("/rebase-apply") { return .rebaseInProgress }
-#   350:        if exists("/MERGE_HEAD") { return .mergeInProgress }
-#   351:        if exists("/BISECT_LOG") { return .bisecting }
+#   224:            let inside = roots.filter { path == $0 || path.hasPrefix($0 + "/") }
+#   269:            switch readFirstLine(gitDirectory + "/HEAD") {
+#   287:        let dot = folder + "/.git"
+#   303:            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
+#   317:        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
+#   318:        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
+#   342:        for candidate in ["/rebase-merge/head-name", "/rebase-apply/head-name"] {
+#   355:        if exists("/rebase-merge") || exists("/rebase-apply") { return .rebaseInProgress }
+#   356:        if exists("/MERGE_HEAD") { return .mergeInProgress }
+#   357:        if exists("/BISECT_LOG") { return .bisecting }
 # names:  /.git  /HEAD  /objects  /commondir  /rebase-merge  /rebase-apply  /MERGE_HEAD
 #         /BISECT_LOG  /rebase-merge/head-name  /rebase-apply/head-name
 
 # and the bound on how much of any of those files is read, which is 512 bytes
 grep -n 'headReadLimit' app/Sources/SigstopSensors/Collectors/GitCollector.swift
 #   22:    private static let headReadLimit = 512
-#   366:        var buffer = [UInt8](repeating: 0, count: headReadLimit)
-#   368:            Darwin.read(descriptor, raw.baseAddress, headReadLimit)
+#   372:        var buffer = [UInt8](repeating: 0, count: headReadLimit)
+#   374:            Darwin.read(descriptor, raw.baseAddress, headReadLimit)
 ```
 
 If you would rather not take the source's word for it, the same two claims hold against the built
@@ -829,7 +833,15 @@ write moves the bad file aside instead of overwriting it, and a second failure i
 month goes to `.unreadable-2`, then `.unreadable-3`, so nothing already set aside is replaced.
 These files are never pruned and never read back, so badge evidence stops counting their days.
 They are still the JSON they were, so a month can be repaired by hand and renamed back.
-*Delete everything* removes them with the rest.
+*Delete everything* removes them with the rest. A month file that is there but will not open at
+all (another owner, a `chmod`, a disk error, a symbolic link) is not moved and not written: that
+month's summary is not saved, and the menu bar says "Could not write the daily summary" until it
+can be.
+
+`badges.json` and `counters.json` get the same rule. If one is there but will not open, the app
+carries on from what it holds in memory, writes nothing over the file, posts no "unlocked" note
+while the ledger is out of reach, and says in the menu bar which file it left as it is. It reads
+the file again at the next launch.
 
 There is no database, no binary blob, no `.sqlite`, and nothing encrypted or encoded. Formats were
 chosen so that `cat` is a complete audit tool.
@@ -999,7 +1011,7 @@ from rows 16 and 17 of the inventory in §1.2, which were already being kept.
 
 If a line in the event log does not parse, the reader skips it and counts it; a corrupt file never
 crashes the app and never silently changes your history. A day file that is there but will not
-open is not read as an empty day. When today's numbers need it, the menu bar says "Could not read
+open, or opens and then fails to read, is not read as an empty day. When today's numbers need it, the menu bar says "Could not read
 the event log for" that day, `--doctor` says the same, and no summary is computed from the gap,
 so a good one is never replaced by zeros. The export names every such day.
 
@@ -1100,7 +1112,9 @@ day. Nothing is transformed or filtered, so what you audit is what the app recor
 and the summaries are not in it: they are the plain files in §4.2, and `cat` is the export for those.
 
 **Delete everything** (the **Delete my data…** button in Settings → Data, one confirmation):
-removes the storage directory recursively and the settings file, unregisters the login item if it
+removes everything in the storage directory, the settings file with it, except its empty `.lock`:
+that stays held for the whole run, so a second copy started meanwhile still sees sigstop running and
+leaves. It withdraws any sigstop notification still showing, unregisters the login item if it
 is registered, puts the default settings back everywhere they apply (the break policy, the sensors,
 the permission status), resets the call hold's daily total and the in-memory counters (a hold that is
 running keeps running, so a call you declared is still protected), and reports what it
@@ -1109,6 +1123,7 @@ you the two things the app cannot clean up itself, because no app can:
 
 ```
 Deleted: ~/Library/Application Support/<BUNDLE_ID>  (23 files, 412 KB)
+Kept: its .lock, which is empty and held while sigstop runs, so a second copy leaves.
 Removed 555 events across 7 day(s).
 sigstop is still running, so a new, empty log starts from now.
 

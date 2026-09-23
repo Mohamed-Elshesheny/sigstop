@@ -522,7 +522,9 @@ Two independent opt-ins, each with its own switch:
 **(a) Git context.** For user-registered project folders only (chosen via `NSOpenPanel`, so the user
 grants the folder explicitly):
 
-- Read the first line of `.git/HEAD` → branch, or detached HEAD. In a worktree or submodule the
+- Read the first line of `.git/HEAD` → branch, or detached HEAD, or, in a reftable repository, no
+  branch: its `HEAD` is a placeholder (`ref: refs/heads/.invalid`) and the real one is in
+  `.git/reftable`, which is not read. In a worktree or submodule the
   `.git` file's `gitdir:` line is read first, and mid-rebase the branch comes from `head-name`.
   `docs/PRIVACY.md` §2.10 lists every filesystem call the collector makes.
 - Presence of `.git/rebase-merge/`, `.git/rebase-apply/`, `.git/MERGE_HEAD`, `.git/BISECT_LOG` →
@@ -1385,6 +1387,10 @@ Everything periodic is **fully suspended** — source cancelled, not merely skip
 
 Resumed on the corresponding wake/unlock/activity event. This is worth more than every other
 optimisation combined: a laptop lid-closed for 8 hours must cost exactly zero.
+
+The window's `AXObserver` is torn down on suspension and re-armed on the frontmost app when sampling
+resumes, whichever event resumed it, so a title change after the displays wake reaches a sample in
+about a second rather than at the next 60 s reconciliation.
 
 ### 8.5 Energy budget and how to verify it without Xcode
 
