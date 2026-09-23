@@ -1039,7 +1039,7 @@ final class AppModel {
         guard let store else { return "There is nothing stored to delete." }
         do {
             let report = try store.deleteEverything()
-            _ = InstanceLock.acquire(in: AppPaths.storageRoot)
+            notifier.withdrawAll()
             try? FileManager.default.removeItem(at: AppPaths.settingsFile)
             apply(settings: .default)
             latch = latch.resettingDailyHold()

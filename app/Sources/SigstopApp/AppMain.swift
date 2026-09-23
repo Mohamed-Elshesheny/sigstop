@@ -438,7 +438,11 @@ enum InstanceLock {
         try? FileManager.default.createDirectory(
             at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
         )
-        let fd = open(root.appendingPathComponent(".lock").path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        let fd = open(
+            root.appendingPathComponent(FileEventStore.lockFileName).path,
+            O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
+            0o600
+        )
         guard fd >= 0 else { return true }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
             let taken = errno == EWOULDBLOCK

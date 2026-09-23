@@ -596,8 +596,9 @@ struct SettingsView: View {
         let alert = NSAlert()
         alert.messageText = "Delete everything sigstop has stored?"
         alert.informativeText =
-            "This removes the folder sigstop keeps its data in and everything in it: the event "
+            "This removes everything in the folder sigstop keeps its data in: the event "
             + "log, the daily summaries, the badges, the day's counters and your settings. "
+            + "Only its empty .lock stays, because sigstop is still running. "
             + "There is no archive, no tombstone and no copy kept anywhere."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")

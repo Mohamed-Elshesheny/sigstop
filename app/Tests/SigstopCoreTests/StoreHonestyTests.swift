@@ -254,4 +254,55 @@ struct StoreHonestyTests {
         #expect(try store.readBadges() == ledger)
         #expect(try store.readCounters() == counters)
     }
+
+    private func inode(_ url: URL) -> UInt64? {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { return nil }
+        return UInt64(info.st_ino)
+    }
+
+    @Test("deleting everything keeps the held lock file, the same one, and removes every other file")
+    func deleteKeepsTheInstanceLock() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+
+        let lockFile = root.appendingPathComponent(FileEventStore.lockFileName)
+        let held = open(lockFile.path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        try #require(held >= 0)
+        defer { close(held) }
+        try #require(flock(held, LOCK_EX | LOCK_NB) == 0)
+        let lockBefore = try #require(inode(lockFile))
+
+        let at = Date(timeIntervalSince1970: 1_758_500_000)
+        try store.append(.breakBegin(at: at, origin: .accepted, cycle: CycleID.initial))
+        try store.writeSummary(DailySummary(day: CalendarDay.utc(of: at)))
+        try store.writeBadges(BadgeLedger())
+        try store.writeCounters(DailyCounters())
+        try Data("{}".utf8).write(to: root.appendingPathComponent("settings.json"))
+        try Data("{}".utf8).write(to: root.appendingPathComponent("call-hold.json"))
+        let outside = root.deletingLastPathComponent().appendingPathComponent("outside-\(UUID().uuidString)")
+        try Data("keep".utf8).write(to: outside)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent("link"), withDestinationURL: outside
+        )
+
+        let report = try store.deleteEverything()
+
+        #expect(inode(lockFile) == lockBefore, "the lock is the same file, so the flock on it still counts")
+        let second = open(lockFile.path, O_RDWR | O_NOFOLLOW | O_CLOEXEC)
+        try #require(second >= 0)
+        defer { close(second) }
+        #expect(flock(second, LOCK_EX | LOCK_NB) != 0, "a second copy is still refused after the delete")
+
+        let left = try FileManager.default.contentsOfDirectory(atPath: root.path).sorted()
+        #expect(left == [FileEventStore.lockFileName, "events", "summaries"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: store.eventsDirectory.path).isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: store.summariesDirectory.path).isEmpty)
+        #expect(try String(contentsOf: outside, encoding: .utf8) == "keep", "a link is removed, not followed")
+        #expect(report.removedFiles == 6, "the lock is not counted as removed")
+        #expect(report.keptLock)
+        #expect(report.userFacingSummary.contains("Kept: its .lock"))
+    }
 }

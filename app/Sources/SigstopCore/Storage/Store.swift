@@ -61,25 +61,31 @@ public struct DeletionReport: Sendable, Hashable {
     public let removedBytes: Int
     public let removedDays: [CalendarDay]
     public let removedEvents: Int
+    public let keptLock: Bool
 
     public init(
         location: String,
         removedFiles: Int,
         removedBytes: Int,
         removedDays: [CalendarDay],
-        removedEvents: Int
+        removedEvents: Int,
+        keptLock: Bool = false
     ) {
         self.location = location
         self.removedFiles = removedFiles
         self.removedBytes = removedBytes
         self.removedDays = removedDays
         self.removedEvents = removedEvents
+        self.keptLock = keptLock
     }
 
     public var userFacingSummary: String {
         let size = DeletionReport.humanBytes(removedBytes)
+        let kept = keptLock
+            ? "\nKept: its .lock, which is empty and held while sigstop runs, so a second copy leaves."
+            : ""
         return """
-        Deleted: \(location)  (\(removedFiles) files, \(size))
+        Deleted: \(location)  (\(removedFiles) files, \(size))\(kept)
         Removed \(removedEvents) events across \(removedDays.count) day(s).
         sigstop is still running, so a new, empty log starts from now.
 

@@ -2,6 +2,7 @@ import Foundation
 
 public final class FileEventStore: EventStore, @unchecked Sendable {
     public static let largestDayFile = 32 * 1024 * 1024
+    public static let lockFileName = ".lock"
     static let largestRecordFile = 32 * 1024 * 1024
     static let leftAsItIs = "it is there but will not open, so it is left as it is rather than replaced"
 
@@ -314,10 +315,27 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
 
         let days = try unlockedAvailableDays()
         let removedEvents = days.reduce(0) { $0 + unlockedLoad(day: $1).events.count }
-        let (files, bytes) = measure(root)
 
-        if fm.fileExists(atPath: root.path) {
-            try fm.removeItem(at: root)
+        var doomed: [URL] = []
+        var keptLock = false
+        var info = stat()
+        if lstat(root.path, &info) == 0 {
+            guard SecureFile.isOwnDirectory(root) else {
+                throw StoreError.notWritable(
+                    path: root.path, reason: "it is a symbolic link or not a folder of yours, so nothing is removed through it"
+                )
+            }
+            for item in try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
+                if isInstanceLock(item) {
+                    keptLock = true
+                } else {
+                    doomed.append(item)
+                }
+            }
+        }
+        let (files, bytes) = measure(doomed)
+        for item in doomed {
+            try fm.removeItem(at: item)
         }
         try createTree()
 
@@ -326,22 +344,33 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
             removedFiles: files,
             removedBytes: bytes,
             removedDays: days,
-            removedEvents: removedEvents
+            removedEvents: removedEvents,
+            keptLock: keptLock
         )
     }
 
-    private func measure(_ directory: URL) -> (files: Int, bytes: Int) {
-        guard let e = fm.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]
-        ) else { return (0, 0) }
+    private func isInstanceLock(_ item: URL) -> Bool {
+        guard item.lastPathComponent == Self.lockFileName else { return false }
+        var info = stat()
+        return lstat(item.path, &info) == 0 && info.st_mode & S_IFMT == S_IFREG
+    }
+
+    private func measure(_ items: [URL]) -> (files: Int, bytes: Int) {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isDirectoryKey, .fileSizeKey]
         var files = 0
         var bytes = 0
-        for case let url as URL in e {
-            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-            guard values?.isRegularFile == true else { continue }
-            files += 1
-            bytes += values?.fileSize ?? 0
+        for item in items {
+            var all = [item]
+            if (try? item.resourceValues(forKeys: keys))?.isDirectory == true,
+               let e = fm.enumerator(at: item, includingPropertiesForKeys: Array(keys)) {
+                for case let url as URL in e { all.append(url) }
+            }
+            for url in all {
+                let values = try? url.resourceValues(forKeys: keys)
+                guard values?.isRegularFile == true else { continue }
+                files += 1
+                bytes += values?.fileSize ?? 0
+            }
         }
         return (files, bytes)
     }
