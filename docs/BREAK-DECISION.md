@@ -531,6 +531,7 @@ engine is allowed to *say*.
 | `working` | user picks "break now" | — | `breakActive` | begin break, `origin: .userInitiated` |
 | `breakDue` | tick | verdict `.deliver` | `breakDue` (prompted) | deliver notification, `promptedAt = now` |
 | `breakDue` | tick | verdict `.hardBlocked` | `breakDue` | **both deferral clocks pause**; passive indicator only |
+| `breakDue` | tick | daily cap reached, no prompt up | `quiet(.dailyCapReached)` | cycle `.dailyCapReached`; a prompt that is up, the one that reached the cap, first gets its `promptTimeout` (§11) |
 | `breakDue` | tick | verdict `.softDeferred` | `breakDue` | `seamWaitElapsed += Δ` |
 | `breakDue` | seam observed | not hard-blocked, not rate-limited | `breakDue` (prompted) | deliver immediately |
 | `breakDue` | tick | `seamWaitElapsed >= softDeferralWindow (+ extension)` | `breakDue` (prompted) | **deliver anyway** |
@@ -550,7 +551,8 @@ engine is allowed to *say*.
 | `ignored` | no input for `microIdleGrace` | gap `< qualifyingBreak` | `idle` | not an ignore; retract prompt and **park the ladder** |
 | `ignored` | gap ≥ `qualifyingBreak` | — | `working` | break recorded; cycle closed honored |
 | `ignored` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
-| `ignored` | the last prompt the cycle allows + no response for `promptTimeout` | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1 |
+| `ignored` | the last prompt the cycle allows + no response for `promptTimeout` | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1; `quiet(.dailyCapReached)` instead of the cooldown when the day's cap is spent |
+| `ignored` | the prompt that reached the daily cap + no response for `promptTimeout` | the ladder had rungs left | `quiet(.dailyCapReached)` | cycle `.dailyCapReached`; consecutive-ignore counter **unchanged** |
 | `breakActive` | tick | `now >= plannedEnd` | `working` | reset clock, record break, `lastBreakEndedAt = now` |
 | `breakActive` | user ends early | elapsed `>= qualifyingBreak` | `working` | as above |
 | `breakActive` | user ends early | elapsed `< qualifyingBreak` | `working` | **no reset, no break recorded**, log `.abandoned` |
@@ -1232,6 +1234,20 @@ that only grow, so exhaustion now fires when it becomes true. The gap falls to *
 is not a new cadence: it is already the gap between a normally exhausted ladder and the next cycle.
 `cooldownAfterExhausted` is untouched at 25 minutes, and so is every other number here.
 
+**The daily cap is the other thing that leaves a ladder with nothing to deliver.** `handleIgnored`
+had no branch for it, so a cap met at level 2 left the cycle `.escalating` for half an hour over
+rungs `rateLimit` would refuse, and then closed it `.ignoredExhausted` and counted it toward the
+backoff, though the ladder had been cut short by the day rather than waved off by the user. The
+delivery that meets the cap now records `finalDeliveredAt` like any last prompt, and
+`promptTimeout` later the cycle closes `.dailyCapReached` into `quiet(.dailyCapReached)`, as
+`handleBreakDue` closes a cycle the cap reaches before it has prompted, with
+`consecutiveIgnoredCycles` left alone. A level 1 that meets the cap gets the same time:
+`handleBreakDue` used to close its cycle on the next tick, taking the prompt down five seconds after
+it appeared, and it now leaves a prompt that is up standing until `promptTimeout` makes it ignored.
+A ladder already spent by its own rules when the cap is reached (level 4 sent, the fourth prompt
+sent, or the backoff's single prompt) is still `.ignoredExhausted` and still counted, and it goes to
+`quiet(.dailyCapReached)` too, rather than into a cooldown that could only end in more quiet.
+
 The indicator through all of this is `IndicatorState.backedOff`, which is dim and full: a break is
 owed and the app has decided not to ask. It used to be `.escalating` during the capped ladder, which
 was a positive claim that the opposite of the truth was happening, and `.working` during the
@@ -1254,7 +1270,8 @@ cooldown, with the work clock still climbing against a threshold nothing was wai
    seconds, which is the window the backoff exists to shorten. `honoredOpportunities` stays conditional
    on an open cycle, because the compliance denominator only grows when an opportunity was opened.
 6. **Daily cap** (19 at the default settings, §4.2) overrides everything above. On reaching it, the
-   app goes passive-only until the next day boundary and records `quiet(.dailyCapReached)`. That
+   app sends nothing more, and once the prompt that reached it has had its `promptTimeout` it goes
+   passive-only until the next day boundary and records `quiet(.dailyCapReached)`. That
    state is terminal until the boundary
    and computes no verdict, so it writes no `gate` line either: the menu is the only place a user can
    find out, and it says so in words (`QuietCause.summary`). It drew as the literal title "quiet hours"

@@ -98,4 +98,120 @@ struct DailyCapTests {
         #expect(spent.claim == .holdingOff, "got \(spent.claim): \(spent.text)")
         #expect(!spent.text.contains("of work away"), "no countdown to a prompt that cannot be sent")
     }
+
+    private static func delivered(_ effects: [Effect]) -> [PromptRequest] {
+        effects.compactMap { if case .deliverPrompt(let p) = $0 { return p } else { return nil } }
+    }
+
+    private static func closes(_ effects: [Effect]) -> [CycleOutcome] {
+        effects.compactMap { if case .closeCycle(_, let o) = $0 { return o } else { return nil } }
+    }
+
+    private static func takenDown(_ effects: [Effect]) -> Bool {
+        effects.contains {
+            switch $0 {
+            case .withdrawPrompt, .closeCycle: return true
+            default: return false
+            }
+        }
+    }
+
+    private static func cappedQuiet(_ state: EngineState) -> Bool {
+        if case .quiet(let q) = state { return q.cause == .dailyCapReached }
+        return false
+    }
+
+    private static func runToTheCap(
+        _ driver: inout EngineHarness.Driver, leaving left: Int
+    ) -> (at: Double, level: EscalationLevel)? {
+        driver.step()
+        let cap = driver.engine.policy.dailyNotificationCap
+        driver.day.notificationsDelivered = cap - left
+        for _ in 0..<1200 {
+            let effects = driver.step()
+            if let prompt = delivered(effects).last, driver.day.notificationsDelivered >= cap {
+                return (driver.monotonic, prompt.level)
+            }
+        }
+        return nil
+    }
+
+    private static func runToTheClose(
+        _ driver: inout EngineHarness.Driver
+    ) -> (at: Double, outcome: CycleOutcome, sentAfterTheCap: Int)? {
+        var sent = 0
+        for _ in 0..<1200 {
+            let effects = driver.step()
+            sent += delivered(effects).count
+            if let outcome = closes(effects).first { return (driver.monotonic, outcome, sent) }
+        }
+        return nil
+    }
+
+    @Test("a cap reached partway up the ladder ends the cycle once that prompt has had its time")
+    func capPartwayUpTheLadder() {
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
+        let policy = driver.engine.policy
+        guard let capped = Self.runToTheCap(&driver, leaving: 2) else {
+            Issue.record("the cap was never reached")
+            return
+        }
+        #expect(capped.level == .second)
+        guard let close = Self.runToTheClose(&driver) else {
+            Issue.record("the cycle never closed: \(driver.state)")
+            return
+        }
+
+        #expect(close.outcome == .dailyCapReached, "the cap ended it, not the user")
+        #expect(close.sentAfterTheCap == 0)
+        #expect(close.at - capped.at >= policy.promptTimeout, "the last prompt still gets its time")
+        #expect(close.at - capped.at < policy.promptTimeout + 2 * EngineHarness.Driver.tick,
+                "and nothing more: the ladder has nothing left to send")
+        #expect(Self.cappedQuiet(driver.state), "got \(driver.state)")
+        #expect(driver.day.consecutiveIgnoredCycles == 0, "a ladder the cap cut short is not an ignored cycle")
+    }
+
+    @Test("the prompt that reaches the cap stays up for its time")
+    func cappingFirstPromptStandsItsTime() {
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
+        let policy = driver.engine.policy
+        guard let capped = Self.runToTheCap(&driver, leaving: 1) else {
+            Issue.record("the cap was never reached")
+            return
+        }
+        #expect(capped.level == .first)
+
+        let standing = Int(policy.promptTimeout / EngineHarness.Driver.tick) - 1
+        for _ in 0..<standing {
+            let effects = driver.step()
+            #expect(!Self.takenDown(effects), "taken down \(driver.monotonic - capped.at)s after it was posted")
+        }
+        guard let close = Self.runToTheClose(&driver) else {
+            Issue.record("the cycle never closed: \(driver.state)")
+            return
+        }
+
+        #expect(close.outcome == .dailyCapReached)
+        #expect(close.at - capped.at >= policy.promptTimeout)
+        #expect(Self.cappedQuiet(driver.state), "got \(driver.state)")
+        #expect(driver.day.consecutiveIgnoredCycles == 0)
+    }
+
+    @Test("a full ladder that reaches the cap on its last rung is still ignored, and then quiet")
+    func fullLadderAtTheCap() {
+        var driver = EngineHarness.Driver(settings: EngineHarness.ownerSettings)
+        guard let capped = Self.runToTheCap(&driver, leaving: 4) else {
+            Issue.record("the cap was never reached")
+            return
+        }
+        #expect(capped.level == .incident)
+        guard let close = Self.runToTheClose(&driver) else {
+            Issue.record("the cycle never closed: \(driver.state)")
+            return
+        }
+
+        #expect(close.outcome == .ignoredExhausted, "every rung was sent and waved off")
+        #expect(driver.day.consecutiveIgnoredCycles == 1)
+        #expect(Self.cappedQuiet(driver.state), "no cooldown to a prompt the day cannot send: \(driver.state)")
+    }
 }

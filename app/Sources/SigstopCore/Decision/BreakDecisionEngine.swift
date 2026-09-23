@@ -306,6 +306,10 @@ public struct BreakDecisionEngine: Sendable {
                 effects.append(.setIndicator(.quiet))
                 return (.quiet(QuietState(cause: .scheduledQuietHours)), verdict)
             case .dailyCapReached:
+                if d.promptedAtMono != nil {
+                    effects.append(.setIndicator(.breakDue))
+                    return (.breakDue(d), verdict)
+                }
                 if d.promptedAt != nil {
                     effects.append(.withdrawPrompt(cycle: d.cycle, reason: .dailyCapReached))
                 }
@@ -417,21 +421,36 @@ public struct BreakDecisionEngine: Sendable {
                 e.notificationsThisCycle += 1
                 day.notificationsDelivered += 1
                 day.lastNotificationAt = input.now
-                if e.level == .incident || interruption.ladderIsSpent(input, budget: e.budget) {
+                if e.level == .incident
+                    || interruption.ladderIsSpent(input, budget: e.budget)
+                    || day.notificationsDelivered >= policy.dailyNotificationCap {
                     e.finalDeliveredAt = e.ladderElapsed
                 }
             }
         }
 
+        let capped = day.notificationsDelivered >= policy.dailyNotificationCap
+        let spent = interruption.ladderIsSpent(input, budget: e.budget)
         let exhausted: Bool = {
             if let delivered = e.finalDeliveredAt { return e.ladderElapsed - delivered >= policy.promptTimeout }
-            if interruption.ladderIsSpent(input, budget: e.budget) { return true }
+            if spent || capped { return true }
             return e.ladderElapsed >= policy.ladderLevel4 + policy.promptTimeout
         }()
+        if exhausted, capped, !spent, !e.deliveredLevels.contains(.incident) {
+            effects.append(.withdrawPrompt(cycle: e.cycle, reason: .dailyCapReached))
+            effects.append(.closeCycle(e.cycle, .dailyCapReached))
+            day.excludedOpportunities += 1
+            effects.append(.setIndicator(.quiet))
+            return (.quiet(QuietState(cause: .dailyCapReached)), verdict)
+        }
         if exhausted {
             effects.append(.withdrawPrompt(cycle: e.cycle, reason: .cycleExpired))
             effects.append(.closeCycle(e.cycle, .ignoredExhausted))
             day.consecutiveIgnoredCycles += 1
+            if capped {
+                effects.append(.setIndicator(.quiet))
+                return (.quiet(QuietState(cause: .dailyCapReached)), verdict)
+            }
             effects.append(.setIndicator(.backedOff))
             let backedOff = day.consecutiveIgnoredCycles >= policy.ignoreBackoffThreshold
             return (.working(WorkingState(
