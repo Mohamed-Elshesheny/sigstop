@@ -31,16 +31,6 @@ A timer fires in the middle of your standup. sigstop doesn't.
 - 🔋 **Barely there.** It sleeps between checks, so you won't notice it on your battery or in your Mac's speed.
 - 🔒 **Private by design.** Zero permissions required, and nothing about you leaves your Mac.
 
-## 🧭 How it works
-
-You're a process. sigstop only stops you at a safe point, and you come back with everything intact.
-
-<img src="docs/images/terminal.png" width="100%" alt="A terminal: ps shows you running for 47 minutes in your editor. sigstop waits for a natural pause, sends kill -TSTP and you are stopped. Five minutes and a glass of water later, kill -CONT, and you continue with nothing lost.">
-
-Keep ignoring it and it asks a little louder, in signals your shell already knows. The last one claims it can't be ignored. It can.
-
-<img src="docs/images/ladder.png" width="100%" alt="The escalation ladder: SIGTSTP, a nudge. SIGINT, a bit rude. SIGTERM, your warning. SIGSTOP, the bluff. Snooze is SIGALRM, and coming back is SIGCONT, right where you left off.">
-
 <a id="install"></a>
 
 ## 📦 Install
