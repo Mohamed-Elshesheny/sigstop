@@ -100,10 +100,46 @@ if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ] || [ "${RELEASED_SHA}" != 
   fi
   exit 1
 fi
-CI_RESULT="$(gh run list -R Mohamed-Elshesheny/sigstop --commit "${RELEASED_SHA}" --workflow CI \
-  --json conclusion --jq '.[0].conclusion' 2>/dev/null || true)"
-if [ "${CI_RESULT}" != "success" ]; then
-  echo "error: CI on ${RELEASED_SHA} is '${CI_RESULT:-not run}', not success." >&2
+
+LOGS="$(mktemp -d)"
+# The run's status as well as its conclusion: a run still going has no conclusion yet, and that
+# used to read as "not run". gh's own error is shown, not swallowed into the same words.
+if ! CI_RUN="$(gh run list -R "${REPO}" --commit "${RELEASED_SHA}" --workflow CI --json status,conclusion \
+    --jq '.[0] | if . == null then "none" else "\(.status) \(.conclusion)" end' 2>"${LOGS}/gh-run.err")"; then
+  echo "error: gh could not say how CI went on ${RELEASED_SHA}:" >&2
+  sed 's/^/       /' "${LOGS}/gh-run.err" >&2
+  exit 1
+fi
+case "${CI_RUN}" in
+  "completed success") ;;
+  none|"")
+    echo "error: CI has no run for ${RELEASED_SHA} yet. Let it run and pass, then release." >&2
+    exit 1 ;;
+  completed\ *)
+    echo "error: CI on ${RELEASED_SHA} finished '${CI_RUN#completed }', not success." >&2
+    exit 1 ;;
+  *)
+    echo "error: CI on ${RELEASED_SHA} is still running (${CI_RUN%% *}). Let it finish, then release." >&2
+    exit 1 ;;
+esac
+
+# Publishing has to be possible before anything is built. `gh run list` only reads, so an account
+# that could not publish got past the check above, built, signed the feed, pushed the tag, and only
+# then failed at `gh release create`. This is the permission GitHub reports for the account gh is
+# signed in as, and a dry run of the tag push, which reaches the remote and sends nothing.
+if ! CAN_PUSH="$(gh api "repos/${REPO}" --jq '.permissions.push' 2>"${LOGS}/gh-api.err")"; then
+  echo "error: gh could not read ${REPO}, so it could not publish to it either:" >&2
+  sed 's/^/       /' "${LOGS}/gh-api.err" >&2
+  exit 1
+fi
+if [ "${CAN_PUSH}" != "true" ]; then
+  echo "error: gh is signed in as an account that cannot push to ${REPO}, so" >&2
+  echo "       'gh release create' would fail after the feed was signed. 'gh auth status' says which." >&2
+  exit 1
+fi
+if ! git push -q --dry-run origin "${RELEASED_SHA}:refs/tags/${TAG}" 2>"${LOGS}/git-push.err"; then
+  echo "error: git cannot push ${TAG} to origin, so the release would stop after signing:" >&2
+  sed 's/^/       /' "${LOGS}/git-push.err" >&2
   exit 1
 fi
 
@@ -150,7 +186,6 @@ if ! grep -q '^- ' <<<"${NOTES}"; then
   exit 1
 fi
 
-LOGS="$(mktemp -d)"
 # Kept on disk so that a release which stops after signing can be finished by hand with the
 # same notes.
 NOTES_FILE="${LOGS}/notes.md"
