@@ -528,6 +528,7 @@ struct SettingsView: View {
                     FileRow("counters.json", "today's budgets: prompts delivered, cycles unanswered, the compliance tally")
                     FileRow("call-hold.json", "seconds a call has held a break today; exists once one has")
                     FileRow("settings.json", "exactly what the panes above set")
+                    FileRow(".lock", "empty; held while sigstop runs, so a second copy leaves")
                 }
                 .padding(.top, 12)
             }

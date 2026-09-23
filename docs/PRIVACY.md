@@ -765,6 +765,7 @@ guess. A few things live outside it, most of them left by the update check, in
 ├── badges.json                        (mode 0600)  which badges have unlocked, and when
 ├── counters.json                      (mode 0600)  today's budgets, overwritten in place
 ├── call-hold.json                     (mode 0600)  seconds the call hold has held today, overwritten in place
+├── .lock                              (mode 0600)  empty; held while sigstop runs, so a second copy leaves
 ├── events/
 │   ├── 2026-09-18.jsonl               (mode 0600)  append-only, one JSON object per line
 │   ├── 2026-09-19.jsonl
