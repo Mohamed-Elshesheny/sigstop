@@ -1165,7 +1165,10 @@ delivery spends the ladder now records `Escalation.finalDeliveredAt`, exactly as
 and exhaustion waits `promptTimeout` of ladder time after it. No step delivers a prompt and withdraws
 or closes its cycle; `DeliverAndWithdrawPropertyTests` holds that over random sequences of ticks,
 snoozes, skips, breaks, pauses, absences and microphone holds, and `LastPromptTests` pins both
-snoozed paths.
+snoozed paths. `Notifier` no longer trusts the order either: `center.add` runs after an `await`, so
+it checks again once it has permission, and again once macOS has taken the notification, that the
+cycle still wants it, and takes it down if it was withdrawn in between. Each delivery has its own
+identifier, so a withdrawn level 1 cannot be revived by the level 1 a snooze sends later.
 
 **A ladder ends when it has nothing left to deliver, not when its timer runs out.** The engine used
 to decide exhaustion by waiting for `ladderLevel4 + promptTimeout` whenever level 4 had not been

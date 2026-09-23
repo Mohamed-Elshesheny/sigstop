@@ -30,6 +30,7 @@ final class Notifier: NSObject {
     private var registered = false
     private var authorizationAsked = false
     private var delivered: [CycleID: Set<String>] = [:]
+    private var serial = 0
 
     override init() {
         super.init()
@@ -68,18 +69,26 @@ final class Notifier: NSObject {
 
         Task { [weak self] in
             guard let self else { return }
-            guard await self.ensureAuthorized(center) else {
+            let authorized = await self.ensureAuthorized(center)
+            guard self.isWanted(identifier, cycle: request.cycle) else { return }
+            guard authorized else {
                 self.onFallbackNeeded?(request, message)
                 return
             }
             do {
                 try await center.add(notification)
+                self.onStateChange?(.available)
+                guard self.isWanted(identifier, cycle: request.cycle) else {
+                    center.removeDeliveredNotifications(withIdentifiers: [identifier])
+                    center.removePendingNotificationRequests(withIdentifiers: [identifier])
+                    return
+                }
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
+                guard self.isWanted(identifier, cycle: request.cycle) else { return }
                 let shown = await center.deliveredNotifications().contains { $0.request.identifier == identifier }
                 if !shown {
                     self.onFallbackNeeded?(request, message)
                 }
-                self.onStateChange?(.available)
             } catch {
                 self.onStateChange?(.unavailable("macOS refused the notification, \(error)"))
                 self.onFallbackNeeded?(request, message)
@@ -110,7 +119,12 @@ final class Notifier: NSObject {
     }
 
     private func identifier(for request: PromptRequest) -> String {
-        "dev.sigstop.\(request.cycle.rawValue).\(request.level.rawValue)"
+        serial += 1
+        return "dev.sigstop.\(request.cycle.rawValue).\(request.level.rawValue).\(serial)"
+    }
+
+    private func isWanted(_ identifier: String, cycle: CycleID) -> Bool {
+        delivered[cycle]?.contains(identifier) == true
     }
 
     private func resolveCenter() -> UNUserNotificationCenter? {
