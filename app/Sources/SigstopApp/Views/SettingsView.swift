@@ -567,8 +567,9 @@ struct SettingsView: View {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Add"
-        panel.message = "Pick the root of a repository. sigstop reads one line of its HEAD file, "
-            + "and nothing else in it."
+        panel.message = "Pick the root of a repository. sigstop reads the first line of a few of "
+            + "git's own files: HEAD, the .git file of a worktree or submodule, and during a "
+            + "rebase the branch name. It never opens a file of yours."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         var updated = model.settings
         let path = url.standardizedFileURL.path
@@ -587,7 +588,7 @@ struct SettingsView: View {
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "sigstop-export.txt"
         panel.canCreateDirectories = true
-        panel.message = "Everything sigstop has on disk, as one readable file."
+        panel.message = "The event log as one readable file, every line on disk, unchanged."
         guard panel.runModal() == .OK, let url = panel.url else { return }
         dataReport = model.exportData(to: url)
     }
