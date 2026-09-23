@@ -258,6 +258,18 @@ ASSETS=(dist/sigstop.dmg dist/sigstop-"${VERSION}"*.dmg)
 shopt -u nullglob
 FEED_URL="$(sed -n '/url="[^"]*\.dmg"/{s/.*url="\([^"]*\.dmg\)".*/\1/p;q;}' ../updater/appcast.xml)"
 
+# Takes the feed commit off main and nothing with it. `git reset --keep` does that too, but it resets
+# the whole index, so a change somebody staged meanwhile came back unstaged. This puts the feed file
+# alone back, in the index and the tree, then moves HEAD back one, and like --keep it refuses when
+# the feed file holds changes the commit does not.
+undo_feed() {
+  [ "$(git rev-parse HEAD)" = "${FEED_SHA}" ] || return 1
+  git diff --quiet "${FEED_SHA}" -- ':(top)updater/appcast.xml' || return 1
+  git diff --cached --quiet "${FEED_SHA}" -- ':(top)updater/appcast.xml' || return 1
+  git restore -q --source="${FEED_SHA}^" --staged --worktree -- ':(top)updater/appcast.xml' || return 1
+  git reset -q --soft "${FEED_SHA}^"
+}
+
 # Nothing may have changed while the build ran but the feed commit this script made.
 if [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASED_SHA}" HEAD -- ':(top)' ':(top,exclude)updater/appcast.xml')" ]; then
   echo "error: the tree changed while the feed was being signed. Nothing was tagged." >&2
@@ -271,7 +283,7 @@ if [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASE
     sed -n '1,20s/^/         /p' <<<"${OTHERS}" >&2
     echo "       Before pushing, drop only the feed commit ${FEED_SHA}, which names a" >&2
     echo "       download that does not exist: $(drop_cmd "${FEED_SHA}")" >&2
-  elif git reset -q --keep "${FEED_SHA}^"; then
+  elif undo_feed; then
     echo "       The feed commit was undone. Do not push main until a release succeeds." >&2
   else
     echo "       Before pushing, drop the feed commit ${FEED_SHA} by hand, it names a" >&2
