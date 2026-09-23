@@ -29,7 +29,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 
 | # | Datum | Producing macOS API | Why it is needed | Storage | Retention | Optional? |
 |---|-------|---------------------|------------------|---------|-----------|-----------|
-| 1 | Frontmost app **bundle identifier** (`com.apple.dt.Xcode`) | `NSWorkspace.didActivateApplicationNotification` → `NSRunningApplication.bundleIdentifier` | Detect that you switched context; classify the activity as coding / meeting / reading / idle-ish so a break is not proposed mid-call | Persisted, `events/YYYY-MM-DD.jsonl` | Default 7 days | No. There is no switch for it |
+| 1 | Frontmost app **bundle identifier** (`com.apple.dt.Xcode`) | `NSWorkspace.didActivateApplicationNotification` → `NSRunningApplication.bundleIdentifier` | Detect that you switched context; classify the activity as coding / meeting / reading / idle-ish so a break is not proposed mid-call | Persisted, `events/YYYY-MM-DD.jsonl`, and as a key of the day's summary, row 17 | 7 days in the event log. The day's summary keeps it, with the seconds you spent in the app, until you delete your data | No. There is no switch for it |
 | 2 | Frontmost app **localized name** (`Xcode`) | same notification → `NSRunningApplication.localizedName` | Shown in the UI ("you've been in Xcode for 52 min"); fallback identifier for apps with no bundle ID | Persisted only when bundle ID is `nil` (rare: some helper processes) | Same as #1 | Same as #1 |
 | 3 | Frontmost app **pid** | `NSRunningApplication.processIdentifier` | Needed as the argument to `AXUIElementCreateApplication` when window-title fidelity is on | Memory-only | Until the next app switch | n/a |
 | 4 | Frontmost app **icon** | `NSRunningApplication.icon` | Drawn in the menu bar popover | Memory-only | Until the next app switch | n/a |
@@ -43,7 +43,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 12 | **Focused window title** | `AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute)` then `kAXTitleAttribute` — **requires Accessibility permission** | Only to answer one question: does this window look like a live meeting, a terminal, an editor, a browser, or a document? A meeting is the one thing worth never interrupting | **The string itself is never persisted.** The provider that claims the frontmost app matches it against its own patterns (§1.5) and returns an `Activity`. That activity is persisted as `act`, row 32 | `act`: same as #1. String: memory-only, held until the next read replaces it | **Yes, and off by default** |
 | 15 | **Break engine state**: streak start, last break end, snooze count, next fire time | Derived from #1/#5/#7 | The actual product | Memory-only; nothing writes it to disk. The day's budgets that have to survive a relaunch are in `counters.json` (§4.2) | Gone when the process exits | No |
 | 16 | **Break interaction events**: prompted, taken, skipped, snoozed | UI callbacks | "You skipped 6 of 8 breaks today" and nothing more | Persisted as events | Same as #1 | Yes |
-| 17 | **Daily aggregates**: minutes per category, breaks taken/skipped, longest streak | Derived from the event log while the app runs, recomputed at most once a minute. Written only when the numbers differ from the last write, and then at most every ten minutes, except at once when the menu bar panel opens, a break ends, the day changes (a last write for the day that ended, then the first for the new one), your data is deleted, the Mac sleeps or locks, or the app quits | Weekly view without keeping raw events | Persisted, `summaries/YYYY-MM.json` | Kept until you delete your data; never pruned (§4.5) | Yes |
+| 17 | **Daily summaries**: the seconds of active work in each app, by **bundle identifier**, and in each activity; the day's total and its longest unbroken stretch; counts of breaks, snoozes, skips, ignored prompts, notifications, sessions and break opportunities | Derived from the event log while the app runs, recomputed at most once a minute. Written only when the numbers differ from the last write, and then at most every ten minutes, except at once when the menu bar panel opens, a break ends, the day changes (a last write for the day that ended, then the first for the new one), your data is deleted, the Mac sleeps or locks, or the app quits | Badges that count days after those days' events are pruned. Nothing uses the per-app or per-activity seconds once they are on disk; they are there because the summary is written whole | Persisted, `summaries/YYYY-MM.json`, one object per day (§4.3). Never leaves the Mac | Every day, kept until you delete your data; never pruned (§4.5) | No. There is no switch for it |
 | 18 | **Preferences**: interval, threshold, quiet hours, tone, prompt channel and sound | User input | Configuration | Persisted, `settings.json` (plain JSON, human-editable) | Until you change or delete them | n/a |
 | 19 | **App category map** (`com.apple.dt.Xcode → code`) | Compiled into the binary: `AppKey` in `app/Sources/SigstopCore/Message/MessageContext.swift` names the app's family, and `AppModel.category(for:)` maps the family to one of four words | Classify #1 without heuristics | Code, not data. There is no category file in the bundle and no override in `settings.json` | Ships with the app | n/a |
 | 20 | **Break message corpus** | Static JSON shipped inside the bundle, `Contents/Resources/sigstop_SigstopCore.bundle/corpus.json` | Text of the reminder | Read-only resource | Ships with the app | No. It is one pack and there is no setting to choose or disable it; the tone setting decides which of its lines can fire |
@@ -895,20 +895,54 @@ in the sense that matters here: an app that cannot show its working cannot be au
   only, because the transition into each of those states already has its own line
   (`break_response`, `idle_begin`, `break_begin`).
 
-`summaries/2026-09.json`:
+`summaries/2026-09.json`, as `FileEventStore.writeSummary` wrote it for a made-up morning in three
+apps with invented bundle identifiers. A real file holds one such object for every day the app ran
+that month:
 ```json
 {
-  "v": 1,
-  "days": {
-    "2026-09-20": {
-      "active_min": 412,
-      "by_cat": { "code": 258, "browse": 91, "meet": 54, "other": 9 },
-      "breaks_prompted": 8, "breaks_taken": 5, "breaks_skipped": 3,
-      "longest_streak_min": 97
+  "days" : {
+    "2026-09-20" : {
+      "activeWorkByActivity" : {
+        "browsing" : 1631,
+        "coding" : 5515,
+        "communication" : 830
+      },
+      "applicationDistribution" : {
+        "com.example.browser" : 1631,
+        "com.example.chat" : 830,
+        "com.example.editor" : 5515
+      },
+      "breakCount" : 1,
+      "breakOpportunities" : 1,
+      "breaksAbandoned" : 0,
+      "breaksAccepted" : 1,
+      "breaksIdleInferred" : 0,
+      "breaksUserInitiated" : 0,
+      "day" : "2026-09-20",
+      "excludedOpportunities" : 0,
+      "honoredOpportunities" : 1,
+      "ignoredPromptCount" : 0,
+      "longestContinuousSession" : 3000,
+      "malformedLines" : 0,
+      "notificationsDelivered" : 1,
+      "sessionCount" : 1,
+      "skippedBreakCount" : 0,
+      "snoozeCount" : 1,
+      "totalActiveWork" : 7976
     }
-  }
+  },
+  "v" : 1
 }
 ```
+
+Every duration is in seconds. `applicationDistribution` is the seconds of active work in each app,
+keyed by **bundle identifier**, and `activeWorkByActivity` the same seconds keyed by `Activity` raw
+value. So this file is a record, for every day, of which apps you worked in and for how long. It is
+kept until *Delete everything* (§4.5), it is not in the export (§4.6), and like everything else here
+it never leaves the Mac. Nothing uses the per-app or per-activity seconds once they are on disk.
+The file is read back only to add a day to it and to count badges, which use the counts and the
+day's totals, and the menu bar shows the day's top app from the summary it computes in memory. They
+are on disk because the summary is written whole, not because anything needs them there.
 
 `badges.json`:
 ```json
@@ -977,7 +1011,7 @@ through it.
 | Data | Kept |
 |---|---|
 | Raw events | 7 days |
-| Daily summaries | until *Delete everything* |
+| Daily summaries, including the seconds spent in each app by bundle identifier | until *Delete everything* |
 | Summary months set aside as `.unreadable` | until *Delete everything* |
 | Unlocked badges | until *Delete everything*, see below |
 
@@ -985,6 +1019,11 @@ The seven days are `Retention.defaultEventDays`, a constant. There is no retenti
 `settings.json`. This section used to offer one, with a range of 0 to 365 days, a memory-only
 mode, a 90-day window for summaries and a debug title ring. None of that was built, and nothing
 prunes a summary.
+
+So the seven days bound the event log, not what the app knows about which apps you used. Each day's
+summary keeps the seconds of active work per bundle identifier and per activity (§4.3), for every
+day the app ran, until *Delete everything*. It never leaves the Mac, and there is no switch that
+stops it being written.
 
 Pruning runs at launch and then once an hour, measured on the continuous clock. The rule is
 one-sided: a day file is deleted only when its date is older than the window. This is the real
@@ -1409,8 +1448,8 @@ toolchain, and physical access to an unlocked machine.
 | 6b | Exfiltration *through* the update request | Contributor, or another process writing the app's defaults | The feed URL is a plist constant with no query string, pinned by a delegate so a defaults override is ignored; the delegate allows no system-profile keys and refuses release-notes fetches and background checks; the cookie file is deleted at launch; the user agent is overridden to a constant carrying no version; there is no second endpoint and the allowlist check fails if one appears | A contributor could add a delegate that appends feed parameters. That would be a visible code change to one file, and would have to survive review against this row |
 | 7 | Another local process reads the event log | Malware running as the user | Files are `0600` in a `0700` directory. Nothing else: the app is not sandboxed, so there is no container and no sandbox protection on it (§3.6) | Any process running as you can read your files. App-level encryption would not help, because the key would have to be available to the app as the same user. FileVault is the real defense. See §8.5 |
 | 8 | Supply-chain attack on the release artifact | Attacker with repo or CI access | **EdDSA signing, done on the maintainer's machine from a key that is never in the repository or in CI.** An attacker with full repository and CI access can therefore publish a release and still cannot produce an update an installed copy will accept. A first download is different: it is whatever the release page serves, so it rests on GitHub alone. The release notes carry no hashes (§6.5). | A compromised signing key defeats this. There is no Developer ID and no notarization to fall back on (§8.1), so the EdDSA key is the single point of failure and is treated as one in `docs/RELEASING.md` |
-| 9 | Data reconstruction from an old backup | Anyone with your Time Machine disk | Retention defaults are short (7 days); the storage path is an ordinary user path, so it honors any backup exclusions you set | The app does not and should not set backup exclusions on your behalf. Documented, not defended |
-| 10 | Someone infers sensitive facts from your event log (therapy appointments, job hunting) | A person with access to your machine | Bundle IDs and closed-vocabulary fields (one of which, `act`, a title can decide under Tier 1), not titles or URLs; short retention; one-click delete; the whole log is human-readable so you can see the inference risk yourself | Bundle IDs alone can be revealing (a job-board app, a health app). There is no switch that stops them being logged; the seven-day window and *Delete my data…* are what there is |
+| 9 | Data reconstruction from an old backup | Anyone with your Time Machine disk | Raw events are kept 7 days; the storage path is an ordinary user path, so it honors any backup exclusions you set | The daily summaries, with the seconds spent in each app, are kept until you delete them, so a backup holds every day up to when it was made. The app does not and should not set backup exclusions on your behalf. Documented, not defended |
+| 10 | Someone infers sensitive facts from your event log or the daily summaries (therapy appointments, job hunting) | A person with access to your machine | Bundle IDs and closed-vocabulary fields (one of which, `act`, a title can decide under Tier 1), not titles or URLs; seven days of events; one-click delete; every file is human-readable so you can see the inference risk yourself | Bundle IDs alone can be revealing (a job-board app, a health app). There is no switch that stops them being logged. The event log keeps them seven days, but the daily summaries keep the seconds spent in each app, by bundle ID, for every day, until *Delete my data…* (§4.5). Deleting is what there is |
 
 ---
 
@@ -1483,9 +1522,10 @@ difference between those is agency and auditability, not the absence of packets,
 says so rather than claiming "zero network, period."
 
 **8.9 Bundle identifiers are not innocuous.** A seven-day log of which apps you focused, with
-timestamps, is meaningful data about you. It is less than a screen recorder collects by orders of
-magnitude, but it is not nothing, and calling it "anonymous" would be false — it is on your machine,
-about you, tied to you.
+timestamps, is meaningful data about you, and so is what outlives it: a total for every day of how
+many seconds you worked in each app, by bundle identifier, kept until you delete it (§4.3, §4.5).
+It is less than a screen recorder collects by orders of magnitude, but it is not nothing, and
+calling it "anonymous" would be false — it is on your machine, about you, tied to you.
 
 **8.11 A branch name and a tool name exist in the app's memory while Tier 2 is on.** The same caveat
 as §8.3 and for the same reason: the claim is that neither is persisted, logged or transmitted, not

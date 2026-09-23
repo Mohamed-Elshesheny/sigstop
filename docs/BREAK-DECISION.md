@@ -14,8 +14,10 @@ It is a timekeeper for a work pattern the user chose, not an advisor. See
 nothing it computes is ever transmitted: the app's one request is the update check described in
 `docs/PRIVACY.md` §5, which carries no data and is triggered by a button, not by the engine.
 Window titles are used transiently
-for classification and are never persisted. Raw input samples are never persisted — only classified
-gaps and per-minute attribution buckets.
+for classification and are never persisted. Raw input samples are never persisted. What is kept is
+classified gaps and, for every day, the seconds of active work per bundle identifier and per
+activity, which the daily summaries hold until *Delete everything* and which never leave the Mac
+(`docs/PRIVACY.md` §4.3).
 
 ---
 
@@ -1347,8 +1349,9 @@ public struct QuietHours: Sendable, Codable, Hashable {
 - Local store: plain JSON files under Application Support, one append-only event file per day
   (`docs/PRIVACY.md` §4). Nothing here is ever uploaded, and the app's own binary references no
   networking symbol at all (`docs/PRIVACY.md` §2.7).
-- Persisted: session records, classified gaps, break records, cycle outcomes, per-minute app
-  attribution buckets (bundle id + credited seconds), daily counters.
+- Persisted: session records, classified gaps, break records, cycle outcomes, daily counters, and
+  the daily summaries, which keep the seconds of active work per bundle id and per activity for
+  every day until *Delete everything*. None of it leaves the Mac (`docs/PRIVACY.md` §4.3).
 - Not persisted: raw idle samples, keystroke timings, window titles, URLs.
 - Nothing records the last tick, so §4 row 16 was not built: every launch starts a new session at
   zero, and a crash, a force-quit or a reboot loses the clock rather than crediting the gap.
