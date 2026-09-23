@@ -51,7 +51,9 @@ make release VERSION=0.2.0 NAME="Wood Frog 🐸"
 ```
 
 It refuses to run if `Info.plist` disagrees with the version or the name, if the tag exists,
-if the working tree is dirty, or if the notes hold anything but headings and bullets or no
+if the working tree is dirty, if `HEAD` is not `main` and exactly `origin/main`, if CI on that
+commit did not pass, if `CFBundleVersion` is not higher than the last tag's, if `SIGN_IDENTITY` is
+neither ad hoc nor a Developer ID, or if the notes hold anything but headings and bullets or no
 bullet at all. Then it runs the tests, `make verify-shipped`, `Scripts/smoke.sh`,
 `Scripts/intel-slice.sh` and the scenario suite before it publishes anything; §3.3 has the
 order. A release that cannot prove its own claims does not go out.
@@ -223,7 +225,9 @@ plutil -replace CFBundleShortVersionString -string "0.2.0" Resources/Info.plist
 plutil -replace CFBundleVersion            -string "2"     Resources/Info.plist
 ```
 
-Commit this on its own, as a `chore` or `build` commit, before anything is built.
+Commit this on its own, as a `chore` or `build` commit, before anything is built. Then push
+`main` and wait for CI to pass on that commit: `release.sh` releases only a pushed commit whose
+CI run succeeded, so what is signed is what everybody else can see and what CI built.
 
 ### 3.2 Build, and prove the claims still hold
 
@@ -277,8 +281,13 @@ In order, it:
 4. runs `Scripts/appcast.sh`, which signs the image just built and writes `updater/appcast.xml`,
    then commits it. **This happens before the tag**, so a release whose feed cannot be signed fails
    with nothing published rather than after the announcement;
-5. tags, pushes the tag, and creates the GitHub release with both disk image names: the stable
-   `sigstop.dmg` the site links to, and the versioned one a human can read a year later.
+5. tags the commit it built and tested, the bump, not the feed commit on top of it, pushes the
+   tag, and creates the GitHub release with both disk image names: the stable `sigstop.dmg` the
+   site links to, and the versioned one a human can read a year later.
+
+If anything changes in the tree while it runs, it stops before signing. If that happens after the
+feed commit, it undoes the commit, because a pushed feed naming a download that does not exist
+would offer every installed copy an update that 404s.
 
 Then push `main`, which is what publishes the feed:
 
@@ -358,8 +367,8 @@ hdiutil detach /tmp/checkmnt -quiet
 ```
 
 For (4), keep a copy of the previous release, run it, and press **Check for updates** in
-Settings → About. Watch it go: *Asking the feed… → n.n.n is available → Downloading… → Signature
-verified. Unpacking… → verified and ready*. If it stops at an error, the message in the About pane is
+Settings → About. Watch it go: *Asking the feed… → n.n.n is available → Downloading… → Checking the
+signature, then unpacking… → verified and ready*. If it stops at an error, the message in the About pane is
 Sparkle's own and names the reason.
 
 There is no substitute for this test. Everything upstream of it can be green while the feed is a 404,
@@ -375,6 +384,7 @@ Copy this into the release PR.
 - [ ] `CFBundleShortVersionString` bumped
 - [ ] `CFBundleVersion` bumped, and higher than the last release
 - [ ] `SGReleaseName` set to the codename, because the About pane reads it and `release.sh` checks it
+- [ ] The bump commit pushed, and CI green on it
 - [ ] `make release VERSION=… NAME=…` ran clean, with no step skipped
 - [ ] The published image is `x86_64 arm64`, checked against the uploaded file, not the local one
 - [ ] `sparkle:edSignature` present on the new enclosure in `updater/appcast.xml`
