@@ -34,10 +34,13 @@ REPO="Mohamed-Elshesheny/sigstop"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
 FEED="../updater/appcast.xml"
 
-BIN="$(find .build/artifacts -type f -name generate_appcast -perm +111 2>/dev/null | head -1)"
+# `|| true`: with no .build/artifacts at all, find fails, pipefail fails the assignment, and set -e
+# ended the script without the message below.
+BIN="$(find .build/artifacts -type f -name generate_appcast -perm +111 2>/dev/null | head -1 || true)"
 [ -n "${BIN}" ] || {
-  echo "error: generate_appcast not found. Run 'swift build -c release' first so" >&2
-  echo "       SwiftPM fetches Sparkle's binary artifact." >&2
+  echo "error: generate_appcast not found under .build/artifacts. 'swift package resolve' fetches" >&2
+  echo "       Sparkle's binary artifact, which carries it (docs/RELEASING.md 3.0). Then run" >&2
+  echo "       'make release' again." >&2
   exit 1
 }
 
@@ -52,13 +55,14 @@ IMAGES=(dist/"${APP_NAME}"-"${VERSION}"*.dmg)
 shopt -u nullglob
 MATCHES="${#IMAGES[@]}"
 if [ "${MATCHES}" -eq 0 ]; then
-  echo "error: no dist/${APP_NAME}-${VERSION}*.dmg, run 'make dmg' first" >&2
+  echo "error: no dist/${APP_NAME}-${VERSION}*.dmg to sign. 'make release' builds it just before" >&2
+  echo "       this step, so run 'make release' again." >&2
   exit 1
 fi
 if [ "${MATCHES}" -gt 1 ]; then
   echo "error: ${MATCHES} images match ${APP_NAME}-${VERSION}*.dmg, so signing one would be a guess:" >&2
   printf '       %s\n' "${IMAGES[@]}" >&2
-  echo "       Remove the ones that are not this build, or run 'make dmg' again after clearing them." >&2
+  echo "       Remove the ones that are not this build, then run 'make release' again." >&2
   exit 1
 fi
 DMG="${IMAGES[0]}"
@@ -91,5 +95,5 @@ echo
 echo "wrote updater/appcast.xml for ${VERSION}"
 grep -oE 'sparkle:shortVersionString>[^<]*|url="[^"]*"' "${FEED}" | sed 's/^/  /'
 echo
-echo "  Commit and push it. .github/workflows/pages.yml deploys updater/ to"
-echo "  https://mohamed-elshesheny.github.io/sigstop/appcast.xml, which is SUFeedURL."
+echo "  make release commits it. Pushing main publishes it: .github/workflows/pages.yml deploys"
+echo "  updater/ to https://mohamed-elshesheny.github.io/sigstop/appcast.xml, which is SUFeedURL."
