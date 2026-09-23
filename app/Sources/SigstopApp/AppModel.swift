@@ -154,6 +154,9 @@ final class AppModel {
     @ObservationIgnored private var rollupComputedAt: Date?
     @ObservationIgnored private var lastWrittenSummary: DailySummary?
     @ObservationIgnored private var lastSummaryWriteMono: Double = 0
+    @ObservationIgnored private var summaryWriteRefused = false
+    @ObservationIgnored private var refusedSummaryMonth: Int?
+    @ObservationIgnored private var badgesUnsaved = false
     private static let summaryWriteInterval: TimeInterval = 600
 
     @ObservationIgnored private var presentation: PromptPresentation?
@@ -697,6 +700,12 @@ final class AppModel {
     private static let pruneFailurePrefix = "Could not prune old logs"
     private static let settingsFailurePrefix = "Could not save your settings"
     private static let leftAlonePrefix = "Would not open, so left as it is:"
+    private static let summaryFailurePrefix = "Could not write the daily summary"
+    private static let badgesFailurePrefix = "Could not write the badges"
+
+    private func clearStoreError(prefixed prefix: String) {
+        if lastStoreError?.hasPrefix(prefix) == true { lastStoreError = nil }
+    }
 
     private func surfaceFilesLeftAlone() {
         guard let store else { return }
@@ -938,19 +947,15 @@ final class AppModel {
     private func refreshBadges(today: DailySummary, store: FileEventStore, force: Bool) {
         guard lastWrittenSummary != today else { return }
         let due = force
-            || lastWrittenSummary?.day != today.day
+            || (lastWrittenSummary?.day != today.day && !summaryWriteRefused)
             || time.continuousSeconds - lastSummaryWriteMono >= Self.summaryWriteInterval
         guard due else { return }
+        lastSummaryWriteMono = time.continuousSeconds
         if let previous = lastWrittenSummary, previous.day != today.day {
             finalize(previous, store: store)
         }
-        do {
-            try store.writeSummary(today)
-            lastWrittenSummary = today
-            lastSummaryWriteMono = time.continuousSeconds
-        } catch {
-            lastStoreError = "Could not write the daily summary, \(error)"
-        }
+        summaryWriteRefused = !save(today, to: store)
+        if !summaryWriteRefused { lastWrittenSummary = today }
 
         let days = badgeDays(store: store)
         guard !days.isEmpty else { return }
@@ -962,7 +967,7 @@ final class AppModel {
             policy: .default,
             knownUnlocked: badges
         )
-        guard updated != badges else { return }
+        guard updated != badges || badgesUnsaved else { return }
 
         let fresh = updated.newlyUnlocked(since: badges)
         badges = updated
@@ -972,19 +977,34 @@ final class AppModel {
         }
         do {
             try store.writeBadges(updated)
+            badgesUnsaved = false
+            clearStoreError(prefixed: Self.badgesFailurePrefix)
         } catch {
-            lastStoreError = "Could not write the badges, \(error)"
+            badgesUnsaved = true
+            lastStoreError = "\(Self.badgesFailurePrefix), \(error)"
         }
         if let note = Self.badgeNote(for: fresh) { badgeNote = note }
     }
 
     private func finalize(_ previous: DailySummary, store: FileEventStore) {
         guard let final = try? DailyRollup.compute(day: previous.day, from: store), final != previous else { return }
+        _ = save(final, to: store)
+    }
+
+    private func save(_ summary: DailySummary, to store: FileEventStore) -> Bool {
+        let month = summary.day.year * 100 + summary.day.month
         do {
-            try store.writeSummary(final)
+            try store.writeSummary(summary)
         } catch {
-            lastStoreError = "Could not write the daily summary, \(error)"
+            refusedSummaryMonth = month
+            lastStoreError = "\(Self.summaryFailurePrefix), \(error)"
+            return false
         }
+        if refusedSummaryMonth == month {
+            refusedSummaryMonth = nil
+            clearStoreError(prefixed: Self.summaryFailurePrefix)
+        }
+        return true
     }
 
     private func badgeDays(store: FileEventStore) -> [BadgeDay] {
@@ -1061,7 +1081,12 @@ final class AppModel {
             persistedDay = nil
             badgesLeftAlone = false
             countersLeftAlone = false
-            if lastStoreError?.hasPrefix(Self.leftAlonePrefix) == true { lastStoreError = nil }
+            summaryWriteRefused = false
+            refusedSummaryMonth = nil
+            badgesUnsaved = false
+            for prefix in [Self.leftAlonePrefix, Self.summaryFailurePrefix, Self.badgesFailurePrefix] {
+                clearStoreError(prefixed: prefix)
+            }
             refreshRollup(force: true)
             return report.userFacingSummary + Self.removeLoginItem()
         } catch {

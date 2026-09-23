@@ -835,13 +835,18 @@ These files are never pruned and never read back, so badge evidence stops counti
 They are still the JSON they were, so a month can be repaired by hand and renamed back.
 *Delete everything* removes them with the rest. A month file that is there but will not open at
 all (another owner, a `chmod`, a disk error, a symbolic link) is not moved and not written: that
-month's summary is not saved, and the menu bar says "Could not write the daily summary" until it
-can be.
+month's summary is not saved, and the menu bar says "Could not write the daily summary". The app
+tries again with the next summary write, ten minutes later, or sooner when a break ends, the
+screen locks or the Mac sleeps, and the message goes once that month is written. The exception is a
+month that has just ended: once the new month's first day is saved it is not tried again, and the
+message stays until the next launch.
 
 `badges.json` and `counters.json` get the same rule. If one is there but will not open, the app
 carries on from what it holds in memory, writes nothing over the file, posts no "unlocked" note
 while the ledger is out of reach, and says in the menu bar which file it left as it is. It reads
-the file again at the next launch.
+the file again at the next launch. A badge write that fails for any other reason says "Could not
+write the badges", is tried again with the next summary write, and the message goes once one
+succeeds.
 
 There is no database, no binary blob, no `.sqlite`, and nothing encrypted or encoded. Formats were
 chosen so that `cat` is a complete audit tool.
