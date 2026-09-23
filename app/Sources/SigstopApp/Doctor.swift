@@ -449,8 +449,8 @@ enum Doctor {
         case .timedOut:
             return [
                 "A folder on a network share or a sleeping disk can block for as long",
-                "as the filesystem takes. The read is given a quarter of a second and",
-                "then abandoned, so nothing else in the app waits behind it. It will",
+                "as the filesystem takes. The read is given one second and then",
+                "abandoned, so nothing else in the app waits behind it. It will",
                 "be tried again when you next change the folders in Settings.",
             ]
         case .read(_, _, .reftable, let route):
