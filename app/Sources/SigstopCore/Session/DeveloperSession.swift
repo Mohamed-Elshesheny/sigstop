@@ -108,6 +108,11 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         clock = .paused(cause: cause, since: since)
     }
 
+    mutating func relabelPause(cause: PauseCause, since: Date) {
+        guard case .paused = clock else { return }
+        clock = .paused(cause: cause, since: since)
+    }
+
     mutating func resumeClock() {
         guard !isStopped else { return }
         clock = .running

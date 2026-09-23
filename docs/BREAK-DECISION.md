@@ -338,6 +338,19 @@ break nobody took. Without the fresh start, a second lock inside the same pause 
 because the first had already spent the gap's one break. A session that has already ended stays
 ended: the move still happens, but nothing more is recorded until a new session starts.
 
+Idle is the one cause that takes over differently. When a pause ends with nobody at the keyboard,
+the gap becomes `microIdleExceeded` and starts again at the end of the pause, or at the last input
+if that came later. A lock says the user left; idle inside a pause says nothing,
+because being left alone is what the pause was for. So someone who comes back just after a pause
+ends has not had a break, and someone who stays away has one once the absence after the pause
+reaches `qualifyingBreak`, and a session end at `sessionGap`. Before this the gap kept saying
+`userPaused`, which is always a pause, so an absence that outlasted the pause was never a break or
+a session end however long it ran. The work clock's pause is relabelled with the new cause and a
+`clockPaused` is emitted for it, so the event log records the absence as idle; `AppModel` writes
+no idle line for a `userPaused` pause. The tracker learns that a pause is over one tick late,
+because `AppModel` builds the tick's sample from the engine's state before the step, so the end of
+the pause is taken to be the previous tick.
+
 ### 4.1 Work-clock transitions
 
 | # | Trigger / gap | Duration | Context | Classification | Clock | Break recorded | Session |

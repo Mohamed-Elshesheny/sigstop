@@ -148,6 +148,7 @@ public struct SessionTracker: Sendable {
         let now = time.now
         let mono = time.continuousSeconds
 
+        let previousTickMono = lastTickMono
         let delta = max(0, mono - lastTickMono)
         let wallDelta = now.timeIntervalSince(lastTickWall)
         let skew = wallDelta - delta
@@ -185,7 +186,10 @@ public struct SessionTracker: Sendable {
         let cause = pauseCause(for: sample, discontinuity: discontinuity, idle: idle)
 
         if let cause {
-            openOrUpdateGap(cause: cause, now: now, mono: mono, discontinuity: discontinuity, events: &events)
+            openOrUpdateGap(
+                cause: cause, now: now, mono: mono, previousTick: previousTickMono,
+                discontinuity: discontinuity, events: &events
+            )
         } else if gap != nil {
             closeGap(now: now, mono: mono, events: &events)
         }
@@ -219,6 +223,7 @@ public struct SessionTracker: Sendable {
         cause: PauseCause,
         now: Date,
         mono: Double,
+        previousTick: Double,
         discontinuity: Bool,
         events: inout [SessionEvent]
     ) {
@@ -242,6 +247,11 @@ public struct SessionTracker: Sendable {
                     beginSegment(&existing, at: min(lastInputMono, mono), now: now, mono: mono)
                 }
                 existing.cause = cause
+            } else if existing.cause == .userPaused, existing.paused, !session.isStopped {
+                beginSegment(&existing, at: min(max(lastInputMono, previousTick), mono), now: now, mono: mono)
+                existing.cause = cause
+                session.relabelPause(cause: cause, since: existing.startWall)
+                events.append(.clockPaused(cause: cause, since: existing.startWall))
             }
             gap = existing
         }
