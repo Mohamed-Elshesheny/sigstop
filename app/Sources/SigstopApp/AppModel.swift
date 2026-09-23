@@ -94,8 +94,8 @@ final class AppModel {
             return SlotResolver.outsideText(branch) ?? "a branch whose name is only invisible characters"
         }
         var stateText: String? {
-            guard let repoState, repoState != .clean else { return nil }
-            return "mid-\(repoState.rawValue)"
+            guard let repoState, repoState != .clean, repoState != .detachedHead else { return nil }
+            return repoState.displayName
         }
     }
 

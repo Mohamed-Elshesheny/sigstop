@@ -432,7 +432,7 @@ enum Ev {
         )
     }
     static func repoState(_ state: RepoState) -> Evidence {
-        make("git.repoState", .tier2, 0.6, "the repository is mid-\(state.rawValue)")
+        make("git.repoState", .tier2, 0.6, "the repository is \(state.displayName)")
     }
 
     static func micRunning() -> Evidence {

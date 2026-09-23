@@ -553,3 +553,30 @@ private extension Sandbox {
     )
     #expect(observation.evidence.contains { $0.id.rawValue == "git.repoState" })
 }
+
+@Test func aRepositoryStateIsNamedInWordsNotAsAnEnumCase() {
+    let expected: [(RepoState, String)] = [
+        (.rebaseInProgress, "the repository is mid-rebase"),
+        (.mergeInProgress, "the repository is mid-merge"),
+        (.bisecting, "the repository is mid-bisect"),
+        (.detachedHead, "the repository is on a detached HEAD"),
+    ]
+    for (state, words) in expected {
+        let signals = SignalContext(
+            now: Date(timeIntervalSince1970: 1_700_000_000),
+            available: [.tier0, .tier1, .tier2],
+            frontmost: editor,
+            input: InputActivity(idleSeconds: 3, source: .hidSystemState),
+            windowTitle: "main.swift — sigstop",
+            git: GitSignal(
+                branch: state == .detachedHead ? nil : "main",
+                repoState: state, repoName: "sigstop", readAt: Date()
+            )
+        )
+        let summaries = ProviderRegistry().classify(signals).verdict.evidence
+            .filter { $0.id.rawValue == "git.repoState" }
+            .map(\.summary)
+        #expect(summaries == [words], "\(state)")
+        #expect(!summaries.contains { $0.contains(state.rawValue) }, "\(state)")
+    }
+}

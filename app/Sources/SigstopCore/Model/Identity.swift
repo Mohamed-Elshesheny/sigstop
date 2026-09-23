@@ -20,6 +20,16 @@ public struct ProviderID: Sendable, Codable, Hashable, RawRepresentable {
 
 public enum RepoState: String, Sendable, Codable, Hashable {
     case clean, rebaseInProgress, mergeInProgress, bisecting, detachedHead
+
+    public var displayName: String {
+        switch self {
+        case .clean:            return "clean"
+        case .rebaseInProgress: return "mid-rebase"
+        case .mergeInProgress:  return "mid-merge"
+        case .bisecting:        return "mid-bisect"
+        case .detachedHead:     return "on a detached HEAD"
+        }
+    }
 }
 
 public struct ActivityContext: Sendable, Codable, Hashable {
