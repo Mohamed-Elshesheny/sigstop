@@ -1119,7 +1119,8 @@ and the summaries are not in it: they are the plain files in §4.2, and `cat` is
 **Delete everything** (the **Delete my data…** button in Settings → Data, one confirmation):
 removes everything in the storage directory, the settings file with it, except its empty `.lock`:
 that stays held for the whole run, so a second copy started meanwhile still sees sigstop running and
-leaves. It withdraws any sigstop notification still showing, unregisters the login item if it
+leaves. A `.lock` that is not a plain file goes with the rest, and the app takes a new one at once.
+It withdraws any sigstop notification still showing, unregisters the login item if it
 is registered, puts the default settings back everywhere they apply (the break policy, the sensors,
 the permission status), resets the call hold's daily total and the in-memory counters (a hold that is
 running keeps running, so a call you declared is still protected), and reports what it
