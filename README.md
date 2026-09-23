@@ -129,7 +129,7 @@ No. Out of the box it sees which app is in front, whether you're idle, and wheth
 <summary><b>Where is my data, and how do I delete it?</b></summary>
 <br>
 
-In `~/Library/Application Support/dev.sigstop.app`. **Settings → Data → Delete my data…** removes that folder and the login item. What the update check leaves behind is in the uninstall steps below.
+In `~/Library/Application Support/dev.sigstop.app`. **Settings → Data → Delete my data…** removes everything in that folder except its empty `.lock`, which sigstop holds while it runs, and removes the login item. What the update check leaves behind is in the uninstall steps below.
 
 </details>
 

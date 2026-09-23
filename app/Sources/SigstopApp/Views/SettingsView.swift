@@ -545,8 +545,9 @@ struct SettingsView: View {
 
             SettingsSection("delete") {
                 Note(
-                    "Removes the folder above and everything in it: the event log, the summaries, "
-                        + "the badges, the day's counters and these settings. There is no archive, "
+                    "Removes everything in the folder above except its empty .lock: the event log, "
+                        + "the summaries, the badges, the day's counters, the call hold's total for "
+                        + "today and these settings. There is no archive, "
                         + "no tombstone and no copy kept anywhere, which is the point and also means "
                         + "there is no undo."
                 )
@@ -598,7 +599,8 @@ struct SettingsView: View {
         alert.messageText = "Delete everything sigstop has stored?"
         alert.informativeText =
             "This removes everything in the folder sigstop keeps its data in: the event "
-            + "log, the daily summaries, the badges, the day's counters and your settings. "
+            + "log, the daily summaries, the badges, the day's counters, the call hold's total "
+            + "for today and your settings. "
             + "Only its empty .lock stays, because sigstop is still running. "
             + "There is no archive, no tombstone and no copy kept anywhere."
         alert.alertStyle = .warning
