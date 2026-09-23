@@ -452,7 +452,8 @@ Sparkle closes that with EdDSA (Ed25519):
 - The **public key** is compiled into the app as `SUPublicEDKey` in `Info.plist`. You can read it
   with `plutil -p`.
 - Every release archive is signed with `sign_update` and the signature is written into the appcast.
-  Sparkle verifies it **before** the archive is unpacked or installed. A signature that does not
+  From 0.1.8 on, Sparkle verifies it **before** the archive is unpacked or installed; an installed
+  0.1.7 or earlier unpacks its next update first and checks it before installing. A signature that does not
   verify is not a warning; the update simply does not happen.
 
 The consequence, stated as plainly as it deserves: **an attacker who fully owns the update server

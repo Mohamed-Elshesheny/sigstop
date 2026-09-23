@@ -76,7 +76,7 @@ shasum -a 256 ~/Downloads/sigstop.dmg
 
 That proves the file matches what GitHub serves, not who built it. For that, [build it yourself](#build).
 
-**Updates:** Settings → About → **Check for updates**. Every update is checked against a signing key built into the app before it is even unpacked.
+**Updates:** Settings → About → **Check for updates**. Every update is checked against a signing key built into the app, from 0.1.8 on before it is even unpacked.
 
 ## 🔒 Privacy
 
