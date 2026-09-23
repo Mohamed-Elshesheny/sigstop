@@ -522,7 +522,9 @@ Two independent opt-ins, each with its own switch:
 **(a) Git context.** For user-registered project folders only (chosen via `NSOpenPanel`, so the user
 grants the folder explicitly):
 
-- Read `.git/HEAD` → branch, or detached HEAD. One tiny file read.
+- Read the first line of `.git/HEAD` → branch, or detached HEAD. In a worktree or submodule the
+  `.git` file's `gitdir:` line is read first, and mid-rebase the branch comes from `head-name`.
+  `docs/PRIVACY.md` §2.10 lists every filesystem call the collector makes.
 - Presence of `.git/rebase-merge/`, `.git/rebase-apply/`, `.git/MERGE_HEAD`, `.git/BISECT_LOG` →
   `RepoState`.
 - **We never shell out to `git`.** Spawning a process on a timer is the classic way these apps

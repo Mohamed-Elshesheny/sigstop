@@ -57,7 +57,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 28 | **Seconds the call hold has held a break today**, and the day they count for | Derived from #25, #26 and #27 by the call latch | So the three-hour daily ceiling on holding survives a relaunch instead of resetting to zero | Persisted, `call-hold.json` (a day index and a number of seconds) | Overwritten in place; reset on delete | Follows "Hold my break during calls" |
 | 29 | **The focused window's document path** (`/Users/you/p/a.swift`) | `kAXDocument` on the focused window, read in the same call that reads the title. Tier 1 | Names the file you have open when the title does not, and tells the git collector which registered folder you are in | Memory-only, one sample. Anything that is not a local file URL is discarded before it is parsed, which is what keeps a browser's full page URL out (`AccessibilityCollector.fileURL(from:)`) | Until the next sample | Follows Tier 1 |
 | 30 | **Which of a fixed list of developer tools is running**, as an enum case, never a string, plus one `Bool` for whether anything is under a debugger | One `sysctl(KERN_PROC_ALL)`, then `proc_pidpath` for the pids whose `p_comm` already matched the `ToolToken` allowlist in `app/Sources/SigstopSensors/SignalContext.swift`. **No permission is required and none is requested** | The only signal in this product that can tell `DEBUGGING` from `CODING`. Without it the app degrades to `CODING` rather than guess between siblings ("Never overclaim" in [the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)) | **Not persisted, and nothing but the match survives.** The path is compared and dropped. A process matching nothing is not recorded, not counted, not reported. No command line, environment or working directory is read at all | Memory-only, one sample | **Yes, and off by default** |
-| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | One read of the first 512 bytes of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`, plus four `access` checks. No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), `--doctor` prints its length rather than the name (§8.12), and it is **withheld from the system-notification channel** so that the one path out of this process cannot carry it (§8.11) | Until the next sample, or process exit | **Yes, and off by default** |
+| 31 | **Current git branch name** (`fix/retry-loop`), and whether a rebase, merge or bisect is in progress | The first line, at most 512 bytes, of `<repo>/.git/HEAD`, in a folder **you registered yourself** through an `NSOpenPanel`. In a worktree or submodule, first the `gitdir:` line of the `.git` file; mid-rebase, the `head-name` line. Plus `lstat` on `.git` and on the git directory, its `HEAD`, `objects` and `commondir`, one `realpath` of a `gitdir:` target, and four `access` checks, none of which opens a file (§2.10). No `git` process is ever spawned | Fills the `{branch}` slot so a line can say something true instead of something generic | **Memory-only.** Held for the lifetime of one `DeveloperContext` and replaced by the next sample. There is **no field in `LoggedEvent` that could hold it** (§4.3), `--doctor` prints its length rather than the name (§8.12), and it is **withheld from the system-notification channel** so that the one path out of this process cannot carry it (§8.11) | Until the next sample, or process exit | **Yes, and off by default** |
 | 32 | **The activity at a focus event** (`act`: `coding`, `codeReview`, `documentation`…), one of the twelve `Activity` cases | Derived. From #1 alone at Tier 0; **with Tier 1 on, also from the window title (#12) and the document path (#29)**; with Tier 2 process context, also from #30 | So the log can say what kind of work a stretch was, not only which app it was in | Persisted, the `act` field of `focus` events (§4.3). A browser tab titled `Pull Request #12` is logged as `"act":"codeReview"` | Same as #1 | No switch of its own. It is title-derived only while Tier 1 is on |
 | 33 | **The update check's URL cache**: the appcast URL, the time it was fetched, and the appcast itself | Foundation's URL cache, filled by Sparkle's request in this process when you press **Check for updates** | Nothing in this app asks for it. It is what Foundation does with an HTTP response by default | Persisted, `~/Library/Caches/<BUNDLE_ID>/Cache.db` and `fsCachedData/` | Controlled by Foundation and macOS, not by the app. *Delete my data…* does not remove it | Only by never pressing the button |
 | 34 | **Foundation's HTTP storage** for this app | Created by the same request | As #33 | Persisted, `~/Library/HTTPStorages/<BUNDLE_ID>/`. On the Mac this was checked on it held one table, `alt_services`, and it was empty | Controlled by macOS. *Delete my data…* does not remove it | Only by never pressing the button |
@@ -80,13 +80,16 @@ password is routinely written in plain text, `psql "postgres://user:hunter2@host
 canonical example, which is exactly why `KERN_PROCARGS2` is not called. §2.10 gives the mechanism
 and the commands that check it.
 
-**Row 31 reads one line of one file.** Not a diff, not a commit message, not `.git/config`, not an
-object, not the index, and never a file in your working tree. The repository state is four `access`
-calls, on `.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD` and `.git/BISECT_LOG`, each of
-which returns a `Bool` and opens nothing: the app learns a rebase is in progress, never what is
-being rebased. The folder is one you picked in an `NSOpenPanel`. The app never guesses a path from a
-window title or a project name, because guessing a path from a name is the kind of invention
-"Never overclaim" forbids ([the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)).
+**Row 31 reads first lines, and only of git's own pointer files**: `HEAD`, the `.git` file a
+worktree or submodule has instead of a folder, and mid-rebase the `head-name` file that says which
+branch is being rebased. Not a diff, not a commit message, not `.git/config`, not an object, not the
+index, and never a file in your working tree. The repository state is four `access` calls, on
+`.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD` and `.git/BISECT_LOG`, each of which
+returns a `Bool` and opens nothing: the app learns a rebase is in progress, never what is being
+rebased. The `lstat` and `realpath` calls in the row say what kind of thing a path is and where a
+`gitdir:` line leads, and open nothing either. The folder is one you picked in an `NSOpenPanel`.
+The app never guesses a path from a window title or a project name, because guessing a path from a
+name is the kind of invention "Never overclaim" forbids ([the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)).
 
 What a window title and a `kAXDocument` path **do** decide is *which* of the folders you added is
 the one in front, and only that. Two of your folders answering means the app does not know which
@@ -548,11 +551,15 @@ a git directory: it holds a `HEAD` file and either an `objects` folder or a `com
 is what git writes for a repository, a worktree, a submodule and a `--separate-git-dir`. A `.git`
 that is itself a link is refused.
 Every file is opened with `O_NOFOLLOW | O_NONBLOCK` and read only if it is a plain file, so a link
-cannot point the read elsewhere and a FIFO cannot hold it open. Mid-rebase, `HEAD` is a detached sha and the branch you are on is
-in `rebase-merge/head-name`, which is read for the same reason and nothing else in that directory is.
-Every other filesystem call is one of the four `access` checks above, which return a `Bool` and open
-nothing. `git` is never spawned: `Process`, `NSTask` and `posix_spawn` remain forbidden symbols
-(§2.9), so shelling out is not something this binary can do, whatever a future contributor intends.
+cannot point the read elsewhere and a FIFO cannot hold it open. Mid-rebase, `HEAD` is a detached sha
+and the branch you are on is in `rebase-merge/head-name` (or `rebase-apply/head-name`), which is read
+for the same reason and nothing else in that directory is.
+Every other filesystem call opens nothing: `lstat` on `.git` and on the git directory, its `HEAD`,
+`objects` and `commondir`, which is how a link is refused and a git directory recognised; one
+`realpath` on a `gitdir:` target; `fstat` on a file already opened, to check it is a plain file; and
+the four `access` checks in row 31, which return a `Bool`. `git` is never spawned: `Process`,
+`NSTask` and `posix_spawn` remain forbidden symbols (§2.9), so shelling out is not something this
+binary can do, whatever a future contributor intends.
 
 **Mechanism, processes.** One `sysctl(CTL_KERN, KERN_PROC, KERN_PROC_ALL)` returns the table.
 `p_comm` is compared against the allowlist, `proc_pidpath` confirms the executable's location for
@@ -580,13 +587,27 @@ grep -rn 'KERN_PROCARGS2\|proc_pidinfo\|PROC_PIDVNODEPATHINFO' app/Sources
 grep -rnE '(^|[^A-Za-z0-9_.])Process\(|NSTask|posix_spawn' app/Sources
 #   (no output)
 
-# every path fragment the git collector can build, in one grep. Eight lines: six carry
-# the only names it ever appends, and two are a bare "/" used as a separator
+# every path fragment the git collector can build, in one grep. Ten lines: eight carry
+# the only names it ever appends, and two use a bare "/" as a separator
 grep -n '\"/' app/Sources/SigstopSensors/Collectors/GitCollector.swift
-#   names:  /.git  /HEAD  /rebase-merge  /rebase-apply  /MERGE_HEAD  /BISECT_LOG
-#           /rebase-merge/head-name  /rebase-apply/head-name
-# and the bound on how much of HEAD is read, which is 512 bytes
+#   222:            let inside = roots.filter { path == $0 || path.hasPrefix($0 + "/") }
+#   267:            switch readFirstLine(gitDirectory + "/HEAD") {
+#   284:        let dot = folder + "/.git"
+#   300:            let target = raw.hasPrefix("/") ? raw : folder + "/" + raw
+#   314:        guard kind("") == S_IFDIR, kind("/HEAD") == S_IFREG else { return false }
+#   315:        return kind("/objects") == S_IFDIR || kind("/commondir") == S_IFREG
+#   336:        for candidate in ["/rebase-merge/head-name", "/rebase-apply/head-name"] {
+#   349:        if exists("/rebase-merge") || exists("/rebase-apply") { return .rebaseInProgress }
+#   350:        if exists("/MERGE_HEAD") { return .mergeInProgress }
+#   351:        if exists("/BISECT_LOG") { return .bisecting }
+# names:  /.git  /HEAD  /objects  /commondir  /rebase-merge  /rebase-apply  /MERGE_HEAD
+#         /BISECT_LOG  /rebase-merge/head-name  /rebase-apply/head-name
+
+# and the bound on how much of any of those files is read, which is 512 bytes
 grep -n 'headReadLimit' app/Sources/SigstopSensors/Collectors/GitCollector.swift
+#   22:    private static let headReadLimit = 512
+#   366:        var buffer = [UInt8](repeating: 0, count: headReadLimit)
+#   368:            Darwin.read(descriptor, raw.baseAddress, headReadLimit)
 ```
 
 If you would rather not take the source's word for it, the same two claims hold against the built
@@ -594,7 +615,8 @@ binary, which is what `make verify` checks for the networking ones: `nm -u dist/
 lists no `_posix_spawn`, no `_proc_pidinfo` and no `_NSTask`.
 
 At runtime: `sudo fs_usage -w -f filesys $(pgrep -x sigstop)` and watch that the only paths outside
-the bundle and the storage directory are `HEAD` files in folders you registered.
+the bundle and the storage directory are the git names above, under `.git` in folders you
+registered or in the git directory a `.git` file there names.
 
 ---
 
@@ -1604,7 +1626,7 @@ where the change is recorded.
 | Dependencies | Zero third-party runtime dependencies | Exactly one: Sparkle, pinned with `exact:`, linked into the app target only. §7 row 2 |
 | Hardened Runtime | On, with Library Validation | On. Library Validation is off in the ad-hoc build, because it cannot load an embedded framework without a Team ID. §2.9, §8.1d |
 | Update integrity | Notarized Developer ID signing | EdDSA signing with a key held only by the maintainer, verified before install. §2.8, §8.1c |
-| Tier 2 | Two switches that read nothing, and a `--doctor` that said so | Two collectors: executable basenames against a fixed allowlist, and one line of `.git/HEAD` in folders you register. Inventory rows 29 to 31, §2.10, §3.5, §8.11 to §8.13 |
+| Tier 2 | Two switches that read nothing, and a `--doctor` that said so | Two collectors: executable basenames against a fixed allowlist, and the first line of `.git/HEAD`, with the few pointer files §2.10 names, in folders you register. Inventory rows 29 to 31, §2.10, §3.5, §8.11 to §8.13 |
 | Tier 2 command lines | `docs/ACTIVITY-DETECTION.md` mandated `KERN_PROCARGS2` for the full argv | argv is never read. The justification for reading it (a 16-character `p_comm` limit) was measurably wrong, and `proc_pidpath` answers the same question with no permission. The cost, six tool tokens that become undetectable, is named in §4.3(b) of that file |
 
 Nothing in the earlier positions was deleted to make room for these. The arguments that were
