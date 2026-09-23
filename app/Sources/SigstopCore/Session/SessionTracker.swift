@@ -237,7 +237,14 @@ public struct SessionTracker: Sendable {
                 startWall: now.addingTimeInterval(-(mono - clamped))
             )
         } else if var existing = gap, existing.cause != cause {
-            if cause != .microIdleExceeded { existing.cause = cause }
+            if cause != .microIdleExceeded {
+                if existing.cause == .userPaused, lastInputMono > existing.startMono {
+                    let anchor = min(lastInputMono, mono)
+                    existing.startMono = anchor
+                    existing.startWall = now.addingTimeInterval(-(mono - anchor))
+                }
+                existing.cause = cause
+            }
             gap = existing
         }
         if cause == .systemSleep { pendingWakeCause = nil }

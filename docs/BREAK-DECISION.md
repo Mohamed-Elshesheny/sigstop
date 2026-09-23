@@ -327,6 +327,12 @@ all `.pause(cause)`, the 20-minute reset is applied to a pause by `applyGapThres
 `longPauseReset`, and `sessionGap` is `.sessionEnd`. The `GapOutcome` struct this section used to
 sketch was not built.
 
+A gap keeps its start when its cause changes, so idling and then locking the screen counts from the
+last input, as it should. The one exception is a gap that began as `userPaused`: typing goes on
+during a pause, so when a lock, sleep or user switch takes over, the gap is moved to start at the last
+input. Without that, locking the screen five minutes into a pause recorded the whole pause as a break
+nobody took.
+
 ### 4.1 Work-clock transitions
 
 | # | Trigger / gap | Duration | Context | Classification | Clock | Break recorded | Session |
