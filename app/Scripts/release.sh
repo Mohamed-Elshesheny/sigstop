@@ -25,6 +25,40 @@ TAG="v${VERSION}"
 PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
 PLIST_NAME="$(/usr/libexec/PlistBuddy -c 'Print SGReleaseName' Resources/Info.plist 2>/dev/null || true)"
 
+# The subject of the commit that carries the signed feed. The checks below look for it.
+FEED_SUBJECT="build: publish the appcast for"
+
+# The one command that takes a single commit out of main and keeps everything around it.
+drop_cmd() {
+  if [ "$(git rev-parse HEAD)" = "$1" ]; then
+    echo "git reset --keep $(git rev-parse "$1^")"
+  else
+    echo "git rebase --onto $1^ $1"
+  fi
+}
+
+quote() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+# A feed commit that never reached origin is what a release leaves behind when it stops after
+# signing. Pushing it is the obvious next move and the wrong one when its release does not exist:
+# every installed copy would be offered a download that 404s.
+unpushed_feed() {
+  git log --format='%H %s' --grep="^${FEED_SUBJECT} " origin/main..HEAD 2>/dev/null || true
+}
+warn_unpushed_feed() {
+  local left sha subject
+  left="$(unpushed_feed)"
+  [ -n "${left}" ] || return 0
+  while read -r sha subject; do
+    echo "       main holds ${sha}, \"${subject}\", which never reached origin." >&2
+    echo "       See whether its release exists: gh release view ${subject##* } -R ${REPO}" >&2
+    echo "       If it does, with both images, push main: that is the last step of that release." >&2
+    echo "       If it does not, do NOT push main. Drop the commit: $(drop_cmd "${sha}")" >&2
+  done <<<"${left}"
+}
+
 if [ "${PLIST_VERSION}" != "${VERSION}" ]; then
   echo "error: Info.plist says ${PLIST_VERSION}, you asked for ${VERSION}." >&2
   echo "       Bump CFBundleShortVersionString first so the app and the tag agree." >&2
@@ -37,8 +71,16 @@ if [ "${PLIST_NAME}" != "${NAME}" ]; then
   exit 1
 fi
 
+# Fetched first, so a tag that exists only on origin counts as existing.
+git fetch -q origin
+
 if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
   echo "error: ${TAG} already exists." >&2
+  if [ -n "$(unpushed_feed)" ]; then
+    warn_unpushed_feed
+    echo "       To cut ${TAG} again once the commit is gone, delete the tag here, and on origin" >&2
+    echo "       if it got there: git tag -d ${TAG}, then git push origin :refs/tags/${TAG}" >&2
+  fi
   exit 1
 fi
 
@@ -48,10 +90,14 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # What gets signed has to be what everybody else can see: pushed, on main, and green in CI.
-git fetch -q origin
 RELEASED_SHA="$(git rev-parse HEAD)"
 if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ] || [ "${RELEASED_SHA}" != "$(git rev-parse origin/main)" ]; then
-  echo "error: HEAD is not origin/main. Push main and let CI finish, then release from it." >&2
+  if [ -n "$(unpushed_feed)" ]; then
+    echo "error: HEAD is not origin/main, because a release stopped after signing its feed." >&2
+    warn_unpushed_feed
+  else
+    echo "error: HEAD is not origin/main. Push main and let CI finish, then release from it." >&2
+  fi
   exit 1
 fi
 CI_RESULT="$(gh run list -R Mohamed-Elshesheny/sigstop --commit "${RELEASED_SHA}" --workflow CI \
@@ -97,6 +143,10 @@ if ! grep -q '^- ' <<<"${NOTES}"; then
 fi
 
 LOGS="$(mktemp -d)"
+# Kept on disk so that a release which stops after signing can be finished by hand with the
+# same notes.
+NOTES_FILE="${LOGS}/notes.md"
+printf '%s\n' "${NOTES}" > "${NOTES_FILE}"
 quiet() {
   local log="${LOGS}/$(printf '%s' "$*" | tr -c 'A-Za-z0-9' '_' | cut -c1-60).log"
   if ! "$@" >"${log}" 2>&1; then
@@ -140,12 +190,18 @@ fi
 
 echo "==> signing the update feed"
 SIGSTOP_RELEASING="${RELEASED_SHA}" ./Scripts/appcast.sh >/dev/null
+FEED_SHA=""
 if [ -n "$(cd .. && git status --porcelain updater/)" ]; then
-  (cd .. && git add updater/appcast.xml && git commit -q -m "build: publish the appcast for v${VERSION}")
+  (cd .. && git add updater/appcast.xml && git commit -q -m "${FEED_SUBJECT} v${VERSION}")
+  FEED_SHA="$(git rev-parse HEAD)"
   echo "    committed updater/appcast.xml"
 fi
 
-
+# appcast.sh signed exactly one versioned image, and these are the files the feed names.
+shopt -s nullglob
+ASSETS=(dist/sigstop.dmg dist/sigstop-"${VERSION}"*.dmg)
+shopt -u nullglob
+FEED_URL="$(sed -n '/url="[^"]*\.dmg"/{s/.*url="\([^"]*\.dmg\)".*/\1/p;q;}' ../updater/appcast.xml)"
 
 # Nothing may have changed while the build ran but the feed commit this script made.
 if [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASED_SHA}" HEAD -- ':(top)' ':(top,exclude)updater/appcast.xml')" ]; then
@@ -159,15 +215,51 @@ if [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASE
   exit 1
 fi
 
+# From here on a failure leaves the signed feed committed on main with no release behind it, and
+# the obvious next move, pushing main, would offer every installed copy a download that does not
+# exist. So whatever stops the script says where it stopped and prints both ways out.
+REACHED=""
+stopped_after_signing() {
+  [ "${REACHED}" = "released" ] && return 0
+  {
+    echo
+    echo "error: ${TAG} stopped after its feed was signed, before GitHub had the release."
+    if [ -n "${FEED_SHA}" ]; then
+      echo "       The feed commit ${FEED_SHA} on main points every installed"
+      echo "       copy at ${FEED_URL:-the new image},"
+      echo "       which does not exist yet. Do NOT push main."
+    fi
+    if [ "${REACHED}" = "pushed" ]; then
+      echo "       See what GitHub has first: gh release view ${TAG} -R ${REPO}"
+      echo "       A draft left by a failed upload goes with: gh release delete ${TAG} -R ${REPO} --yes"
+    fi
+    echo
+    echo "       To finish it, from $(pwd):"
+    [ -n "${REACHED}" ] || echo "         git tag -a ${TAG} -m $(quote "${TAG} ${NAME}") ${RELEASED_SHA}"
+    [ "${REACHED}" = "pushed" ] || echo "         git push origin ${TAG}"
+    echo "         gh release create ${TAG} ${ASSETS[*]} -R ${REPO} --title $(quote "${TAG} ${NAME}") --notes-file $(quote "${NOTES_FILE}")"
+    echo "         git push"
+    echo
+    echo "       To abandon it instead:"
+    [ -z "${FEED_SHA}" ] || echo "         $(drop_cmd "${FEED_SHA}")"
+    [ -z "${REACHED}" ] || echo "         git tag -d ${TAG}"
+    [ "${REACHED}" != "pushed" ] || echo "         git push origin :refs/tags/${TAG}"
+  } >&2
+}
+trap stopped_after_signing EXIT
+
 echo "==> tagging ${TAG}"
 git tag -a "${TAG}" -m "${TAG} ${NAME}" "${RELEASED_SHA}"
+REACHED="tagged"
 git push -q origin "${TAG}"
+REACHED="pushed"
 
 echo "==> publishing"
-gh release create "${TAG}" dist/sigstop.dmg dist/sigstop-${VERSION}*.dmg \
+gh release create "${TAG}" "${ASSETS[@]}" \
   -R "${REPO}" \
   --title "${TAG} ${NAME}" \
-  --notes "${NOTES}"
+  --notes-file "${NOTES_FILE}"
+REACHED="released"
 
 echo
 echo "released ${TAG} ${NAME}"

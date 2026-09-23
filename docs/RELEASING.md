@@ -289,6 +289,15 @@ If anything changes in the tree while it runs, it stops before signing. If that 
 feed commit, it undoes the commit, because a pushed feed naming a download that does not exist
 would offer every installed copy an update that 404s.
 
+**If `make release` fails after signing.** From the feed commit on, a failure in the tag, the tag
+push or `gh release create` leaves that commit on local `main` with no release behind it.
+`release.sh` says so as it exits, names the feed commit, and prints both ways out as commands for
+the point it reached: finish it (the tag, the tag push, `gh release create` with the same two
+images and the notes it saved, then `git push`), or abandon it (drop the feed commit, and delete
+the tag here and on `origin` if it got that far). **Do not push `main` until one of them is
+done.** A later run that finds a feed commit which never reached `origin` refuses and says the
+same, rather than telling you to push.
+
 Then push `main`, which is what publishes the feed:
 
 ```sh
