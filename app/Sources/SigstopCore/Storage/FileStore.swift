@@ -237,16 +237,23 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     public func writeBadges(_ ledger: BadgeLedger) throws {
         lock.lock()
         defer { lock.unlock() }
+        try refuseToReplaceUnopenable(badgesFile)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try writeAtomically(try encoder.encode(ledger), to: badgesFile)
     }
 
-    public func readBadges() -> BadgeLedger {
+    public func readBadges() throws -> BadgeLedger {
         lock.lock()
         defer { lock.unlock() }
-        guard let data = fm.contents(atPath: badgesFile.path) else { return .empty }
-        return (try? JSONDecoder().decode(BadgeLedger.self, from: data)) ?? .empty
+        switch SecureFile.read(badgesFile, limit: Self.largestRecordFile) {
+        case .absent:
+            return .empty
+        case .unreadable:
+            throw StoreError.wouldNotOpen(path: badgesFile.path)
+        case .contents(let data):
+            return (try? JSONDecoder().decode(BadgeLedger.self, from: data)) ?? .empty
+        }
     }
 
     public var countersFile: URL {
@@ -256,19 +263,31 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     public func writeCounters(_ counters: DailyCounters) throws {
         lock.lock()
         defer { lock.unlock() }
+        try refuseToReplaceUnopenable(countersFile)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try writeAtomically(try encoder.encode(counters), to: countersFile)
     }
 
-    public func readCounters() -> DailyCounters? {
+    public func readCounters() throws -> DailyCounters? {
         lock.lock()
         defer { lock.unlock() }
-        guard let data = fm.contents(atPath: countersFile.path),
-              let counters = try? JSONDecoder().decode(DailyCounters.self, from: data),
+        let data: Data
+        switch SecureFile.read(countersFile, limit: Self.largestRecordFile) {
+        case .absent: return nil
+        case .unreadable: throw StoreError.wouldNotOpen(path: countersFile.path)
+        case .contents(let contents): data = contents
+        }
+        guard let counters = try? JSONDecoder().decode(DailyCounters.self, from: data),
               counters.isPlausible
         else { return nil }
         return counters
+    }
+
+    private func refuseToReplaceUnopenable(_ file: URL) throws {
+        guard SecureFile.read(file, limit: Self.largestRecordFile) != .unreadable else {
+            throw StoreError.notWritable(path: file.path, reason: Self.leftAsItIs)
+        }
     }
 
     @discardableResult

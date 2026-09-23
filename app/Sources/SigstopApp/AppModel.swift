@@ -122,6 +122,8 @@ final class AppModel {
     @ObservationIgnored private var engineState: EngineState
     @ObservationIgnored private var day = DailyCounters()
     @ObservationIgnored private var persistedDay: DailyCounters?
+    @ObservationIgnored private var badgesLeftAlone = false
+    @ObservationIgnored private var countersLeftAlone = false
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private var observerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var pendingAction: UserAction?
@@ -658,25 +660,54 @@ final class AppModel {
     }
 
     private func openStore() {
+        let store: FileEventStore
         do {
-            let store = try FileEventStore(root: AppPaths.storageRoot)
-            self.store = store
-            badges = store.readBadges()
-            if let stored = store.readCounters() {
-                day = stored
-                persistedDay = stored
-            }
-            lastStoreError = nil
+            store = try FileEventStore(root: AppPaths.storageRoot)
         } catch {
-            store = nil
+            self.store = nil
             lastStoreError = "Could not open \(AppPaths.storageRoot.path), \(error)"
             return
         }
+        self.store = store
+        lastStoreError = nil
+        do {
+            badges = try store.readBadges()
+            badgesLeftAlone = false
+        } catch {
+            badgesLeftAlone = true
+        }
+        do {
+            if let stored = try store.readCounters() {
+                day = stored
+                persistedDay = stored
+            }
+            countersLeftAlone = false
+        } catch {
+            countersLeftAlone = true
+        }
+        surfaceFilesLeftAlone()
         pruneOldLogs()
     }
 
     private static let pruneFailurePrefix = "Could not prune old logs"
     private static let settingsFailurePrefix = "Could not save your settings"
+    private static let leftAlonePrefix = "Would not open, so left as it is:"
+
+    private func surfaceFilesLeftAlone() {
+        guard let store else { return }
+        let files = [
+            badgesLeftAlone ? store.badgesFile.path : nil,
+            countersLeftAlone ? store.countersFile.path : nil,
+        ].compactMap { $0 }
+        guard !files.isEmpty else { return }
+        let message = "\(Self.leftAlonePrefix) \(files.joined(separator: " and ")). "
+            + "Nothing is saved over \(files.count == 1 ? "it" : "them") until sigstop can read "
+            + "\(files.count == 1 ? "it" : "them") at its next launch."
+        guard lastStoreError != message,
+              lastStoreError == nil || lastStoreError?.hasPrefix(Self.leftAlonePrefix) == true
+        else { return }
+        lastStoreError = message
+    }
 
     private func pruneOldLogs() {
         lastPruneMono = time.continuousSeconds
@@ -701,6 +732,10 @@ final class AppModel {
 
     private func persistCountersIfChanged() {
         guard let store, day != persistedDay else { return }
+        guard !countersLeftAlone else {
+            surfaceFilesLeftAlone()
+            return
+        }
         do {
             try store.writeCounters(day)
             persistedDay = day
@@ -925,7 +960,15 @@ final class AppModel {
 
         let fresh = updated.newlyUnlocked(since: badges)
         badges = updated
-        try? store.writeBadges(updated)
+        guard !badgesLeftAlone else {
+            surfaceFilesLeftAlone()
+            return
+        }
+        do {
+            try store.writeBadges(updated)
+        } catch {
+            lastStoreError = "Could not write the badges, \(error)"
+        }
         if let note = Self.badgeNote(for: fresh) { badgeNote = note }
     }
 
@@ -1010,6 +1053,9 @@ final class AppModel {
             badgeNote = nil
             day = DailyCounters()
             persistedDay = nil
+            badgesLeftAlone = false
+            countersLeftAlone = false
+            if lastStoreError?.hasPrefix(Self.leftAlonePrefix) == true { lastStoreError = nil }
             refreshRollup(force: true)
             return report.userFacingSummary + Self.removeLoginItem()
         } catch {

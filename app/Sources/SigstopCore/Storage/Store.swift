@@ -4,6 +4,7 @@ public enum StoreError: Error, Sendable, Hashable {
     case unsupportedSchemaVersion(Int)
     case notWritable(path: String, reason: String)
     case unreadable(days: [CalendarDay])
+    case wouldNotOpen(path: String)
 }
 
 public struct DayLoad: Sendable, Hashable {

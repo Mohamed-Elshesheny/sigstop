@@ -458,7 +458,7 @@ struct BadgeRetentionTests {
         #expect(!report.isEmpty)
         #expect(try store.availableDays().isEmpty)
 
-        let reloaded = store.readBadges()
+        let reloaded = try store.readBadges()
         #expect(reloaded.contains(.stoppedOnce))
         #expect(reloaded.date(for: .stoppedOnce) == Fix.day(1))
 
@@ -479,10 +479,10 @@ struct BadgeRetentionTests {
         var ledger = BadgeLedger()
         ledger.record(.stoppedOnce, on: Fix.day(1))
         try store.writeBadges(ledger)
-        #expect(store.readBadges().contains(.stoppedOnce))
+        #expect(try store.readBadges().contains(.stoppedOnce))
 
         _ = try store.deleteEverything()
-        #expect(store.readBadges().isEmpty)
+        #expect(try store.readBadges().isEmpty)
     }
 }
 

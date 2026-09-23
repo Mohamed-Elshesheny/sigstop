@@ -104,7 +104,7 @@ struct StoreHonestyTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try FileEventStore(root: root)
         try store.writeCounters(DailyCounters(nextCycle: CycleID(rawValue: .max)))
-        #expect(store.readCounters() == nil)
+        #expect(try store.readCounters() == nil)
         #expect(CycleID(rawValue: .max).next() == CycleID(rawValue: 0))
     }
 
@@ -125,7 +125,7 @@ struct StoreHonestyTests {
             nextCycle: CycleID(rawValue: 7)
         )
         try store.writeCounters(counters)
-        #expect(store.readCounters() == counters)
+        #expect(try store.readCounters() == counters)
 
         let day = CalendarDay.utc(of: now)
         let summary = DailySummary(
@@ -210,5 +210,48 @@ struct StoreHonestyTests {
         #expect(kept[CalendarDay(year: 2026, month: 9, day: 7)]?.breakCount == 7)
         let names = try FileManager.default.contentsOfDirectory(atPath: store.summariesDirectory.path)
         #expect(names == ["2026-09.json"], "nothing was set aside or written beside it")
+    }
+
+    @Test("a badge ledger or counters file that will not open is reported, and nothing is written over it")
+    func unopenableLedgerAndCountersAreLeftAlone() throws {
+        let root = scratch()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+
+        #expect(try store.readBadges().isEmpty, "a ledger that is not there yet is an empty one")
+        #expect(try store.readCounters() == nil, "counters that are not there yet start fresh")
+
+        var ledger = BadgeLedger()
+        ledger.record(.stoppedOnce, on: CalendarDay(year: 2026, month: 9, day: 1))
+        try store.writeBadges(ledger)
+        let counters = DailyCounters(dayIndex: 20_260_901, notificationsDelivered: 3, nextCycle: CycleID(rawValue: 4))
+        try store.writeCounters(counters)
+        let files = [store.badgesFile, store.countersFile]
+        let before = try files.map { try Data(contentsOf: $0) }
+
+        for file in files {
+            try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        }
+        defer {
+            for file in files {
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            }
+        }
+
+        #expect(throws: StoreError.wouldNotOpen(path: store.badgesFile.path)) { _ = try store.readBadges() }
+        #expect(throws: StoreError.wouldNotOpen(path: store.countersFile.path)) { _ = try store.readCounters() }
+        #expect(throws: StoreError.self, "a ledger that will not open is not replaced by an empty one") {
+            try store.writeBadges(.empty)
+        }
+        #expect(throws: StoreError.self, "counters that will not open are not replaced by fresh ones") {
+            try store.writeCounters(DailyCounters())
+        }
+
+        for file in files {
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        }
+        #expect(try files.map { try Data(contentsOf: $0) } == before)
+        #expect(try store.readBadges() == ledger)
+        #expect(try store.readCounters() == counters)
     }
 }
