@@ -41,6 +41,13 @@ quote() {
   printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
+# What is checked out, for the messages that say it moved off main.
+on_main() { [ "$(git symbolic-ref -q HEAD || true)" = refs/heads/main ]; }
+branch_name() { git symbolic-ref -q --short HEAD || echo HEAD; }
+head_is() {
+  if git symbolic-ref -q HEAD >/dev/null; then echo "$(branch_name) is checked out"; else echo "HEAD is detached"; fi
+}
+
 # A feed commit that never reached origin is what a release leaves behind when it stops after
 # signing. Pushing it is the obvious next move and the wrong one when its release does not exist:
 # every installed copy would be offered a download that 404s.
@@ -236,6 +243,11 @@ SHA="$(shasum -a 256 dist/sigstop.dmg | cut -d' ' -f1)"
 # signed fails here, with nothing published, rather than after the announcement.
 # Checked before anything is signed: a signature cannot be withdrawn, and a feed commit left
 # behind by a failed run would publish an update whose download does not exist yet.
+if ! on_main; then
+  echo "error: HEAD left main while the release was building: $(head_is) now." >&2
+  echo "       Nothing was signed or tagged." >&2
+  exit 1
+fi
 if [ -n "$(git status --porcelain)" ] || [ "$(git rev-parse HEAD)" != "${RELEASED_SHA}" ]; then
   echo "error: the tree changed while the release was building. Nothing was signed or tagged." >&2
   exit 1
@@ -258,7 +270,7 @@ ASSETS=(dist/sigstop.dmg dist/sigstop-"${VERSION}"*.dmg)
 shopt -u nullglob
 FEED_URL="$(sed -n '/url="[^"]*\.dmg"/{s/.*url="\([^"]*\.dmg\)".*/\1/p;q;}' ../updater/appcast.xml)"
 
-# Takes the feed commit off main and nothing with it. `git reset --keep` does that too, but it resets
+# Takes the feed commit back off and nothing with it. `git reset --keep` does that too, but it resets
 # the whole index, so a change somebody staged meanwhile came back unstaged. This puts the feed file
 # alone back, in the index and the tree, then moves HEAD back one, and like --keep it refuses when
 # the feed file holds changes the commit does not.
@@ -270,16 +282,31 @@ undo_feed() {
   git reset -q --soft "${FEED_SHA}^"
 }
 
-# Nothing may have changed while the build ran but the feed commit this script made.
-if [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASED_SHA}" HEAD -- ':(top)' ':(top,exclude)updater/appcast.xml')" ]; then
-  echo "error: the tree changed while the feed was being signed. Nothing was tagged." >&2
+# Nothing may have changed while the feed was signed but the feed commit this script made, and that
+# commit has to be HEAD of main, directly on the released commit. Comparing files is not enough: a
+# branch switch, an amend or an empty commit changes none, and each leaves the feed where the
+# printed `git push` does not publish it, or publishes more than the release with it.
+if [ -n "${FEED_SHA}" ]; then UNDER_FEED="$(git rev-parse "${FEED_SHA}^")"; else UNDER_FEED="${RELEASED_SHA}"; fi
+MOVED=""
+if ! on_main; then
+  MOVED="HEAD left main while the feed was being signed: $(head_is) now."
+elif [ "$(git rev-parse HEAD)" != "${FEED_SHA:-${RELEASED_SHA}}" ] || [ "${UNDER_FEED}" != "${RELEASED_SHA}" ]; then
+  MOVED="main moved while the feed was being signed."
+elif [ -n "$(git status --porcelain)" ] || [ -n "$(git diff --name-only "${RELEASED_SHA}" HEAD -- ':(top)' ':(top,exclude)updater/appcast.xml')" ]; then
+  MOVED="the tree changed while the feed was being signed."
+fi
+if [ -n "${MOVED}" ]; then
+  echo "error: ${MOVED} Nothing was tagged." >&2
+  if on_main && ! git merge-base --is-ancestor "${RELEASED_SHA}" HEAD; then
+    echo "       main no longer holds ${RELEASED_SHA}, the commit this release built." >&2
+  fi
   # Only the feed commit is this script's to undo. A commit somebody made meanwhile is theirs,
   # and resetting main to the released commit would take it with the feed.
   OTHERS="$(git log --format='%H %s' "${RELEASED_SHA}..HEAD" | grep -v "^${FEED_SHA:-none} " || true)"
   if [ -z "${FEED_SHA}" ]; then
     echo "       There was no feed commit to undo." >&2
   elif [ -n "${OTHERS}" ]; then
-    echo "       main also holds commits this release did not make, so it was left as it is:" >&2
+    echo "       $(branch_name) also holds commits this release did not make, so it was left as it is:" >&2
     sed -n '1,20s/^/         /p' <<<"${OTHERS}" >&2
     echo "       Before pushing, drop only the feed commit ${FEED_SHA}, which names a" >&2
     echo "       download that does not exist: $(drop_cmd "${FEED_SHA}")" >&2

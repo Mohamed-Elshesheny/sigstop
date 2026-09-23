@@ -295,11 +295,14 @@ In order, it:
    tag, and creates the GitHub release with both disk image names: the stable `sigstop.dmg` the
    site links to, and the versioned one a human can read a year later.
 
-If anything changes in the tree while it runs, it stops before signing. If that happens after the
-feed commit, it undoes the commit, because a pushed feed naming a download that does not exist
-would offer every installed copy an update that 404s. It undoes that commit and nothing else: if
-`main` picked up a commit of yours meanwhile, it leaves `main` alone, lists what it found, and
-prints the one command that drops only the feed commit. The feed commit holds the feed file only,
+If anything changes while it runs, a file, a commit, or which branch is checked out, it stops before
+signing. If that happens while the feed is being signed, it stops before the tag, and the feed
+commit has to be all that moved: `HEAD` still on `main`, and the feed commit directly on the commit
+it built. An amend, an empty commit or a branch switch changes no file and still stops it. Then it
+undoes the feed commit, because a pushed feed naming a download that does not exist would offer
+every installed copy an update that 404s. It undoes that commit and nothing else: if the branch
+picked up a commit of yours meanwhile, it leaves the branch alone, lists what it found, and prints
+the one command that drops only the feed commit. The feed commit holds the feed file only,
 and undoing it puts back that file alone, so a change you staged while it ran stays staged.
 
 **If `make release` fails after signing.** From the feed commit on, a failure in the tag, the tag
