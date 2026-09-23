@@ -314,7 +314,7 @@ case "${FEED}" in
 esac
 
 # Every other URL compiled into the app is a link handed to the user's browser,
-# which docs/PRIVACY.md §2.8 allowlists by call site. If a URL shows up here that
+# which docs/PRIVACY.md §2.9 allowlists by call site. If a URL shows up here that
 # is not on this list, someone added an endpoint.
 ALLOWED='^https://github\.com/Mohamed-Elshesheny/sigstop'
 UNEXPECTED=$(all_slices strings -a \
@@ -361,8 +361,9 @@ if [ "$(/usr/libexec/PlistBuddy -c "Print :SUVerifyUpdateBeforeExtraction" "${PL
 else
   fail "SUVerifyUpdateBeforeExtraction is not true, so an update is unpacked before it is verified"
 fi
-# The schedule key was removed with the toggle (§4.3). It is inert while automatic checks
-# are off, but a leftover key is how a removed feature creeps back, so it must stay gone.
+# The schedule key was removed with the toggle (docs/PRIVACY.md §2.7). It is inert while
+# automatic checks are off, but a leftover key is how a removed feature creeps back, so it
+# must stay gone.
 if plutil -extract SUScheduledCheckInterval raw "${PLIST}" >/dev/null 2>&1; then
   fail "SUScheduledCheckInterval is back in Info.plist; the schedule was removed"
 else
