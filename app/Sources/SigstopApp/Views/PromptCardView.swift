@@ -109,7 +109,7 @@ enum PromptFooter {
         case .cooldown:
             return "ignore it, and it leaves you alone for \(DurationText.short(quietAfterLast))"
         case .quietForTheDay:
-            return "ignore it, and that is the last one today: the daily cap is spent"
+            return "ignore it, and nothing more today: the cap is spent"
         }
     }
 }
