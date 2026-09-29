@@ -92,6 +92,21 @@ struct StatusLineTests {
         #expect(ledger.update(enabled: true, line: line) == .write(line))
     }
 
+    @Test("switching off after a failed write still removes the file the last good write left")
+    func switchOffAfterAFailedWriteStillRemoves() {
+        var ledger = StatusLineLedger()
+        let line = "idle \u{00B7} not asking yet, the clock is stopped while you are away.\n"
+        #expect(ledger.update(enabled: true, line: line) == .write(line))
+        ledger.noteWriteFailed()
+        #expect(ledger.update(enabled: false, line: line) == .remove)
+        #expect(ledger.update(enabled: false, line: line) == nil)
+
+        var neverWritten = StatusLineLedger()
+        #expect(neverWritten.update(enabled: true, line: line) == .write(line))
+        neverWritten.noteWriteFailed()
+        #expect(neverWritten.update(enabled: false, line: line) == .remove)
+    }
+
     @Test("the switch is off by default and survives a settings file that does not know it")
     func settingIsOffByDefault() throws {
         #expect(SigstopSettings.default.statusLineEnabled == false)

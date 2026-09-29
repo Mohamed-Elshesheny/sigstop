@@ -31,16 +31,19 @@ public struct StatusLineLedger: Sendable, Hashable {
         case remove
     }
 
+    private var armed = false
     private var onDisk: String?
 
     public init() {}
 
     public mutating func update(enabled: Bool, line: String) -> Action? {
         guard enabled else {
-            guard onDisk != nil else { return nil }
+            guard armed else { return nil }
+            armed = false
             onDisk = nil
             return .remove
         }
+        armed = true
         guard onDisk != line else { return nil }
         onDisk = line
         return .write(line)
