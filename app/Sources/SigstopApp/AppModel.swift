@@ -140,7 +140,7 @@ final class AppModel {
     @ObservationIgnored private var loggedApp: String??
     @ObservationIgnored private var loggedActivity: Activity?
     @ObservationIgnored private var lastFocusLogAt: Date?
-    @ObservationIgnored private var idleBeganAt: Date?
+    @ObservationIgnored private var idleLedger = IdleLedger()
     @ObservationIgnored private var seamsForNextStep: Set<Seam> = []
     @ObservationIgnored private var statusLedger = StatusLineLedger()
     @ObservationIgnored private var latch = MeetingLatch()
@@ -416,7 +416,7 @@ final class AppModel {
         closeBreakTheEngineLeft()
         verifyPromptPresentation()
 
-        record(sessionEvents: sessionEvents, at: now)
+        record(sessionEvents: sessionEvents, sample: tickSample, at: now)
         persistCountersIfChanged()
         logFocusIfNeeded(context: context, sample: sample, at: now)
         publishViewState(sample: sample, context: context, outcome: outcome)
@@ -794,18 +794,20 @@ final class AppModel {
         }
     }
 
-    private func record(sessionEvents: [SessionEvent], at now: Date) {
+    private func record(sessionEvents: [SessionEvent], sample: TickSample, at now: Date) {
+        let idleLines = idleLedger.observe(
+            sessionEvents,
+            idleSeconds: sample.idleSeconds,
+            paused: sample.userPaused,
+            grace: policy.microIdleGrace,
+            at: now
+        )
+        for line in idleLines {
+            append(line)
+            if line.kind == .idleEnd { seamsForNextStep.insert(.idleBlip) }
+        }
         for event in sessionEvents {
             switch event {
-            case .clockPaused(let cause, let since):
-                guard idleBeganAt == nil, cause != .breakActive, cause != .userPaused else { continue }
-                idleBeganAt = since
-                append(.idleBegin(at: since))
-            case .clockResumed:
-                guard let began = idleBeganAt else { continue }
-                idleBeganAt = nil
-                append(.idleEnd(at: now, idleSeconds: Int(now.timeIntervalSince(began).rounded())))
-                seamsForNextStep.insert(.idleBlip)
             case .sessionStarted(_, let at):
                 append(.start(at: at))
             case .sessionEnded(_, let at):

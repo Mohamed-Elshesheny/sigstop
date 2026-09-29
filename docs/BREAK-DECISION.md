@@ -1564,6 +1564,16 @@ public struct QuietHours: Sendable, Codable, Hashable {
   `LocalDay.secondsUntilNextBoundary` computes the seconds to the next day boundary (§14, 04:00
   by default) with calendar arithmetic, so the night the clocks change the pause still ends at
   04:00, and it cannot be forgotten on. The subtitle says when: "paused until 4:00 AM".
+- A pause does not stop the log from noticing that you left. `SessionTracker` ranks `.userPaused`
+  above idle, so while the app is paused it never reports an idle gap, and the app used to write no
+  `idle_begin` for the hour, or for the rest of the day, that a pause covers. The rollup learns idle
+  only from those lines, and the focus heartbeats kept coming, so an evening spent away with the
+  app paused was credited as work until a lock or a sleep event. `IdleLedger`, in
+  `app/Sources/SigstopCore/Storage/IdleLedger.swift`, now writes every idle line the app logs: the
+  tracker's `clockPaused` and `clockResumed` as before, and, while the app is paused, the raw idle
+  reading against `microIdleGrace`, opening the span at the last input and closing it when input
+  returns. An absence that outlives the pause is one span, from the last input inside it to the
+  return after it. `PausedIdleLogTests` replays both pauses through the rollup.
 - Nothing records the last tick, so §4 row 16 was not built: every launch starts a new session at
   zero, and a crash, a force-quit or a reboot loses the clock rather than crediting the gap.
 - Raw events are kept 7 days, a constant rather than a setting. Summaries and badges are kept until
