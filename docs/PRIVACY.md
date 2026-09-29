@@ -1525,6 +1525,188 @@ toolchain. Swift's compiler is not guaranteed deterministic across patch release
 mean "different Xcode" rather than "tampered". The release notes cannot record the toolchain build
 number, because they hold only commit subjects. See §8.7.
 
+### 6.6 Check the app you installed
+
+Everything above assumes a clone and a build. Most people install the disk image, and the claims
+are about that bundle, so here is the same check against `/Applications/sigstop.app` with tools
+that ship with macOS. Every command reads; none changes the app, its settings or your data. The
+output below is from a v0.1.8 build; version fields move between releases and the shape does not.
+
+**What it links.** The libraries a binary links are the outer bound on what it can call. Expect
+Sparkle, Apple's frameworks and the Swift runtime, and nothing else: no `CFNetwork`, no
+`Network.framework`, no second `@rpath` framework.
+
+```sh
+otool -L /Applications/sigstop.app/Contents/MacOS/sigstop
+```
+```
+/Applications/sigstop.app/Contents/MacOS/sigstop (architecture x86_64):
+	@rpath/Sparkle.framework/Versions/B/Sparkle (compatibility version 1.6.0, current version 2.10.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)
+	/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (...)
+	/System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices (...)
+	/System/Library/Frameworks/CoreAudio.framework/Versions/A/CoreAudio (...)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (...)
+	/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics (...)
+	/System/Library/Frameworks/CoreMediaIO.framework/Versions/A/CoreMediaIO (...)
+	/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (...)
+	/System/Library/Frameworks/IOKit.framework/Versions/A/IOKit (...)
+	/System/Library/Frameworks/ServiceManagement.framework/Versions/A/ServiceManagement (...)
+	/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI (...)
+	/System/Library/Frameworks/UserNotifications.framework/Versions/A/UserNotifications (...)
+	/usr/lib/libobjc.A.dylib (...)
+	/usr/lib/swift/libswiftCore.dylib (...)
+	... twenty more /usr/lib/swift/libswift*.dylib lines, then the same list again
+	    under "(architecture arm64):"
+```
+
+The download is a universal binary, so `otool` prints the list once per slice, and the two lists
+are the same. Version fields are trimmed above. `libSystem` and `Foundation` contain networking
+code and every process links them, so this list bounds nothing by itself (§8.4); the symbol table
+below is what bites.
+
+**What it embeds, and which version.**
+
+```sh
+ls /Applications/sigstop.app/Contents/Frameworks
+plutil -extract CFBundleShortVersionString raw \
+  /Applications/sigstop.app/Contents/Frameworks/Sparkle.framework/Versions/B/Resources/Info.plist
+```
+```
+Sparkle.framework
+2.10.0
+```
+
+**What its own code calls.** The undefined-symbol table is every function and class the binary
+reaches out of a library. Networking would have to appear in it, and it does not:
+
+```sh
+nm -u -arch all /Applications/sigstop.app/Contents/MacOS/sigstop \
+  | grep -E 'NSURLSession|NSURLConnection|NWConnection|CFHost|^_(socket|connect|getaddrinfo)$'
+```
+
+Prints nothing. `-arch all` matters: on a universal binary `nm` reads only the slice that matches
+your Mac, so a symbol present in the other half would not show. Without the grep the table is
+about 1,460 lines per slice, headed `(for architecture x86_64):` and `(for architecture arm64):`.
+The URLs baked into the binary are the six links the app hands your browser, all under
+`github.com/Mohamed-Elshesheny/sigstop`; the feed URL is not among them because it lives in
+`Info.plist`:
+
+```sh
+strings -a /Applications/sigstop.app/Contents/MacOS/sigstop | grep -E '^https?://' | sort -u
+```
+
+**Its entitlements.** Two keys, and the ones that matter are the absent ones:
+`com.apple.security.network.server` (nothing listens) and anything that reopens what the hardened
+runtime closes (`allow-dyld-environment-variables`, `allow-jit`, `allow-unsigned-executable-memory`,
+`get-task-allow`). Library validation is off because an ad-hoc build has no Team ID to validate
+against (§2.9, §8.1d). The app is not sandboxed, so the absence of `network.client` proves nothing
+and is not claimed (§8.1).
+
+```sh
+codesign -d --entitlements - --xml /Applications/sigstop.app | plutil -p -
+```
+```
+Executable=/Applications/sigstop.app/Contents/MacOS/sigstop
+{
+  "com.apple.security.automation.apple-events" => false
+  "com.apple.security.cs.disable-library-validation" => true
+}
+```
+
+**Its signature.** `Signature=adhoc` and `TeamIdentifier=not set`: the signature is nobody's
+certificate, which is why Gatekeeper objects on first launch and why update integrity rests on the
+EdDSA key below rather than on Apple's chain (§2.8). `flags=0x10002(adhoc,runtime)`: the hardened
+runtime is on, so dyld refuses `DYLD_*` injection.
+
+```sh
+codesign -dvv /Applications/sigstop.app
+```
+```
+Executable=/Applications/sigstop.app/Contents/MacOS/sigstop
+Identifier=dev.sigstop.app
+Format=app bundle with Mach-O universal (x86_64 arm64)
+CodeDirectory v=20500 size=14000 flags=0x10002(adhoc,runtime) hashes=427+7 location=embedded
+Signature=adhoc
+Info.plist entries=21
+TeamIdentifier=not set
+Runtime Version=26.0.0
+Sealed Resources version=2 rules=13 files=3
+Internal requirements count=0 size=12
+```
+
+**What the updater is told, at build time.**
+
+```sh
+plutil -p /Applications/sigstop.app/Contents/Info.plist | grep '"SU'
+```
+```
+  "SUAutomaticallyUpdate" => false
+  "SUEnableAutomaticChecks" => false
+  "SUEnableInstallerLauncherService" => true
+  "SUEnableSystemProfiling" => false
+  "SUFeedURL" => "https://mohamed-elshesheny.github.io/sigstop/appcast.xml"
+  "SUPublicEDKey" => "v0rY/NWn8izKVHcZl7vVyqRCsrV929pkGNyJpThhv6s="
+  "SUVerifyUpdateBeforeExtraction" => true
+```
+
+| Key | Means |
+|---|---|
+| `SUEnableAutomaticChecks` false | No scheduled check. This is only the default; the live value is in `defaults`, below |
+| `SUAutomaticallyUpdate` false | Nothing downloads or installs without a second press |
+| `SUEnableSystemProfiling` false | Sparkle's own permission prompt, which is never shown, would not offer to send a system profile |
+| `SUFeedURL` | The one endpoint, a static file |
+| `SUPublicEDKey` | The key every update archive must be signed with, or it does not install (§2.8) |
+| `SUVerifyUpdateBeforeExtraction` true | That signature is checked before the archive is unpacked, not after |
+| `SUEnableInstallerLauncherService` true | The install is launched through Sparkle's `Installer.xpc` and runs in the separate `Autoupdate` executable (§2.9) |
+
+`SUEnableDownloaderService` is absent on purpose: the download runs in this process, inside
+`Sparkle.framework`, and §2.7 says why this document stopped claiming otherwise.
+
+**What it forces at every launch.** The plist keys are defaults. The values that count live in the
+app's `defaults` domain, where they survive an update and where anything on the machine can write
+them, so `UpdateChecker.swift` writes three of them off every time the app starts, before Sparkle
+is started:
+
+```sh
+defaults read dev.sigstop.app
+```
+
+| Key | Value | Means |
+|---|---|---|
+| `SUEnableAutomaticChecks` | `0` | The scheduler. Written off at every launch |
+| `SUAutomaticallyUpdate` | `0` | Never download or install without being asked |
+| `SUSendProfileInfo` | `0` | The key Sparkle reads when deciding whether to append a system profile to the request. Off, and the updater's delegate allows no profile keys either way |
+| `SUHasLaunchedBefore` | `1` | Sparkle's own note that it has run once |
+| `SULastCheckTime` | a date | Present only after you have pressed **Check for updates**. When you last did, kept locally |
+| `SUFeedURL` | absent | The app deletes it on every launch (`clearFeedURLFromUserDefaults`), so the feed cannot be redirected from `defaults` |
+
+`defaults` prints booleans as `0` and `1`. Whatever else is there is AppKit's record of where the
+menu bar mark sits, in keys beginning `NSStatusItem`, or one of Sparkle's own bookkeeping keys,
+which `SUConstants.m` in the framework's source lists. On a Mac where the app has never run the
+command says `Error: Domain 'dev.sigstop.app' not found.`, which is also the answer after the
+uninstall steps in the README. This block lists the keys rather than pasting a domain, because the
+only `dev.sigstop.app` domain on the machine this was written on is the maintainer's; the names are
+from `UpdateChecker.swift` and Sparkle's `SPUUpdaterSettings.m`.
+
+**Everything at once.** With a clone of this repository, the guard in §6.4 accepts the installed
+copy instead of a fresh build:
+
+```sh
+BUNDLE=/Applications/sigstop.app app/Scripts/verify.sh
+```
+
+It runs every check in this section against that bundle, one line per assertion, and both slices
+of the universal binary. Two of its sections touch something other than the bundle: section 5
+greps the clone, not the app, for a private key, and section 8 runs the installed binary with
+`--doctor` under an empty `HOME`, which reads and writes nothing of yours.
+
+**What none of this proves.** All of it is static: it says what the binary can reference, not what
+it did while you were not looking. The conclusive test is the runtime monitor in §6.3, and its
+expectation is the sharper one: no connection at all until you press the button, then exactly one,
+to the feed host. And an ad-hoc signature cannot tell you the bundle was built from this
+repository; §6.5 says how far a hash comparison gets you.
+
 ---
 
 ## 7. Threat model

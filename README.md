@@ -128,6 +128,27 @@ No. Out of the box it sees which app is in front, whether you're idle, and wheth
 </details>
 
 <details>
+<summary><b>How do I check the app I installed, not the source?</b></summary>
+<br>
+
+With the tools that ship with macOS, against the copy in `/Applications`. Every command here only reads; none changes the app, its settings or your data.
+
+```sh
+APP=/Applications/sigstop.app
+otool -L "$APP/Contents/MacOS/sigstop"                    # links Sparkle, Apple's frameworks and the Swift runtime, nothing else
+ls "$APP/Contents/Frameworks"                             # exactly: Sparkle.framework
+nm -u -arch all "$APP/Contents/MacOS/sigstop" | grep -E 'NSURLSession|NWConnection|^_(socket|connect|getaddrinfo)$'   # nothing
+codesign -d --entitlements - --xml "$APP" | plutil -p -   # two keys, and no network.server
+codesign -dvv "$APP"                                      # Signature=adhoc, TeamIdentifier=not set, flags=...(adhoc,runtime)
+plutil -p "$APP/Contents/Info.plist" | grep '"SU'         # no automatic checks, no profile, signature checked before unpacking
+defaults read dev.sigstop.app                             # what it writes off at every launch: SUEnableAutomaticChecks = 0
+```
+
+What each line should show, what the keys mean and what none of it can prove is in [PRIVACY.md §6.6](docs/PRIVACY.md#66-check-the-app-you-installed). With a clone, `BUNDLE=/Applications/sigstop.app app/Scripts/verify.sh` runs the whole set against the installed copy.
+
+</details>
+
+<details>
 <summary><b>Where is my data, and how do I delete it?</b></summary>
 <br>
 
