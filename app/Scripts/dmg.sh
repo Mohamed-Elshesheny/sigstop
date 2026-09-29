@@ -185,7 +185,18 @@ else
 fi
 
 sync
-hdiutil detach "${MOUNT}" -quiet
+# Finder, or Spotlight indexing the new volume, can hold it for a moment after the window
+# closes, and a single detach then fails with "Resource busy" (exit 16). It did on a CI
+# runner where the layout succeeded. Everything is already written, so wait and retry,
+# and force it only when a few polite attempts have not been enough.
+detached=0
+for attempt in 1 2 3 4 5; do
+  if hdiutil detach "${MOUNT}" -quiet 2>/dev/null; then detached=1; break; fi
+  sleep "${attempt}"
+done
+if [ "${detached}" = "0" ]; then
+  hdiutil detach "${MOUNT}" -force -quiet
+fi
 echo "==> compressing"
 hdiutil convert "${RW}" -format UDZO -imagekey zlib-level=9 -o "${OUT}" -quiet
 
