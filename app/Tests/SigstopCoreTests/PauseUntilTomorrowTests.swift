@@ -3,7 +3,7 @@ import Testing
 
 @testable import SigstopCore
 
-@Suite("pause until tomorrow ends at the day boundary")
+@Suite("pause until tomorrow ends where the app's day changes")
 struct PauseUntilTomorrowTests {
 
     private static func calendar(_ zone: String, _ identifier: Calendar.Identifier = .gregorian) -> Calendar {
@@ -27,6 +27,10 @@ struct PauseUntilTomorrowTests {
         LocalDay.secondsUntilNextBoundary(after: date, calendar: calendar, boundaryHour: boundary)
     }
 
+    private static func index(_ date: Date, _ calendar: Calendar = losAngeles, boundary: Int = 4) -> Int {
+        LocalDay.index(of: date, calendar: calendar, boundaryHour: boundary)
+    }
+
     @Test("in the morning the next boundary is tomorrow's")
     func morningWaitsForTomorrow() throws {
         let nine = try Self.at(Self.losAngeles, 2026, 9, 29, 9)
@@ -45,22 +49,34 @@ struct PauseUntilTomorrowTests {
         #expect(Self.until(four) == TimeInterval(24 * 3600))
     }
 
-    @Test("a second before the boundary the pause is one second")
+    @Test("a second before the boundary the boundary is one second away")
     func aSecondBefore() throws {
         let almost = try Self.at(Self.losAngeles, 2026, 9, 29, 3, 59, 59)
         #expect(Self.until(almost) == TimeInterval(1))
+        let boundary = almost.addingTimeInterval(1)
+        #expect(Self.index(almost) != Self.index(boundary))
     }
 
-    @Test("the night the clocks go forward is an hour shorter than the wall clock says")
+    @Test("the night the clocks go forward, the day still changes four real hours after midnight")
     func springForwardNight() throws {
         let evening = try Self.at(Self.losAngeles, 2026, 3, 7, 22)
-        #expect(Self.until(evening) == TimeInterval(5 * 3600), "22:00 PST to 04:00 PDT is five real hours")
+        let wait = try #require(Self.until(evening))
+        #expect(wait == TimeInterval(6 * 3600), "22:00 PST to four hours after midnight is six real hours")
+        let boundary = evening.addingTimeInterval(wait)
+        #expect(Self.losAngeles.component(.hour, from: boundary) == 5, "which the wall clock calls 05:00 PDT")
+        #expect(Self.index(boundary.addingTimeInterval(-1)) == Self.index(evening))
+        #expect(Self.index(boundary) != Self.index(evening))
     }
 
-    @Test("the night the clocks go back is an hour longer than the wall clock says")
+    @Test("the night the clocks go back, the day still changes four real hours after midnight")
     func fallBackNight() throws {
         let evening = try Self.at(Self.losAngeles, 2026, 10, 31, 22)
-        #expect(Self.until(evening) == TimeInterval(7 * 3600), "22:00 PDT to 04:00 PST is seven real hours")
+        let wait = try #require(Self.until(evening))
+        #expect(wait == TimeInterval(6 * 3600), "22:00 PDT to four hours after midnight is six real hours")
+        let boundary = evening.addingTimeInterval(wait)
+        #expect(Self.losAngeles.component(.hour, from: boundary) == 3, "which the wall clock calls 03:00 PST")
+        #expect(Self.index(boundary.addingTimeInterval(-1)) == Self.index(evening))
+        #expect(Self.index(boundary) != Self.index(evening))
     }
 
     @Test("a midnight boundary works the same way")
@@ -78,17 +94,38 @@ struct PauseUntilTomorrowTests {
         #expect(Self.until(nine, islamic) == Self.until(nine))
     }
 
-    @Test("across a whole year the wait is always positive and at most twenty-five hours")
-    func boundedEveryHourOfTheYear() throws {
-        var cursor = try Self.at(Self.losAngeles, 2026, 1, 1, 0, 30)
-        let end = try Self.at(Self.losAngeles, 2027, 1, 1, 0, 30)
-        while cursor < end {
-            let wait = try #require(Self.until(cursor))
-            #expect(wait > 0 && wait <= 25 * 3600, "\(cursor) waits \(wait)")
-            let boundary = cursor.addingTimeInterval(wait)
-            let hour = Self.losAngeles.component(.hour, from: boundary)
-            #expect(hour == 4, "\(cursor) lands on \(boundary), not on the 4am boundary")
-            cursor = cursor.addingTimeInterval(3600)
+    @Test("across a year in four time zones, the pause ends at the instant the day index changes")
+    func endsWhereTheIndexChangesEveryHourOfTheYear() throws {
+        let zones = [
+            "America/Los_Angeles", "America/Santiago", "Australia/Lord_Howe", "Europe/London",
+        ]
+        for zone in zones {
+            let calendar = Self.calendar(zone)
+            var cursor = try Self.at(calendar, 2026, 1, 1, 0, 30)
+            let end = try Self.at(calendar, 2027, 1, 1, 0, 30)
+            while cursor < end {
+                let wait = try #require(Self.until(cursor, calendar))
+                #expect(wait > 0 && wait <= 25 * 3600, "\(zone): \(cursor) waits \(wait)")
+                let boundary = cursor.addingTimeInterval(wait)
+                let before = boundary.addingTimeInterval(-1)
+                #expect(
+                    Self.index(before, calendar) == Self.index(cursor, calendar),
+                    "\(zone): \(cursor) is still the same day a second before \(boundary)"
+                )
+                #expect(
+                    Self.index(boundary, calendar) != Self.index(cursor, calendar),
+                    "\(zone): the day did not change at \(boundary) for \(cursor)"
+                )
+                let midnight = calendar.startOfDay(for: boundary)
+                #expect(
+                    boundary == midnight.addingTimeInterval(4 * 3600),
+                    "\(zone): \(boundary) is not four real hours after \(midnight)"
+                )
+                if calendar.dateInterval(of: .day, for: boundary)?.duration == 24 * 3600 {
+                    #expect(calendar.component(.hour, from: boundary) == 4, "\(zone): \(boundary)")
+                }
+                cursor = cursor.addingTimeInterval(3600)
+            }
         }
     }
 }

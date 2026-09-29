@@ -1561,9 +1561,18 @@ public struct QuietHours: Sendable, Codable, Hashable {
 - Not persisted either: a manual pause. *Pause · 1h* and *Pause · today* both live in
   `quiet(.userPaused)` in memory, so quitting the app ends the pause and the next launch starts
   unpaused. *Today* means the rest of the app's day and is bounded by construction:
-  `LocalDay.secondsUntilNextBoundary` computes the seconds to the next day boundary (§14, 04:00
-  by default) with calendar arithmetic, so the night the clocks change the pause still ends at
-  04:00, and it cannot be forgotten on. The subtitle says when: "paused until 4:00 AM".
+  `LocalDay.secondsUntilNextBoundary` returns the seconds to the instant `LocalDay.index` changes,
+  the one definition of the day that the tracker's reset (§4 row 17), the engine's daily cap and
+  the pause share. That instant is four real hours after local midnight, which the wall clock calls
+  04:00 every night but the two the clocks change: 05:00 after the spring forward and 03:00 after
+  the fall back, because the index shifts the instant back by `dayBoundaryHour` hours and takes
+  the calendar day rather than reading the hour off the clock. It used to compute 04:00 with
+  calendar arithmetic instead, so on those two nights the pause ended an hour before or after the
+  counters rolled over. From 22:00 the wait is six hours every night of the year.
+  `PauseUntilTomorrowTests` sweeps a year in four time zones, one second either side of every
+  boundary. The rollup's `CalendarDay.interval` still draws a day from 04:00 to 04:00 on the
+  clock, which predates this and is the same hour off on the same two nights. The pause cannot be
+  forgotten on, and the subtitle says when: "paused until 4:00 AM".
 - A pause does not stop the log from noticing that you left. `SessionTracker` ranks `.userPaused`
   above idle, so while the app is paused it never reports an idle gap, and the app used to write no
   `idle_begin` for the hour, or for the rest of the day, that a pause covers. The rollup learns idle

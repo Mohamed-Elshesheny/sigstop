@@ -93,16 +93,10 @@ public enum LocalDay {
     public static func secondsUntilNextBoundary(
         after date: Date, calendar: Calendar, boundaryHour: Int
     ) -> TimeInterval? {
-        let keyed = CalendarDay.keyed(like: calendar)
-        var comps = keyed.dateComponents([.year, .month, .day], from: date)
-        comps.hour = boundaryHour
-        comps.minute = 0
-        comps.second = 0
-        guard var boundary = keyed.date(from: comps) else { return nil }
-        if boundary <= date {
-            guard let next = keyed.date(byAdding: .day, value: 1, to: boundary) else { return nil }
-            boundary = next
-        }
+        let shift = Double(boundaryHour) * 3600
+        let today = calendar.startOfDay(for: date.addingTimeInterval(-shift))
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return nil }
+        let boundary = calendar.startOfDay(for: tomorrow).addingTimeInterval(shift)
         let seconds = boundary.timeIntervalSince(date)
         return seconds > 0 ? seconds : nil
     }
