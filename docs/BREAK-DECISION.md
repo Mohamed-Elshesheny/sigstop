@@ -1647,7 +1647,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
     public let longestContinuousSession: TimeInterval
 
     public let breakCount: Int
-    public let totalBreakTime: TimeInterval
+    public let totalBreakTime: TimeInterval?
     public let breaksAccepted: Int
     public let breaksIdleInferred: Int
     public let breaksUserInitiated: Int
@@ -1700,8 +1700,10 @@ substitution, and `CalendarSystemTests` pins both.
   and neither does one the process died in the middle of. A break belongs to the day it began in:
   one that starts at 03:57 and ends at 04:04 counts on the first day, at its full length, and on
   the second day not at all, which is the one case where a day's numbers read a line stamped the
-  next day. It was added after the other fields and
-  decodes as zero from a summary written before it existed, so no month file needs rewriting. The
+  next day. It was added after the other fields, so it is optional: a summary written before it
+  existed decodes with it absent, is written back without it when its month file is rewritten for
+  a later day, and has no average, because one break of unknown length is not a zero second
+  break. Nothing writes a zero it did not measure. The
   uptime panel shows `breakCount` and the average beside *kept*; it reports and does not grade
   (§16): no streak, no comparison with yesterday, nothing to beat.
 - **`breakCount`** — the breaks that qualified, each judged by its own line: `dur_s >= plan_s`, the

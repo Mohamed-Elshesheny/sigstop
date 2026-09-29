@@ -1020,9 +1020,11 @@ that month:
 
 Every duration is in seconds. `applicationDistribution` is the seconds of active work in each app,
 keyed by **bundle identifier**, and `activeWorkByActivity` the same seconds keyed by `Activity` raw
-value. `totalBreakTime` is the seconds inside the breaks `breakCount` counts, so the menu bar can
-show an average break length; a file written before the field existed decodes with it at zero, and
-nothing else reads it. So this file is a record, for every day, of which apps you worked in and for how long. It is
+value. `totalBreakTime` is the seconds inside the breaks `breakCount` counts. The menu bar shows an
+average break length from the summary it computes in memory; the seconds are on disk only because
+the summary is written whole, and nothing reads them back. A day written before the field existed
+has no such key, keeps having none when the month file is rewritten for a later day, and is never
+given a zero it did not measure. So this file is a record, for every day, of which apps you worked in and for how long. It is
 kept until *Delete everything* (§4.5), it is not in the export (§4.6), and like everything else here
 it never leaves the Mac. Nothing uses the per-app or per-activity seconds once they are on disk.
 The file is read back only to add a day to it and to count badges, which use the counts and the

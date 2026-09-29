@@ -43,7 +43,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
     public let longestContinuousSession: TimeInterval
 
     public let breakCount: Int
-    public let totalBreakTime: TimeInterval
+    public let totalBreakTime: TimeInterval?
     public let breaksAccepted: Int
     public let breaksIdleInferred: Int
     public let breaksUserInitiated: Int
@@ -67,7 +67,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
         applicationDistribution: [String: TimeInterval] = [:],
         longestContinuousSession: TimeInterval = 0,
         breakCount: Int = 0,
-        totalBreakTime: TimeInterval = 0,
+        totalBreakTime: TimeInterval? = 0,
         breaksAccepted: Int = 0,
         breaksIdleInferred: Int = 0,
         breaksUserInitiated: Int = 0,
@@ -135,7 +135,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
         applicationDistribution = try c.decode([String: TimeInterval].self, forKey: .applicationDistribution)
         longestContinuousSession = try c.decode(TimeInterval.self, forKey: .longestContinuousSession)
         breakCount = try c.decode(Int.self, forKey: .breakCount)
-        totalBreakTime = try c.decodeIfPresent(TimeInterval.self, forKey: .totalBreakTime) ?? 0
+        totalBreakTime = try c.decodeIfPresent(TimeInterval.self, forKey: .totalBreakTime)
         breaksAccepted = try c.decode(Int.self, forKey: .breaksAccepted)
         breaksIdleInferred = try c.decode(Int.self, forKey: .breaksIdleInferred)
         breaksUserInitiated = try c.decode(Int.self, forKey: .breaksUserInitiated)
@@ -152,8 +152,8 @@ public struct DailySummary: Sendable, Codable, Hashable {
     }
 
     public var averageBreakLength: TimeInterval? {
-        guard breakCount > 0 else { return nil }
-        return totalBreakTime / Double(breakCount)
+        guard breakCount > 0, let total = totalBreakTime else { return nil }
+        return total / Double(breakCount)
     }
 
     public var workByActivity: [Activity: TimeInterval] {
@@ -204,7 +204,8 @@ extension DailySummary {
             skippedBreakCount, snoozeCount, ignoredPromptCount, breakOpportunities,
             honoredOpportunities, excludedOpportunities, notificationsDelivered, sessionCount,
         ]
-        let durations = [totalActiveWork, longestContinuousSession, totalBreakTime]
+        let durations = [totalActiveWork, longestContinuousSession]
+            + (totalBreakTime.map { [$0] } ?? [])
             + Array(activeWorkByActivity.values) + Array(applicationDistribution.values)
         let keys = Array(activeWorkByActivity.keys) + Array(applicationDistribution.keys)
         return counts.allSatisfy { (0...100_000).contains($0) }

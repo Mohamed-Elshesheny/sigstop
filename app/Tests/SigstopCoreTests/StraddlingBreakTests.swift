@@ -38,7 +38,7 @@ struct StraddlingBreakTests {
         let s = DailyRollup.compute(day: Self.dayA, events: try Self.nightShift(), policy: Self.policy, calendar: Self.calendar)
         #expect(s.breakCount == 1)
         #expect(s.breaksAbandoned == 0)
-        #expect(s.totalBreakTime == 7 * 60)
+        #expect(s.totalBreakTime == TimeInterval(7 * 60))
         #expect(s.breakOpportunities == 1)
         #expect(s.honoredOpportunities == 1)
     }
@@ -59,7 +59,7 @@ struct StraddlingBreakTests {
         try store.append(contentsOf: try Self.nightShift())
         let a = try DailyRollup.compute(day: Self.dayA, from: store, policy: Self.policy, calendar: Self.calendar)
         #expect(a.breakCount == 1)
-        #expect(a.totalBreakTime == 7 * 60)
+        #expect(a.totalBreakTime == TimeInterval(7 * 60))
         #expect(a.honoredOpportunities == 1)
         let b = try DailyRollup.compute(day: Self.dayB, from: store, policy: Self.policy, calendar: Self.calendar)
         #expect(b.breakCount == 0)

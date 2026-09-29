@@ -38,7 +38,7 @@ struct BreakLengthTests {
         let s = Self.roll(events)
         #expect(s.breakCount == 2)
         #expect(s.breaksAbandoned == 1)
-        #expect(s.totalBreakTime == 14 * 60)
+        #expect(s.totalBreakTime == TimeInterval(14 * 60))
         #expect(s.averageBreakLength == TimeInterval(7 * 60))
     }
 
@@ -53,7 +53,7 @@ struct BreakLengthTests {
         ]
         let s = Self.roll(events)
         #expect(s.breakCount == 1)
-        #expect(s.totalBreakTime == 9 * 60)
+        #expect(s.totalBreakTime == TimeInterval(9 * 60))
     }
 
     @Test("a day without a break has no average, not a zero one")
@@ -69,22 +69,46 @@ struct BreakLengthTests {
         #expect(s.averageBreakLength == nil)
     }
 
-    @Test("a summary written before the field existed still decodes, with the field at zero")
-    func olderFileStillDecodes() throws {
-        let older = """
+    private static let olderDay = """
         {"activeWorkByActivity":{"coding":5515},"applicationDistribution":{"com.example.editor":5515},
          "breakCount":1,"breakOpportunities":1,"breaksAbandoned":0,"breaksAccepted":1,
-         "breaksIdleInferred":0,"breaksUserInitiated":0,"day":"2026-09-20","excludedOpportunities":0,
+         "breaksIdleInferred":0,"breaksUserInitiated":0,"day":"2026-09-19","excludedOpportunities":0,
          "honoredOpportunities":1,"ignoredPromptCount":0,"longestContinuousSession":3000,
          "malformedLines":0,"notificationsDelivered":1,"sessionCount":1,"skippedBreakCount":0,
          "snoozeCount":1,"totalActiveWork":5515}
         """
-        let decoded = try JSONDecoder().decode(DailySummary.self, from: Data(older.utf8))
+
+    @Test("a summary written before the field existed decodes without it, and has no average")
+    func olderFileStillDecodes() throws {
+        let decoded = try JSONDecoder().decode(DailySummary.self, from: Data(Self.olderDay.utf8))
         #expect(decoded.breakCount == 1)
-        #expect(decoded.totalBreakTime == 0)
-        #expect(decoded.averageBreakLength == 0)
+        #expect(decoded.totalBreakTime == nil)
+        #expect(decoded.averageBreakLength == nil, "one break of unknown length is not a zero second break")
         #expect(decoded.totalActiveWork == 5515)
         #expect(decoded.isPlausible)
+
+        let again = String(decoding: try JSONEncoder().encode(decoded), as: UTF8.self)
+        #expect(!again.contains("totalBreakTime"), "re-encoding must not invent a value: \(again)")
+    }
+
+    @Test("rewriting the month file for a new day leaves an older day without the field")
+    func olderMonthFileIsNotRewrittenWithZero() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("sigstop-tests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        let path = store.summariesDirectory.appendingPathComponent("2026-09.json")
+        try Data("{\"days\":{\"2026-09-19\":\(Self.olderDay)},\"v\":1}".utf8).write(to: path)
+
+        try store.writeSummary(DailySummary(day: Self.day, totalActiveWork: 3600, breakCount: 2, totalBreakTime: 660))
+
+        let text = String(decoding: try Data(contentsOf: path), as: UTF8.self)
+        #expect(text.components(separatedBy: "\"totalBreakTime\"").count == 2, "one day carries the field: \(text)")
+        let back = try store.readSummaries(year: 2026, month: 9)
+        #expect(back[CalendarDay(year: 2026, month: 9, day: 19)]?.totalBreakTime == nil)
+        #expect(back[CalendarDay(year: 2026, month: 9, day: 19)]?.averageBreakLength == nil)
+        #expect(back[Self.day]?.totalBreakTime == 660)
+        #expect(back[Self.day]?.averageBreakLength == 330)
     }
 
     @Test("the field round trips through the encoder")
