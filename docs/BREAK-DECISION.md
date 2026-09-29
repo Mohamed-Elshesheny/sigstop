@@ -1541,8 +1541,11 @@ two bars. This used to read "no new hue and no new glyph", and `.held` drew exac
 `.breakDue`, so the one silence §11.1 exists to explain was the one the mark could not show. The
 hue rule stands: there is still no new colour, so the dashes survive Differentiate Without Color,
 and the icon is still rendered only when its state key changes, so the glyph costs nothing per
-tick. The panel's own mark rests the same way while held. The tooltip carries the sentence, so
-hovering is enough.
+tick. The dashes stay while you sit still on the call: going quiet on a call is not walking
+away, so a due break parked as `idle` keeps drawing `.held` for as long as the call blocks it,
+and dims to the idle bars only once the call has ended and you are still gone. A locked screen
+is idle, call or no call. The panel's own mark rests the same way while held. The tooltip
+carries the sentence, so hovering is enough.
 
 ---
 

@@ -242,7 +242,7 @@ public struct BreakDecisionEngine: Sendable {
 
         if input.context.idleSeconds >= policy.microIdleGrace {
             if d.promptedAt != nil { effects.append(.withdrawPrompt(cycle: d.cycle, reason: .userLeft)) }
-            effects.append(.setIndicator(.idle))
+            effects.append(.setIndicator(idleIndicator(input, holding: d.budget)))
             return (.idle(IdleState(
                 since: input.now.addingTimeInterval(-input.context.idleSeconds),
                 cause: .microIdleExceeded,
@@ -372,7 +372,7 @@ public struct BreakDecisionEngine: Sendable {
 
         if input.context.idleSeconds >= policy.microIdleGrace {
             effects.append(.withdrawPrompt(cycle: e.cycle, reason: .userLeft))
-            effects.append(.setIndicator(.idle))
+            effects.append(.setIndicator(idleIndicator(input, holding: e.budget)))
             return (.idle(IdleState(
                 since: input.now.addingTimeInterval(-input.context.idleSeconds),
                 cause: .microIdleExceeded,
@@ -497,6 +497,13 @@ public struct BreakDecisionEngine: Sendable {
         }
     }
 
+    private func idleIndicator(_ input: EngineInput, holding budget: CycleBudget?) -> IndicatorState {
+        guard let budget, let block = interruption.hardBlock(input, budget: budget),
+              Self.indicator(for: block) == .held
+        else { return .idle }
+        return .held
+    }
+
     private func advanceAudioHold(
         _ elapsed: TimeInterval, by dt: TimeInterval, input: EngineInput
     ) -> TimeInterval {
@@ -601,7 +608,8 @@ public struct BreakDecisionEngine: Sendable {
         effects: inout [Effect]
     ) -> EngineState {
         guard input.context.idleSeconds < policy.microIdleGrace, !input.signals.screenLocked else {
-            effects.append(.setIndicator(.idle))
+            let parked = idle.suspendedBreakDue?.budget ?? idle.suspendedEscalation?.budget
+            effects.append(.setIndicator(idleIndicator(input, holding: parked)))
             return .idle(idle)
         }
         if var e = idle.suspendedEscalation {
