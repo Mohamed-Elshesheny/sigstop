@@ -274,19 +274,26 @@ struct BreakScreen: View {
     }
 
     private var countdown: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(BreakCountdownSchedule(end: endsAt)) { context in
             let total = max(1, duration)
             let remaining = max(0, (endsAt ?? context.date).timeIntervalSince(context.date))
+            let reading = BreakCountdown.reading(remaining: remaining)
             VStack(spacing: 14) {
-                Text(Format.clock(remaining))
-                    .font(Brand.mono(120, weight: .light))
-                    .tracking(-4)
-                    .monospacedDigit()
-                    .foregroundStyle(Brand.Dark.fg)
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text(String(reading.value))
+                        .font(Brand.mono(120, weight: .light))
+                        .tracking(-4)
+                        .monospacedDigit()
+                        .foregroundStyle(Brand.Dark.fg)
+                    Text(reading.unit.rawValue)
+                        .font(Brand.mono(40, weight: .light))
+                        .foregroundStyle(Brand.Dark.fgMuted)
+                }
+                .accessibilityElement(children: .combine)
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text("remaining")
                     Text("·")
-                    Text("of \(Format.clock(total))")
+                    Text("of \(BreakCountdown.length(total).text)")
                 }
                 .font(Brand.mono(12))
                 .foregroundStyle(Brand.Dark.fgMuted)
@@ -319,6 +326,15 @@ struct BreakScreen: View {
             in: RoundedRectangle(cornerRadius: 4, style: .continuous)
         )
         .onHover { hoveringResume = $0 }
+    }
+}
+
+struct BreakCountdownSchedule: TimelineSchedule {
+    let end: Date?
+
+    func entries(from startDate: Date, mode: Mode) -> [Date] {
+        guard let end else { return [startDate] }
+        return [startDate] + BreakCountdown.redraws(from: startDate, until: end)
     }
 }
 

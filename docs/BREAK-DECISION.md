@@ -924,6 +924,19 @@ placed with `.equatable()`, so a hover on `SIGCONT` does not redraw it. Strokes 
 Increase Contrast. VoiceOver reads it as one image with `spokenLabel`, which carries no em dash and
 names a mood, never a feeling about the user.
 
+**The break screen counts in minutes.** The countdown reads `5 min`, `4 min`, down to `2 min`, in
+whole minutes rounded up so a fresh break shows its full length, and only inside the last minute does
+it read seconds, `60 s` to `0 s`. It used to be `mm:ss` at 120 pt redrawn every second, which was the
+break screen's main recurring work against the §5 budget in CLAUDE.md, and an exact clock that large
+is a thing to stare at rather than a break. `BreakCountdown` in `SigstopCore/Model/BreakCountdown.swift`
+owns both the reading and the schedule: `redraws(from:until:)` returns the moments the reading
+changes and nothing else, so the `TimelineView` on the break screen wakes 64 times over a five-minute
+break instead of 300, and `BreakCountdownTests` pins that the schedule is exactly the set of changes,
+for breaks of one minute to an hour. The reading rounds to the nearest second before it decides,
+because a redraw lands a few milliseconds after its date and the arithmetic on two `Date`s carries
+noise, and a boundary that reads `5 min` on the redraw meant to show `4 min` would be a lie at the
+worst moment. The progress bar under it moves with the same redraws, unanimated.
+
 ### 7.6 Low battery
 
 Battery is an input about *cost and context*, never a reason to skip a break:
