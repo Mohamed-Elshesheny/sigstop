@@ -139,7 +139,8 @@ struct MenuBarView: View {
 
     private var subtitle: String {
         if let until = model.pausedUntil {
-            return "paused until \(Self.clock(until))"
+            let day = until.timeIntervalSinceNow >= 24 * 3600 ? " tomorrow" : ""
+            return "paused until \(Self.clock(until))\(day)"
         }
         if let until = model.snoozeUntil, until > .now {
             return "asking again at \(Self.clock(until))"
@@ -269,7 +270,7 @@ struct MenuBarView: View {
 
             QuietRow {
                 if model.pausedUntil == nil {
-                    TerminalButton("Pause · 1h", style: .quiet) { model.pause(for: 3600) }
+                    TerminalButton("Pause · 1h", style: .quiet) { model.pause(for: AppModel.hourPause) }
                     TerminalButton("Pause · today", style: .quiet) { model.pauseUntilTomorrow() }
                         .accessibilityLabel("Pause for the rest of today")
                 } else {

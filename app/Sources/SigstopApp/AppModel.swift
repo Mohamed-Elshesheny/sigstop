@@ -276,9 +276,12 @@ final class AppModel {
         todaySummary = summary
     }
 
+    static let hourPause: TimeInterval = 3600
+
     func pauseUntilTomorrow() {
         guard let seconds = LocalDay.secondsUntilNextBoundary(
-            after: time.now, calendar: .current, boundaryHour: policy.dayBoundaryHour
+            atLeast: Self.hourPause, after: time.now, calendar: .current,
+            boundaryHour: policy.dayBoundaryHour
         ) else { return }
         pause(for: seconds)
     }

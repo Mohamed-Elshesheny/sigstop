@@ -100,6 +100,18 @@ public enum LocalDay {
         let seconds = boundary.timeIntervalSince(date)
         return seconds > 0 ? seconds : nil
     }
+
+    public static func secondsUntilNextBoundary(
+        atLeast floor: TimeInterval, after date: Date, calendar: Calendar, boundaryHour: Int
+    ) -> TimeInterval? {
+        guard let next = secondsUntilNextBoundary(after: date, calendar: calendar, boundaryHour: boundaryHour)
+        else { return nil }
+        guard next < floor else { return next }
+        let boundary = date.addingTimeInterval(next)
+        guard let following = secondsUntilNextBoundary(after: boundary, calendar: calendar, boundaryHour: boundaryHour)
+        else { return nil }
+        return next + following
+    }
 }
 
 public struct SystemSignals: Sendable, Codable, Hashable {

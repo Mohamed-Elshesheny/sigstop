@@ -1573,6 +1573,11 @@ public struct QuietHours: Sendable, Codable, Hashable {
   boundary. The rollup's `CalendarDay.interval` still draws a day from 04:00 to 04:00 on the
   clock, which predates this and is the same hour off on the same two nights. The pause cannot be
   forgotten on, and the subtitle says when: "paused until 4:00 AM".
+- *Pause · today* is never shorter than the *Pause · 1h* beside it. `AppModel.pauseUntilTomorrow`
+  asks `LocalDay` for the boundary at least an hour away, so at 03:30 the pause runs to the
+  boundary after next, a day and a half hour, rather than to 04:00 thirty minutes on, which is
+  what the button used to do and what nobody pressing "today" at 03:30 meant. When the end is a
+  day or more away the subtitle says so: "paused until 4:00 AM tomorrow".
 - A pause does not stop the log from noticing that you left. `SessionTracker` ranks `.userPaused`
   above idle, so while the app is paused it never reports an idle gap, and the app used to write no
   `idle_begin` for the hour, or for the rest of the day, that a pause covers. The rollup learns idle
