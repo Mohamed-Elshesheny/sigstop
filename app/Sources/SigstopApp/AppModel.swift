@@ -391,15 +391,15 @@ final class AppModel {
         pendingAction = nil
         seamsForNextStep.removeAll()
 
-        let openBefore = engineState.openCycle
-        let outcome = decision.step(engineState, input)
+        let before = engineState
+        let outcome = decision.step(before, input)
         engineState = outcome.state
         day = outcome.day
 
         if let line = verdicts.observe(
             outcome.verdict.map(GateReason.init),
             holding: engineState.silence,
-            cycle: openBefore, at: now, monotonic: monotonic
+            cycle: before.openCycle, at: now, monotonic: monotonic
         ) {
             append(line)
         }
@@ -407,7 +407,10 @@ final class AppModel {
         for effect in outcome.effects {
             execute(effect, context: context, now: now)
         }
-        if BreakEnding.ranOut(outcome.effects, userAction: input.userAction) {
+        if BreakEnding.ranOut(
+            outcome.effects, userAction: input.userAction,
+            from: before, monotonic: monotonic, policy: policy
+        ) {
             PromptSound.playBreakOver(enabled: settings.promptSound && !captureLive)
         }
         closeBreakTheEngineLeft()

@@ -921,11 +921,15 @@ silent can still be heard.
 
 The same switch covers the other end of the break. When a break ends because its planned duration
 passed, the app plays one quiet Glass, so somebody who actually walked away can hear that it is
-over without coming back to look. It plays only when the break ran out on its own:
+over without coming back to look. It plays only when the break ran out on its own, and on time:
 `BreakEnding.ranOut` is true for an `.endBreak` effect on a tick that carried no user action, which
 in this engine is the only way a break can end by itself, since `step` returns as soon as it has
-handled an action. Pressing *SIGCONT* early, or pausing the app mid-break, ends the break silently.
-The microphone and camera rule above applies unchanged, read on the same tick.
+handled an action, and only when that tick landed within `tickInterval + tickTolerance` of the
+planned end, the same distance §3.2 calls a discontinuity. Pressing *SIGCONT* early, or pausing the
+app mid-break, ends the break silently. So does a break whose end passed while the Mac slept:
+`CLOCK_MONOTONIC` keeps counting through sleep on macOS, so that break ends on the first tick after
+waking, minutes or hours late, and Glass at wake would be a chime for a break nobody is on. The
+microphone and camera rule above applies unchanged, read on the same tick.
 
 **The first two rungs are a card. The last two are full screen.** When system notifications are
 off, which is the default, every rung is drawn by the app itself, because there is no other
