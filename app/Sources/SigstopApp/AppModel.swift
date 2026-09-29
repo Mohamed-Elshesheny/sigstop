@@ -398,6 +398,9 @@ final class AppModel {
         for effect in outcome.effects {
             execute(effect, context: context, now: now)
         }
+        if BreakEnding.ranOut(outcome.effects, userAction: input.userAction) {
+            PromptSound.playBreakOver(enabled: settings.promptSound && !captureLive)
+        }
         closeBreakTheEngineLeft()
         verifyPromptPresentation()
 

@@ -8,6 +8,12 @@ enum PromptSound {
         sound.play()
     }
 
+    static func playBreakOver(enabled: Bool) {
+        guard enabled, let sound = NSSound(named: NSSound.Name("Glass")) else { return }
+        sound.volume = 0.3
+        sound.play()
+    }
+
     private static func name(for level: EscalationLevel) -> NSSound.Name {
         switch level {
         case .first:    return NSSound.Name("Tink")
