@@ -952,8 +952,8 @@ says so: `SIGTSTP` and `SIGINT` are a card, `SIGTERM` and `SIGSTOP` are the pane
 `PromptSurfaceTests` pins the mapping.
 
 This section used to say that every rung was full screen, and it was: an L1 covered the machine
-exactly as `SIGSTOP` did, on every display, at 78 % black. That contradicted the ladder. §0 of
-`CLAUDE.md` makes `SIGTSTP` the rung you are allowed to ignore, and a rung you are allowed to
+exactly as `SIGSTOP` did, on every display, at 78 % black. That contradicted the ladder.
+`SIGTSTP` is the rung you are allowed to ignore, and a rung you are allowed to
 ignore has no business covering every screen to say so. The users of the other break reminders say
 what that costs. Full-screen breaks are called "jarring and too much"
 (https://news.ycombinator.com/item?id=31631926); the author of Sane Break writes that skipping
@@ -1022,13 +1022,13 @@ Nothing about it moves. Only the eyes differ, and they are set once per panel by
 it, and `FaceMark` in `SigstopApp/Views/FaceMark.swift` draws it. The **rendered** tone caps the
 face the way the user's tone setting caps the line (`docs/MESSAGE-ENGINE.md` §4): a friendly line at
 L3 gets the eyebrow, never the lowered lids, because the eyes and the words are one voice and the
-lids under a gentle sentence would read as a warden. The rails, which are the tone rule of CLAUDE.md
-§0 in geometry: it is never red, even at `SIGSTOP`; it is never sad, angry, hurt or disappointed,
+lids under a gentle sentence would read as a warden. The rails, which are the tone rule in
+geometry: it is never red, even at `SIGSTOP`; it is never sad, angry, hurt or disappointed,
 and there are no slanted brows at all, since a brow that is low at the inner end and high at the
 outer end is one half of an angry V, so the one brow is a level arch (the L2 stroke used to be
 drawn "tilted up and outward", which is exactly that half, and it was redrawn); it never looks down at the user; it does
 not change beside *Ignore it* or *Skip*, so waving a prompt off costs no expression; and it never
-implies it knows the activity, so there is no debugging face (CLAUDE.md §4.1). Mood lives in
+implies it knows the activity, so there is no debugging face ([*Never overclaim*](../CONTRIBUTING.md#the-rules-a-pr-cannot-break)). Mood lives in
 geometry, not colour, so it survives Differentiate Without Color, and the opaque plate is why the
 78% panel can sit over a white editor without the face's contrast depending on what is behind it.
 
@@ -1042,7 +1042,7 @@ names a mood, never a feeling about the user.
 **The break screen counts in minutes.** The countdown reads `5 min`, `4 min`, down to `2 min`, in
 whole minutes rounded up so a fresh break shows its full length, and only inside the last minute does
 it read seconds, `60 s` to `0 s`. It used to be `mm:ss` at 120 pt redrawn every second, which was the
-break screen's main recurring work against the §5 budget in CLAUDE.md, and an exact clock that large
+break screen's main recurring work against the app's CPU budget, and an exact clock that large
 is a thing to stare at rather than a break. `BreakCountdown` in `SigstopCore/Model/BreakCountdown.swift`
 owns both the reading and the schedule: `redraws(from:until:)` returns the moments the reading
 changes and nothing else, so the `TimelineView` on the break screen wakes 64 times over a five-minute
