@@ -84,9 +84,7 @@ struct PromptCardView: View {
             }
             .padding(.top, 18)
 
-            Text(isIncident
-                 ? "ignore it, and it leaves you alone for \(DurationText.short(quietAfterLast))"
-                 : "ignore it, and it asks again in a few minutes")
+            Text(PromptFooter.text(for: request, quietAfterLast: quietAfterLast))
                 .font(Brand.mono(10))
                 .foregroundStyle(Brand.Dark.fgFaint)
                 .padding(.top, 12)
@@ -99,6 +97,19 @@ struct PromptCardView: View {
             try? await Task.sleep(for: .seconds(skipArmsAfter))
             guard !Task.isCancelled else { return }
             skipArmed = true
+        }
+    }
+}
+
+enum PromptFooter {
+    static func text(for request: PromptRequest, quietAfterLast: TimeInterval) -> String {
+        switch request.ifIgnored {
+        case .anotherRung:
+            return "ignore it, and it asks again in a few minutes"
+        case .cooldown:
+            return "ignore it, and it leaves you alone for \(DurationText.short(quietAfterLast))"
+        case .quietForTheDay:
+            return "ignore it, and that is the last one today: the daily cap is spent"
         }
     }
 }

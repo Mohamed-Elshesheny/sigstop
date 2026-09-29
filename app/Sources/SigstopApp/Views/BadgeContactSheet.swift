@@ -215,20 +215,22 @@ enum PromptRenderer {
             FileHandle.standardError.write(Data("no corpus line with id '\(templateID)'\n".utf8))
             exit(2)
         }
-        let cases: [(String, EscalationLevel, PromptChannel, [TimeInterval], TimeInterval)] = [
-            ("l1", .first, .notification, [300, 600, 900], 3),
-            ("l1-armed", .first, .notification, [300, 600, 900], 0),
-            ("l1-nosnooze", .first, .notification, [], 3),
-            ("l2", .second, .notification, [], 3),
-            ("l3", .third, .notificationWithSound, [], 3),
-            ("l4", .incident, .panel, [], 3),
-            ("l4-battery", .incident, .notification, [], 3),
+        let cases: [(String, EscalationLevel, PromptChannel, [TimeInterval], TimeInterval, PromptFollowUp)] = [
+            ("l1", .first, .notification, [300, 600, 900], 3, .anotherRung),
+            ("l1-armed", .first, .notification, [300, 600, 900], 0, .anotherRung),
+            ("l1-nosnooze", .first, .notification, [], 3, .cooldown),
+            ("l1-capped", .first, .notification, [], 3, .quietForTheDay),
+            ("l2", .second, .notification, [], 3, .anotherRung),
+            ("l2-last", .second, .notification, [], 3, .cooldown),
+            ("l3", .third, .notificationWithSound, [], 3, .anotherRung),
+            ("l4", .incident, .panel, [], 3, .cooldown),
+            ("l4-battery", .incident, .notification, [], 3, .cooldown),
         ]
-        for (suffix, level, channel, snooze, skipArmsAfter) in cases {
+        for (suffix, level, channel, snooze, skipArmsAfter, ifIgnored) in cases {
             let request = PromptRequest(
                 cycle: CycleID.initial, level: level, channel: channel,
                 at: Date(timeIntervalSince1970: 1_758_500_000), continuousWork: 47 * 60,
-                snoozeOffered: snooze
+                snoozeOffered: snooze, ifIgnored: ifIgnored
             )
             let message = RenderedMessage(
                 templateID: template.id, title: nil, text: template.text,

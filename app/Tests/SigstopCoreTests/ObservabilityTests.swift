@@ -30,7 +30,7 @@ struct ObservabilityTests {
         let cycle = CycleID.initial
         let request = PromptRequest(
             cycle: cycle, level: .first, channel: .notification,
-            at: epoch, continuousWork: 300, snoozeOffered: []
+            at: epoch, continuousWork: 300, snoozeOffered: [], ifIgnored: .anotherRung
         )
         return [
             .openCycle(cycle),

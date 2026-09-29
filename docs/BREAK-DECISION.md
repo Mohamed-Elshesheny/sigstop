@@ -959,7 +959,14 @@ off. In every other respect it is the panel: the same `NonActivatingPanel` at th
 `.statusBar` level, `sharingType = .none`, joins every Space, sits over full-screen apps, and never
 takes the keyboard from the app underneath. It carries the same content and the same answers,
 *Take it*, *Snooze (SIGALRM)* when offered, *Skip* labelled with its cost, and *Ignore it*, with the
-same footer, so nothing the notification would have offered is lost by being small. It goes away
+same footer, so nothing the notification would have offered is lost by being small. The footer says
+what ignoring costs, and the engine is the one that knows: `PromptRequest.ifIgnored` is
+`.anotherRung` when a later rung will follow, `.cooldown` when this is the cycle's last prompt
+(`SIGSTOP`, the fourth notification, or the backoff's single one, §11) and `.quietForTheDay` when it
+is the prompt that reached the daily cap. `PromptFollowUpTests` pins that a prompt promises another
+rung exactly when one follows. Both surfaces used to decide the footer from the level alone, so the
+backoff's only prompt said "it asks again in a few minutes" over a cycle that was about to close for
+25 minutes, and the card, which never shows `SIGSTOP`, could not say anything else. It goes away
 exactly when the panel would, on an answer, on `withdrawPrompt`, on `closeCycle` and on
 `beginBreak`, and it is confirmed on screen the same way (§10, `kCGWindowIsOnscreen` on its window
 number), so a card the window server never composited is not counted as ignored either.

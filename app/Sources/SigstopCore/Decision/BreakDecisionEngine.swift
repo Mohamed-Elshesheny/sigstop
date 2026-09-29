@@ -347,7 +347,8 @@ public struct BreakDecisionEngine: Sendable {
                     snoozeOffered: interruption.offeredSnoozes(
                         day: day, sentThisCycle: d.notificationsThisCycle,
                         used: d.snoozesUsed, total: d.snoozeTotal
-                    )
+                    ),
+                    ifIgnored: followUp(after: .first, budget: d.budget, input: input, day: day)
                 )
                 effects.append(.deliverPrompt(prompt))
                 effects.append(.setIndicator(.breakDue))
@@ -413,22 +414,22 @@ public struct BreakDecisionEngine: Sendable {
         if e.level != .first, !e.deliveredLevels.contains(e.level), verdict.isDeliverable {
             let channel = channelFor(level: e.level, signals: input.signals)
             if channel.interrupts {
+                e.deliveredLevels.insert(e.level)
+                e.notificationsThisCycle += 1
+                day.notificationsDelivered += 1
+                day.lastNotificationAt = input.now
+                let followUp = followUp(after: e.level, budget: e.budget, input: input, day: day)
                 let prompt = PromptRequest(
                     cycle: e.cycle,
                     level: e.level,
                     channel: channel,
                     at: input.now,
                     continuousWork: input.context.continuousWork,
-                    snoozeOffered: []
+                    snoozeOffered: [],
+                    ifIgnored: followUp
                 )
                 effects.append(.deliverPrompt(prompt))
-                e.deliveredLevels.insert(e.level)
-                e.notificationsThisCycle += 1
-                day.notificationsDelivered += 1
-                day.lastNotificationAt = input.now
-                if e.level == .incident
-                    || interruption.ladderIsSpent(input, budget: e.budget)
-                    || day.notificationsDelivered >= policy.dailyNotificationCap {
+                if followUp.isLastOfCycle {
                     e.finalDeliveredAt = e.ladderElapsed
                 }
             }
@@ -468,6 +469,14 @@ public struct BreakDecisionEngine: Sendable {
 
         effects.append(.setIndicator(.escalating))
         return (.ignored(e), verdict)
+    }
+
+    private func followUp(
+        after level: EscalationLevel, budget: CycleBudget, input: EngineInput, day: DailyCounters
+    ) -> PromptFollowUp {
+        if day.notificationsDelivered >= policy.dailyNotificationCap { return .quietForTheDay }
+        if level == .incident || interruption.ladderIsSpent(input, budget: budget) { return .cooldown }
+        return .anotherRung
     }
 
     private func ladderLevel(for e: Escalation, input: EngineInput) -> EscalationLevel {

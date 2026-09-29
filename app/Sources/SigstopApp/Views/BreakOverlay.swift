@@ -487,9 +487,7 @@ struct FallbackPromptView: View {
                 }
                 .padding(.top, 44)
 
-                Text(isIncident
-                     ? "ignore it, and it leaves you alone for \(DurationText.short(quietAfterLast))"
-                     : "ignore it, and it asks again in a few minutes")
+                Text(PromptFooter.text(for: request, quietAfterLast: quietAfterLast))
                     .font(Brand.mono(11))
                     .foregroundStyle(Brand.Dark.fgFaint)
                     .padding(.top, 18)

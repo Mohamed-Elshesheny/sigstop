@@ -47,6 +47,14 @@ public enum IndicatorState: String, Sendable, Codable, Hashable {
     }
 }
 
+public enum PromptFollowUp: String, Sendable, Codable, Hashable {
+    case anotherRung
+    case cooldown
+    case quietForTheDay
+
+    public var isLastOfCycle: Bool { self != .anotherRung }
+}
+
 public struct PromptRequest: Sendable, Codable, Hashable {
     public let cycle: CycleID
     public let level: EscalationLevel
@@ -55,6 +63,7 @@ public struct PromptRequest: Sendable, Codable, Hashable {
     public let at: Date
     public let continuousWork: TimeInterval
     public let snoozeOffered: [TimeInterval]
+    public let ifIgnored: PromptFollowUp
 
     public init(
         cycle: CycleID,
@@ -62,7 +71,8 @@ public struct PromptRequest: Sendable, Codable, Hashable {
         channel: PromptChannel,
         at: Date,
         continuousWork: TimeInterval,
-        snoozeOffered: [TimeInterval]
+        snoozeOffered: [TimeInterval],
+        ifIgnored: PromptFollowUp
     ) {
         self.cycle = cycle
         self.level = level
@@ -71,6 +81,7 @@ public struct PromptRequest: Sendable, Codable, Hashable {
         self.at = at
         self.continuousWork = continuousWork
         self.snoozeOffered = snoozeOffered
+        self.ifIgnored = ifIgnored
     }
 }
 
