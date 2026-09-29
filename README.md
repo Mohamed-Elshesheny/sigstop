@@ -131,7 +131,7 @@ No. Out of the box it sees which app is in front, whether you're idle, and wheth
 <summary><b>How do I check the app I installed, not the source?</b></summary>
 <br>
 
-With the tools that ship with macOS, against the copy in `/Applications`. Every command here only reads; none changes the app, its settings or your data.
+Against the copy in `/Applications`. `codesign`, `plutil`, `defaults` and `ls` ship with macOS; `otool` and `nm` come with the Command Line Tools (`xcode-select --install`) or Xcode, and on a Mac with neither those two lines prompt to install them instead of printing. Every command here only reads; none changes the app, its settings or your data.
 
 ```sh
 APP=/Applications/sigstop.app

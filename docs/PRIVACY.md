@@ -1540,9 +1540,12 @@ number, because they hold only commit subjects. See §8.7.
 ### 6.6 Check the app you installed
 
 Everything above assumes a clone and a build. Most people install the disk image, and the claims
-are about that bundle, so here is the same check against `/Applications/sigstop.app` with tools
-that ship with macOS. Every command reads; none changes the app, its settings or your data. The
-output below is from a v0.1.8 build; version fields move between releases and the shape does not.
+are about that bundle, so here is the same check against `/Applications/sigstop.app`. `codesign`,
+`plutil`, `defaults` and `ls` ship with macOS. `otool`, `nm` and `strings` do not: `/usr/bin` holds
+a stub for each that runs the real tool from the Command Line Tools or Xcode and, on a Mac with
+neither, prompts to install the tools (`xcode-select --install`) instead of printing anything.
+Every command reads; none changes the app, its settings or your data. The output below is from a
+v0.1.8 build; version fields move between releases and the shape does not.
 
 **What it links.** The libraries a binary links are the outer bound on what it can call. Expect
 Sparkle, Apple's frameworks and the Swift runtime, and nothing else: no `CFNetwork`, no
