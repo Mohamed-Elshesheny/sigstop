@@ -124,49 +124,112 @@ final class BreakOverlayController {
             }
         }
 
-        for screen in screens {
-            let frame = screen.frame
-            let panel = NonActivatingPanel(
-                contentRect: frame,
-                styleMask: [.borderless, .nonactivatingPanel],
-                backing: .buffered,
-                defer: false
-            )
-            panel.onCancel = { [weak model, weak self] in
-                self?.dismissPromptPanel()
-                model?.ignorePrompt()
+        switch PromptSurface(level: request.level) {
+        case .card:
+            let screen = Self.workingScreen(among: screens)
+            fallbackPanels.append(cardPanel(on: screen, request: request, message: message, model: model))
+        case .fullScreen:
+            for screen in screens {
+                fallbackPanels.append(fullScreenPanel(on: screen, request: request, message: message, model: model))
             }
-            panel.isOpaque = false
-            panel.backgroundColor = .clear
-            panel.hasShadow = false
-            panel.isMovable = false
-            panel.hidesOnDeactivate = false
-            panel.level = .statusBar
-            panel.sharingType = .none
-            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-            panel.setFrame(frame, display: true)
-
-            let hosting = NSHostingView(
-                rootView: FallbackPromptView(
-                    request: request,
-                    message: message,
-                    skipQuiet: model.policy.rearmAfterSkip,
-                    quietAfterLast: model.policy.cooldownAfterExhausted,
-                    skipArmsAfter: model.policy.skipArmsAfter,
-                    onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
-                    onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
-                    onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
-                    onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
-                )
-                .environment(\.locale, DisplayLocale.english(from: .current))
-            )
-            hosting.appearance = Self.overlayAppearance
-            hosting.sizingOptions = []
-            panel.contentView = hosting
-            panel.orderFrontRegardless()
-            fallbackPanels.append(panel)
         }
         return !fallbackPanels.isEmpty
+    }
+
+    private static func workingScreen(among screens: [NSScreen]) -> NSScreen {
+        let mouse = NSEvent.mouseLocation
+        return screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? screens[0]
+    }
+
+    private func cardPanel(
+        on screen: NSScreen, request: PromptRequest, message: RenderedMessage, model: AppModel
+    ) -> NonActivatingPanel {
+        let hosting = promptHosting(
+            PromptCardView(
+                request: request,
+                message: message,
+                skipQuiet: model.policy.rearmAfterSkip,
+                quietAfterLast: model.policy.cooldownAfterExhausted,
+                onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
+                onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
+                onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
+                onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
+            )
+            .frame(width: PromptCardPlacement.width)
+        )
+        hosting.layoutSubtreeIfNeeded()
+        let size = hosting.fittingSize
+        let visible = screen.visibleFrame
+        let box = PromptCardPlacement.place(
+            width: size.width,
+            height: size.height,
+            in: PromptCardPlacement.Box(
+                x: visible.minX, y: visible.minY, width: visible.width, height: visible.height
+            )
+        )
+        hosting.sizingOptions = []
+        let panel = promptPanel(
+            frame: NSRect(x: box.x, y: box.y, width: box.width, height: box.height), model: model
+        )
+        panel.hasShadow = true
+        panel.contentView = hosting
+        panel.orderFrontRegardless()
+        panel.invalidateShadow()
+        return panel
+    }
+
+    private func fullScreenPanel(
+        on screen: NSScreen, request: PromptRequest, message: RenderedMessage, model: AppModel
+    ) -> NonActivatingPanel {
+        let hosting = promptHosting(
+            FallbackPromptView(
+                request: request,
+                message: message,
+                skipQuiet: model.policy.rearmAfterSkip,
+                quietAfterLast: model.policy.cooldownAfterExhausted,
+                skipArmsAfter: model.policy.skipArmsAfter,
+                onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
+                onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
+                onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
+                onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
+            )
+        )
+        hosting.sizingOptions = []
+        let panel = promptPanel(frame: screen.frame, model: model)
+        panel.hasShadow = false
+        panel.contentView = hosting
+        panel.orderFrontRegardless()
+        return panel
+    }
+
+    private func promptHosting<Content: View>(_ view: Content) -> NSHostingView<some View> {
+        let hosting = NSHostingView(
+            rootView: view.environment(\.locale, DisplayLocale.english(from: .current))
+        )
+        hosting.appearance = Self.overlayAppearance
+        return hosting
+    }
+
+    private func promptPanel(frame: NSRect, model: AppModel) -> NonActivatingPanel {
+        let panel = NonActivatingPanel(
+            contentRect: frame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.onCancel = { [weak model, weak self] in
+            self?.dismissPromptPanel()
+            model?.ignorePrompt()
+        }
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.isMovable = false
+        panel.hidesOnDeactivate = false
+        panel.level = .statusBar
+        panel.sharingType = .none
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.setFrame(frame, display: true)
+        return panel
     }
 
     var promptPanelIsOnScreen: Bool {

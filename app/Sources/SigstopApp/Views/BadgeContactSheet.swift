@@ -161,15 +161,25 @@ enum PromptRenderer {
             )
             let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
             do {
-                try BadgeSheetRenderer.write(
-                    FallbackPromptView(
-                        request: request, message: message, skipArmsAfter: skipArmsAfter,
-                        onTake: {}, onIgnore: {}, onSkip: {}
+                switch PromptSurface(level: level) {
+                case .card:
+                    try BadgeSheetRenderer.write(
+                        PromptCardView(request: request, message: message, onTake: {}, onIgnore: {}, onSkip: {})
+                        .frame(width: PromptCardPlacement.width),
+                        appearance: .darkAqua,
+                        to: url
                     )
-                    .frame(width: 1280, height: 800),
-                    appearance: .darkAqua,
-                    to: url
-                )
+                case .fullScreen:
+                    try BadgeSheetRenderer.write(
+                        FallbackPromptView(
+                            request: request, message: message, skipArmsAfter: skipArmsAfter,
+                            onTake: {}, onIgnore: {}, onSkip: {}
+                        )
+                        .frame(width: 1280, height: 800),
+                        appearance: .darkAqua,
+                        to: url
+                    )
+                }
                 FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
             } catch {
                 FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
