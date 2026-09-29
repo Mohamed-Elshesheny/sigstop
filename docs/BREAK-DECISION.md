@@ -901,7 +901,7 @@ Summary of the two extremes and the specific mechanisms against each:
 | Passive menu-bar indicator (icon state + title) | no | **always**, including quiet hours, DND, daily cap, hard blocks |
 | Standard notification (`.active`, silent by default) | yes | not hard-blocked, not rate-limited |
 | Notification with sound | yes | escalation level 3+ only, never twice in a cycle, and never while a microphone or camera is live |
-| Card drawn by the app: about 420 pt wide, in the top-right corner under the menu bar of the display the pointer is on, no dimming, non-activating | yes | levels 1 and 2 when the system will not show them as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears |
+| Card drawn by the app: about 420 pt wide, in the top-right corner under the menu bar of the display the frontmost window is on, no dimming, non-activating | yes | levels 1 and 2 when the system will not show them as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears |
 | Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 outside Low Power Mode, and levels 3 and 4 when the system will not show them as a notification, for the same three reasons. Level 4 becomes a notification in Low Power Mode (§7.6) and is still drawn full screen |
 
 Nothing in the app is ever modal, and neither surface activates the app. The panel covers every
@@ -952,9 +952,17 @@ L4, the ones that carry the weight. Keeping the first two small is what keeps th
 meaningful.
 
 The card is about 420 points wide and as tall as its text, in the top-right corner under the menu
-bar of the display the pointer is on (`NSScreen.visibleFrame`, inset 12 points, the arithmetic in
-`PromptCardPlacement`), falling back to the screen with the key window and then the first screen.
-It dims nothing. It appears and stays still: no slide, no fade, nothing for Reduce Motion to switch
+bar (`NSScreen.visibleFrame`, inset 12 points, the arithmetic in `PromptCardPlacement`) of the
+display the user is working on. That is the display of the frontmost app's frontmost window, read
+from the window list as an owner pid, a layer and a rectangle, the same call and the same three
+fields `SystemStateCollector` already reads for the full-screen hint, with no window name and no
+permission; `PromptCardPlacement.display(for:among:)` picks the display holding the window's centre,
+or the one with most of the window, and `PromptCardDisplayTests` pins it. When the app in front has
+no window, the card goes to the display the pointer is on, then the screen with the key window,
+then the first screen. It used to go to the pointer's display first, and the pointer is not where the
+work is: Cmd-Tab, typing and a Space switch move nothing, so a card could be drawn on the far
+display, confirmed on screen by the window server, and counted as ignored 90 seconds later by a user
+who never had a chance to see it. It dims nothing. It appears and stays still: no slide, no fade, nothing for Reduce Motion to switch
 off. In every other respect it is the panel: the same `NonActivatingPanel` at the same
 `.statusBar` level, `sharingType = .none`, joins every Space, sits over full-screen apps, and never
 takes the keyboard from the app underneath. It carries the same content and the same answers,

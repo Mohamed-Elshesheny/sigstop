@@ -137,8 +137,37 @@ final class BreakOverlayController {
     }
 
     private static func workingScreen(among screens: [NSScreen]) -> NSScreen {
+        if let screen = frontmostWindowScreen(among: screens) { return screen }
         let mouse = NSEvent.mouseLocation
         return screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? screens[0]
+    }
+
+    private static func frontmostWindowScreen(among screens: [NSScreen]) -> NSScreen? {
+        guard let primary = screens.first,
+              let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+              let windows = CGWindowListCopyWindowInfo(
+                  [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+              ) as? [[String: Any]]
+        else { return nil }
+        let displays = screens.map { screen in
+            PromptCardPlacement.Box(
+                x: screen.frame.minX, y: screen.frame.minY,
+                width: screen.frame.width, height: screen.frame.height
+            )
+        }
+        for window in windows {
+            guard let owner = window[kCGWindowOwnerPID as String] as? pid_t, owner == pid,
+                  let layer = window[kCGWindowLayer as String] as? Int, layer == 0,
+                  let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict), !bounds.isEmpty
+            else { continue }
+            let box = PromptCardPlacement.Box(
+                x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height
+            ).flippedVertically(primaryHeight: primary.frame.height)
+            guard let index = PromptCardPlacement.display(for: box, among: displays) else { return nil }
+            return screens[index]
+        }
+        return nil
     }
 
     private func cardPanel(
