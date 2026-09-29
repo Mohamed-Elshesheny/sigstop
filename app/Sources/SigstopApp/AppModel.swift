@@ -25,6 +25,7 @@ final class AppModel {
     private(set) var confidence: Double = 0
     private(set) var evidenceLines: [EvidenceLine] = []
     private(set) var caveats: [String] = []
+    private(set) var finishedCommand: String?
     private(set) var gitReading: GitReading?
     private(set) var gitStatusLine: String = "not sampled yet"
     private(set) var waiting: WaitingLine = WaitingLine(.notAskingYet, "starting up")
@@ -864,11 +865,7 @@ final class AppModel {
         evidenceLines = context.evidence
             .sorted { abs($0.logOdds) > abs($1.logOdds) }
             .map { EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds) }
-        if let finished = sample.finishedCommand {
-            evidenceLines += finished.evidence.map {
-                EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds)
-            }
-        }
+        finishedCommand = sample.finishedCommand?.summary
         caveats = sample.caveats
         publishGitReading()
         engineStateName = engineState.name

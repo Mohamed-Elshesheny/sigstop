@@ -239,6 +239,18 @@ struct MenuBarView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            if let finished = model.finishedCommand {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("\u{21B5}")
+                        .font(Brand.mono(10))
+                        .foregroundStyle(Brand.fgMuted)
+                        .frame(width: 40, alignment: .trailing)
+                    Text("\(finished), a natural pause")
+                        .font(Brand.sans(11))
+                        .foregroundStyle(Brand.fgMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 

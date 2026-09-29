@@ -876,8 +876,10 @@ rules, all of them tested with `ProcessSnapshot` literals in `CommandWatchTests`
 
 The seam rides on the `ContextSample` until the tick loop takes one (`sampleAndPublish`), because
 the context engine also samples on its own events and a seam noticed in one of those would
-otherwise be gone before the engine stepped. The evidence is shown in the panel's why list for that
-tick, and `--doctor` says under *tool names* that a watched tool going away is a natural pause.
+otherwise be gone before the engine stepped. The sentence is shown under the panel's why list for
+that tick as a line of its own, marked ↵, and not among the confidence evidence, because it never
+entered the activity's confidence. `--doctor` says under *tool names* that a watched tool going
+away is a natural pause.
 
 What this still cannot see is the same as before: `swift build`, `go test`, `node`, `tsc` and every
 other tool that is named by its arguments (§4.3b of `ACTIVITY-DETECTION.md`), so a build finishing
