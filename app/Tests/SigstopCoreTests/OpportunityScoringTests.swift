@@ -12,6 +12,12 @@ struct OpportunityScoringTests {
         LoggedEvent(at: day.addingTimeInterval(offset), kind: kind, cycle: cycle)
     }
 
+    private static func score(_ events: [LoggedEvent]) -> DailyRollup.OpportunityTotals {
+        let policy = RollupPolicy()
+        let spans = DailyRollup.breakSpans(events, dayEnd: day.addingTimeInterval(24 * 3600), policy: policy)
+        return DailyRollup.scoreOpportunities(events, spans: spans, policy: policy)
+    }
+
     private static func twoOpportunitiesOneBreak() -> [LoggedEvent] {
         [
             event(.breakOpen, 0, cycle: 0),
@@ -25,11 +31,7 @@ struct OpportunityScoringTests {
 
     @Test("Two opportunities and one break is one honoured, not two")
     func oneBreakIsNotTwo() {
-        let totals = DailyRollup.scoreOpportunities(
-            Self.twoOpportunitiesOneBreak(),
-            dayEnd: Self.day.addingTimeInterval(24 * 3600),
-            policy: RollupPolicy()
-        )
+        let totals = Self.score(Self.twoOpportunitiesOneBreak())
         #expect(totals.total == 2)
         #expect(totals.honored == 1, "one break honoured \(totals.honored) opportunities")
     }
@@ -37,9 +39,7 @@ struct OpportunityScoringTests {
     @Test("Honoured never exceeds the breaks that actually happened")
     func honouredNeverExceedsBreaks() {
         let events = Self.twoOpportunitiesOneBreak()
-        let totals = DailyRollup.scoreOpportunities(
-            events, dayEnd: Self.day.addingTimeInterval(24 * 3600), policy: RollupPolicy()
-        )
+        let totals = Self.score(events)
         let breaks = events.filter { $0.kind == .breakBegin }.count
         #expect(totals.honored <= breaks)
     }
@@ -56,9 +56,7 @@ struct OpportunityScoringTests {
             Self.event(.breakBegin, 3630, cycle: 1),
             Self.event(.breakEnd, 3630 + 6 * 60, cycle: 1),
         ]
-        let totals = DailyRollup.scoreOpportunities(
-            events, dayEnd: Self.day.addingTimeInterval(24 * 3600), policy: RollupPolicy()
-        )
+        let totals = Self.score(events)
         #expect(totals.total == 2)
         #expect(totals.honored == 2)
     }

@@ -152,7 +152,8 @@ extension EventStore {
         else { return (merged, malformed) }
         let inWindow = merged.filter { $0.at >= interval.start && $0.at < interval.end }
         let before = merged.last { $0.at < interval.start }
-        return ((before.map { [$0] } ?? []) + inWindow, malformed)
+        let after = merged.filter { $0.at >= interval.end }
+        return ((before.map { [$0] } ?? []) + inWindow + after, malformed)
     }
 }
 

@@ -236,9 +236,11 @@ public enum DailyRollup {
         let timeline = buildTimeline(ordered, in: interval)
         let work = creditWork(timeline, policy: policy)
         let inDay = ordered.filter { $0.at >= interval.start && $0.at < interval.end }
-        let breaks = countBreaks(inDay, dayEnd: interval.end, policy: policy)
+        let spans = breakSpans(ordered, dayEnd: interval.end, policy: policy)
+            .filter { $0.start >= interval.start && $0.start < interval.end }
+        let breaks = countBreaks(spans)
         let counters = countPromptOutcomes(inDay)
-        let opportunities = scoreOpportunities(inDay, dayEnd: interval.end, policy: policy)
+        let opportunities = scoreOpportunities(inDay, spans: spans, policy: policy)
 
         return DailySummary(
             day: day,
@@ -479,11 +481,9 @@ public enum DailyRollup {
         )
     }
 
-    static func countBreaks(
-        _ events: [LoggedEvent], dayEnd: Date, policy: RollupPolicy
-    ) -> BreakTotals {
+    static func countBreaks(_ spans: [BreakSpan]) -> BreakTotals {
         var totals = BreakTotals()
-        for span in breakSpans(events, dayEnd: dayEnd, policy: policy) {
+        for span in spans {
             guard span.qualifies else {
                 totals.abandoned += 1
                 continue
@@ -528,15 +528,14 @@ public enum DailyRollup {
     }
 
     static func scoreOpportunities(
-        _ events: [LoggedEvent], dayEnd: Date, policy: RollupPolicy
+        _ events: [LoggedEvent], spans: [BreakSpan], policy: RollupPolicy
     ) -> OpportunityTotals {
         let opens = events.filter { $0.kind == .breakOpen }
         guard !opens.isEmpty else { return OpportunityTotals() }
 
-        let spans = breakSpans(events, dayEnd: dayEnd, policy: policy).filter(\.qualifies)
         let delivered = events.filter(\.wasDelivered).map(\.at)
 
-        let ordered = spans.sorted { $0.start < $1.start }
+        let ordered = spans.filter(\.qualifies).sorted { $0.start < $1.start }
         var spent = Set<Int>()
 
         var totals = OpportunityTotals()
