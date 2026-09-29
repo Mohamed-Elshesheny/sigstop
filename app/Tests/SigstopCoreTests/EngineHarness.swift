@@ -98,10 +98,24 @@ enum EngineHarness {
     struct LogReplay {
         private(set) var lines: [LoggedEvent] = []
         private var confirmed: CycleID?
+        private var idle = IdleLedger()
+        private var sessions = SessionLogLedger()
 
         var kinds: [String] { lines.map(\.kind.rawValue) }
 
         mutating func append(_ line: LoggedEvent) { lines.append(line) }
+
+        mutating func record(_ events: [SessionEvent], idleSeconds: TimeInterval, at now: Date, policy: BreakPolicy) {
+            lines.append(
+                contentsOf: idle.observe(
+                    events, idleSeconds: idleSeconds, paused: false, grace: policy.microIdleGrace, at: now
+                )
+            )
+            let qualifyingBreak = policy.qualifyingBreak
+            for event in events {
+                lines.append(contentsOf: sessions.lines(for: event, at: now, qualifyingBreak: qualifyingBreak))
+            }
+        }
 
         mutating func execute(_ effects: [Effect], at now: Date) {
             for effect in effects {
@@ -150,8 +164,12 @@ enum EngineHarness {
             driver.cameraRunning = true
         }
 
+        mutating func note(_ line: LoggedEvent) { log.append(line) }
+
         @discardableResult
-        mutating func step(action: UserAction? = nil) -> [Effect] {
+        mutating func step(action: UserAction? = nil, sessionEvents: [SessionEvent] = []) -> [Effect] {
+            if !sessionEvents.isEmpty { driver.sessionEvents = sessionEvents }
+            let observed = driver.sessionEvents
             let openBefore = driver.state.openCycle
             let effects = driver.step(action: action)
             if let line = verdicts.observe(
@@ -164,6 +182,7 @@ enum EngineHarness {
                 log.append(line)
             }
             log.execute(effects, at: driver.now)
+            log.record(observed, idleSeconds: driver.idleSeconds, at: driver.now, policy: driver.engine.policy)
             if effects.contains(where: { if case .closeCycle = $0 { return true } else { return false } }) {
                 verdicts.reset()
             }

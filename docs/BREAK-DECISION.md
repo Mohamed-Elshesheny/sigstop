@@ -1696,7 +1696,10 @@ substitution, and `CalendarSystemTests` pins both.
   clock reset and again at day end so an in-flight stretch is included. Note this is a *continuous work
   stretch*, not a `DeveloperSession`; the field name follows the everyday meaning.
 - **`totalBreakTime`** — the seconds inside the breaks `breakCount` counts, each measured the way
-  its verdict is: the longer of its two timestamps and its `dur_s`. An abandoned break adds nothing,
+  its verdict is: the longer of its two timestamps and its `dur_s`. An idle-inferred break runs
+  from the last input to the first input back, or to the session gap (§4.1 rows 5, 10 and 13) if
+  you never came back inside it, so the average is the time you were away and not the five
+  minutes that decided it. An abandoned break adds nothing,
   and neither does one the process died in the middle of. A break belongs to the day it began in:
   one that starts at 03:57 and ends at 04:04 counts on the first day, at its full length, and on
   the second day not at all, which is the one case where a day's numbers read a line stamped the

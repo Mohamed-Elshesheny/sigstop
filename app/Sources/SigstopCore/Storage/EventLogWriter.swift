@@ -69,3 +69,49 @@ public enum EventLogWriter {
         }
     }
 }
+
+public struct SessionLogLedger: Sendable, Hashable {
+    public private(set) var inferredBreakBeganAt: Date?
+
+    public init() {}
+
+    public mutating func lines(
+        for event: SessionEvent, at now: Date, qualifyingBreak: TimeInterval
+    ) -> [LoggedEvent] {
+        switch event {
+        case .clockResumed:
+            guard let began = inferredBreakBeganAt else { return [] }
+            inferredBreakBeganAt = nil
+            return [Self.inferredBreakEnd(from: began, at: now, threshold: qualifyingBreak)]
+
+        case .breakRecorded(let origin, let start, _, _):
+            guard origin == .idleInferred, inferredBreakBeganAt == nil else { return [] }
+            inferredBreakBeganAt = start
+            return [.breakBegin(at: start, origin: .idleInferred)]
+
+        case .sessionStarted(_, let at):
+            return [.start(at: at)]
+
+        case .sessionEnded(_, let at):
+            var out: [LoggedEvent] = [.stop(at: at)]
+            if let began = inferredBreakBeganAt {
+                inferredBreakBeganAt = nil
+                out.append(Self.inferredBreakEnd(from: began, at: now, threshold: qualifyingBreak))
+            }
+            return out
+
+        case .clockPaused, .gapClassified, .clockReset, .graceRevoked, .wallClockSkewIgnored:
+            return []
+        }
+    }
+
+    private static func inferredBreakEnd(
+        from start: Date, at end: Date, threshold: TimeInterval
+    ) -> LoggedEvent {
+        .breakEnd(
+            at: end, origin: .idleInferred,
+            durationSeconds: Int(max(0, end.timeIntervalSince(start)).rounded()),
+            thresholdSeconds: Int(max(0, threshold).rounded())
+        )
+    }
+}

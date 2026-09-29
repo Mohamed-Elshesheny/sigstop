@@ -142,6 +142,7 @@ final class AppModel {
     @ObservationIgnored private var loggedActivity: Activity?
     @ObservationIgnored private var lastFocusLogAt: Date?
     @ObservationIgnored private var idleLedger = IdleLedger()
+    @ObservationIgnored private var sessionLog = SessionLogLedger()
     @ObservationIgnored private var seamsForNextStep: Set<Seam> = []
     @ObservationIgnored private var statusLedger = StatusLineLedger()
     @ObservationIgnored private var latch = MeetingLatch()
@@ -811,13 +812,8 @@ final class AppModel {
             if line.kind == .idleEnd { seamsForNextStep.insert(.idleBlip) }
         }
         for event in sessionEvents {
-            switch event {
-            case .sessionStarted(_, let at):
-                append(.start(at: at))
-            case .sessionEnded(_, let at):
-                append(.stop(at: at))
-            default:
-                continue
+            for line in sessionLog.lines(for: event, at: now, qualifyingBreak: policy.qualifyingBreak) {
+                append(line)
             }
         }
     }

@@ -894,7 +894,7 @@ change ([CONTRIBUTING.md](../CONTRIBUTING.md#commits-and-prs)).
 {"act":"coding","app":"com.apple.dt.Xcode","cat":"code","e":"focus","t":"2026-09-20T08:58:03Z","v":1}
 {"act":"browsing","app":"com.google.Chrome","cat":"browse","e":"focus","t":"2026-09-20T09:14:41Z","v":1}
 {"e":"idle_begin","t":"2026-09-20T09:31:02Z","v":1}
-{"e":"idle_end","idle_s":378,"t":"2026-09-20T09:37:20Z","v":1}
+{"e":"idle_end","idle_s":258,"t":"2026-09-20T09:35:20Z","v":1}
 {"act":"communication","app":"us.zoom.xos","cat":"other","e":"focus","t":"2026-09-20T09:48:10Z","v":1}
 {"cycle":4,"e":"break_open","t":"2026-09-20T10:19:55Z","v":1}
 {"cycle":4,"e":"gate","gate":"audioInputInUse","t":"2026-09-20T10:20:00Z","v":1}
@@ -906,7 +906,11 @@ change ([CONTRIBUTING.md](../CONTRIBUTING.md#commits-and-prs)).
 {"cycle":4,"dur_s":303,"e":"break_end","origin":"accepted","plan_s":300,"t":"2026-09-20T10:44:34Z","v":1}
 {"cycle":4,"e":"cycle_close","outcome":"honored","t":"2026-09-20T10:44:34Z","v":1}
 {"e":"lock","t":"2026-09-20T10:52:04Z","v":1}
-{"e":"unlock","t":"2026-09-20T11:31:55Z","v":1}
+{"e":"idle_begin","t":"2026-09-20T10:51:58Z","v":1}
+{"e":"break_begin","origin":"idleInferred","t":"2026-09-20T10:51:58Z","v":1}
+{"e":"unlock","t":"2026-09-20T11:08:10Z","v":1}
+{"e":"idle_end","idle_s":974,"t":"2026-09-20T11:08:12Z","v":1}
+{"dur_s":974,"e":"break_end","origin":"idleInferred","plan_s":300,"t":"2026-09-20T11:08:12Z","v":1}
 {"e":"stop","t":"2026-09-20T18:02:11Z","v":1}
 ```
 
@@ -923,9 +927,9 @@ Field reference:
 | `sig` | string? | Title signal. In the schema, but the shipping app never writes it: `AppModel.logFocusIfNeeded` passes `titleSignal: nil`. **Never the title itself** |
 | `idle_s` | int? | Length of the idle period that just ended |
 | `cycle` | int? | Which break opportunity this line belongs to, so counters scope to a cycle |
-| `origin` | string? | How a break started: `accepted`, `idleInferred`, `userInitiated` |
-| `dur_s` | int? | Measured length of a break, in seconds |
-| `plan_s` | int? | The length that break had to reach to count, in seconds. `dur_s >= plan_s` is the whole verdict, so the line can be re-judged without knowing what your settings were when it was written |
+| `origin` | string? | How a break started: `accepted`, `idleInferred`, `userInitiated`. An `idleInferred` break is one nobody pressed a button for: you were away for the idle threshold, and the session model recorded it |
+| `dur_s` | int? | Measured length of a break, in seconds. For an `idleInferred` break, from your last input to your first input back, or to the moment the absence ended the session instead (thirty minutes) if you never came back inside it |
+| `plan_s` | int? | The length that break had to reach to count, in seconds. `dur_s >= plan_s` is the whole verdict, so the line can be re-judged without knowing what your settings were when it was written. For an `idleInferred` break it is the idle threshold that recorded it |
 | `outcome` | string? | On `cycle_close`, how the opportunity ended: one of the six `CycleOutcome` values |
 | `gate` | string? | On `gate`, why a prompt was or was not allowed: one of the twenty-nine `GateReason` values |
 | `reason` | string? | On `break_prompt`, the signal that rung is named after: one of `SIGTSTP`, `SIGINT`, `SIGTERM`, `SIGSTOP` |
@@ -947,6 +951,14 @@ already gains everything Tier 2 buys, through a field it has always had: `activi
 `debugging` where it used to say `coding`. A `tool` column would add something different, an
 inventory of which debuggers you run, day by day, for seven days. That is a new kind of fact about
 you, not a new encoding of one already here.
+
+**`break_begin` and `break_end` are written for every break that counts, however it started.**
+The engine writes the pair for a break it ran, accepted from a prompt or started from the menu,
+with the `cycle` it answered. The session model writes the pair for a break it inferred, `origin`
+`idleInferred`, when you were simply away: the `break_begin` is stamped at your last input and
+written once the absence has reached the idle threshold, and the `break_end` at your first input
+back, or at the point the absence ended the session instead. Without the second pair the day's
+numbers could only see breaks the app had asked for, and *kept* scored walking away as ignoring it.
 
 Two of those kinds were added because their absence was itself a privacy-adjacent problem,
 in the sense that matters here: an app that cannot show its working cannot be audited.

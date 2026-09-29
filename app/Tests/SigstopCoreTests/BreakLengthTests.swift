@@ -32,7 +32,7 @@ struct BreakLengthTests {
             .breakEnd(at: try Self.t(102), origin: .userInitiated, durationSeconds: 2 * 60),
             .focus(at: try Self.t(102), app: Self.xcode, activity: .coding),
             .breakBegin(at: try Self.t(150), origin: .idleInferred),
-            .breakEnd(at: try Self.t(158), origin: .idleInferred, durationSeconds: 8 * 60),
+            .breakEnd(at: try Self.t(158), origin: .idleInferred, durationSeconds: 8 * 60, thresholdSeconds: 300),
             .stop(at: try Self.t(200)),
         ]
         let s = Self.roll(events)

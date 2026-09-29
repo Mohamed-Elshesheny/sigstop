@@ -48,7 +48,7 @@ struct ComplianceTests {
             events.append(.breakBegin(at: Fix.t(minute + 2), origin: i < 4 ? .accepted : .idleInferred))
             events.append(
                 .breakEnd(at: Fix.t(minute + 8), origin: i < 4 ? .accepted : .idleInferred,
-                          durationSeconds: 6 * 60)
+                          durationSeconds: 6 * 60, thresholdSeconds: 300)
             )
             minute += 60
         }
@@ -187,7 +187,7 @@ struct ComplianceTests {
             .breakOpen(at: Fix.t(45), cycle: .initial),
             .breakPrompt(at: Fix.t(45), cycle: .initial),
             .breakBegin(at: Fix.t(46), origin: .idleInferred),
-            .breakEnd(at: Fix.t(53), origin: .idleInferred, durationSeconds: 7 * 60),
+            .breakEnd(at: Fix.t(53), origin: .idleInferred, durationSeconds: 7 * 60, thresholdSeconds: 300),
             .stop(at: Fix.t(90)),
         ]
         let s = Fix.roll(events)
