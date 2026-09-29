@@ -69,7 +69,7 @@ struct MenuBarView: View {
             }
 
             HStack(alignment: .center, spacing: 12) {
-                BrandMark(size: 40, fill: markFill)
+                BrandMark(size: 40, fill: markFill, resting: model.indicator == .held)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         TimelineView(.periodic(from: .now, by: 1)) { _ in

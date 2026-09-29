@@ -29,14 +29,25 @@ struct MenuBarIcon: View {
         }
     }
 
+    private var resting: Bool { indicator == .held }
+
     var body: some View {
         HStack(spacing: 3) {
-            Bar(level: level)
-            Bar(level: level)
+            eye
+            eye
         }
         .frame(width: 13, height: 14)
         .foregroundStyle(tint)
         .accessibilityLabel(Text(Self.label(for: indicator)))
+    }
+
+    @ViewBuilder
+    private var eye: some View {
+        if resting {
+            RestingDash()
+        } else {
+            Bar(level: level)
+        }
     }
 
     static func label(for indicator: IndicatorState) -> String {
@@ -63,6 +74,16 @@ private struct Bar: View {
                 shape.strokeBorder(lineWidth: 1)
                 shape.frame(height: geometry.size.height * min(1, max(0, level)))
             }
+        }
+    }
+}
+
+private struct RestingDash: View {
+    var body: some View {
+        GeometryReader { geometry in
+            Capsule(style: .continuous)
+                .frame(width: geometry.size.width + 1, height: 2)
+                .position(x: geometry.size.width / 2, y: geometry.size.height * 0.62)
         }
     }
 }

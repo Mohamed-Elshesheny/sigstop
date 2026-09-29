@@ -22,6 +22,13 @@ enum SigstopEntryPoint {
                 PanelRenderer.runAndExit(stem: stem)
             }
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-icon") {
+            let stem = renderStem(at: index + 1, or: "icon")
+            MainActor.assumeIsolated {
+                NSApplication.shared.setActivationPolicy(.prohibited)
+                IconRenderer.runAndExit(stem: stem)
+            }
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-settings") {
             let args = CommandLine.arguments
             let pane = index + 1 < args.count ? args[index + 1] : "about"

@@ -105,6 +105,7 @@ enum Brand {
 struct BrandMark: View {
     var size: CGFloat = 40
     var fill: Double = 0.5
+    var resting: Bool = false
     var tint: Color = Brand.amber
     var fillTint: Color = Brand.amberFill
 
@@ -112,12 +113,26 @@ struct BrandMark: View {
 
     var body: some View {
         HStack(spacing: size * 0.22) {
-            bar
-            bar
+            eye
+            eye
         }
         .frame(width: size * 0.92, height: size)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: fill)
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var eye: some View {
+        if resting {
+            GeometryReader { geometry in
+                Capsule(style: .continuous)
+                    .fill(tint)
+                    .frame(width: geometry.size.width + size * 0.08, height: max(2, size * 0.09))
+                    .position(x: geometry.size.width / 2, y: geometry.size.height * 0.62)
+            }
+        } else {
+            bar
+        }
     }
 
     private var bar: some View {

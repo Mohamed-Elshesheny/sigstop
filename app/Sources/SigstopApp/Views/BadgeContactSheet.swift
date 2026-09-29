@@ -80,15 +80,74 @@ struct BadgeContactSheet: View {
 
 enum PanelRenderer {
 
+    static let sampleSummary = DailySummary(
+        day: CalendarDay(year: 2026, month: 9, day: 20),
+        totalActiveWork: 6 * 3600 + 12 * 60,
+        activeWorkByActivity: [Activity.coding.rawValue: 6 * 3600 + 12 * 60 as TimeInterval],
+        applicationDistribution: [
+            "com.apple.dt.Xcode": 4 * 3600 + 5 * 60 as TimeInterval,
+            "com.google.Chrome": 2 * 3600 + 7 * 60 as TimeInterval,
+        ],
+        longestContinuousSession: 97 * 60,
+        breakCount: 5,
+        breaksAccepted: 4,
+        breaksIdleInferred: 1,
+        breakOpportunities: 8,
+        honoredOpportunities: 6,
+        excludedOpportunities: 1,
+        notificationsDelivered: 7,
+        sessionCount: 1
+    )
+
     @MainActor
     static func runAndExit(stem: String) -> Never {
         let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
-        for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+        let staged = AppModel()
+        staged.stageForRendering(indicator: .held, summary: sampleSummary)
+        let variants: [(String, AppModel)] = [("", AppModel()), ("-staged", staged)]
+        for (variant, model) in variants {
+            for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                let url = URL(fileURLWithPath: "\(base)\(variant)-\(suffix).png")
+                do {
+                    try BadgeSheetRenderer.write(
+                        MenuBarView(model: model), appearance: appearance, to: url
+                    )
+                    FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
+                } catch {
+                    FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
+                    exit(1)
+                }
+            }
+        }
+        exit(0)
+    }
+}
+
+enum IconRenderer {
+
+    private static let states: [(IndicatorState, Double)] = [
+        (.working, 0), (.working, 0.5), (.working, 0.9), (.breakDue, 1), (.escalating, 1),
+        (.held, 1), (.backedOff, 1), (.onBreak, 0), (.idle, 0.4), (.quiet, 0.4),
+    ]
+
+    @MainActor
+    static func runAndExit(stem: String) -> Never {
+        let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
+        for (suffix, dark) in [("light", false), ("dark", true)] {
             let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
+            let renderer = ImageRenderer(content: sheet(dark: dark))
+            renderer.scale = 8
+            guard let image = renderer.cgImage else {
+                FileHandle.standardError.write(Data("render failed: no image\n".utf8))
+                exit(1)
+            }
+            let rep = NSBitmapImageRep(cgImage: image)
+            guard let data = rep.representation(using: .png, properties: [:]) else {
+                FileHandle.standardError.write(Data("render failed: no png\n".utf8))
+                exit(1)
+            }
             do {
-                try BadgeSheetRenderer.write(
-                    MenuBarView(model: AppModel()), appearance: appearance, to: url
-                )
+                try data.write(to: url)
                 FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
             } catch {
                 FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
@@ -96,6 +155,22 @@ enum PanelRenderer {
             }
         }
         exit(0)
+    }
+
+    private static func sheet(dark: Bool) -> some View {
+        HStack(spacing: 10) {
+            ForEach(Array(states.enumerated()), id: \.offset) { _, state in
+                VStack(spacing: 4) {
+                    MenuBarIcon(fraction: state.1, indicator: state.0, dark: dark)
+                        .frame(width: 18, height: 18)
+                    Text(state.0.rawValue)
+                        .font(.system(size: 4))
+                        .foregroundStyle(dark ? Color.white : Color.black)
+                }
+            }
+        }
+        .padding(8)
+        .background(dark ? Color(white: 0.12) : Color(white: 0.93))
     }
 }
 

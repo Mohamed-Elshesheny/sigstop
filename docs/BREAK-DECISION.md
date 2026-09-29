@@ -1438,10 +1438,17 @@ and the panel used to infer a skip from the number, so a user whose opportunity 
 told they had waved it off. `StandDownCause` names which it was, and the four causes have four
 sentences.
 
-The menu bar mark carries one bit of this, because the user who never opens the panel is exactly the
-user who concludes the app is broken. Opacity now means **is the app going to ask**: dim for `.idle`,
-`.quiet` and `.backedOff`, full brightness otherwise. No new hue and no new glyph, which keeps the
-decision in `MenuBarIcon` intact. The tooltip carries the sentence, so hovering is enough.
+The menu bar mark carries two bits of this, because the user who never opens the panel is exactly
+the user who concludes the app is broken. Opacity means **is the app going to ask**: dim for
+`.idle`, `.quiet` and `.backedOff`, full brightness otherwise. Geometry means **is something
+holding it**: `.held`, a break that is due while a call or a manual *I'm in a meeting* holds it, is
+drawn as two short resting dashes, the character's closed eyes, where every other state draws the
+two bars. This used to read "no new hue and no new glyph", and `.held` drew exactly like
+`.breakDue`, so the one silence §11.1 exists to explain was the one the mark could not show. The
+hue rule stands: there is still no new colour, so the dashes survive Differentiate Without Color,
+and the icon is still rendered only when its state key changes, so the glyph costs nothing per
+tick. The panel's own mark rests the same way while held. The tooltip carries the sentence, so
+hovering is enough.
 
 ---
 

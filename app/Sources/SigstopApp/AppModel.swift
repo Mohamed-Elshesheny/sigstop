@@ -266,6 +266,11 @@ final class AppModel {
     func pause(for duration: TimeInterval) { enqueue(.pauseApp(duration)) }
     func resume() { enqueue(.resumeApp) }
 
+    func stageForRendering(indicator staged: IndicatorState, summary: DailySummary? = nil) {
+        indicator = staged
+        todaySummary = summary
+    }
+
     func pauseUntilTomorrow() {
         guard let seconds = LocalDay.secondsUntilNextBoundary(
             after: time.now, calendar: .current, boundaryHour: policy.dayBoundaryHour
