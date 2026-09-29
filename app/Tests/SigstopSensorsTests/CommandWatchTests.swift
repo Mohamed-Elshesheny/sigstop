@@ -86,7 +86,8 @@ struct CommandWatchTests {
             (.lldb, "a debug session just ended, lldb"),
             (.vim, "you just left vim, vim"),
             (.claudeCLI, "claude just exited, claude"),
-            (.ssh, "your ssh session just ended, ssh"),
+            (.ssh, "ssh just exited, ssh"),
+            (.kubectl, "kubectl just exited, kubectl"),
         ]
         for (tool, prefix) in expected {
             var watch = watching([tool], under: terminal)

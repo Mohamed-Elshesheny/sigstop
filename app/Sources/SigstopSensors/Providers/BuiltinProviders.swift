@@ -402,8 +402,6 @@ enum Ev {
             what = "a debug session just ended"
         } else if ToolToken.terminalEditors.contains(tool) {
             what = "you just left \(tool.displayName)"
-        } else if ToolToken.remoteShells.contains(tool) {
-            what = "your \(tool.displayName) session just ended"
         } else {
             what = "\(tool.displayName) just exited"
         }
