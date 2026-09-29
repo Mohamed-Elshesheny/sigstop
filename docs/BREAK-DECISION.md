@@ -902,7 +902,7 @@ Summary of the two extremes and the specific mechanisms against each:
 | Standard notification (`.active`, silent by default) | yes | not hard-blocked, not rate-limited |
 | Notification with sound | yes | escalation level 3+ only, never twice in a cycle, and never while a microphone or camera is live |
 | Card drawn by the app: about 420 pt wide, in the top-right corner under the menu bar of the display the frontmost window is on, no dimming, non-activating | yes | levels 1 and 2 when the system will not show them as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears |
-| Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 outside Low Power Mode, and levels 3 and 4 when the system will not show them as a notification, for the same three reasons. Level 4 becomes a notification in Low Power Mode (§7.6) and is still drawn full screen |
+| Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 outside Low Power Mode, and levels 3 and 4 when the system will not show them as a notification, for the same three reasons. Level 4 becomes a notification in Low Power Mode (§7.6) and, when the system will not show it, is still drawn full screen |
 
 Nothing in the app is ever modal, and neither surface activates the app. The panel covers every
 display until it is answered; the card covers one corner of one. *Ignore it* is always one of the
@@ -972,8 +972,9 @@ safe-area inset, and does nothing when the bar is showing, because the visible f
 off. In every other respect it is the panel: the same `NonActivatingPanel` at the same
 `.statusBar` level, `sharingType = .none`, joins every Space, sits over full-screen apps, and never
 takes the keyboard from the app underneath. It carries the same content and the same answers,
-*Take it*, *Snooze (SIGALRM)* when offered, *Skip* labelled with its cost, and *Ignore it*, with the
-same footer, so nothing the notification would have offered is lost by being small. The footer says
+*Take it*, *Snooze (SIGALRM)* when offered, *Skip* labelled with its cost and dimmed for the same
+three seconds (§9), and *Ignore it*, with the same footer, so nothing the notification would have
+offered is lost by being small. The footer says
 what ignoring costs, and the engine is the one that knows: `PromptRequest.ifIgnored` is
 `.anotherRung` when a later rung will follow, `.cooldown` when this is the cycle's last prompt
 (`SIGSTOP`, the fourth notification, or the backoff's single one, §11) and `.quietForTheDay` when it
@@ -998,10 +999,10 @@ Nothing about it moves. Only the eyes differ, and they are set once per panel by
 |---|---|---|---|
 | L1 `SIGTSTP` | `watching` | both bars upright, full height: the icon as it is | noticed you, no pressure |
 | L2 `SIGINT` | `eyebrow` | left bar at 80%, right bar full with one short brow arched above it, level, both ends below its middle | hm, still going? |
-| L3 `SIGTERM` | `level` | both bars cut to 60% with flat tops, lids lowered | this is your warning, said flat |
+| L3 `SIGTERM` | `level` | both bars cut to 60%, lids lowered | this is your warning, said flat |
 | L4 `SIGSTOP` | `wink` | left bar full, right eye a short dash | the bluff the user is in on |
 | break screen, `SIGCONT` | `welcomeBack` | two upward arcs | welcome back, stack intact |
-| (defined, drawn nowhere yet) | `resting` | two flat dashes | later |
+| menu bar mark and panel mark while `.held` (§11.1) | `resting` | two flat dashes, the closed eyes. `MenuBarIcon` and `BrandMark` draw them in their own geometry; `FaceMark` draws this mood only on the contact sheet | a break is due and a call is holding it |
 
 `FaceMood(level:tone:)` in `SigstopCore/Message/FaceMood.swift` is the mapping, `FaceMoodTests` pins
 it, and `FaceMark` in `SigstopApp/Views/FaceMark.swift` draws it. The **rendered** tone caps the
@@ -1249,7 +1250,7 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
 
 ## 9. Snooze semantics
 
-- **One snooze length.** The notification and the stand-in panel offer one *Snooze (SIGALRM)*, and
+- **One snooze length.** The notification and the card offer one *Snooze (SIGALRM)*, and
   it lasts `snoozeMinutes`, 5 minutes by default. `init(settings:)` fills `snoozeDurations` with 1, 2
   and 3 times that, and the `.snooze` action takes the first entry `offeredSnoozes` returns, so the
   longer two are never used. Snooze is offered on level 1 prompts only; the rungs above it offer none.
@@ -1258,7 +1259,7 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   5-minute snooze the cap never binds; a longer one shrinks the last snooze to fit (with
   `snoozeMinutes` at 20: 20 minutes, then 10).
 - **After the cap:** the prompt no longer offers snooze. The notification offers *Take it* and
-  *Skip*, and the stand-in panel adds *Ignore it*. Removing the option is honest; offering a third
+  *Skip*, and the card adds *Ignore it*. Removing the option is honest; offering a third
   snooze that silently behaves like the second is not.
 - **What a snooze does to the work clock: nothing.** The clock keeps running. Snoozing defers the
   question, it does not buy credit. If you snooze 5 minutes at 45 minutes of work, you are at 50
@@ -1292,8 +1293,8 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   to catch. The next rung waits for its own ladder time (§11, L2 at `t0 + 5 min`), and after L4, or
   whichever rung spends the cycle's four notifications, has had its own `promptTimeout`, the
   cycle closes as `.ignoredExhausted` with its 25-minute cooldown.
-- **Skip needs a moment.** On the panel, *Skip* is drawn from the first frame but dimmed, and it
-  becomes clickable `BreakPolicy.skipArmsAfter` (3 s, not a setting) after the panel appears; *Take
+- **Skip needs a moment.** On the card and the panel, *Skip* is drawn from the first frame but dimmed,
+  and it becomes clickable `BreakPolicy.skipArmsAfter` (3 s, not a setting) after the surface appears; *Take
   it*, *Snooze* and *Ignore it* work at once, so the guard delays the expensive answer without ever
   holding anyone. A click that lands inside those seconds was a reflex, not an answer, and a reflex
   that buys twenty minutes of silence is the failure this exists to stop. It is one timer, fired once,
@@ -1305,7 +1306,7 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   that (§7.5), and that surface offers what the notification would have:
   *Take it*, *Snooze (SIGALRM)* when `snoozeOffered` is not empty, *Skip*, and *Ignore it*. L4 on
   AC power is a panel by channel and offers *Take it* and *Ignore it*, so whether L4 offers Skip
-  depends on the power state. The stand-in panel used to offer only *Take it* and *Ignore it*,
+  depends on the power state. The app's own surface used to offer only *Take it* and *Ignore it*,
   which made Skip and Snooze unreachable without a permission, against `docs/PRIVACY.md` §3.1. Both
   surfaces label Skip with what it costs, `rearmAfterSkip` read from the policy: *Skip, quiet for
   20m*.
