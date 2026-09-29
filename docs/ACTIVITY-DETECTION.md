@@ -611,12 +611,14 @@ runs is knowing something about them. The rules are absolute:
 - A read failure is "no information", never "not running". A zero-length table is a failure, not an
   empty machine: under a sandbox profile without `sysctl-read` the call returns nothing and sets no
   errno a caller would notice, so the snapshot must be `nil` rather than an empty set of matches.
-- The previous snapshot is kept, and only the previous one, so that two consecutive scans can be
-  compared: an allowlisted tool that was a child of the app in front and is gone at the next scan
-  is a command that has just returned, and the break engine treats it as a seam
-  (`docs/BREAK-DECISION.md` §7.3). `CommandWatch` is the pure comparison; it reads nothing the
-  scan did not already read, adds no timer, and a `nil` scan on either side resets it, because
-  "no information" cannot stand in for "not running" here either.
+- The previous snapshot is kept, and only the previous one, with the set of allowlisted tools that
+  were children of the app in front both in it and in the scan before it, so that consecutive
+  scans can be compared: a tool seen running under the app in front in two scans and gone at the
+  third is a command that has just returned, and the break engine treats it as a seam
+  (`docs/BREAK-DECISION.md` §7.3). One sighting is not enough, because the `ssh` a `git fetch`
+  spawns is on the allowlist and lives for a second. `CommandWatch` is the pure comparison; it
+  reads nothing the scan did not already read, adds no timer, and a `nil` scan on either side
+  resets it, because "no information" cannot stand in for "not running" here either.
 
 ### 4.4 Tier availability is a runtime value
 

@@ -28,6 +28,7 @@ public struct CommandWatch: Sendable, Hashable {
     private struct Scan: Sendable, Hashable {
         let snapshot: ProcessSnapshot
         let frontmostPID: pid_t
+        let settled: Set<ToolToken>
     }
 
     private var last: Scan?
@@ -36,18 +37,32 @@ public struct CommandWatch: Sendable, Hashable {
 
     public mutating func observe(_ snapshot: ProcessSnapshot?, frontmostPID: pid_t) -> FinishedCommand? {
         let previous = last
-        last = snapshot.map { Scan(snapshot: $0, frontmostPID: frontmostPID) }
+        last = snapshot.map { current in
+            Scan(
+                snapshot: current,
+                frontmostPID: frontmostPID,
+                settled: Self.settled(current, after: previous)
+            )
+        }
         guard let snapshot, let previous else { return nil }
         return Self.compare(
             previous: previous.snapshot,
+            settled: previous.settled,
             previousFrontmostPID: previous.frontmostPID,
             current: snapshot,
             currentFrontmostPID: frontmostPID
         )
     }
 
+    private static func settled(_ current: ProcessSnapshot, after previous: Scan?) -> Set<ToolToken> {
+        guard let previous else { return [] }
+        guard current.capturedAt > previous.snapshot.capturedAt else { return previous.settled }
+        return current.childrenOfFrontmost.intersection(previous.snapshot.childrenOfFrontmost)
+    }
+
     public static func compare(
         previous: ProcessSnapshot,
+        settled: Set<ToolToken>,
         previousFrontmostPID: pid_t,
         current: ProcessSnapshot,
         currentFrontmostPID: pid_t
@@ -57,7 +72,7 @@ public struct CommandWatch: Sendable, Hashable {
 
         let sameFrontmost = previousFrontmostPID == currentFrontmostPID
         let stillRunning = sameFrontmost ? current.childrenOfFrontmost : current.matchedTools
-        let gone = previous.childrenOfFrontmost.subtracting(stillRunning)
+        let gone = settled.intersection(previous.childrenOfFrontmost).subtracting(stillRunning)
         let tool = gone.sorted { $0.rawValue < $1.rawValue }.first
 
         var evidence: [Evidence] = []

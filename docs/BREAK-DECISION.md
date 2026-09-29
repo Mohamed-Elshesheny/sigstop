@@ -822,7 +822,7 @@ A seam is a moment the user has already broken their own concentration:
 | `meetingEnded` | **declared and never produced** | See below. |
 | `fullscreenExited` | **declared and never produced** | medium, as designed |
 | `spaceSwitch` | **declared and never produced**: nothing observes `activeSpaceDidChangeNotification` | medium, as designed |
-| `terminalCommandFinished` | a watched tool that the app in front had started is gone from the next Tier 2 process scan (`CommandWatch`, below) | strong, and only behind the process opt-in |
+| `terminalCommandFinished` | a watched tool that the app in front had started, seen running in two consecutive Tier 2 process scans, is gone from the next (`CommandWatch`, below) | strong, and only behind the process opt-in |
 
 `AppModel` inserts `.applicationSwitch`, `.idleBlip` and, when a sample carries a
 `FinishedCommand`, `.terminalCommandFinished`.
@@ -840,14 +840,21 @@ never built, and `terminalCommandRunning` is still always `false` (§6). What pr
 instead is a diff of two scans the app was already making. `CommandWatch`, in
 `app/Sources/SigstopSensors/CommandWatch.swift`, keeps the previous Tier 2 process snapshot and
 compares it with the current one: a tool on the allowlist that was a **child of the app in front**
-at the previous scan and is gone at this one is a command that has just returned, and so is the
-kernel's `P_TRACED` flag clearing under the same app, which is a debug session ending. The rules,
-all of them tested with `ProcessSnapshot` literals in `CommandWatchTests`:
+at the previous two scans and is gone at this one is a command that has just returned, and so is
+the kernel's `P_TRACED` flag clearing under the same app, which is a debug session ending. The
+rules, all of them tested with `ProcessSnapshot` literals in `CommandWatchTests`:
 
 - Both scans have to be real. A skipped scan (opt-in off, nothing editor-shaped in front, idle,
   thermal, Low Power Mode) is *no information*, and it resets the watch rather than standing in
   for "nothing running". So does a gap of more than 60 s between the two, which is what a sleep
   or a suspended sampler leaves behind: "just finished" has to mean just.
+- A tool has to be seen twice before its going counts. `git fetch`, `git push`, `scp` and `rsync`
+  each spawn an `ssh` under the terminal that lives for a second or two, and a scan that happened
+  to catch one would otherwise report a session ending that the user was never in. So the watch
+  also keeps the set of tools that were children of the app in front in the last two consecutive
+  scans, and only one of those going is a command that has finished. A memoized scan handed back
+  twice is one sighting, not two: the two carry the same `capturedAt`. The `P_TRACED` flag has no
+  such wait, because it is not a name another tool spawns.
 - A tool that was merely running somewhere on the Mac, never under the app in front, decides
   nothing when it goes: it was somebody else's command. The same asymmetry §7.2 of
   `ACTIVITY-DETECTION.md` applies to naming `DEBUGGING`.
