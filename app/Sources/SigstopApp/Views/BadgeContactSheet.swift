@@ -164,7 +164,10 @@ enum PromptRenderer {
                 switch PromptSurface(level: level) {
                 case .card:
                     try BadgeSheetRenderer.write(
-                        PromptCardView(request: request, message: message, onTake: {}, onIgnore: {}, onSkip: {})
+                        PromptCardView(
+                            request: request, message: message, skipArmsAfter: skipArmsAfter,
+                            onTake: {}, onIgnore: {}, onSkip: {}
+                        )
                         .frame(width: PromptCardPlacement.width),
                         appearance: .darkAqua,
                         to: url

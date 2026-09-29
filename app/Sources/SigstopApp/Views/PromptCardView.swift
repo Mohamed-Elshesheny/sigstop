@@ -7,12 +7,17 @@ struct PromptCardView: View {
     let message: RenderedMessage
     var skipQuiet: TimeInterval = 20 * 60
     var quietAfterLast: TimeInterval = 25 * 60
+    var skipArmsAfter: TimeInterval = 3
     let onTake: () -> Void
     var onSnooze: () -> Void = {}
     let onIgnore: () -> Void
     let onSkip: () -> Void
 
+    @State private var skipArmed = false
+
     private static let corner = RoundedRectangle(cornerRadius: 10, style: .continuous)
+
+    private var skipEnabled: Bool { skipArmed || skipArmsAfter <= 0 }
 
     private var isIncident: Bool { request.level == .incident }
 
@@ -22,19 +27,25 @@ struct PromptCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                StateDot(state: isIncident ? .alert : .suspend)
-                Text(request.signal)
-                    .font(Brand.mono(11, weight: .semibold))
-                    .tracking(2)
-                    .foregroundStyle(isIncident ? Brand.alert : Brand.Dark.amber)
-                Text("L\(request.level.rawValue)")
-                    .font(Brand.mono(10))
-                    .foregroundStyle(Brand.Dark.fgFaint)
-                Spacer(minLength: 8)
-                Text("\(DurationText.short(request.continuousWork)) continuous")
-                    .font(Brand.mono(10))
-                    .foregroundStyle(Brand.Dark.fgFaint)
+            HStack(alignment: .center, spacing: 12) {
+                FaceMark(mood: FaceMood(level: request.level, tone: message.tone), size: 40)
+                    .equatable()
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        StateDot(state: isIncident ? .alert : .suspend)
+                        Text(request.signal)
+                            .font(Brand.mono(11, weight: .semibold))
+                            .tracking(2)
+                            .foregroundStyle(isIncident ? Brand.alert : Brand.Dark.amber)
+                        Text("L\(request.level.rawValue)")
+                            .font(Brand.mono(10))
+                            .foregroundStyle(Brand.Dark.fgFaint)
+                    }
+                    Text("\(DurationText.short(request.continuousWork)) continuous")
+                        .font(Brand.mono(10))
+                        .foregroundStyle(Brand.Dark.fgFaint)
+                }
+                Spacer(minLength: 0)
             }
 
             if let title = message.title {
@@ -61,8 +72,12 @@ struct PromptCardView: View {
                         TerminalButton("Snooze (SIGALRM)", action: onSnooze)
                             .fixedSize()
                     }
-                    TerminalButton("Skip, quiet for \(DurationText.short(skipQuiet))", action: onSkip)
-                        .fixedSize()
+                    TerminalButton(
+                        "Skip, quiet for \(DurationText.short(skipQuiet))",
+                        enabled: skipEnabled,
+                        action: onSkip
+                    )
+                    .fixedSize()
                 }
                 TerminalButton("Ignore it", action: onIgnore)
                     .fixedSize()
@@ -79,6 +94,12 @@ struct PromptCardView: View {
         .padding(18)
         .background(Brand.bgRaised, in: Self.corner)
         .overlay(Self.corner.strokeBorder(Brand.Dark.line, lineWidth: 1))
+        .task {
+            guard skipArmsAfter > 0, !skipArmed else { return }
+            try? await Task.sleep(for: .seconds(skipArmsAfter))
+            guard !Task.isCancelled else { return }
+            skipArmed = true
+        }
     }
 }
 

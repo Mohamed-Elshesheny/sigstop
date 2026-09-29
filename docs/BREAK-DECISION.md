@@ -923,7 +923,8 @@ notification (L1 to L3, and L4 on low power) offers the notification's answers, 
 AC power offers *Take it* and *Ignore it*.
 
 **The face.** Every panel and the break screen carry one character: the two bars of the mark, in
-amber on their own dark squircle (`Brand.Dark.bg`, `#101317`), drawn once when the panel appears.
+amber on their own dark squircle (`Brand.Dark.bg`, `#101317`), drawn once when the panel appears:
+72 points above the signal row on the full-screen panel, 40 points beside it on the L1 and L2 card.
 Nothing about it moves. Only the eyes differ, and they are set once per panel by the rung:
 
 | Rung | `FaceMood` | Eyes | Reads as |

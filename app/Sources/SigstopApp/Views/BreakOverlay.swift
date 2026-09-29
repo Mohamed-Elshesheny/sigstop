@@ -150,6 +150,7 @@ final class BreakOverlayController {
                 message: message,
                 skipQuiet: model.policy.rearmAfterSkip,
                 quietAfterLast: model.policy.cooldownAfterExhausted,
+                skipArmsAfter: model.policy.skipArmsAfter,
                 onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
                 onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
                 onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
