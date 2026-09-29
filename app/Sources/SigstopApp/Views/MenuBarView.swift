@@ -328,19 +328,16 @@ struct MenuBarView: View {
             Kicker("uptime · today")
 
             if let summary = model.todaySummary, !summary.isEmptyDay {
-                HStack(alignment: .top, spacing: 0) {
-                    ForEach(Self.stats(for: summary), id: \.label) { stat in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(stat.value)
-                                .font(Brand.mono(13, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(Brand.fg)
-                            Text(stat.label)
-                                .font(Brand.mono(9))
-                                .tracking(0.4)
-                                .foregroundStyle(Brand.fgMuted)
+                Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 10) {
+                    GridRow {
+                        ForEach(Self.workStats(for: summary), id: \.label) { stat in
+                            cell(stat)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    GridRow {
+                        ForEach(Self.breakStats(for: summary), id: \.label) { stat in
+                            cell(stat)
+                        }
                     }
                 }
                 .padding(.top, 2)
@@ -354,17 +351,40 @@ struct MenuBarView: View {
         }
     }
 
-    private static func stats(for summary: DailySummary) -> [(value: String, label: String)] {
+    private func cell(_ stat: (value: String, label: String)) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(stat.value)
+                .font(Brand.mono(13, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(Brand.fg)
+            Text(stat.label)
+                .font(Brand.mono(9))
+                .tracking(0.4)
+                .foregroundStyle(Brand.fgMuted)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private static func workStats(for summary: DailySummary) -> [(value: String, label: String)] {
         var out: [(value: String, label: String)] = [
             (DurationText.short(summary.totalActiveWork), "active"),
             (DurationText.short(summary.longestContinuousSession), "longest"),
         ]
-        let asked = summary.breakOpportunities - summary.excludedOpportunities
-        out.append(asked > 0
-            ? ("\(summary.honoredOpportunities) of \(asked)", "kept")
-            : ("\(summary.breakCount)", "breaks"))
         if let top = summary.topApplication, top.seconds > 0 {
             out.append((DurationText.short(top.seconds), displayName(for: top.bundleID).lowercased()))
+        }
+        return out
+    }
+
+    private static func breakStats(for summary: DailySummary) -> [(value: String, label: String)] {
+        var out: [(value: String, label: String)] = [("\(summary.breakCount)", "breaks")]
+        if let average = summary.averageBreakLength {
+            out.append((DurationText.short(average), "avg break"))
+        }
+        let asked = summary.breakOpportunities - summary.excludedOpportunities
+        if asked > 0 {
+            out.append(("\(summary.honoredOpportunities) of \(asked)", "kept"))
         }
         return out
     }

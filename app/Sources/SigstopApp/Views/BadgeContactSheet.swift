@@ -90,6 +90,7 @@ enum PanelRenderer {
         ],
         longestContinuousSession: 97 * 60,
         breakCount: 5,
+        totalBreakTime: 31 * 60,
         breaksAccepted: 4,
         breaksIdleInferred: 1,
         breakOpportunities: 8,

@@ -43,7 +43,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 12 | **Focused window title** | `AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute)` then `kAXTitleAttribute` — **requires Accessibility permission** | Only to answer one question: does this window look like a live meeting, a terminal, an editor, a browser, or a document? A meeting is the one thing worth never interrupting | **The string itself is never persisted.** The provider that claims the frontmost app matches it against its own patterns (§1.5) and returns an `Activity`. That activity is persisted as `act`, row 32 | `act`: same as #1. String: memory-only, held until the next read replaces it | **Yes, and off by default** |
 | 15 | **Break engine state**: streak start, last break end, snooze count, next fire time | Derived from #1/#5/#7 | The actual product | Memory-only; nothing writes it to disk. The day's budgets that have to survive a relaunch are in `counters.json` (§4.2) | Gone when the process exits | No |
 | 16 | **Break interaction events**: prompted, taken, skipped, snoozed | UI callbacks | "You skipped 6 of 8 breaks today" and nothing more | Persisted as events | Same as #1 | Yes |
-| 17 | **Daily summaries**: the seconds of active work in each app, by **bundle identifier**, and in each activity; the day's total and its longest unbroken stretch; counts of breaks, snoozes, skips, ignored prompts, notifications, sessions and break opportunities | Derived from the event log while the app runs, recomputed at most once a minute. Written only when the numbers differ from the last write, and then at most every ten minutes, except at once when the menu bar panel opens, a break ends, the day changes (a last write for the day that ended, then the first for the new one), your data is deleted, the Mac sleeps or locks, or the app quits | Badges that count days after those days' events are pruned. Nothing uses the per-app or per-activity seconds once they are on disk; they are there because the summary is written whole | Persisted, `summaries/YYYY-MM.json`, one object per day (§4.3). Never leaves the Mac | Every day, kept until you delete your data; never pruned (§4.5) | No. There is no switch for it |
+| 17 | **Daily summaries**: the seconds of active work in each app, by **bundle identifier**, and in each activity; the day's total and its longest unbroken stretch; counts of breaks, snoozes, skips, ignored prompts, notifications, sessions and break opportunities; and the seconds spent in the breaks that counted, which the menu bar divides by the count for an average | Derived from the event log while the app runs, recomputed at most once a minute. Written only when the numbers differ from the last write, and then at most every ten minutes, except at once when the menu bar panel opens, a break ends, the day changes (a last write for the day that ended, then the first for the new one), your data is deleted, the Mac sleeps or locks, or the app quits | Badges that count days after those days' events are pruned. Nothing uses the per-app or per-activity seconds once they are on disk; they are there because the summary is written whole | Persisted, `summaries/YYYY-MM.json`, one object per day (§4.3). Never leaves the Mac | Every day, kept until you delete your data; never pruned (§4.5) | No. There is no switch for it |
 | 18 | **Preferences**: interval, threshold, quiet hours, tone, prompt channel and sound | User input | Configuration | Persisted, `settings.json` (plain JSON, human-editable) | Until you change or delete them | n/a |
 | 19 | **App category map** (`com.apple.dt.Xcode → code`) | Compiled into the binary: `AppKey` in `app/Sources/SigstopCore/Message/MessageContext.swift` names the app's family, and `AppModel.category(for:)` maps the family to one of four words | Classify #1 without heuristics | Code, not data. There is no category file in the bundle and no override in `settings.json` | Ships with the app | n/a |
 | 20 | **Break message corpus** | Static JSON shipped inside the bundle, `Contents/Resources/sigstop_SigstopCore.bundle/corpus.json` | Text of the reminder | Read-only resource | Ships with the app | No. It is one pack and there is no setting to choose or disable it; the tone setting decides which of its lines can fire |
@@ -1001,7 +1001,8 @@ that month:
       "sessionCount" : 1,
       "skippedBreakCount" : 0,
       "snoozeCount" : 1,
-      "totalActiveWork" : 7976
+      "totalActiveWork" : 7976,
+      "totalBreakTime" : 303
     }
   },
   "v" : 1
@@ -1010,7 +1011,9 @@ that month:
 
 Every duration is in seconds. `applicationDistribution` is the seconds of active work in each app,
 keyed by **bundle identifier**, and `activeWorkByActivity` the same seconds keyed by `Activity` raw
-value. So this file is a record, for every day, of which apps you worked in and for how long. It is
+value. `totalBreakTime` is the seconds inside the breaks `breakCount` counts, so the menu bar can
+show an average break length; a file written before the field existed decodes with it at zero, and
+nothing else reads it. So this file is a record, for every day, of which apps you worked in and for how long. It is
 kept until *Delete everything* (§4.5), it is not in the export (§4.6), and like everything else here
 it never leaves the Mac. Nothing uses the per-app or per-activity seconds once they are on disk.
 The file is read back only to add a day to it and to count badges, which use the counts and the

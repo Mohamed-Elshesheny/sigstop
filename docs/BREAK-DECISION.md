@@ -1537,6 +1537,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
     public let longestContinuousSession: TimeInterval
 
     public let breakCount: Int
+    public let totalBreakTime: TimeInterval
     public let breaksAccepted: Int
     public let breaksIdleInferred: Int
     public let breaksUserInitiated: Int
@@ -1556,7 +1557,8 @@ public struct DailySummary: Sendable, Codable, Hashable {
 
 The stored fields of `DailySummary`, in `app/Sources/SigstopCore/Summary/DailyRollup.swift`.
 `activeWorkByActivity` is keyed by the
-`Activity` raw value, and compliance is computed rather than stored:
+`Activity` raw value, and compliance is computed rather than stored, as is the average break
+length (`totalBreakTime / breakCount`, `nil` when there is no break to average):
 
 ```swift
 public var breakCompliance: Double? {
@@ -1583,6 +1585,12 @@ substitution, and `CalendarSystemTests` pins both.
 - **`longestContinuousSession`** — `max` over the day of `peakContinuousActiveWork`, sampled at every
   clock reset and again at day end so an in-flight stretch is included. Note this is a *continuous work
   stretch*, not a `DeveloperSession`; the field name follows the everyday meaning.
+- **`totalBreakTime`** — the seconds inside the breaks `breakCount` counts, each measured the way
+  its verdict is: the longer of its two timestamps and its `dur_s`. An abandoned break adds nothing,
+  and neither does one the process died in the middle of. It was added after the other fields and
+  decodes as zero from a summary written before it existed, so no month file needs rewriting. The
+  uptime panel shows `breakCount` and the average beside *kept*; it reports and does not grade
+  (§16): no streak, no comparison with yesterday, nothing to beat.
 - **A break opportunity** opens each time `continuousActiveWork` reaches `targetContinuousWork`,
   i.e. each entry into `breakDue` — *including* entries suppressed by quiet hours.
 - **Honored.** An opportunity is honored iff a qualifying break (duration ≥ `qualifyingBreak`) **began**

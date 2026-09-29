@@ -43,6 +43,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
     public let longestContinuousSession: TimeInterval
 
     public let breakCount: Int
+    public let totalBreakTime: TimeInterval
     public let breaksAccepted: Int
     public let breaksIdleInferred: Int
     public let breaksUserInitiated: Int
@@ -66,6 +67,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
         applicationDistribution: [String: TimeInterval] = [:],
         longestContinuousSession: TimeInterval = 0,
         breakCount: Int = 0,
+        totalBreakTime: TimeInterval = 0,
         breaksAccepted: Int = 0,
         breaksIdleInferred: Int = 0,
         breaksUserInitiated: Int = 0,
@@ -86,6 +88,7 @@ public struct DailySummary: Sendable, Codable, Hashable {
         self.applicationDistribution = applicationDistribution
         self.longestContinuousSession = longestContinuousSession
         self.breakCount = breakCount
+        self.totalBreakTime = totalBreakTime
         self.breaksAccepted = breaksAccepted
         self.breaksIdleInferred = breaksIdleInferred
         self.breaksUserInitiated = breaksUserInitiated
@@ -99,6 +102,58 @@ public struct DailySummary: Sendable, Codable, Hashable {
         self.notificationsDelivered = notificationsDelivered
         self.sessionCount = sessionCount
         self.malformedLines = malformedLines
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case day
+        case totalActiveWork
+        case activeWorkByActivity
+        case applicationDistribution
+        case longestContinuousSession
+        case breakCount
+        case totalBreakTime
+        case breaksAccepted
+        case breaksIdleInferred
+        case breaksUserInitiated
+        case breaksAbandoned
+        case skippedBreakCount
+        case snoozeCount
+        case ignoredPromptCount
+        case breakOpportunities
+        case honoredOpportunities
+        case excludedOpportunities
+        case notificationsDelivered
+        case sessionCount
+        case malformedLines
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        day = try c.decode(CalendarDay.self, forKey: .day)
+        totalActiveWork = try c.decode(TimeInterval.self, forKey: .totalActiveWork)
+        activeWorkByActivity = try c.decode([String: TimeInterval].self, forKey: .activeWorkByActivity)
+        applicationDistribution = try c.decode([String: TimeInterval].self, forKey: .applicationDistribution)
+        longestContinuousSession = try c.decode(TimeInterval.self, forKey: .longestContinuousSession)
+        breakCount = try c.decode(Int.self, forKey: .breakCount)
+        totalBreakTime = try c.decodeIfPresent(TimeInterval.self, forKey: .totalBreakTime) ?? 0
+        breaksAccepted = try c.decode(Int.self, forKey: .breaksAccepted)
+        breaksIdleInferred = try c.decode(Int.self, forKey: .breaksIdleInferred)
+        breaksUserInitiated = try c.decode(Int.self, forKey: .breaksUserInitiated)
+        breaksAbandoned = try c.decode(Int.self, forKey: .breaksAbandoned)
+        skippedBreakCount = try c.decode(Int.self, forKey: .skippedBreakCount)
+        snoozeCount = try c.decode(Int.self, forKey: .snoozeCount)
+        ignoredPromptCount = try c.decode(Int.self, forKey: .ignoredPromptCount)
+        breakOpportunities = try c.decode(Int.self, forKey: .breakOpportunities)
+        honoredOpportunities = try c.decode(Int.self, forKey: .honoredOpportunities)
+        excludedOpportunities = try c.decode(Int.self, forKey: .excludedOpportunities)
+        notificationsDelivered = try c.decode(Int.self, forKey: .notificationsDelivered)
+        sessionCount = try c.decode(Int.self, forKey: .sessionCount)
+        malformedLines = try c.decode(Int.self, forKey: .malformedLines)
+    }
+
+    public var averageBreakLength: TimeInterval? {
+        guard breakCount > 0 else { return nil }
+        return totalBreakTime / Double(breakCount)
     }
 
     public var workByActivity: [Activity: TimeInterval] {
@@ -149,7 +204,7 @@ extension DailySummary {
             skippedBreakCount, snoozeCount, ignoredPromptCount, breakOpportunities,
             honoredOpportunities, excludedOpportunities, notificationsDelivered, sessionCount,
         ]
-        let durations = [totalActiveWork, longestContinuousSession]
+        let durations = [totalActiveWork, longestContinuousSession, totalBreakTime]
             + Array(activeWorkByActivity.values) + Array(applicationDistribution.values)
         let keys = Array(activeWorkByActivity.keys) + Array(applicationDistribution.keys)
         return counts.allSatisfy { (0...100_000).contains($0) }
@@ -192,6 +247,7 @@ public enum DailyRollup {
             applicationDistribution: work.byApplication,
             longestContinuousSession: work.longestRun,
             breakCount: breaks.qualifying,
+            totalBreakTime: breaks.seconds,
             breaksAccepted: breaks.accepted,
             breaksIdleInferred: breaks.idleInferred,
             breaksUserInitiated: breaks.userInitiated,
@@ -366,6 +422,7 @@ public enum DailyRollup {
 
     struct BreakTotals: Sendable {
         var qualifying = 0
+        var seconds: TimeInterval = 0
         var accepted = 0
         var idleInferred = 0
         var userInitiated = 0
@@ -432,6 +489,7 @@ public enum DailyRollup {
                 continue
             }
             totals.qualifying += 1
+            totals.seconds += span.measured
             switch span.origin {
             case .accepted: totals.accepted += 1
             case .idleInferred: totals.idleInferred += 1
