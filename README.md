@@ -108,6 +108,18 @@ Click **I'm in a meeting** in the menu bar. It holds breaks for up to two hours,
 </details>
 
 <details>
+<summary><b>Does it respect Focus or Do Not Disturb?</b></summary>
+<br>
+
+Not by default, and it never reads your Focus state. Out of the box sigstop draws every prompt itself, as a dimmed panel over every display, and Focus governs notifications, not an app's own windows, so a Focus doesn't silence it. What keeps it quiet is its own switches: **Settings → Rhythm → Stay quiet on a schedule**, the **I'm in a meeting** hold, and a live microphone or camera.
+
+To let Focus decide, turn on **Settings → Rhythm → Use macOS notifications instead**. The first three rungs, `SIGTSTP`, `SIGINT` and `SIGTERM`, then go through Notification Center as ordinary notifications, which a Focus silences like any other app's. macOS asks once whether sigstop may notify you. The fourth rung, `SIGSTOP`, is still drawn by the app and lands whatever Focus is on, with one exception: in Low Power Mode it goes through Notification Center too, so a Focus silences all four.
+
+Two limits, stated plainly. sigstop can't see Focus, so it can't tell that a notification was silenced: the ladder climbs on its own clock and `SIGSTOP` lands when it would have anyway, and the menu bar mark shows a break is due the whole time. And if you decline the notification permission, or turn it off later in System Settings, sigstop goes back to drawing its own panel for every rung and says so in the menu bar. Which rung takes which channel is in [BREAK-DECISION.md](docs/BREAK-DECISION.md) §7.5.
+
+</details>
+
+<details>
 <summary><b>Does it read my code or what I type?</b></summary>
 <br>
 
