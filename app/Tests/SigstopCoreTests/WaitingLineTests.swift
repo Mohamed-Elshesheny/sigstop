@@ -222,4 +222,28 @@ struct WaitingLineTests {
     func claimsAreDistinct() {
         #expect(Set(WaitingLine.Claim.allCases.map(\.prefix)).count == 3)
     }
+
+    @Test("a call hold reads as one sentence in the menu and in status.txt")
+    func aCallHoldReadsAsOneSentence() throws {
+        let holds = [
+            MeetingLatchSignal(isHolding: true, basis: .manual),
+            MeetingLatchSignal(isHolding: true, captureLive: true, basis: .microphone, anchorName: "Zoom"),
+            MeetingLatchSignal(isHolding: true, captureLive: true, basis: .camera),
+            MeetingLatchSignal(isHolding: true, captureLive: true, basis: .both, anchorName: "Slack"),
+            MeetingLatchSignal(isHolding: true, captureLive: false, basis: .microphone, anchorName: "Zoom"),
+        ]
+        for hold in holds {
+            let body = try #require(hold.summary)
+            let line = WaitingLine(.holdingOff, body)
+            let text = line.text
+            #expect(text.hasPrefix("holding off, "), "\(text)")
+            #expect(text.hasSuffix("."), "\(text)")
+            #expect(!text.contains(".."), "\(text)")
+            #expect(text.filter { $0 == "." }.count == 1, "\(text)")
+            let afterComma = text.dropFirst("holding off, ".count).first
+            #expect(afterComma?.isLowercase == true, "\(text)")
+            #expect(StatusLine.render(word: "break due", waiting: line) == "break due \u{00B7} \(text)\n")
+        }
+        #expect(MeetingLatchSignal.closed.summary == nil)
+    }
 }

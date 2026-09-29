@@ -116,13 +116,13 @@ public struct MeetingLatchSignal: Sendable, Codable, Hashable {
 
     public var summary: String? {
         guard isHolding else { return nil }
-        if basis == .manual { return "You said you are in a meeting, so prompts are held." }
-        let what = basis == .camera ? "A camera" : "A microphone"
+        if basis == .manual { return "you said you are in a meeting, so prompts are held" }
+        let what = basis == .camera ? "a camera" : "a microphone"
         let who = anchorName.map { " (\($0))" } ?? ""
         if captureLive {
-            return "Holding your break. \(what) is live right now\(who)."
+            return "\(what) is live right now\(who), so your break is held"
         }
-        return "Holding your break. \(what) was live until just now\(who), so this may still be a call."
+        return "\(what) was live until just now\(who), so this may still be a call"
     }
 }
 
