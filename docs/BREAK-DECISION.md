@@ -892,6 +892,38 @@ so an L1 `SIGTSTP` covers the machine exactly as `SIGSTOP` does. What separates 
 the panel offers. A rung whose channel is a notification (L1 to L3, and L4 on low power) offers the
 notification's answers, as §9 lists. L4 on AC power offers *Take it* and *Ignore it*.
 
+**The face.** Every panel and the break screen carry one character: the two bars of the mark, in
+amber on their own dark squircle (`Brand.Dark.bg`, `#101317`), drawn once when the panel appears.
+Nothing about it moves. Only the eyes differ, and they are set once per panel by the rung:
+
+| Rung | `FaceMood` | Eyes | Reads as |
+|---|---|---|---|
+| L1 `SIGTSTP` | `watching` | both bars upright, full height: the icon as it is | noticed you, no pressure |
+| L2 `SIGINT` | `eyebrow` | left bar at 80%, right bar full with one short brow stroke tilted up and outward | hm, still going? |
+| L3 `SIGTERM` | `level` | both bars cut to 60% with flat tops, lids lowered | this is your warning, said flat |
+| L4 `SIGSTOP` | `wink` | left bar full, right eye a short dash | the bluff the user is in on |
+| break screen, `SIGCONT` | `welcomeBack` | two upward arcs | welcome back, stack intact |
+| (defined, drawn nowhere yet) | `resting` | two flat dashes | later |
+
+`FaceMood(level:tone:)` in `SigstopCore/Message/FaceMood.swift` is the mapping, `FaceMoodTests` pins
+it, and `FaceMark` in `SigstopApp/Views/FaceMark.swift` draws it. The **rendered** tone caps the
+face the way the user's tone setting caps the line (`docs/MESSAGE-ENGINE.md` §4): a friendly line at
+L3 gets the eyebrow, never the lowered lids, because the eyes and the words are one voice and the
+lids under a gentle sentence would read as a warden. The rails, which are the tone rule of CLAUDE.md
+§0 in geometry: it is never red, even at `SIGSTOP`; it is never sad, angry, hurt or disappointed,
+and there are no inward-slanted brows, which read as anger; it never looks down at the user; it does
+not change beside *Ignore it* or *Skip*, so waving a prompt off costs no expression; and it never
+implies it knows the activity, so there is no debugging face (CLAUDE.md §4.1). Mood lives in
+geometry, not colour, so it survives Differentiate Without Color, and the opaque plate is why the
+78% panel can sit over a white editor without the face's contrast depending on what is behind it.
+
+It is static by decision, not by omission: no `TimelineView`, no timer, no animation, nothing for
+Reduce Motion to switch off, and on the break screen it is a sibling of the countdown, never inside
+its `TimelineView`, so it costs one raster per panel and nothing per second. It is `Equatable` and
+placed with `.equatable()`, so a hover on `SIGCONT` does not redraw it. Strokes thicken under
+Increase Contrast. VoiceOver reads it as one image with `spokenLabel`, which carries no em dash and
+names a mood, never a feeling about the user.
+
 ### 7.6 Low battery
 
 Battery is an input about *cost and context*, never a reason to skip a break:

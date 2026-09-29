@@ -724,6 +724,10 @@ Per level, the message engine decides one thing, the tone ceiling
 |---|---|---|---|---|
 | Tone cap | `sarcastic` | `roast` | `roast` (`nuclear` if opted in) | `nuclear` |
 
+The face on the panel follows the rendered line, not the rung alone: `FaceMood(level:tone:)` takes
+the `RenderedMessage`'s tone, so a friendly line that reaches L3 wears the eyebrow face rather than
+the lowered lids. The expressions and their rails are in `docs/BREAK-DECISION.md` §7.5.
+
 Presentation, sound, the actions a prompt offers and the spacing between prompts belong to the break
 engine, and `docs/BREAK-DECISION.md` §7.5, §9 and §11 describe what ships. The rows this table used
 to carry for them, a 40% window, countdowns, snooze budgets per hour and longer spacing at L3 and

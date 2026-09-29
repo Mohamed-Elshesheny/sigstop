@@ -30,6 +30,7 @@ enum Brand {
     static let alert = dynamic(light: 0xC0322B, dark: 0xF85149)
 
     enum Dark {
+        static let bg = fixed(0x101317)
         static let fg = fixed(0xE8EAED)
         static let fgMuted = fixed(0x9AA2AD)
         static let fgFaint = fixed(0x656D78)

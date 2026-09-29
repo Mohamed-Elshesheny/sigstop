@@ -176,6 +176,88 @@ enum PromptRenderer {
     }
 }
 
+struct FaceContactSheet: View {
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            section("72pt, the panel and the break screen") {
+                faces(size: 72)
+            }
+            section("40pt") {
+                faces(size: 40)
+            }
+        }
+        .padding(28)
+        .background(Brand.bg)
+        .fixedSize()
+    }
+
+    private func faces(size: CGFloat) -> some View {
+        HStack(spacing: 24) {
+            ForEach(FaceMood.allCases, id: \.self) { mood in
+                VStack(spacing: 10) {
+                    FaceMark(mood: mood, size: size)
+                    Text(mood.rawValue)
+                        .font(Brand.mono(9))
+                        .foregroundStyle(Brand.fgMuted)
+                }
+                .frame(width: max(96, size + 24))
+            }
+        }
+    }
+
+    private func section<Content: View>(
+        _ label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(label)
+                .font(Brand.mono(9, weight: .medium))
+                .foregroundStyle(Brand.fgMuted)
+            content()
+        }
+    }
+}
+
+enum BreakRenderer {
+
+    @MainActor
+    static func runAndExit(stem: String) -> Never {
+        let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
+        let content = BreakContent(prompt: "Stand up. The stack is saved.", quest: "Refill your water.")
+        let cases: [(String, TimeInterval)] = [("start", 4 * 60 + 37), ("last-minute", 42)]
+        for (suffix, remaining) in cases {
+            let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
+            do {
+                try BadgeSheetRenderer.write(
+                    BreakScreen(
+                        endsAt: Date().addingTimeInterval(remaining),
+                        duration: 5 * 60,
+                        content: content,
+                        onResume: {}
+                    )
+                    .frame(width: 1280, height: 800),
+                    appearance: .darkAqua,
+                    to: url
+                )
+                FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
+                exit(1)
+            }
+        }
+        let faces = URL(fileURLWithPath: "\(base)-faces.png")
+        do {
+            try BadgeSheetRenderer.write(FaceContactSheet(), appearance: .darkAqua, to: faces)
+            FileHandle.standardOutput.write(Data("\(faces.path)\n".utf8))
+        } catch {
+            FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
+            exit(1)
+        }
+        exit(0)
+    }
+}
+
 enum BadgeSheetRenderer {
 
     @MainActor

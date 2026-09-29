@@ -209,6 +209,22 @@ final class BreakOverlayController {
 struct BreakOverlayView: View {
     let model: AppModel
 
+    var body: some View {
+        BreakScreen(
+            endsAt: model.breakEndsAt,
+            duration: model.settings.breakDuration,
+            content: model.breakContent,
+            onResume: { model.endBreak() }
+        )
+    }
+}
+
+struct BreakScreen: View {
+    let endsAt: Date?
+    let duration: TimeInterval
+    let content: BreakContent?
+    let onResume: () -> Void
+
     @State private var hoveringResume = false
 
     var body: some View {
@@ -218,24 +234,25 @@ struct BreakOverlayView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    BrandMark(size: 16, fill: 0, tint: Brand.Dark.amber, fillTint: Brand.Dark.amber)
-                    Text("STATE T · SIGSTOP")
-                        .font(Brand.mono(12, weight: .semibold))
-                        .tracking(3)
-                        .foregroundStyle(Brand.Dark.amber)
-                }
+                FaceMark(mood: .welcomeBack)
+                    .equatable()
+
+                Text("STATE T · SIGSTOP")
+                    .font(Brand.mono(12, weight: .semibold))
+                    .tracking(3)
+                    .foregroundStyle(Brand.Dark.amber)
+                    .padding(.top, 22)
 
                 countdown
                     .padding(.top, 30)
 
-                Text(model.breakContent?.prompt ?? "Stand up.")
+                Text(content?.prompt ?? "Stand up.")
                     .font(Brand.sans(34, weight: .medium))
                     .foregroundStyle(Brand.Dark.fg)
                     .multilineTextAlignment(.center)
                     .padding(.top, 44)
 
-                if let quest = model.breakContent?.quest {
+                if let quest = content?.quest {
                     Text(quest)
                         .font(Brand.sans(17))
                         .foregroundStyle(Brand.Dark.fgMuted)
@@ -257,8 +274,8 @@ struct BreakOverlayView: View {
 
     private var countdown: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let total = max(1, TimeInterval(model.settings.breakDurationMinutes * 60))
-            let remaining = max(0, (model.breakEndsAt ?? context.date).timeIntervalSince(context.date))
+            let total = max(1, duration)
+            let remaining = max(0, (endsAt ?? context.date).timeIntervalSince(context.date))
             VStack(spacing: 14) {
                 Text(Format.clock(remaining))
                     .font(Brand.mono(120, weight: .light))
@@ -286,7 +303,7 @@ struct BreakOverlayView: View {
     }
 
     private var resume: some View {
-        Button(action: { model.endBreak() }) {
+        Button(action: onResume) {
             Text("SIGCONT")
                 .font(Brand.mono(13, weight: .semibold))
                 .tracking(2.5)
@@ -327,6 +344,10 @@ struct FallbackPromptView: View {
                 .ignoresSafeArea()
 
             VStack(alignment: .center, spacing: 0) {
+                FaceMark(mood: FaceMood(level: request.level, tone: message.tone))
+                    .equatable()
+                    .padding(.bottom, 24)
+
                 HStack(spacing: 10) {
                     StateDot(state: isIncident ? .alert : .suspend)
                     Text(request.signal)

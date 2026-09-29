@@ -40,6 +40,13 @@ enum SigstopEntryPoint {
                 PromptRenderer.runAndExit(stem: stem, templateID: id)
             }
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-break") {
+            let stem = renderStem(at: index + 1, or: "break")
+            MainActor.assumeIsolated {
+                NSApplication.shared.setActivationPolicy(.prohibited)
+                BreakRenderer.runAndExit(stem: stem)
+            }
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-badges") {
             renderBadgesAndExit(stem: renderStem(at: index + 1, or: "badges"))
         }
