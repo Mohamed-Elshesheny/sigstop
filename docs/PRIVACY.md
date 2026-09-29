@@ -370,8 +370,10 @@ grep -rhoE 'kAX[A-Za-z]+' app/Sources | sort -u    # expect the three attributes
 **Mechanism.** Screen capture on modern macOS requires the Screen Recording TCC grant, which is
 triggered by `CGWindowListCreateImage`, `SCStream`/ScreenCaptureKit, or `CGDisplayStream`. None are
 called and ScreenCaptureKit is not linked. The app does call `CGWindowListCopyWindowInfo`, in
-`SystemStateCollector` for the full-screen hint and in `BreakOverlay` to confirm its own panel is on
-screen, and reads only a window's owner, layer, bounds and on-screen flag from it. It never reads
+`SystemStateCollector` for the full-screen hint and in `BreakOverlay`, both to confirm its own panel
+is on screen and to find the frontmost app's frontmost layer-0 window (owner pid, layer and bounds
+only) so the prompt card lands on the display you are working on. It reads only a window's owner,
+layer, bounds and on-screen flag. It never reads
 `kCGWindowName`, which is the *other* common way to get window titles and would need Screen
 Recording, so the app uses Accessibility instead and asks for the narrower thing. The app will never
 appear in Screen Recording's permission list.

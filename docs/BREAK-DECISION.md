@@ -369,12 +369,12 @@ more inside it used to be recorded as a second.
 | 2 | Input gap | `90 s – 5 min` | any | `shortPause` | **pause**, revoke grace | no | continues |
 | 3 | Input gap | `5 min – 20 min` | not in meeting | `qualifyingBreak` | **reset** | **yes** (`.idleInferred`) | continues |
 | 4 | Input gap | `20 min – 30 min` | not in meeting | `qualifyingBreak` | **reset** | **yes** | continues |
-| 5 | Input gap | `≥ 30 min` | any | `sessionGap` | **reset** | no | **ends**; new session on return |
+| 5 | Input gap | `≥ 30 min` | any | `sessionGap` | **reset** | **yes** at 5 min, ending at the gap | **ends**; new session on return |
 | 6 | Input gap | any | live meeting (mic/camera running) | `meetingIdle` | **pause** | no | continues |
 | 7 | Any pause reaching | `20 min` | any cause incl. meeting | `longPause` | **reset** | no | continues |
 | 8 | Screen lock | `< 5 min` | — | `shortPause` | **pause immediately** (no grace) | no | continues |
 | 9 | Screen lock | `5 – 30 min` | — | `qualifyingBreak` | **reset** | **yes** | continues |
-| 10 | Screen lock | `≥ 30 min` | — | `sessionGap` | **reset** | no | **ends** |
+| 10 | Screen lock | `≥ 30 min` | — | `sessionGap` | **reset** | **yes** at 5 min, ending at the gap | **ends** |
 | 11 | System sleep | `< 5 min` | — | `shortPause` | **pause at `willSleep`** | no | continues |
 | 12 | System sleep | `5 – 30 min` | — | `qualifyingBreak` | **reset** | **yes** | continues |
 | 13 | System sleep | `≥ 30 min` | — | `sessionGap` | **reset** | no | **ends** |
@@ -1705,7 +1705,7 @@ substitution, and `CalendarSystemTests` pins both.
   stretch*, not a `DeveloperSession`; the field name follows the everyday meaning.
 - **`totalBreakTime`** — the seconds inside the breaks `breakCount` counts, each measured the way
   its verdict is: the longer of its two timestamps and its `dur_s`. An idle-inferred break runs
-  from the last input to the first input back, or to the session gap (§4.1 rows 5, 10 and 13) if
+  from the last input to the first input back, or to the session gap (§4.1 rows 5 and 10) if
   you never came back inside it, so the average is the time you were away and not the five
   minutes that decided it. An abandoned break adds nothing,
   and neither does one the process died in the middle of. A break belongs to the day it began in:
