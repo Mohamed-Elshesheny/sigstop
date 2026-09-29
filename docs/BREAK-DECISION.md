@@ -997,7 +997,7 @@ Nothing about it moves. Only the eyes differ, and they are set once per panel by
 | Rung | `FaceMood` | Eyes | Reads as |
 |---|---|---|---|
 | L1 `SIGTSTP` | `watching` | both bars upright, full height: the icon as it is | noticed you, no pressure |
-| L2 `SIGINT` | `eyebrow` | left bar at 80%, right bar full with one short brow stroke tilted up and outward | hm, still going? |
+| L2 `SIGINT` | `eyebrow` | left bar at 80%, right bar full with one short brow arched above it, level, both ends below its middle | hm, still going? |
 | L3 `SIGTERM` | `level` | both bars cut to 60% with flat tops, lids lowered | this is your warning, said flat |
 | L4 `SIGSTOP` | `wink` | left bar full, right eye a short dash | the bluff the user is in on |
 | break screen, `SIGCONT` | `welcomeBack` | two upward arcs | welcome back, stack intact |
@@ -1009,7 +1009,9 @@ face the way the user's tone setting caps the line (`docs/MESSAGE-ENGINE.md` §4
 L3 gets the eyebrow, never the lowered lids, because the eyes and the words are one voice and the
 lids under a gentle sentence would read as a warden. The rails, which are the tone rule of CLAUDE.md
 §0 in geometry: it is never red, even at `SIGSTOP`; it is never sad, angry, hurt or disappointed,
-and there are no inward-slanted brows, which read as anger; it never looks down at the user; it does
+and there are no slanted brows at all, since a brow that is low at the inner end and high at the
+outer end is one half of an angry V, so the one brow is a level arch (the L2 stroke used to be
+drawn "tilted up and outward", which is exactly that half, and it was redrawn); it never looks down at the user; it does
 not change beside *Ignore it* or *Skip*, so waving a prompt off costs no expression; and it never
 implies it knows the activity, so there is no debugging face (CLAUDE.md §4.1). Mood lives in
 geometry, not colour, so it survives Differentiate Without Color, and the opaque plate is why the

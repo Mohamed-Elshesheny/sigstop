@@ -42,7 +42,10 @@ struct BrowShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.maxY),
+            control: CGPoint(x: rect.midX, y: rect.minY - rect.height)
+        )
         return path
     }
 }
@@ -93,8 +96,8 @@ struct FaceMark: View, Equatable {
                     if mood == .eyebrow {
                         BrowShape()
                             .stroke(Brand.Dark.amber, style: StrokeStyle(lineWidth: line, lineCap: .round))
-                            .frame(width: eye.width * 1.4, height: eye.height * 0.18)
-                            .offset(x: eye.width * 0.2, y: -eye.height * 0.32)
+                            .frame(width: eye.width * 1.5, height: eye.height * 0.14)
+                            .offset(y: -eye.height * 0.34)
                     }
                 }
             }
