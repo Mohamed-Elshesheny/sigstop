@@ -154,9 +154,10 @@ What each line should show, what the keys mean and what none of it can prove is 
 
 Yes. Turn on **Settings → Data → Write a status line for tmux or your prompt**. sigstop then keeps one line in `~/Library/Application Support/dev.sigstop.app/status.txt`, the same state word and waiting line the menu shows, rewritten only when it changes and removed when you turn the switch off or quit. Nothing polls and nothing is spawned; you just `cat` it.
 
-In `~/.tmux.conf`:
+In `~/.tmux.conf`, with the 40-column default for `status-right` lifted, since every line sigstop writes is longer:
 
 ```sh
+set -g status-right-length 120
 set -g status-right '#(cat "$HOME/Library/Application Support/dev.sigstop.app/status.txt")'
 ```
 

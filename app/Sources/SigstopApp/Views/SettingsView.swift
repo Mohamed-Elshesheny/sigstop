@@ -543,7 +543,10 @@ struct SettingsView: View {
                 ) {
                     TerminalSwitch(isOn: settings.statusLineEnabled)
                 }
-                CodeBlock("set -g status-right '#(cat \"\(StatusLineFile.url.path)\")'")
+                CodeBlock(
+                    "set -g status-right-length 120\n"
+                        + "set -g status-right '#(cat \"\(StatusLineFile.url.path)\")'"
+                )
                     .padding(.top, 12)
             }
 
