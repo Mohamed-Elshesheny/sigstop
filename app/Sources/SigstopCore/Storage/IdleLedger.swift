@@ -22,6 +22,8 @@ public struct IdleLedger: Sendable, Hashable {
             case .clockResumed:
                 guard began != nil else { continue }
                 lines.append(close(at: now))
+            case .sessionEnded:
+                began = nil
             default:
                 continue
             }
