@@ -152,7 +152,7 @@ What each line should show, what the keys mean and what none of it can prove is 
 <summary><b>Can it show up in tmux or my prompt?</b></summary>
 <br>
 
-Yes. Turn on **Settings → Data → Write a status line for tmux or your prompt**. sigstop then keeps one line in `~/Library/Application Support/dev.sigstop.app/status.txt`, the same state word and waiting line the menu shows, rewritten only when it changes and removed when you turn the switch off or quit. Nothing polls and nothing is spawned; you just `cat` it.
+Yes. Turn on **Settings → Data → Write a status line for tmux or your prompt**. sigstop then keeps one line in `~/Library/Application Support/dev.sigstop.app/status.txt`, the same state word and waiting line the menu shows, rewritten only when it changes and removed when you turn the switch off or quit. sigstop spawns nothing and polls nothing; your status bar reads one file.
 
 In `~/.tmux.conf`, with the 40-column default for `status-right` lifted, since every line sigstop writes is longer:
 
