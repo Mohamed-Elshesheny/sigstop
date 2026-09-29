@@ -64,6 +64,12 @@ public enum PromptCardPlacement {
         return best.0
     }
 
+    public static func belowMenuBar(_ visible: Box, screenTop: Double, hiddenMenuBar: Double) -> Box {
+        guard visible.maxY >= screenTop else { return visible }
+        let top = screenTop - max(0, hiddenMenuBar)
+        return Box(x: visible.x, y: visible.y, width: visible.width, height: max(0, top - visible.y))
+    }
+
     public static func place(width: Double, height: Double, in visible: Box) -> Box {
         let w = min(width, visible.width)
         let h = min(height, visible.height)

@@ -962,7 +962,13 @@ no window, the card goes to the display the pointer is on, then the screen with 
 then the first screen. It used to go to the pointer's display first, and the pointer is not where the
 work is: Cmd-Tab, typing and a Space switch move nothing, so a card could be drawn on the far
 display, confirmed on screen by the window server, and counted as ignored 90 seconds later by a user
-who never had a chance to see it. It dims nothing. It appears and stays still: no slide, no fade, nothing for Reduce Motion to switch
+who never had a chance to see it. It stays under the menu bar even when the bar is set to hide:
+`visibleFrame` then reaches the top of the screen, and the card sat over the right end of the bar as
+it slid in, since the bar draws at `.mainMenu`, one level under the card. `PromptCardPlacement.belowMenuBar`
+reserves the bar's height whenever the visible frame reaches the top, taking the largest of the main
+menu's `menuBarHeight` (33 points on a notched display, measured), the status bar thickness and the
+safe-area inset, and does nothing when the bar is showing, because the visible frame is exact then.
+`PromptCardMenuBarTests` pins both. It dims nothing. It appears and stays still: no slide, no fade, nothing for Reduce Motion to switch
 off. In every other respect it is the panel: the same `NonActivatingPanel` at the same
 `.statusBar` level, `sharingType = .none`, joins every Space, sits over full-screen apps, and never
 takes the keyboard from the app underneath. It carries the same content and the same answers,

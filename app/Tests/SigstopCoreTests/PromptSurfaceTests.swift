@@ -39,6 +39,36 @@ struct PromptSurfaceTests {
     }
 }
 
+@Suite("the card stays under the menu bar, hidden or not")
+struct PromptCardMenuBarTests {
+
+    @Test("a visible frame that already stops under the menu bar is left alone")
+    func visibleMenuBarNeedsNothing() {
+        let visible = PromptCardPlacement.Box(x: 0, y: 87, width: 1728, height: 997)
+        let clipped = PromptCardPlacement.belowMenuBar(visible, screenTop: 1117, hiddenMenuBar: 33)
+        #expect(clipped == visible)
+    }
+
+    @Test("a hidden menu bar is reserved, so the card sits below where the bar slides in")
+    func hiddenMenuBarIsReserved() {
+        let visible = PromptCardPlacement.Box(x: 0, y: 87, width: 1728, height: 1030)
+        let clipped = PromptCardPlacement.belowMenuBar(visible, screenTop: 1117, hiddenMenuBar: 33)
+        #expect(clipped.maxY == 1117 - 33)
+        #expect(clipped.y == visible.y)
+        #expect(clipped.x == visible.x && clipped.width == visible.width)
+        let card = PromptCardPlacement.place(width: 420, height: 180, in: clipped)
+        #expect(card.maxY == 1117 - 33 - PromptCardPlacement.inset)
+    }
+
+    @Test("a bar taller than the frame cannot push the card off the bottom")
+    func absurdMenuBarClampsToNothing() {
+        let visible = PromptCardPlacement.Box(x: 0, y: 0, width: 800, height: 20)
+        let clipped = PromptCardPlacement.belowMenuBar(visible, screenTop: 20, hiddenMenuBar: 40)
+        #expect(clipped.height == 0)
+        #expect(clipped.y == 0)
+    }
+}
+
 @Suite("the card goes to the display of the window in front")
 struct PromptCardDisplayTests {
 

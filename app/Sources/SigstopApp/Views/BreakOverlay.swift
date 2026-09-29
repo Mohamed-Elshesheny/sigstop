@@ -190,11 +190,18 @@ final class BreakOverlayController {
         hosting.layoutSubtreeIfNeeded()
         let size = hosting.fittingSize
         let visible = screen.visibleFrame
+        let menuBar = max(
+            NSApp.mainMenu?.menuBarHeight ?? 0, NSStatusBar.system.thickness, screen.safeAreaInsets.top
+        )
         let box = PromptCardPlacement.place(
             width: size.width,
             height: size.height,
-            in: PromptCardPlacement.Box(
-                x: visible.minX, y: visible.minY, width: visible.width, height: visible.height
+            in: PromptCardPlacement.belowMenuBar(
+                PromptCardPlacement.Box(
+                    x: visible.minX, y: visible.minY, width: visible.width, height: visible.height
+                ),
+                screenTop: screen.frame.maxY,
+                hiddenMenuBar: menuBar
             )
         )
         hosting.sizingOptions = []
