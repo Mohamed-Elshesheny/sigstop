@@ -821,9 +821,10 @@ A seam is a moment the user has already broken their own concentration:
 | `meetingEnded` | **declared and never produced** | See below. |
 | `fullscreenExited` | **declared and never produced** | medium, as designed |
 | `spaceSwitch` | **declared and never produced**: nothing observes `activeSpaceDidChangeNotification` | medium, as designed |
-| `terminalCommandFinished` | **declared and never produced** | strong, as designed |
+| `terminalCommandFinished` | a watched tool that the app in front had started is gone from the next Tier 2 process scan (`CommandWatch`, below) | strong, and only behind the process opt-in |
 
-`AppModel` inserts only `.applicationSwitch` and `.idleBlip`.
+`AppModel` inserts `.applicationSwitch`, `.idleBlip` and, when a sample carries a
+`FinishedCommand`, `.terminalCommandFinished`.
 
 **`meetingEnded` has no producer, and deliberately gains none.** A seam *delivers*: `verdict` returns
 `.deliver` for any non-empty seam before the soft reasons are consulted at all. So emitting one the
@@ -833,10 +834,42 @@ the purpose the seam was invented for, and it serves it as a *block* rather than
 row stays in the table so the next person does not re-invent it.
 
 `terminalCommandFinished` was designed around shell integration the user installs deliberately: a
-`precmd`/`preexec` hook writing one byte to a Unix domain socket in the app's container. That is
-planned, not built, and `terminalCommandRunning` is always `false` (§6), so the app **cannot** see
-that a build finished, and the spec does not pretend otherwise — the `idleBlip` seam covers most of the
-same moments, because people stop typing while a command runs.
+`precmd`/`preexec` hook writing one byte to a Unix domain socket in the app's container. That was
+never built, and `terminalCommandRunning` is still always `false` (§6). What produces the seam
+instead is a diff of two scans the app was already making. `CommandWatch`, in
+`app/Sources/SigstopSensors/CommandWatch.swift`, keeps the previous Tier 2 process snapshot and
+compares it with the current one: a tool on the allowlist that was a **child of the app in front**
+at the previous scan and is gone at this one is a command that has just returned, and so is the
+kernel's `P_TRACED` flag clearing under the same app, which is a debug session ending. The rules,
+all of them tested with `ProcessSnapshot` literals in `CommandWatchTests`:
+
+- Both scans have to be real. A skipped scan (opt-in off, nothing editor-shaped in front, idle,
+  thermal, Low Power Mode) is *no information*, and it resets the watch rather than standing in
+  for "nothing running". So does a gap of more than 60 s between the two, which is what a sleep
+  or a suspended sampler leaves behind: "just finished" has to mean just.
+- A tool that was merely running somewhere on the Mac, never under the app in front, decides
+  nothing when it goes: it was somebody else's command. The same asymmetry §7.2 of
+  `ACTIVITY-DETECTION.md` applies to naming `DEBUGGING`.
+- While the app in front is unchanged, a tool is gone when it is no longer among that app's
+  children, so the same tool still alive in another terminal does not hide the seam. After an app
+  switch the children of the new app say nothing about the old one, so the whole machine has to
+  have lost the tool, and the app switch was a seam of its own anyway.
+- What it yields carries `Evidence` a person can read ("a test run just finished, xctest was
+  started by the app you are in and is gone") and a `Confidence` that is combined from that
+  evidence and then capped at `ConfidenceEngine.debuggingCeiling`, 0.90. It is never `.certain`:
+  a token is a name, not a pid, and two runs back to back can hand over between scans.
+- It costs no timer and no read of its own. The scan is the one the sample was already making,
+  and only the previous snapshot is held in memory for the comparison.
+
+The seam rides on the `ContextSample` until the tick loop takes one (`sampleAndPublish`), because
+the context engine also samples on its own events and a seam noticed in one of those would
+otherwise be gone before the engine stepped. The evidence is shown in the panel's why list for that
+tick, and `--doctor` says under *tool names* that a watched tool going away is a natural pause.
+
+What this still cannot see is the same as before: `swift build`, `go test`, `node`, `tsc` and every
+other tool that is named by its arguments (§4.3b of `ACTIVITY-DETECTION.md`), so a build finishing
+is not a seam and the spec does not pretend otherwise. The `idleBlip` seam covers most of those
+moments, because people stop typing while a command runs.
 
 ### 7.4 Expiry, and the two failure modes
 

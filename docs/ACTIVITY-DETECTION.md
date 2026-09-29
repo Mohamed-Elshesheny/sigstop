@@ -611,6 +611,12 @@ runs is knowing something about them. The rules are absolute:
 - A read failure is "no information", never "not running". A zero-length table is a failure, not an
   empty machine: under a sandbox profile without `sysctl-read` the call returns nothing and sets no
   errno a caller would notice, so the snapshot must be `nil` rather than an empty set of matches.
+- The previous snapshot is kept, and only the previous one, so that two consecutive scans can be
+  compared: an allowlisted tool that was a child of the app in front and is gone at the next scan
+  is a command that has just returned, and the break engine treats it as a seam
+  (`docs/BREAK-DECISION.md` §7.3). `CommandWatch` is the pure comparison; it reads nothing the
+  scan did not already read, adds no timer, and a `nil` scan on either side resets it, because
+  "no information" cannot stand in for "not running" here either.
 
 ### 4.4 Tier availability is a runtime value
 
@@ -1316,7 +1322,7 @@ work** — no timer fires, nothing is polled.
 | What | Interval | Gated on | Cost |
 |---|---|---|---|
 | Idle-threshold crossing | **self-scheduling**, not periodic | always | ~2 wakeups per idle transition |
-| Process snapshot (Tier 2) | not polled at all: taken inside the sample the engine was already going to build | the process opt-in on **AND** frontmost is editor/terminal **AND** `idleSeconds < 120` **AND** thermal `.nominal`/`.fair` **AND** not (on battery AND Low Power Mode), then memoized for a few seconds | **0.17 ms** per scan, mean of 200 scans of the real table over 1006 processes, release build. At one scan every five seconds that is 0.003% of one core |
+| Process snapshot (Tier 2) | not polled at all: taken inside the sample the engine was already going to build | the process opt-in on **AND** frontmost is editor/terminal **AND** `idleSeconds < 120` **AND** thermal `.nominal`/`.fair` **AND** not (on battery AND Low Power Mode), then memoized for a few seconds | **0.17 ms** per scan, mean of 200 scans of the real table over 1006 processes, release build. At one scan every five seconds that is 0.003% of one core. The comparison with the previous scan that yields the finished-command seam (§4.3b) is a set difference over a handful of enum cases and adds nothing measurable |
 | Window geometry | **on demand only** | on app-activation events | sub-ms |
 | AX title reconciliation | 60 s, leeway 15 s | Tier 1 on and not idle | guards against a missed `AXObserver` notification |
 

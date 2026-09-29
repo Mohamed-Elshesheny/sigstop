@@ -394,6 +394,31 @@ enum Ev {
         )
     }
 
+    static func commandFinished(_ tool: ToolToken) -> Evidence {
+        let what: String
+        if ToolToken.testRunners.contains(tool) {
+            what = "a test run just finished"
+        } else if ToolToken.debuggers.contains(tool) {
+            what = "a debug session just ended"
+        } else if ToolToken.terminalEditors.contains(tool) {
+            what = "you just left \(tool.displayName)"
+        } else if ToolToken.remoteShells.contains(tool) {
+            what = "your \(tool.displayName) session just ended"
+        } else {
+            what = "\(tool.displayName) just exited"
+        }
+        return make(
+            "process.commandFinished", .tier2, 2.2,
+            "\(what), \(tool.displayName) was started by the app you are in and is gone"
+        )
+    }
+    static func debugSessionEnded() -> Evidence {
+        make(
+            "process.debugSessionEnded", .tier2, 2.2,
+            "a debug session just ended, nothing this app started is under a debugger any more"
+        )
+    }
+
     static func debuggerProcess(_ tool: ToolToken, childOfFrontmost: Bool) -> Evidence {
         let weight = tool == .debugserver ? 3.0 : 2.2
         let suffix = childOfFrontmost ? ", started by the app you are in" : ""

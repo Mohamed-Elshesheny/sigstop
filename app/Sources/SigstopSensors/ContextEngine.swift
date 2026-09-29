@@ -35,19 +35,22 @@ public struct ContextSample: Sendable {
     public let honestLabel: String?
     public let caveats: [String]
     public let providerID: ProviderID
+    public let finishedCommand: FinishedCommand?
 
     public init(
         context: DeveloperContext,
         gate: PromptGate,
         honestLabel: String? = nil,
         caveats: [String] = [],
-        providerID: ProviderID
+        providerID: ProviderID,
+        finishedCommand: FinishedCommand? = nil
     ) {
         self.context = context
         self.gate = gate
         self.honestLabel = honestLabel
         self.caveats = caveats
         self.providerID = providerID
+        self.finishedCommand = finishedCommand
     }
 }
 
@@ -107,6 +110,8 @@ public final class ContextEngine {
     private var publishedLabel: String?
     private var corroboratedAt: Date
     private var evidenceFingerprint: Set<String> = []
+    private var commandWatch = CommandWatch()
+    private var unconsumedCommand: FinishedCommand?
 
     private var titleCache: (pid: pid_t, info: AXWindowInfo, readAt: Date)?
     private var titleDirty = true
@@ -171,7 +176,7 @@ public final class ContextEngine {
         refreshGeometry()
         startObservingFrontmostWindow()
         resumeSamplingIfNeeded()
-        Task { [weak self] in await self?.sampleAndPublish() }
+        Task { [weak self] in await self?.resample() }
     }
 
     public func stop() {
@@ -191,7 +196,7 @@ public final class ContextEngine {
         permissions.apply(settings)
         projectFolders = settings.projectFolders
         titleDirty = true
-        Task { [weak self] in await self?.sampleAndPublish() }
+        Task { [weak self] in await self?.resample() }
     }
 
     public func register(_ provider: any ActivityProvider) {
@@ -213,6 +218,13 @@ public final class ContextEngine {
 
     @discardableResult
     public func sampleAndPublish() async -> ContextSample {
+        let sample = await resample()
+        unconsumedCommand = nil
+        return sample
+    }
+
+    @discardableResult
+    private func resample() async -> ContextSample {
         let sample = await buildSample()
         lastSample = sample
         for continuation in continuations.values { continuation.yield(sample) }
@@ -244,6 +256,9 @@ public final class ContextEngine {
         let processes = processCollector.snapshot(
             frontmost: snapshot.frontmost, input: input, power: power, now: now
         )
+        if let finished = commandWatch.observe(processes, frontmostPID: snapshot.frontmost.pid) {
+            unconsumedCommand = finished
+        }
 
         let git = await gitCollector.read(
             frontmost: snapshot.frontmost,
@@ -312,7 +327,8 @@ public final class ContextEngine {
             ),
             honestLabel: label,
             caveats: caveats,
-            providerID: resolved.providerID
+            providerID: resolved.providerID,
+            finishedCommand: unconsumedCommand
         )
     }
 
@@ -580,7 +596,7 @@ public final class ContextEngine {
                     self.titleDirty = true
                     self.refreshGeometry()
                     self.startObservingFrontmostWindow()
-                    await self.sampleAndPublish()
+                    await self.resample()
                 case .terminated(let app, _):
                     if app.pid == self.observedPID {
                         self.accessibilityCollector.stopObserving(pid: app.pid)
@@ -619,7 +635,7 @@ public final class ContextEngine {
                 case .powerStateChanged:
                     break
                 }
-                await self.sampleAndPublish()
+                await self.resample()
             }
         })
     }
@@ -628,7 +644,7 @@ public final class ContextEngine {
         let stream = audioCollector.events
         tasks.append(Task { [weak self] in
             for await _ in stream {
-                await self?.sampleAndPublish()
+                await self?.resample()
             }
         })
     }
@@ -655,7 +671,7 @@ public final class ContextEngine {
                 guard let self else { return }
                 self.titleDirty = true
                 self.startObservingFrontmostWindow()
-                await self.sampleAndPublish()
+                await self.resample()
             }
         })
     }
@@ -709,7 +725,7 @@ public final class ContextEngine {
                 guard let self else { return }
                 Task { @MainActor [weak self] in
                     guard let self else { return }
-                    await self.sampleAndPublish()
+                    await self.resample()
                     self.scheduleNextWake()
                 }
             }

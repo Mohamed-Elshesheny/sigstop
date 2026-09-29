@@ -265,6 +265,9 @@ enum Doctor {
             } else {
                 lines.append("under a debugger: nothing on this Mac is, right now")
             }
+            lines.append("One of these that was started by the app in front and is gone at the")
+            lines.append("next scan counts as a natural pause: a due break is asked for then,")
+            lines.append("at most \(Int(CommandWatch.ceiling * 100))% sure, since a name is not a pid.")
             return lines
         }
     }

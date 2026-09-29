@@ -326,6 +326,9 @@ final class AppModel {
         let raw = sensors.readSignals()
         let now = time.now
         let monotonic = time.continuousSeconds
+        if let finished = sample.finishedCommand {
+            seamsForNextStep.insert(finished.seam)
+        }
 
         let tickSample = TickSample(
             idleSeconds: raw.input.knownIdleSeconds ?? 0,
@@ -846,6 +849,11 @@ final class AppModel {
         evidenceLines = context.evidence
             .sorted { abs($0.logOdds) > abs($1.logOdds) }
             .map { EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds) }
+        if let finished = sample.finishedCommand {
+            evidenceLines += finished.evidence.map {
+                EvidenceLine(id: $0.id.rawValue, summary: $0.summary, logOdds: $0.logOdds)
+            }
+        }
         caveats = sample.caveats
         publishGitReading()
         engineStateName = engineState.name
