@@ -855,6 +855,11 @@ rules, all of them tested with `ProcessSnapshot` literals in `CommandWatchTests`
   scans, and only one of those going is a command that has finished. A memoized scan handed back
   twice is one sighting, not two: the two carry the same `capturedAt`. The `P_TRACED` flag has no
   such wait, because it is not a name another tool spawns.
+- A tool inside tmux or screen is never a child of the app in front, so its going is not a seam.
+  Both run their server as a daemon under launchd (`screen -dmS x sleep 20` gives `SCREEN` a
+  parent pid of 1, measured here), and the walk up the parent pids stops at 1 on purpose. The scan
+  still sees the tool running, in `matchedTools`, and `--doctor` says under *tool names* what it
+  cannot see. §4.3b of `ACTIVITY-DETECTION.md` has the measurement.
 - A tool that was merely running somewhere on the Mac, never under the app in front, decides
   nothing when it goes: it was somebody else's command. The same asymmetry §7.2 of
   `ACTIVITY-DETECTION.md` applies to naming `DEBUGGING`.

@@ -268,6 +268,9 @@ enum Doctor {
             lines.append("One of these that was started by the app in front, seen running in two")
             lines.append("scans and gone at the next counts as a natural pause: a due break is")
             lines.append("asked for then, at most \(Int(CommandWatch.ceiling * 100))% sure, since a name is not a pid.")
+            lines.append("A tool inside tmux or screen is not one of these: their server runs")
+            lines.append("under launchd, not under your terminal, so a pane's tool is seen")
+            lines.append("running but never as started by the app in front.")
             return lines
         }
     }

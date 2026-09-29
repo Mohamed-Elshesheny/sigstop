@@ -619,6 +619,13 @@ runs is knowing something about them. The rules are absolute:
   spawns is on the allowlist and lives for a second. `CommandWatch` is the pure comparison; it
   reads nothing the scan did not already read, adds no timer, and a `nil` scan on either side
   resets it, because "no information" cannot stand in for "not running" here either.
+- A tool inside tmux or screen is never a child of the app in front, so it is seen running and
+  its going is not a seam. Both multiplexers run their server as a daemon: `screen -dmS x sleep 20`
+  gives `SCREEN` a parent pid of 1 on this Mac, and the pane's `sleep` hangs under it, not under
+  Terminal. The walk in `ProcessCollector.descends` stops at a parent pid of 1 on purpose, because
+  everything descends from launchd and a walk that reached it would make every tool a child of
+  every app. `--doctor` says so under *tool names*. iTerm2's session-restoration server is likely
+  the same shape and has not been measured here.
 
 ### 4.4 Tier availability is a runtime value
 
