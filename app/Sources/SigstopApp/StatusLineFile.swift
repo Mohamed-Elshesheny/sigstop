@@ -25,6 +25,7 @@ enum StatusLineFile {
     }
 
     static func remove() {
+        guard SecureFile.isOwnDirectory(AppPaths.storageRoot) else { return }
         _ = unlink(url.path)
     }
 }
