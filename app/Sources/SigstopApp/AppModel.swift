@@ -266,6 +266,13 @@ final class AppModel {
     func pause(for duration: TimeInterval) { enqueue(.pauseApp(duration)) }
     func resume() { enqueue(.resumeApp) }
 
+    func pauseUntilTomorrow() {
+        guard let seconds = LocalDay.secondsUntilNextBoundary(
+            after: time.now, calendar: .current, boundaryHour: policy.dayBoundaryHour
+        ) else { return }
+        pause(for: seconds)
+    }
+
     private func enqueue(_ action: UserAction) {
         pendingAction = action
         Task { [weak self] in await self?.tick() }

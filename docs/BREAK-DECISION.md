@@ -568,7 +568,7 @@ engine is allowed to *say*.
 | `quiet` | window ends | `W < T` | `working` | — |
 | `quiet` | user picks "break now" | — | `breakActive` | begin break, `origin: .userInitiated`; the break keeps the quiet state (`BreakActive.quietBefore`) |
 | `quiet` | gap ≥ `qualifyingBreak` | the quiet still holds | `quiet` | break recorded, backoff reset, the quiet state is left alone (rule 3) |
-| any | user pauses the app | — | `quiet(.userPaused)` | duration chosen by user; measurement continues |
+| any | user pauses the app | — | `quiet(.userPaused)` | duration chosen by user: one hour, or until the next day boundary (§14, 04:00 by default); measurement continues |
 
 Three structural rules the table encodes:
 
@@ -1497,6 +1497,12 @@ public struct QuietHours: Sendable, Codable, Hashable {
   the daily summaries, which keep the seconds of active work per bundle id and per activity for
   every day until *Delete everything*. None of it leaves the Mac (`docs/PRIVACY.md` §4.3).
 - Not persisted: raw idle samples, keystroke timings, window titles, URLs.
+- Not persisted either: a manual pause. *Pause · 1h* and *Pause · today* both live in
+  `quiet(.userPaused)` in memory, so quitting the app ends the pause and the next launch starts
+  unpaused. *Today* means the rest of the app's day and is bounded by construction:
+  `LocalDay.secondsUntilNextBoundary` computes the seconds to the next day boundary (§14, 04:00
+  by default) with calendar arithmetic, so the night the clocks change the pause still ends at
+  04:00, and it cannot be forgotten on. The subtitle says when: "paused until 4:00 AM".
 - Nothing records the last tick, so §4 row 16 was not built: every launch starts a new session at
   zero, and a crash, a force-quit or a reboot loses the clock rather than crediting the gap.
 - Raw events are kept 7 days, a constant rather than a setting. Summaries and badges are kept until

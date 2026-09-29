@@ -273,6 +273,8 @@ struct MenuBarView: View {
             QuietRow {
                 if model.pausedUntil == nil {
                     TerminalButton("Pause · 1h", style: .quiet) { model.pause(for: 3600) }
+                    TerminalButton("Pause · today", style: .quiet) { model.pauseUntilTomorrow() }
+                        .accessibilityLabel("Pause for the rest of today")
                 } else {
                     TerminalButton("Resume", style: .quiet) { model.resume() }
                 }

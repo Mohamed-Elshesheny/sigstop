@@ -89,6 +89,23 @@ public enum LocalDay {
         let year = c.year ?? 0, month = c.month ?? 0, day = c.day ?? 0
         return year * 10_000 + month * 100 + day
     }
+
+    public static func secondsUntilNextBoundary(
+        after date: Date, calendar: Calendar, boundaryHour: Int
+    ) -> TimeInterval? {
+        let keyed = CalendarDay.keyed(like: calendar)
+        var comps = keyed.dateComponents([.year, .month, .day], from: date)
+        comps.hour = boundaryHour
+        comps.minute = 0
+        comps.second = 0
+        guard var boundary = keyed.date(from: comps) else { return nil }
+        if boundary <= date {
+            guard let next = keyed.date(byAdding: .day, value: 1, to: boundary) else { return nil }
+            boundary = next
+        }
+        let seconds = boundary.timeIntervalSince(date)
+        return seconds > 0 ? seconds : nil
+    }
 }
 
 public struct SystemSignals: Sendable, Codable, Hashable {
