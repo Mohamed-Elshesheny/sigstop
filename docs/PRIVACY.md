@@ -1677,7 +1677,7 @@ plutil -p /Applications/sigstop.app/Contents/Info.plist | grep '"SU'
 
 **What it forces at every launch.** The plist keys are defaults. The values that count live in the
 app's `defaults` domain, where they survive an update and where anything on the machine can write
-them, so `UpdateChecker.swift` writes three of them off every time the app starts, before Sparkle
+them, so `UpdateChecker.swift` writes two of them off every time the app starts, before Sparkle
 is started:
 
 ```sh
@@ -1687,8 +1687,8 @@ defaults read dev.sigstop.app
 | Key | Value | Means |
 |---|---|---|
 | `SUEnableAutomaticChecks` | `0` | The scheduler. Written off at every launch |
-| `SUAutomaticallyUpdate` | `0` | Never download or install without being asked |
 | `SUSendProfileInfo` | `0` | The key Sparkle reads when deciding whether to append a system profile to the request. Off, and the updater's delegate allows no profile keys either way |
+| `SUAutomaticallyUpdate` | absent | `UpdateChecker.swift` asks for this one too (`automaticallyDownloadsUpdates = false`) and Sparkle 2.10.0 refuses the write: `setAutomaticallyDownloadsUpdates:` in `SPUUpdaterSettings.m` returns before touching `defaults` unless automatic updates are allowed, and with no `SUAllowsAutomaticUpdates` in `Info.plist` that follows `SUEnableAutomaticChecks`, which the line before it has just turned off. The read sits behind the same gate, so the key does nothing while checks are off, and the plist's `false` above is the value that counts |
 | `SUHasLaunchedBefore` | `1` | Sparkle's own note that it has run once |
 | `SULastCheckTime` | a date | Present only after you have pressed **Check for updates**. When you last did, kept locally |
 | `SUFeedURL` | absent | The app deletes it on every launch (`clearFeedURLFromUserDefaults`), so the feed cannot be redirected from `defaults` |
