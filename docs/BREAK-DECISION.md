@@ -1701,9 +1701,13 @@ substitution, and `CalendarSystemTests` pins both.
   decodes as zero from a summary written before it existed, so no month file needs rewriting. The
   uptime panel shows `breakCount` and the average beside *kept*; it reports and does not grade
   (§16): no streak, no comparison with yesterday, nothing to beat.
+- **`breakCount`** — the breaks that qualified, each judged by its own line: `dur_s >= plan_s`, the
+  verdict the engine wrote, so a two minute break the user set and sat through counts here as it
+  counted there, whatever the idle threshold is. A `break_end` without `plan_s` predates the field
+  and is judged against `qualifyingBreak`, as it was when it was written.
 - **A break opportunity** opens each time `continuousActiveWork` reaches `targetContinuousWork`,
   i.e. each entry into `breakDue` — *including* entries suppressed by quiet hours.
-- **Honored.** An opportunity is honored iff a qualifying break (duration ≥ `qualifyingBreak`) **began**
+- **Honored.** An opportunity is honored iff a qualifying break (one `breakCount` counts) **began**
   within `complianceWindow = 10 minutes` of the opportunity opening — **regardless of how it started.**
   An accepted prompt, a snooze then a break, and simply walking away without ever seeing a notification
   all count identically. The metric measures the behavior, not obedience to the app.

@@ -445,37 +445,37 @@ public enum DailyRollup {
             switch event.kind {
             case .breakBegin:
                 if let pending = open {
-                    spans.append(span(from: pending, to: event.at, measured: nil, terminated: false, policy: policy))
+                    spans.append(span(from: pending, to: event.at, end: nil, policy: policy))
                 }
                 open = event
             case .breakEnd:
                 guard let pending = open else {
                     continue
                 }
-                let measured = event.durationSeconds.map(TimeInterval.init)
-                spans.append(span(from: pending, to: event.at, measured: measured, terminated: true, policy: policy))
+                spans.append(span(from: pending, to: event.at, end: event, policy: policy))
                 open = nil
             default:
                 continue
             }
         }
         if let pending = open {
-            spans.append(span(from: pending, to: dayEnd, measured: nil, terminated: false, policy: policy))
+            spans.append(span(from: pending, to: dayEnd, end: nil, policy: policy))
         }
         return spans
     }
 
     private static func span(
-        from begin: LoggedEvent, to end: Date, measured: TimeInterval?,
-        terminated: Bool, policy: RollupPolicy
+        from begin: LoggedEvent, to endedAt: Date, end: LoggedEvent?, policy: RollupPolicy
     ) -> BreakSpan {
-        let elapsed = max(0, end.timeIntervalSince(begin.at))
-        let duration = max(elapsed, measured ?? 0)
+        let elapsed = max(0, endedAt.timeIntervalSince(begin.at))
+        let measured = end?.durationSeconds.map(TimeInterval.init) ?? 0
+        let duration = max(elapsed, measured)
+        let cutoff = end?.thresholdSeconds.map(TimeInterval.init) ?? policy.qualifyingBreak
         return BreakSpan(
             start: begin.at,
             measured: duration,
             origin: begin.origin ?? .idleInferred,
-            qualifies: terminated && duration >= policy.qualifyingBreak
+            qualifies: end != nil && duration >= cutoff
         )
     }
 
