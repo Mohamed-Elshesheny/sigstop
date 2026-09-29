@@ -1691,7 +1691,12 @@ substitution, and `CalendarSystemTests` pins both.
 
 - **`totalActiveWork`** — the sum of credited ticks (§3.3) across every session whose credit fell inside the
   day. Not wall clock, not app-foreground time. `applicationDistribution` partitions exactly this
-  quantity: `applicationDistribution.values.sum() == totalActiveWork` is an invariant (§15).
+  quantity: `applicationDistribution.values.sum() == totalActiveWork` is an invariant (§15). A
+  `start` line means input resumed, so it also closes an idle that has no `idle_end`: an absence
+  long enough to end the session (§4.1 rows 5, 10 and 13) is described by its `stop` and the
+  `start` on your return, and the first stretch of the new session is work, not the tail of the
+  old idle. It used to be counted as idle until the next pause, which lost the first stretch of
+  every morning after the Mac had slept.
 - **`longestContinuousSession`** — `max` over the day of `peakContinuousActiveWork`, sampled at every
   clock reset and again at day end so an in-flight stretch is included. Note this is a *continuous work
   stretch*, not a `DeveloperSession`; the field name follows the everyday meaning.

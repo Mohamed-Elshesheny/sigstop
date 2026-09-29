@@ -93,6 +93,7 @@ public struct SessionLogLedger: Sendable, Hashable {
             return [.start(at: at)]
 
         case .sessionEnded(_, let at):
+            idleBeganAt = nil
             var out: [LoggedEvent] = [.stop(at: at)]
             if let began = inferredBreakBeganAt {
                 inferredBreakBeganAt = nil

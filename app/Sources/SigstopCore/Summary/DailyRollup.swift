@@ -335,6 +335,7 @@ public enum DailyRollup {
             switch event.kind {
             case .start:
                 running = true
+                isIdle = false
                 suspensions.removeAll()
             case .stop:
                 running = false

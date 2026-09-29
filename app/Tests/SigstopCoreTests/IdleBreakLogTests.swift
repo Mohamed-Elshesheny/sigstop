@@ -166,3 +166,51 @@ struct IdleBreakLogTests {
         #expect(s.breaksAbandoned == 0)
     }
 }
+
+@Suite("work after a long absence is credited")
+struct SessionGapCreditTests {
+
+    @Test("a session that starts after an idle nobody closed is working, not idle")
+    func aNewSessionIsNotIdle() throws {
+        let calendar = CalendarDay.utcCalendar
+        let nine = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 20, hour: 9)))
+        func t(_ minutes: Double) -> Date { nine.addingTimeInterval(minutes * 60) }
+        let xcode = "com.apple.dt.Xcode"
+        let events: [LoggedEvent] = [
+            .start(at: t(0)),
+            .focus(at: t(0), app: xcode, activity: .coding),
+            .idleBegin(at: t(180)),
+            .stop(at: t(180)),
+            .start(at: t(360)),
+            .focus(at: t(360), app: xcode, activity: .coding),
+            .stop(at: t(480)),
+        ]
+        let s = DailyRollup.compute(
+            day: CalendarDay(year: 2026, month: 9, day: 20), events: events, policy: .default, calendar: calendar
+        )
+        #expect(s.totalActiveWork == TimeInterval(300 * 60), "three hours before lunch and two after")
+        #expect(s.longestContinuousSession == TimeInterval(180 * 60))
+        #expect(s.sessionCount == 2)
+    }
+
+    @Test("after the Mac slept an hour, the next stretch counts and its first pause is logged")
+    func theMorningAfterASleep() throws {
+        var settings = EngineHarness.ownerSettings
+        settings.workIntervalMinutes = 45
+        var bench = Bench(settings: settings)
+        bench.work(minutes: 10)
+        bench.tick(idle: 3600, jump: 3600)
+        bench.work(minutes: 10)
+        bench.away(minutes: 2)
+        bench.work(minutes: 1)
+
+        let kinds = bench.lines.map(\.kind)
+        let back = try #require(kinds.lastIndex(of: .start))
+        #expect(kinds[back...].contains(.idleBegin), "the first pause after coming back went unlogged: \(kinds)")
+        #expect(bench.breakLines(.breakBegin).isEmpty, "an hour asleep is a session end, not a break")
+
+        let s = bench.rollup()
+        #expect((1180...1200).contains(Int(s.totalActiveWork)), "got \(s.totalActiveWork)")
+        #expect(s.sessionCount == 2)
+    }
+}

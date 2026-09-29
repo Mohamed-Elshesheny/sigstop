@@ -925,7 +925,7 @@ Field reference:
 | `cat` | string? | One of `code`, `browse`, `meet`, `other`, chosen in `AppModel.category(for:)` from the app's family. `meet` is the chat family, Slack and Discord; Zoom and Teams have no family of their own in `AppKey` and log `other` |
 | `act` | string? | The activity inferred at that moment (`context.activity`), one of the `Activity` raw values such as `coding`, `browsing` or `communication`, and `unknown` when it could not tell. **With Tier 1 on it can be decided by the window title**: a browser tab titled `Pull Request #12` logs `codeReview` (§1.5, inventory row 32) |
 | `sig` | string? | Title signal. In the schema, but the shipping app never writes it: `AppModel.logFocusIfNeeded` passes `titleSignal: nil`. **Never the title itself** |
-| `idle_s` | int? | Length of the idle period that just ended |
+| `idle_s` | int? | Length of the idle period that just ended. An absence long enough to end the session gets no `idle_end`: its `stop` and the `start` on your return describe it, and the `start` is what closes the idle |
 | `cycle` | int? | Which break opportunity this line belongs to, so counters scope to a cycle |
 | `origin` | string? | How a break started: `accepted`, `idleInferred`, `userInitiated`. An `idleInferred` break is one nobody pressed a button for: you were away for the idle threshold, and the session model recorded it |
 | `dur_s` | int? | Measured length of a break, in seconds. For an `idleInferred` break, from your last input to your first input back, or to the moment the absence ended the session instead (thirty minutes) if you never came back inside it |
