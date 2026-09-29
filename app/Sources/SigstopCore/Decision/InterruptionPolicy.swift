@@ -27,6 +27,7 @@ public struct BreakPolicy: Sendable, Codable, Hashable {
     public var cooldownAfterExhausted: TimeInterval = 25 * 60
 
     public var promptTimeout: TimeInterval = 90
+    public var skipArmsAfter: TimeInterval = 3
     public var snoozeDurations: [TimeInterval] = [5 * 60, 10 * 60, 15 * 60]
     public var maxSnoozesPerCycle: Int = 2
     public var maxSnoozeTotalPerCycle: TimeInterval = 30 * 60

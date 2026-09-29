@@ -139,15 +139,16 @@ enum PromptRenderer {
             FileHandle.standardError.write(Data("no corpus line with id '\(templateID)'\n".utf8))
             exit(2)
         }
-        let cases: [(String, EscalationLevel, PromptChannel, [TimeInterval])] = [
-            ("l1", .first, .notification, [300, 600, 900]),
-            ("l1-nosnooze", .first, .notification, []),
-            ("l2", .second, .notification, []),
-            ("l3", .third, .notificationWithSound, []),
-            ("l4", .incident, .panel, []),
-            ("l4-battery", .incident, .notification, []),
+        let cases: [(String, EscalationLevel, PromptChannel, [TimeInterval], TimeInterval)] = [
+            ("l1", .first, .notification, [300, 600, 900], 3),
+            ("l1-armed", .first, .notification, [300, 600, 900], 0),
+            ("l1-nosnooze", .first, .notification, [], 3),
+            ("l2", .second, .notification, [], 3),
+            ("l3", .third, .notificationWithSound, [], 3),
+            ("l4", .incident, .panel, [], 3),
+            ("l4-battery", .incident, .notification, [], 3),
         ]
-        for (suffix, level, channel, snooze) in cases {
+        for (suffix, level, channel, snooze, skipArmsAfter) in cases {
             let request = PromptRequest(
                 cycle: CycleID.initial, level: level, channel: channel,
                 at: Date(timeIntervalSince1970: 1_758_500_000), continuousWork: 47 * 60,
@@ -161,8 +162,11 @@ enum PromptRenderer {
             let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
             do {
                 try BadgeSheetRenderer.write(
-                    FallbackPromptView(request: request, message: message, onTake: {}, onIgnore: {}, onSkip: {})
-                        .frame(width: 1280, height: 800),
+                    FallbackPromptView(
+                        request: request, message: message, skipArmsAfter: skipArmsAfter,
+                        onTake: {}, onIgnore: {}, onSkip: {}
+                    )
+                    .frame(width: 1280, height: 800),
                     appearance: .darkAqua,
                     to: url
                 )

@@ -1179,6 +1179,13 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   to catch. The next rung waits for its own ladder time (§11, L2 at `t0 + 5 min`), and after L4, or
   whichever rung spends the cycle's four notifications, has had its own `promptTimeout`, the
   cycle closes as `.ignoredExhausted` with its 25-minute cooldown.
+- **Skip needs a moment.** On the panel, *Skip* is drawn from the first frame but dimmed, and it
+  becomes clickable `BreakPolicy.skipArmsAfter` (3 s, not a setting) after the panel appears; *Take
+  it*, *Snooze* and *Ignore it* work at once, so the guard delays the expensive answer without ever
+  holding anyone. A click that lands inside those seconds was a reflex, not an answer, and a reflex
+  that buys twenty minutes of silence is the failure this exists to stop. It is one timer, fired once,
+  and one redraw: no countdown ring, no progress, nothing that moves. §16's "Skip is a first-class
+  button, not a hidden one" still holds: it is shown, just not live for three seconds.
 - **The same answers with or without system notifications.** Any rung whose channel is a
   notification (L1, L2, L3, and L4 on low power) is drawn as a panel when system notifications are
   off, which is the default, or denied, and that panel offers what the notification would have:

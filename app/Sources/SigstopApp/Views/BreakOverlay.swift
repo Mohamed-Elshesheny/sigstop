@@ -152,6 +152,7 @@ final class BreakOverlayController {
                     message: message,
                     skipQuiet: model.policy.rearmAfterSkip,
                     quietAfterLast: model.policy.cooldownAfterExhausted,
+                    skipArmsAfter: model.policy.skipArmsAfter,
                     onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
                     onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
                     onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
@@ -326,12 +327,17 @@ struct FallbackPromptView: View {
     let message: RenderedMessage
     var skipQuiet: TimeInterval = 20 * 60
     var quietAfterLast: TimeInterval = 25 * 60
+    var skipArmsAfter: TimeInterval = 3
     let onTake: () -> Void
     var onSnooze: () -> Void = {}
     let onIgnore: () -> Void
     let onSkip: () -> Void
 
+    @State private var skipArmed = false
+
     private var isIncident: Bool { request.level == .incident }
+
+    private var skipEnabled: Bool { skipArmed || skipArmsAfter <= 0 }
 
     private var standsInForNotification: Bool {
         request.channel == .notification || request.channel == .notificationWithSound
@@ -389,8 +395,12 @@ struct FallbackPromptView: View {
                             TerminalButton("Snooze (SIGALRM)", action: onSnooze)
                                 .fixedSize()
                         }
-                        TerminalButton("Skip, quiet for \(DurationText.short(skipQuiet))", action: onSkip)
-                            .fixedSize()
+                        TerminalButton(
+                            "Skip, quiet for \(DurationText.short(skipQuiet))",
+                            enabled: skipEnabled,
+                            action: onSkip
+                        )
+                        .fixedSize()
                     }
                     TerminalButton("Ignore it", action: onIgnore)
                         .fixedSize()
@@ -405,6 +415,12 @@ struct FallbackPromptView: View {
                     .padding(.top, 18)
             }
             .padding(48)
+        }
+        .task {
+            guard skipArmsAfter > 0, !skipArmed else { return }
+            try? await Task.sleep(for: .seconds(skipArmsAfter))
+            guard !Task.isCancelled else { return }
+            skipArmed = true
         }
     }
 }
