@@ -31,25 +31,37 @@ public struct StatusLineLedger: Sendable, Hashable {
         case remove
     }
 
+    public static let retryInterval: TimeInterval = 60
+
+    private struct Failure: Sendable, Hashable {
+        let line: String
+        let at: Double
+    }
+
     private var armed = false
     private var onDisk: String?
+    private var failure: Failure?
 
     public init() {}
 
-    public mutating func update(enabled: Bool, line: String) -> Action? {
+    public mutating func update(enabled: Bool, line: String, now: Double) -> Action? {
         guard enabled else {
             guard armed else { return nil }
             armed = false
             onDisk = nil
+            failure = nil
             return .remove
         }
         armed = true
         guard onDisk != line else { return nil }
+        if let failure, failure.line == line, now - failure.at < Self.retryInterval { return nil }
         onDisk = line
+        failure = nil
         return .write(line)
     }
 
-    public mutating func noteWriteFailed() {
+    public mutating func noteWriteFailed(at now: Double) {
+        failure = onDisk.map { Failure(line: $0, at: now) }
         onDisk = nil
     }
 }

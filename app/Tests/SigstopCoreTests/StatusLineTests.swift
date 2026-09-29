@@ -73,38 +73,45 @@ struct StatusLineTests {
         let first = "running \u{00B7} not asking yet, the next one is 12m of work away.\n"
         let second = "running \u{00B7} not asking yet, the next one is 11m of work away.\n"
 
-        #expect(ledger.update(enabled: false, line: first) == nil)
-        #expect(ledger.update(enabled: true, line: first) == .write(first))
-        #expect(ledger.update(enabled: true, line: first) == nil)
-        #expect(ledger.update(enabled: true, line: first) == nil)
-        #expect(ledger.update(enabled: true, line: second) == .write(second))
-        #expect(ledger.update(enabled: false, line: second) == .remove)
-        #expect(ledger.update(enabled: false, line: second) == nil)
-        #expect(ledger.update(enabled: true, line: second) == .write(second))
+        #expect(ledger.update(enabled: false, line: first, now: 0) == nil)
+        #expect(ledger.update(enabled: true, line: first, now: 5) == .write(first))
+        #expect(ledger.update(enabled: true, line: first, now: 10) == nil)
+        #expect(ledger.update(enabled: true, line: first, now: 15) == nil)
+        #expect(ledger.update(enabled: true, line: second, now: 20) == .write(second))
+        #expect(ledger.update(enabled: false, line: second, now: 25) == .remove)
+        #expect(ledger.update(enabled: false, line: second, now: 30) == nil)
+        #expect(ledger.update(enabled: true, line: second, now: 35) == .write(second))
     }
 
-    @Test("a failed write is tried again at the next update, even with the same line")
-    func failedWriteIsRetried() {
+    @Test("a failed write is tried again when the line changes or after a minute, never per tick")
+    func failedWriteIsRetriedOnChangeOrAfterAMinute() {
         var ledger = StatusLineLedger()
         let line = "idle \u{00B7} not asking yet, the clock is stopped while you are away.\n"
-        #expect(ledger.update(enabled: true, line: line) == .write(line))
-        ledger.noteWriteFailed()
-        #expect(ledger.update(enabled: true, line: line) == .write(line))
+        let other = "running \u{00B7} not asking yet, the next one is 12m of work away.\n"
+        #expect(ledger.update(enabled: true, line: line, now: 0) == .write(line))
+        ledger.noteWriteFailed(at: 0)
+        #expect(ledger.update(enabled: true, line: line, now: 5) == nil)
+        #expect(ledger.update(enabled: true, line: line, now: 59) == nil)
+        #expect(ledger.update(enabled: true, line: line, now: 60) == .write(line))
+        ledger.noteWriteFailed(at: 60)
+        #expect(ledger.update(enabled: true, line: line, now: 65) == nil)
+        #expect(ledger.update(enabled: true, line: other, now: 70) == .write(other))
+        #expect(StatusLineLedger.retryInterval == 60)
     }
 
     @Test("switching off after a failed write still removes the file the last good write left")
     func switchOffAfterAFailedWriteStillRemoves() {
         var ledger = StatusLineLedger()
         let line = "idle \u{00B7} not asking yet, the clock is stopped while you are away.\n"
-        #expect(ledger.update(enabled: true, line: line) == .write(line))
-        ledger.noteWriteFailed()
-        #expect(ledger.update(enabled: false, line: line) == .remove)
-        #expect(ledger.update(enabled: false, line: line) == nil)
+        #expect(ledger.update(enabled: true, line: line, now: 0) == .write(line))
+        ledger.noteWriteFailed(at: 0)
+        #expect(ledger.update(enabled: false, line: line, now: 5) == .remove)
+        #expect(ledger.update(enabled: false, line: line, now: 10) == nil)
 
         var neverWritten = StatusLineLedger()
-        #expect(neverWritten.update(enabled: true, line: line) == .write(line))
-        neverWritten.noteWriteFailed()
-        #expect(neverWritten.update(enabled: false, line: line) == .remove)
+        #expect(neverWritten.update(enabled: true, line: line, now: 0) == .write(line))
+        neverWritten.noteWriteFailed(at: 0)
+        #expect(neverWritten.update(enabled: false, line: line, now: 5) == .remove)
     }
 
     @Test("the switch is off by default and survives a settings file that does not know it")

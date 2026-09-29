@@ -17,7 +17,11 @@ enum StatusLineFile {
                 path: AppPaths.storageRoot.path, reason: "not a folder of yours"
             )
         }
-        try SecureFile.write(Data(line.utf8), to: url)
+        do {
+            try SecureFile.write(Data(line.utf8), to: url)
+        } catch StoreError.notWritable(_, let reason) {
+            throw StoreError.notWritable(path: url.path, reason: reason)
+        }
     }
 
     static func remove() {

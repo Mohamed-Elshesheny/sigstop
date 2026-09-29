@@ -1520,8 +1520,10 @@ The same sentence leaves the process in exactly one other way: with the status l
 to `status.txt` for a tmux status bar or a prompt to `cat`. The word comes from `StatusWord.read`
 and the line from `StatusLine.render`, both in `SigstopCore/Decision/StatusLine.swift`, and the
 menu bar header reads the same `StatusWord`, so the file cannot say something the panel does not.
-`StatusLineLedger` decides when the file is touched: on a change of the line, never per tick, and
-once to remove it when the switch goes off. `docs/PRIVACY.md` row 37 has what the line can hold.
+`StatusLineLedger` decides when the file is touched: on a change of the line, never per tick, once
+more after a minute when a write failed, and once to remove it when the switch goes off, whether
+or not the last write landed. It takes the clock as an argument, like everything else in `Core`.
+`docs/PRIVACY.md` row 37 has what the line can hold.
 
 The menu bar mark carries two bits of this, because the user who never opens the panel is exactly
 the user who concludes the app is broken. Opacity means **is the app going to ask**: dim for

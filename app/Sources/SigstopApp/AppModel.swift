@@ -931,14 +931,19 @@ final class AppModel {
 
     private func syncStatusLine() {
         let line = StatusLine.render(word: statusWord, waiting: waiting)
-        switch statusLedger.update(enabled: settings.statusLineEnabled, line: line) {
+        let now = time.continuousSeconds
+        switch statusLedger.update(enabled: settings.statusLineEnabled, line: line, now: now) {
         case .write(let text):
             do {
                 try StatusLineFile.write(text)
                 clearStoreError(prefixed: Self.statusLineFailurePrefix)
             } catch {
-                statusLedger.noteWriteFailed()
-                lastStoreError = "\(Self.statusLineFailurePrefix) to \(StatusLineFile.url.path), \(error)"
+                statusLedger.noteWriteFailed(at: now)
+                if lastStoreError == nil
+                    || lastStoreError?.hasPrefix(Self.statusLineFailurePrefix) == true
+                    || lastStoreError?.hasPrefix(Self.leftAlonePrefix) == true {
+                    lastStoreError = "\(Self.statusLineFailurePrefix), \(error)"
+                }
             }
         case .remove:
             StatusLineFile.remove()
