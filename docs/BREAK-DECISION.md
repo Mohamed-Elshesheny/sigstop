@@ -1479,6 +1479,14 @@ and the panel used to infer a skip from the number, so a user whose opportunity 
 told they had waved it off. `StandDownCause` names which it was, and the four causes have four
 sentences.
 
+The same sentence leaves the process in exactly one other way: with the status line switch on
+(Settings → Data, off by default), `AppModel` writes the header's state word and the waiting line
+to `status.txt` for a tmux status bar or a prompt to `cat`. The word comes from `StatusWord.read`
+and the line from `StatusLine.render`, both in `SigstopCore/Decision/StatusLine.swift`, and the
+menu bar header reads the same `StatusWord`, so the file cannot say something the panel does not.
+`StatusLineLedger` decides when the file is touched: on a change of the line, never per tick, and
+once to remove it when the switch goes off. `docs/PRIVACY.md` row 37 has what the line can hold.
+
 The menu bar mark carries two bits of this, because the user who never opens the panel is exactly
 the user who concludes the app is broken. Opacity means **is the app going to ask**: dim for
 `.idle`, `.quiet` and `.backedOff`, full brightness otherwise. Geometry means **is something

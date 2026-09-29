@@ -118,25 +118,22 @@ struct MenuBarView: View {
     }
 
     private var status: Status {
+        let title = model.statusWord
         if model.pausedUntil != nil {
-            return Status(title: "paused", signal: "state T", dot: .off, accent: false)
+            return Status(title: title, signal: "state T", dot: .off, accent: false)
         }
         if model.indicator == .backedOff {
-            return Status(title: "stood down", signal: "state R", dot: .off, accent: false)
+            return Status(title: title, signal: "state R", dot: .off, accent: false)
         }
         switch model.engineStateName {
-        case "working": return Status(title: "running", signal: "state R", dot: .running, accent: false)
-        case "breakDue": return Status(title: "break due", signal: "state R", dot: .suspend, accent: true)
-        case "ignored": return Status(title: "escalating", signal: "state R", dot: .suspend, accent: true)
-        case "snoozed": return Status(title: "snoozed", signal: "SIGALRM", dot: .suspend, accent: true)
-        case "breakActive": return Status(title: "stopped", signal: "state T", dot: .suspend, accent: true)
-        case "idle": return Status(title: "idle", signal: "state S", dot: .off, accent: false)
-        case "quiet":
-            return Status(
-                title: model.quietCause?.title ?? "quiet",
-                signal: "state S", dot: .off, accent: false
-            )
-        default: return Status(title: model.engineStateName, signal: "", dot: .off, accent: false)
+        case "working": return Status(title: title, signal: "state R", dot: .running, accent: false)
+        case "breakDue": return Status(title: title, signal: "state R", dot: .suspend, accent: true)
+        case "ignored": return Status(title: title, signal: "state R", dot: .suspend, accent: true)
+        case "snoozed": return Status(title: title, signal: "SIGALRM", dot: .suspend, accent: true)
+        case "breakActive": return Status(title: title, signal: "state T", dot: .suspend, accent: true)
+        case "idle": return Status(title: title, signal: "state S", dot: .off, accent: false)
+        case "quiet": return Status(title: title, signal: "state S", dot: .off, accent: false)
+        default: return Status(title: title, signal: "", dot: .off, accent: false)
         }
     }
 

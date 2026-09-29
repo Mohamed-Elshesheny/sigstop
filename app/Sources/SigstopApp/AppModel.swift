@@ -32,6 +32,7 @@ final class AppModel {
     private(set) var workTarget: TimeInterval
     private(set) var workTargetInForce = true
     private(set) var indicator: IndicatorState = .working
+    private(set) var statusWord: String = "running"
     private(set) var engineStateName: String = "working"
     private(set) var quietCause: QuietCause?
     private(set) var todaySummary: DailySummary?
@@ -141,6 +142,7 @@ final class AppModel {
     @ObservationIgnored private var lastFocusLogAt: Date?
     @ObservationIgnored private var idleBeganAt: Date?
     @ObservationIgnored private var seamsForNextStep: Set<Seam> = []
+    @ObservationIgnored private var statusLedger = StatusLineLedger()
     @ObservationIgnored private var latch = MeetingLatch()
     @ObservationIgnored private var lastPersistedHold: TimeInterval = 0
     @ObservationIgnored private var lastPruneMono: Double = 0
@@ -204,6 +206,7 @@ final class AppModel {
 
         wireNotifier()
         openStore()
+        if !settings.statusLineEnabled { StatusLineFile.remove() }
         append(.start(at: time.now))
 
         sensors.context.start()
@@ -251,6 +254,8 @@ final class AppModel {
         notifier.withdrawAll()
         sensors.context.stop()
         sensors.stopExtraCollectors()
+        StatusLineFile.remove()
+        statusLedger = StatusLineLedger()
         append(.stop(at: time.now))
         refreshRollup(force: true)
     }
@@ -306,6 +311,7 @@ final class AppModel {
         permissionStatus = sensors.permissions.status()
         if !newValue.showBreakOverlay { overlay.dismissBreak() }
         onAppearanceChanged?(newValue.appearance)
+        syncStatusLine()
     }
 
     private func tick() async {
@@ -720,6 +726,7 @@ final class AppModel {
     }
 
     private static let pruneFailurePrefix = "Could not prune old logs"
+    private static let statusLineFailurePrefix = "Could not write the status line"
     private static let settingsFailurePrefix = "Could not save your settings"
     private static let leftAlonePrefix = "Could not read, so left as it is:"
     private static let summaryFailurePrefix = "Could not write the daily summary"
@@ -868,6 +875,8 @@ final class AppModel {
             quietCause = nil
             pausedUntil = nil
         }
+        statusWord = StatusWord.read(state: engineState, indicator: indicator)
+        syncStatusLine()
 
         refreshRollup(force: false)
         if time.continuousSeconds - lastPruneMono >= 3600 { pruneOldLogs() }
@@ -909,6 +918,25 @@ final class AppModel {
                 )
             }
             gitStatusLine = ""
+        }
+    }
+
+    private func syncStatusLine() {
+        let line = StatusLine.render(word: statusWord, waiting: waiting)
+        switch statusLedger.update(enabled: settings.statusLineEnabled, line: line) {
+        case .write(let text):
+            do {
+                try StatusLineFile.write(text)
+                clearStoreError(prefixed: Self.statusLineFailurePrefix)
+            } catch {
+                statusLedger.noteWriteFailed()
+                lastStoreError = "\(Self.statusLineFailurePrefix) to \(StatusLineFile.url.path), \(error)"
+            }
+        case .remove:
+            StatusLineFile.remove()
+            clearStoreError(prefixed: Self.statusLineFailurePrefix)
+        case nil:
+            break
         }
     }
 

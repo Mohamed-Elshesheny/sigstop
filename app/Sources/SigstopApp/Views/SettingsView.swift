@@ -528,9 +528,23 @@ struct SettingsView: View {
                     FileRow("counters.json", "today's budgets: prompts delivered, cycles unanswered, the compliance tally")
                     FileRow("call-hold.json", "seconds a call has held a break today; exists once one has")
                     FileRow("settings.json", "exactly what the panes above set")
+                    FileRow("status.txt", "one line for tmux or your prompt; exists while the switch below is on and sigstop runs")
                     FileRow(".lock", "empty; held while sigstop runs, so a second copy leaves")
                 }
                 .padding(.top, 12)
+            }
+
+            SettingsSection("status line") {
+                SettingRow(
+                    "Write a status line for tmux or your prompt",
+                    detail: "The state word and the waiting line from the menu, rewritten only when "
+                        + "they change and removed when this is off or sigstop quits. Never a "
+                        + "project, a branch, a file or a title."
+                ) {
+                    TerminalSwitch(isOn: settings.statusLineEnabled)
+                }
+                CodeBlock("set -g status-right '#(cat \"\(StatusLineFile.url.path)\")'")
+                    .padding(.top, 12)
             }
 
             SettingsSection("export") {

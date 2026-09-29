@@ -109,6 +109,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
     public var showBreakOverlay: Bool
     public var breakQuestsEnabled: Bool
     public var holdBreaksDuringCalls: Bool
+    public var statusLineEnabled: Bool
 
     public init(
         workIntervalMinutes: Int = 45,
@@ -132,7 +133,8 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         launchAtLogin: Bool = false,
         showBreakOverlay: Bool = true,
         breakQuestsEnabled: Bool = true,
-        holdBreaksDuringCalls: Bool = true
+        holdBreaksDuringCalls: Bool = true,
+        statusLineEnabled: Bool = false
     ) {
         self.workIntervalMinutes = workIntervalMinutes
         self.breakDurationMinutes = breakDurationMinutes
@@ -156,6 +158,7 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         self.showBreakOverlay = showBreakOverlay
         self.breakQuestsEnabled = breakQuestsEnabled
         self.holdBreaksDuringCalls = holdBreaksDuringCalls
+        self.statusLineEnabled = statusLineEnabled
     }
 
     public static let `default` = SigstopSettings()
@@ -194,5 +197,6 @@ public struct SigstopSettings: Sendable, Codable, Hashable {
         showBreakOverlay = try c.decodeIfPresent(Bool.self, forKey: .showBreakOverlay) ?? d.showBreakOverlay
         breakQuestsEnabled = try c.decodeIfPresent(Bool.self, forKey: .breakQuestsEnabled) ?? d.breakQuestsEnabled
         holdBreaksDuringCalls = try c.decodeIfPresent(Bool.self, forKey: .holdBreaksDuringCalls) ?? d.holdBreaksDuringCalls
+        statusLineEnabled = try c.decodeIfPresent(Bool.self, forKey: .statusLineEnabled) ?? d.statusLineEnabled
     }
 }

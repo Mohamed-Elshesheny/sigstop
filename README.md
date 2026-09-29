@@ -149,6 +149,33 @@ What each line should show, what the keys mean and what none of it can prove is 
 </details>
 
 <details>
+<summary><b>Can it show up in tmux or my prompt?</b></summary>
+<br>
+
+Yes. Turn on **Settings → Data → Write a status line for tmux or your prompt**. sigstop then keeps one line in `~/Library/Application Support/dev.sigstop.app/status.txt`, the same state word and waiting line the menu shows, rewritten only when it changes and removed when you turn the switch off or quit. Nothing polls and nothing is spawned; you just `cat` it.
+
+In `~/.tmux.conf`:
+
+```sh
+set -g status-right '#(cat "$HOME/Library/Application Support/dev.sigstop.app/status.txt")'
+```
+
+In `~/.claude/settings.json`, as a Claude Code status line:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "cat \"$HOME/Library/Application Support/dev.sigstop.app/status.txt\""
+  }
+}
+```
+
+The line looks like `running · not asking yet, the next one is 12m of work away.` It never holds a project, a branch, a file or a title.
+
+</details>
+
+<details>
 <summary><b>Where is my data, and how do I delete it?</b></summary>
 <br>
 

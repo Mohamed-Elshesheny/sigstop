@@ -63,6 +63,7 @@ so it can interrupt you at a sensible moment. Everything below exists to serve t
 | 34 | **Foundation's HTTP storage** for this app | Created by the same request | As #33 | Persisted, `~/Library/HTTPStorages/<BUNDLE_ID>/`. On the Mac this was checked on it held one table, `alt_services`, and it was empty. Beside it, `~/Library/HTTPStorages/<BUNDLE_ID>.binarycookies` holds any cookie a server set | The folder: controlled by macOS. The cookie file: deleted by the app at every launch, before the updater starts (§2.9), so it can be left over from the last run. *Delete my data…* removes neither | Only by never pressing the button |
 | 35 | **Sparkle's staging folders** | Sparkle | Where a downloaded update waits before `Autoupdate` installs it | `~/Library/Caches/<BUNDLE_ID>.sparkle/org.sparkle-project.Sparkle/`, holding `Installation` and `PersistentDownloads`. Both were empty on the Mac this was checked on | Until Sparkle clears them. *Delete my data…* does not remove them | n/a |
 | 36 | **UserDefaults**: `SULastCheckTime` (when you last pressed **Check for updates**), `SUHasLaunchedBefore`, `SUEnableAutomaticChecks` and `SUSendProfileInfo` (both written `false`), and `NSStatusItem Preferred Position sigstop` (where the menu bar icon sits) | Sparkle, and AppKit's status item autosave | The two `false` values are how the app keeps Sparkle from scheduling a check or sending a profile (§2.7). The rest is Sparkle's and AppKit's own bookkeeping | Persisted, `~/Library/Preferences/<BUNDLE_ID>.plist`, read with `defaults read <BUNDLE_ID>` | Until `defaults delete <BUNDLE_ID>`. *Delete my data…* does not remove it | No |
+| 37 | **The status line**: the state word the menu bar header shows (`running`, `break due`, `stopped`, `paused`…) and the waiting-line sentence under it, as one line of text | Derived from #15 by `StatusWord` and `WaitingLine` in `SigstopCore`, the same two functions the menu reads | So a tmux status bar or a shell prompt can `cat` it instead of running anything (README, *Can it show up in tmux…*) | Persisted, `status.txt`, mode 0600, rewritten with `SecureFile.write` only when the line changes, never per tick. It holds what the menu says and nothing the menu does not: a clock time, a duration, and the name of a call app the call hold names (§7.8 of `BREAK-DECISION.md`), never an app you are working in, a window title, a file, a project or a branch, because `WaitingLine` has no way to say those | Until the next change. Removed the moment the switch goes off, when sigstop quits, at the next launch if a crash left it behind with the switch off, and by *Delete my data…* | **Yes, and off by default** |
 
 Rows 25 to 27 are **property reads on device and process objects**. No stream is opened, no capture
 session is created, no frame or sample is ever available to this process, and the capability to do
@@ -819,6 +820,7 @@ guess. A few things live outside it, most of them left by the update check, in
 ├── badges.json                        (mode 0600)  which badges have unlocked, and when
 ├── counters.json                      (mode 0600)  today's budgets, overwritten in place
 ├── call-hold.json                     (mode 0600)  seconds the call hold has held today, overwritten in place
+├── status.txt                         (mode 0600)  one line for tmux or a prompt; only while that switch is on and sigstop runs
 ├── .lock                              (mode 0600)  empty; held while sigstop runs, so a second copy leaves
 ├── events/
 │   ├── 2026-09-18.jsonl               (mode 0600)  append-only, one JSON object per line
@@ -851,6 +853,13 @@ tries again with the next summary write, ten minutes later, or sooner when a bre
 screen locks or the Mac sleeps, and the message goes once that month is written. The exception is a
 month that has just ended: once the new month's first day is saved it is not tried again, and the
 message stays until the next launch.
+
+`status.txt` is inventory row 37: the menu bar's state word and its waiting-line sentence, written
+with `SecureFile.write` only when that line changes, so a `cat` from a tmux `status-right` or a
+prompt reads the same thing the menu shows without spawning anything of sigstop's. It is removed
+when the switch is turned off, when sigstop quits, at the next launch if a crash left it behind
+with the switch off, and with everything else by *Delete my data…*. The switch, **Write a status
+line for tmux or your prompt**, is in Settings → Data and off by default.
 
 `badges.json` and `counters.json` are never set aside. If one is there but will not open, the app
 carries on from what it holds in memory, writes nothing over the file, posts no "unlocked" note
