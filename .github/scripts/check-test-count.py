@@ -28,15 +28,20 @@ if not ran:
     sys.exit(1)
 actual = int(ran.group(1))
 
-badge = re.search(r"tests-(\d+)%20passing", README.read_text())
+# Both numbers in the badge: the alt text is what a screen reader and a broken image show,
+# and it drifted to 481 while the URL said 520 because only the URL was checked.
+badge = re.search(
+    r"\[!\[(\d+) tests\]\(https://img\.shields\.io/badge/tests-(\d+)%20passing", README.read_text()
+)
 if not badge:
-    print("::error::README.md has no test-count badge to check")
+    print("::error::README.md has no test-count badge of the form [![N tests](...tests-N%20passing...)]")
     sys.exit(1)
-claimed = int(badge.group(1))
+alt, url = int(badge.group(1)), int(badge.group(2))
 
-if claimed != actual:
-    print(f"::error::README says {claimed} tests, the suite ran {actual}")
-    print(f"  fix: change the badge in README.md to tests-{actual}%20passing")
+if alt != actual or url != actual:
+    print(f"::error::README's badge says {alt} tests in its alt text and {url} in its URL, "
+          f"the suite ran {actual}")
+    print(f"  fix: [![{actual} tests](https://img.shields.io/badge/tests-{actual}%20passing-...)]")
     sys.exit(1)
 
 print(f"README's test count matches the suite: {actual}")
