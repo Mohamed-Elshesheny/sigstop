@@ -96,4 +96,35 @@ struct SymlinkTests {
         #expect(load.events.count == 2)
         #expect(load.malformedLines == 0)
     }
+
+    @Test("a summaries month that is a link is not read")
+    func linkedSummariesMonthIsNotRead() throws {
+        let base = scratch()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let store = try FileEventStore(root: base.appendingPathComponent("store"))
+        try store.writeSummary(DailySummary(day: CalendarDay(year: 2026, month: 9, day: 3), breakCount: 2))
+        let month = store.summariesDirectory.appendingPathComponent("2026-09.json")
+        let outside = base.appendingPathComponent("elsewhere.json")
+        try FileManager.default.moveItem(at: month, to: outside)
+        try FileManager.default.createSymbolicLink(
+            at: store.summariesDirectory.appendingPathComponent("2026-08.json"), withDestinationURL: outside
+        )
+        try FileManager.default.createSymbolicLink(at: month, withDestinationURL: outside)
+
+        #expect(try store.readAllSummaries().isEmpty)
+        #expect(try store.readSummaries(year: 2026, month: 8).isEmpty)
+        #expect(try store.readSummaries(year: 2026, month: 9).isEmpty)
+    }
+
+    @Test("a summaries month that is a pipe is not read, and does not hang the read")
+    func pipedSummariesMonthIsNotRead() throws {
+        let base = scratch()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let store = try FileEventStore(root: base.appendingPathComponent("store"))
+        let fifo = store.summariesDirectory.appendingPathComponent("2026-07.json")
+        #expect(mkfifo(fifo.path, 0o600) == 0)
+
+        #expect(try store.readAllSummaries().isEmpty)
+        #expect(try store.readSummaries(year: 2026, month: 7).isEmpty)
+    }
 }

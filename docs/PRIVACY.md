@@ -853,7 +853,10 @@ month's summary is not saved, and the menu bar says "Could not write the daily s
 tries again with the next summary write, ten minutes later, or sooner when a break ends, the
 screen locks or the Mac sleeps, and the message goes once that month is written. The exception is a
 month that has just ended: once the new month's first day is saved it is not tried again, and the
-message stays until the next launch.
+message stays until the next launch. Reading a month follows the same rule: a month file that is a
+symbolic link, a pipe or anything else but a plain file is not read, through `SecureFile.read` like
+every other file here, so it adds no days to the uptime panel or the badges. It used to be read
+with `FileManager.contents(atPath:)`, which follows a link and waits on a pipe.
 
 `status.txt` is inventory row 37: the menu bar's state word and its waiting-line sentence, written
 with `SecureFile.write` only when that line changes, so a `cat` from a tmux `status-right` or a
@@ -874,7 +877,7 @@ badges", is tried again with the next summary write, and the message goes once o
 
 | File | There, but will not open | Opens, but will not decode |
 |---|---|---|
-| `summaries/YYYY-MM.json` | left as it is, that month is not written | moved aside to `.unreadable`, the month starts again |
+| `summaries/YYYY-MM.json` | left as it is, that month is not written or read | moved aside to `.unreadable`, the month starts again |
 | `badges.json` | left as it is, nothing written over it | left as it is, nothing written over it |
 | `counters.json` | left as it is, nothing written over it | started fresh, replaced at the next write |
 

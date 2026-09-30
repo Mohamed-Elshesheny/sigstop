@@ -206,10 +206,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         defer { lock.unlock() }
         let name = "\(Pad.four(year))-\(Pad.two(month)).json"
         let path = summariesDirectory.appendingPathComponent(name)
-        guard
-            let data = fm.contents(atPath: path.path),
-            let file = try? JSONDecoder().decode(SummaryFile.self, from: data)
-        else { return [:] }
+        guard let file = unlockedReadSummaryFile(path) else { return [:] }
         var out: [CalendarDay: DailySummary] = [:]
         for (key, value) in file.days {
             if let day = CalendarDay.parse(key) { out[day] = value }
@@ -222,6 +219,11 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         var days: [String: DailySummary]
     }
 
+    private func unlockedReadSummaryFile(_ url: URL) -> SummaryFile? {
+        guard case .contents(let data) = SecureFile.read(url, limit: Self.largestRecordFile) else { return nil }
+        return try? JSONDecoder().decode(SummaryFile.self, from: data)
+    }
+
     public func readAllSummaries() throws -> [CalendarDay: DailySummary] {
         lock.lock()
         defer { lock.unlock() }
@@ -230,10 +232,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         )) ?? []
         var out: [CalendarDay: DailySummary] = [:]
         for url in contents where url.pathExtension == "json" {
-            guard
-                let data = fm.contents(atPath: url.path),
-                let file = try? JSONDecoder().decode(SummaryFile.self, from: data)
-            else { continue }
+            guard let file = unlockedReadSummaryFile(url) else { continue }
             for (key, value) in file.days where value.isPlausible {
                 if let day = CalendarDay.parse(key) { out[day] = value }
             }
