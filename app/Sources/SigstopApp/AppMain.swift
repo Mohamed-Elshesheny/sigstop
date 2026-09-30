@@ -98,6 +98,12 @@ struct SigstopScene: App {
 
     var body: some Scene {
         Settings { EmptyView() }
+            .commands {
+                CommandGroup(replacing: .appSettings) {
+                    Button("Settings…") { delegate.openSettings() }
+                        .keyboardShortcut(",")
+                }
+            }
     }
 }
 
@@ -107,6 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         controller = StatusItemController()
+    }
+
+    @MainActor func openSettings() {
+        controller?.openSettings()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
