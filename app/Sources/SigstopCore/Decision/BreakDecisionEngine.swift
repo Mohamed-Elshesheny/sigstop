@@ -157,9 +157,10 @@ public struct BreakDecisionEngine: Sendable {
 
         let inQuietWindow = input.settings.quietHours.contains(input.now, calendar: input.calendarSystem)
         if inQuietWindow, !isBreakActive(state), !state.isWorking {
-            if case .quiet = state {
+            if case .quiet(let quiet) = state {
                 effects.append(.setIndicator(.quiet))
-                return EngineOutcome(state: state, effects: effects, day: day, verdict: nil)
+                let held = stillQuiet(quiet, input: input, day: day) ? quiet : QuietState(cause: .scheduledQuietHours)
+                return EngineOutcome(state: .quiet(held), effects: effects, day: day, verdict: nil)
             }
             if let cycle = state.openCycle {
                 effects.append(.withdrawPrompt(cycle: cycle, reason: .quietHoursStarted))

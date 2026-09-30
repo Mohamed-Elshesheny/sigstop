@@ -1575,6 +1575,10 @@ public struct QuietHours: Sendable, Codable, Hashable {
   (an *excluded* opportunity, §14).
 - **Leaving** quiet hours never flushes a backlog. If work is currently owed a break, a fresh cycle
   opens with fresh deferral clocks.
+- **A pause that runs out inside quiet hours** becomes `quiet(.scheduledQuietHours)` on the tick it
+  ends. Inside the window the engine used to keep any quiet state as it was, and only the pause's own
+  handler checks its end, so an hour's pause from 21:31 was still a pause at 07:59: the menu said
+  *paused until* 22:31 all night, and `userPaused` kept the work clock stopped with it.
 - `quiet(.sustainedFocusMode)` exists for a Focus mode left on for more than 10 minutes, but nothing
   enters it today: Focus is never detected (`focusModeActive` is always `nil`), so the case is
   designed and unreachable.
