@@ -201,9 +201,10 @@ permanent shield is an app that never fires.
 
 - Tick every **5 s**, sooner when the end of a break, a snooze, a pause or the work target falls
   inside that. `AppModel.tickInterval` overrides the 1 s in `BreakPolicy`, and `tickTolerance` is 5 s.
-- Idle is read from `CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!)`
-  (`~0` is `kCGAnyInputEventType`). This counts keyboard, mouse, trackpad and tablet input across all
-  apps and requires no permission.
+- Idle is read from `CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: any)`, where
+  `any` is `CGEventType(rawValue: ~0)` unwrapped with `if let`, never forced, and the IOKit reading is
+  the fallback (`ACTIVITY-DETECTION.md` §2.5). `~0` is `kCGAnyInputEventType`. This counts keyboard,
+  mouse, trackpad and tablet input across all apps and requires no permission.
 - Frontmost app from `NSWorkspace.shared.frontmostApplication` + `didActivateApplicationNotification`.
 - Lock / unlock from `DistributedNotificationCenter` names `com.apple.screenIsLocked` / `com.apple.screenIsUnlocked`.
 - Sleep / wake from `NSWorkspace.shared.notificationCenter`: `willSleepNotification`, `didWakeNotification`,
