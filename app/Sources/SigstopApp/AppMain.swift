@@ -169,6 +169,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             button.sendAction(on: [.leftMouseDown, .rightMouseDown])
             button.imagePosition = .imageOnly
             renderIcon()
+            indicatorSeen = model.indicator
             trackIcon()
         }
 
@@ -244,9 +245,19 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             Task { @MainActor in
                 guard let self else { return }
                 self.renderIcon()
+                self.closePanelWhenBreakBegins()
                 self.trackIcon()
             }
         }
+    }
+
+    private var indicatorSeen: IndicatorState?
+
+    private func closePanelWhenBreakBegins() {
+        let indicator = model.indicator
+        defer { indicatorSeen = indicator }
+        guard indicator == .onBreak, indicatorSeen != .onBreak else { return }
+        dismiss()
     }
 
     @objc private func toggle() {
