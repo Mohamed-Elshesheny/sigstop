@@ -47,9 +47,9 @@ PRODUCED_FACTS = {"branchIsDefault"}
 # the length used to be written in, all of them "five": the idiom, the adjective, the bare
 # number closing a phrase, the shell command. They are deliberately narrower than "any
 # number next to the word minutes", because "the spinner has been going for eleven minutes"
-# is a fact about the past and is allowed. MessageEngineTests holds the Swift fallbacks, which
+# is a fact about the past and is allowed. BreakLengthMessageTests.noLiteralLength holds the Swift fallbacks, which
 # this script cannot read, to the same list.
-MANY = r"(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|[0-9]+)"
+MANY = r"(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|[0-9]+)"
 LITERAL_LENGTH = [
     (re.compile(rf"\btake (?:all |the |another )?{MANY}\b", re.I), "take N"),
     (re.compile(rf"\bback in {MANY}\b", re.I), "back in N"),

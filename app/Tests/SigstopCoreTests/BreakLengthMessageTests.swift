@@ -168,7 +168,7 @@ struct BreakLengthMessageTests {
 
     @Test("no line, in the corpus or the fallbacks, states a break length of its own")
     func noLiteralLength() throws {
-        let many = "(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|[0-9]+)"
+        let many = "(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|[0-9]+)"
         let patterns = [
             "\\btake (?:all |the |another )?\(many)\\b",
             "\\bback in \(many)\\b",
