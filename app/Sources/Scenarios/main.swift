@@ -381,8 +381,18 @@ let scenarios: [Scenario] = [
             Beat(3, Conditions(working: false, idleSeconds: 20), note: "rest of the break"),
         ],
         check: { w in
-            let cancelled = w.trace.contains { $0.line.contains("withdrawn") || $0.line.contains("cycle closed") }
-            return cancelled ? nil : nil
+            let accepted: TimeInterval = 6 * 60
+            let planned: TimeInterval = 6 * 60 + 5 + 5 * 60
+            guard w.trace.contains(where: { $0.at > accepted && $0.line == "state -> onBreak" }) else {
+                return "the break never started, so the mouse had nothing to end"
+            }
+            let early = w.trace.first {
+                $0.at > accepted && $0.at < planned
+                    && ($0.line == "state -> working" || $0.line.hasPrefix("cycle closed"))
+            }
+            return early.map {
+                "the break ended at \(Int($0.at))s, before its five minutes, after the mouse moved"
+            }
         }
     ),
 
