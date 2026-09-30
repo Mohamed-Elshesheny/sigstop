@@ -171,6 +171,7 @@ final class AppModel {
         let request: PromptRequest
         var attempts: Int
         var verifiedAt: Date?
+        var logged = false
     }
 
     init() {
@@ -622,15 +623,18 @@ final class AppModel {
         if !goesToTheSystem {
             presentPanel(request, message: message)
         } else {
-            presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: now)
+            presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: now, logged: true)
             notifier.deliver(request, message: message)
             append(.breakPrompt(at: now, cycle: request.cycle, reason: request.level.signal))
         }
     }
 
     private func presentPanel(_ request: PromptRequest, message: RenderedMessage) {
+        let alreadyLogged = presentation.map { $0.request == request && $0.logged } ?? false
         let drawn = overlay.presentPromptPanel(request, message: message, model: self)
-        presentation = PromptPresentation(request: request, attempts: 1, verifiedAt: nil)
+        presentation = PromptPresentation(
+            request: request, attempts: 1, verifiedAt: nil, logged: alreadyLogged
+        )
         if !drawn {
             promptDeliveryFailure =
                 "The \(request.signal) prompt has nowhere to go: this Mac reports no screen. "
@@ -648,9 +652,12 @@ final class AppModel {
         guard canPresentNow else { return }
         let now = time.now
         if overlay.promptPanelIsOnScreen {
+            let alreadyLogged = current.logged
             current.verifiedAt = now
+            current.logged = true
             presentation = current
             promptDeliveryFailure = nil
+            guard !alreadyLogged else { return }
             append(
                 .breakPrompt(
                     at: now, cycle: current.request.cycle, reason: current.request.level.signal

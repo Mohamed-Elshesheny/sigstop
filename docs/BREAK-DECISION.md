@@ -1375,7 +1375,9 @@ the same bit a screenshot sees), re-orders it on every tick until it is, and wri
 has no `break_prompt` line, is never recorded as ignored (`recordIgnoredPrompt` is dropped in
 `AppModel.execute`), and its cycle is excluded by the rollup (§14) rather than counted as a
 miss. A system notification, when the user opts into one, cannot be seen by the app and is
-taken on trust. The engine still starts its 90 s clock from emission, so a delivery that takes
+taken on trust, and its `break_prompt` line is written at emission. When that notification then
+falls back to the app's panel, the panel is confirmed as above but writes no second line: one rung
+is one `break_prompt`, or the day summary would count it twice. The engine still starts its 90 s clock from emission, so a delivery that takes
 several ticks to confirm shortens the window the user gets; that is the accepted cost of
 keeping the confirmation out of `Core`.
 
