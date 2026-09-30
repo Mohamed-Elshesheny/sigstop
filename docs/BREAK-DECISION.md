@@ -827,7 +827,7 @@ A seam is a moment the user has already broken their own concentration:
 | Seam | How | Strength |
 |---|---|---|
 | `applicationSwitch` | `NSWorkspace.didActivateApplicationNotification` | strongest — they chose to context-switch |
-| `idleBlip` | ≥ 20 s without input, then input resumes | strong |
+| `idleBlip` | input resumes after a pause of at least `microIdleGrace` (90 s), which is the `idle_end` line, or the screen unlocks | strong |
 | `meetingEnded` | **declared and never produced** | See below. |
 | `fullscreenExited` | **declared and never produced** | medium, as designed |
 | `spaceSwitch` | **declared and never produced**: nothing observes `activeSpaceDidChangeNotification` | medium, as designed |
@@ -835,6 +835,13 @@ A seam is a moment the user has already broken their own concentration:
 
 `AppModel` inserts `.applicationSwitch`, `.idleBlip` and, when a sample carries a
 `FinishedCommand`, `.terminalCommandFinished`.
+
+`BreakPolicy.seamIdleBlip` (20 s) is not this seam's threshold, whatever its name says. This row used
+to read "≥ 20 s without input", and nothing produces that: `AppModel` inserts `.idleBlip` on an
+`idle_end` line, which `IdleLedger` writes only after the clock paused, and on unlock. The constant's
+one use is the `recentAppLaunch` soft deferral, which holds a prompt for 20 s after the app in front
+changes. So a pause of 20 to 90 s is not a seam today. Making it one needs an idle edge per tick in
+`AppModel`, which moves when prompts land, and is a change of its own rather than a line here.
 
 **`meetingEnded` has no producer, and deliberately gains none.** A seam *delivers*: `verdict` returns
 `.deliver` for any non-empty seam before the soft reasons are consulted at all. So emitting one the
@@ -892,8 +899,9 @@ away is a natural pause.
 
 What this still cannot see is the same as before: `swift build`, `go test`, `node`, `tsc` and every
 other tool that is named by its arguments (§4.3b of `ACTIVITY-DETECTION.md`), so a build finishing
-is not a seam and the spec does not pretend otherwise. The `idleBlip` seam covers most of those
-moments, because people stop typing while a command runs.
+is not a seam and the spec does not pretend otherwise. The `idleBlip` seam covers the longer of
+those moments, because people stop typing while a command runs, but only once the pause reaches
+`microIdleGrace`.
 
 ### 7.4 Expiry, and the two failure modes
 
