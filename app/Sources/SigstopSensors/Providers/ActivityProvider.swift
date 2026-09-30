@@ -121,7 +121,7 @@ public extension ActivityProvider {
 }
 
 public struct ProviderRegistry: Sendable {
-    private var providers: [any ActivityProvider]
+    private let providers: [any ActivityProvider]
     private let fallback: any ActivityProvider
 
     public init(
@@ -130,10 +130,6 @@ public struct ProviderRegistry: Sendable {
     ) {
         self.providers = providers
         self.fallback = fallback
-    }
-
-    public mutating func register(_ provider: any ActivityProvider) {
-        providers.append(provider)
     }
 
     public func resolve(for app: AppIdentity) -> [any ActivityProvider] {

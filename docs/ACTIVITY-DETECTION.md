@@ -771,8 +771,8 @@ holds `matchedTools`, `childrenOfFrontmost`, `tracedUnderFrontmost`, `tracedElse
 ### 5.3 Resolution and ranking
 
 `ProviderRegistry` is a struct, not an actor, in
-`app/Sources/SigstopSensors/Providers/ActivityProvider.swift`. It has `register(_:)`,
-`resolve(for:)` and `classify(_:)`, and no `loadManifests`:
+`app/Sources/SigstopSensors/Providers/ActivityProvider.swift`. It has `resolve(for:)` and
+`classify(_:)`, and no `loadManifests`:
 
 ```swift
 public func resolve(for app: AppIdentity) -> [any ActivityProvider] {
@@ -801,6 +801,11 @@ Resolution algorithm:
 3. Call `observe(_:)` on each in order; the **first non-nil verdict wins**.
 4. `GenericProvider` claims `.bundleIDRegex(".*")` at specificity 100 / priority `Int.min` and
    never returns nil, so resolution always terminates with a verdict.
+
+The provider list is fixed when the registry is built: `init(providers:fallback:)` takes
+`BuiltinProviders.all` by default, and there is no way to add one afterwards. There used to be a
+`register(_:)` for that, which nothing called. A registry that can change under the context engine
+between two ticks is something to design when a caller needs it, not a method to keep in case.
 
 Verdicts are **not merged** across providers. Merging two interpretations produces a blend that
 neither provider would endorse and makes the evidence list incoherent. One provider owns the verdict;
@@ -888,7 +893,8 @@ and exposes a `ProviderBundle`:
 There is no `ProviderBundle` protocol and no `ActivityCore` module: providers live in
 `SigstopSensors`, and the ones the app runs are listed in `BuiltinProviders.all`.
 
-The host app links the package and calls `registry.register(_:)` for each provider. This requires a
+The host app links the package and builds its registry as
+`ProviderRegistry(providers: BuiltinProviders.all + theirs)`. This requires a
 rebuild — which is the honest trade, because loading arbitrary third-party binary code into a
 non-sandboxed process holding an Accessibility grant would be irresponsible.
 
