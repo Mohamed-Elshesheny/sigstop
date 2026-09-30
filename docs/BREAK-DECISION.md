@@ -1033,13 +1033,14 @@ placed with `.equatable()`, so a hover on `SIGCONT` does not redraw it. Strokes 
 Increase Contrast. VoiceOver reads it as one image with `spokenLabel`, which carries no em dash and
 names a mood, never a feeling about the user.
 
-**The break screen counts down in minutes and seconds.** The countdown reads `mm:ss` at 120 pt and
+**The break screen counts down in minutes and seconds.** The countdown reads `m:ss` at 120 pt and
 ticks every second, because a clock that only moved once a minute read as frozen: v0.2.0 shipped it
 counting whole minutes to save energy, and a still number on a break screen looks like a hung app.
 What keeps the ticking cheap is how little of the screen ticks. Only the clock sits inside a
 once-a-second `TimelineView`; the line under it (`remaining · of 5:00`) is static, the face is drawn
 once, and the progress bar has its own `TimelineView` that redraws every five seconds, which at 320
-points is a step of a few points for any break of a minute or more. Before, one `TimelineView` redrew
+points is a step of about 5 points for the default five minute break, and larger for shorter ones:
+about 27 points for a one minute break. Before, one `TimelineView` redrew
 the clock, the line and the bar together every second.
 
 ### 7.6 Low battery
