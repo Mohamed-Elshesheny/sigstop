@@ -381,6 +381,13 @@ so a Mac that wakes locked after a long sleep still ends the session, but no bre
 while the engine's break runs: `endBreak` records that one, and a lock of `qualifyingBreak` or
 more inside it used to be recorded as a second.
 
+The same absence does not earn a second break after the break ends. A break that qualifies leaves
+a gap open from its end, idle, with its reset and its break already spent, so staying away past
+the timer is still the one break: the clock pauses once idle passes `microIdleGrace`, the session
+still ends at `sessionGap`, and nothing more is recorded. Taking five minutes and coming back in
+fifteen used to log an accepted break and then an idle-inferred one for the same walk, and count
+both. A break that does not qualify leaves no gap, because ending it early means someone was there.
+
 ### 4.1 Work-clock transitions
 
 | # | Trigger / gap | Duration | Context | Classification | Clock | Break recorded | Session |

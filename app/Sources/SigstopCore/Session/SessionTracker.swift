@@ -130,10 +130,14 @@ public struct SessionTracker: Sendable {
             session.recordBreak(start: start, end: now)
             events.append(.clockReset(reason: .qualifyingBreak))
             events.append(.breakRecorded(origin: origin, start: start, end: now, duration: duration))
+            gap = ActiveGap(
+                cause: .microIdleExceeded, startMono: mono, startWall: now,
+                didReset: true, didRecordBreak: true
+            )
         } else {
             session.recordAbandonedBreak()
+            gap = nil
         }
-        gap = nil
         breakStart = nil
         lastInputMono = mono
         session.resumeClock()

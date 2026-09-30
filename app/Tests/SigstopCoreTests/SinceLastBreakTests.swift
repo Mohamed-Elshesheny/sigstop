@@ -53,4 +53,53 @@ struct SinceLastBreakTests {
         #expect(tracker.session.breakCount == 1)
         #expect((tracker.session.timeSinceLastBreak(now: time.now) ?? .infinity) <= 5)
     }
+
+    @Test("taking the offered break and staying away past it is one break, not two")
+    func stayingAwayAfterAnAcceptedBreak() {
+        var (tracker, time) = makeTracker()
+        var log = SessionLogLedger()
+        var events: [SessionEvent] = []
+        for _ in 0..<(46 * 12) { time.advance(by: 5); events += tracker.tick(sample()) }
+
+        events += tracker.beginBreak(origin: .accepted)
+        var idle: TimeInterval = 0
+        for _ in 0..<60 {
+            time.advance(by: 5)
+            idle += 5
+            events += tracker.tick(sample(idle: idle))
+        }
+        events += tracker.endBreak(origin: .accepted, threshold: 5 * 60)
+        for _ in 0..<(10 * 12) {
+            time.advance(by: 5)
+            idle += 5
+            events += tracker.tick(sample(idle: idle))
+        }
+        time.advance(by: 5)
+        events += tracker.tick(sample(idle: 0))
+
+        let lines = events.flatMap { log.lines(for: $0, at: time.now, qualifyingBreak: 5 * 60) }
+        let inferred = events.filter {
+            if case .breakRecorded(.idleInferred, _, _, _) = $0 { return true } else { return false }
+        }
+        #expect(tracker.session.breakCount == 1, "five minutes offered and fifteen taken is still one break")
+        #expect(inferred.isEmpty)
+        #expect(!lines.contains { $0.kind == .breakBegin })
+        #expect(tracker.session.isRunning)
+        #expect((tracker.session.timeSinceLastBreak(now: time.now) ?? .infinity) <= 5)
+    }
+
+    @Test("staying away half an hour after a break still ends the session")
+    func longAbsenceAfterABreakEndsTheSession() {
+        var (tracker, time) = makeTracker()
+        var events: [SessionEvent] = []
+        for _ in 0..<(46 * 12) { time.advance(by: 5); events += tracker.tick(sample()) }
+        events += tracker.beginBreak(origin: .accepted)
+        var idle: TimeInterval = 0
+        for _ in 0..<60 { time.advance(by: 5); idle += 5; events += tracker.tick(sample(idle: idle)) }
+        events += tracker.endBreak(origin: .accepted, threshold: 5 * 60)
+        for _ in 0..<(31 * 12) { time.advance(by: 5); idle += 5; events += tracker.tick(sample(idle: idle)) }
+
+        #expect(events.contains { if case .sessionEnded = $0 { return true } else { return false } })
+        #expect(tracker.session.breakCount == 1)
+    }
 }
