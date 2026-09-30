@@ -2,21 +2,6 @@ import AppKit
 import Foundation
 import SigstopCore
 
-public enum PromptGate: Sendable, Hashable {
-    case allowed
-    case softDeferred(reason: String)
-    case hardBlocked(reason: String)
-
-    public var allowsPrompt: Bool { self == .allowed }
-
-    public var reason: String? {
-        switch self {
-        case .allowed: return nil
-        case .softDeferred(let r), .hardBlocked(let r): return r
-        }
-    }
-}
-
 public struct WorkClockReading: Sendable, Hashable {
     public let continuousWork: TimeInterval
     public let timeSinceLastBreak: TimeInterval?
@@ -31,7 +16,6 @@ public struct WorkClockReading: Sendable, Hashable {
 
 public struct ContextSample: Sendable {
     public let context: DeveloperContext
-    public let gate: PromptGate
     public let honestLabel: String?
     public let caveats: [String]
     public let providerID: ProviderID
@@ -39,14 +23,12 @@ public struct ContextSample: Sendable {
 
     public init(
         context: DeveloperContext,
-        gate: PromptGate,
         honestLabel: String? = nil,
         caveats: [String] = [],
         providerID: ProviderID,
         finishedCommand: FinishedCommand? = nil
     ) {
         self.context = context
-        self.gate = gate
         self.honestLabel = honestLabel
         self.caveats = caveats
         self.providerID = providerID
@@ -97,14 +79,13 @@ public final class ContextEngine {
     private let processCollector: ProcessCollector
     private let gitCollector: GitCollector
     private var projectFolders: [String]
-    private var registry: ProviderRegistry
+    private let registry: ProviderRegistry
     private var workClock: @Sendable () -> WorkClockReading
 
     private var running = false
     private var suspended = false
     private var tasks: [Task<Void, Never>] = []
     private var timer: DispatchSourceTimer?
-    private var continuations: [UUID: AsyncStream<ContextSample>.Continuation] = [:]
 
     private var publishedObservation: ActivityObservation?
     private var publishedLabel: String?
@@ -117,10 +98,6 @@ public final class ContextEngine {
     private var titleDirty = true
     private var observedPID: pid_t?
     private var geometry: WindowGeometrySnapshot?
-
-    public private(set) var lastElapsedInvalidation: Date?
-
-    public private(set) var lastSample: ContextSample?
 
     public init(
         time: any TimeSource = SystemTimeSource(),
@@ -155,7 +132,6 @@ public final class ContextEngine {
 
     deinit {
         timer?.cancel()
-        for c in continuations.values { c.finish() }
     }
 
     public func start() {
@@ -199,23 +175,6 @@ public final class ContextEngine {
         Task { [weak self] in await self?.resample() }
     }
 
-    public func register(_ provider: any ActivityProvider) {
-        registry.register(provider)
-    }
-
-    public var samples: AsyncStream<ContextSample> {
-        let id = UUID()
-        return AsyncStream(bufferingPolicy: .bufferingNewest(8)) { continuation in
-            continuations[id] = continuation
-            if let lastSample { continuation.yield(lastSample) }
-            continuation.onTermination = { [weak self] _ in
-                Task { @MainActor [weak self] in self?.continuations[id] = nil }
-            }
-        }
-    }
-
-    public var permissionStatus: PermissionStatus { permissions.status() }
-
     @discardableResult
     public func sampleAndPublish() async -> ContextSample {
         let sample = await resample()
@@ -225,10 +184,7 @@ public final class ContextEngine {
 
     @discardableResult
     private func resample() async -> ContextSample {
-        let sample = await buildSample()
-        lastSample = sample
-        for continuation in continuations.values { continuation.yield(sample) }
-        return sample
+        await buildSample()
     }
 
     private func buildSample() async -> ContextSample {
@@ -289,7 +245,7 @@ public final class ContextEngine {
 
         let classified = registry.classify(signals)
 
-        let (concurrent, meetingIsOSFact, meetingCaveat) = concurrentStates(
+        let (concurrent, meetingCaveat) = concurrentStates(
             signals, tiers: tiers
         )
         if let meetingCaveat { caveats.append(meetingCaveat) }
@@ -318,12 +274,6 @@ public final class ContextEngine {
 
         return ContextSample(
             context: developerContext,
-            gate: promptGate(
-                session: session,
-                audio: signals.audioInput,
-                concurrent: concurrent,
-                meetingIsOSFact: meetingIsOSFact
-            ),
             honestLabel: label,
             caveats: caveats,
             providerID: resolved.providerID,
@@ -464,7 +414,7 @@ public final class ContextEngine {
     private func concurrentStates(
         _ signals: SignalContext,
         tiers: SignalTierSet
-    ) -> (ConcurrentStates, meetingIsOSFact: Bool, caveat: String?) {
+    ) -> (ConcurrentStates, caveat: String?) {
         let (_, providerID) = (0, ProviderID(""))
         _ = providerID
 
@@ -496,7 +446,7 @@ public final class ContextEngine {
             lowPowerMode: signals.power.lowPowerMode,
             fullscreen: signals.windowGeometry?.hasFullscreenWindow ?? false
         )
-        return (states, micRunning, caveat)
+        return (states, caveat)
     }
 
     static func conferencingName(_ bundleID: String) -> String {
@@ -507,36 +457,6 @@ public final class ContextEngine {
         case BundleIDs.discord: return "Discord"
         default:                return bundleID
         }
-    }
-
-    private func promptGate(
-        session: SessionState,
-        audio: AudioInputState,
-        concurrent: ConcurrentStates,
-        meetingIsOSFact: Bool
-    ) -> PromptGate {
-        if session.screenLocked { return .hardBlocked(reason: "the screen is locked") }
-        if session.displaysAsleep { return .hardBlocked(reason: "the displays are asleep") }
-        if !session.sessionActive {
-            return .hardBlocked(reason: "someone else is signed in at the console")
-        }
-        if meetingIsOSFact {
-            return .hardBlocked(reason: "an audio input device is running, you may be on a call")
-        }
-
-        if concurrent.inMeeting {
-            return .softDeferred(
-                reason: "a conferencing app is running, so you might be in a meeting, "
-                    + "this only postpones the prompt"
-            )
-        }
-        if concurrent.fullscreen {
-            return .softDeferred(
-                reason: "something is fullscreen, so you might be presenting, this only "
-                    + "postpones the prompt"
-            )
-        }
-        return .allowed
     }
 
     private func readTitleIfPermitted(
@@ -613,9 +533,6 @@ public final class ContextEngine {
         tasks.append(Task { [weak self] in
             for await event in stream {
                 guard let self else { return }
-                if event.invalidatesElapsedTime {
-                    self.lastElapsedInvalidation = event.timestamp
-                }
                 switch event {
                 case .willSleep, .screenLocked, .displaysSlept, .sessionResignedActive:
                     self.audioCollector.setSystemAwake(false)
