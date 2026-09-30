@@ -26,7 +26,7 @@ A timer fires in the middle of your standup. sigstop doesn't.
 
 <img src="docs/images/compare.png" width="100%" alt="A timer versus sigstop. Fires during your standup: a timer does, sigstop waits for the call to end. Cuts you off mid-thought: a timer does, sigstop picks a pause. Knows Xcode from YouTube: a timer doesn't, sigstop does. Counts time you were away: a timer does, sigstop counts only real work. Tells you why it's quiet: a timer doesn't, sigstop has --doctor.">
 
-- 😏 **Speaks your language.** 187 lines for editors, terminals, browsers, AI tools and Xcode, in four tones from friendly to nuclear.
+- 😏 **Speaks your language.** 230 lines for editors, terminals, browsers, AI tools and Xcode, in four tones from friendly to nuclear.
 - 📊 **Shows your day.** Active time, your longest unbroken stretch, how many breaks you took and how long they ran on average, and the ones you kept.
 - 🔋 **Barely there.** It sleeps between checks, so you won't notice it on your battery or in your Mac's speed.
 - 🔒 **Private by design.** Zero permissions required, and nothing about you leaves your Mac.

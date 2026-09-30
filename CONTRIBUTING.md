@@ -71,7 +71,7 @@ To test one, construct a `SignalContext` literal.
 
 ## Writing a joke
 
-The 187 lines live in `app/Sources/SigstopCore/Message/corpus.json` with structured
+The 230 lines live in `app/Sources/SigstopCore/Message/corpus.json` with structured
 preconditions, so a line can fire only in the situation it is about:
 
 ```json

@@ -326,6 +326,110 @@
       ]
     },
     {
+      "id": "terminal.agent.default-is-yes",
+      "text": "One more permission prompt for the pile. Step away for five minutes? [Y/n] The default is yes. Answer this one by leaving the keyboard alone.",
+      "tone": "sarcastic",
+      "category": "ai_pairing",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "terminal"
+          ]
+        },
+        {
+          "p": "activity",
+          "in": [
+            "aiCoding"
+          ]
+        }
+      ],
+      "claimsActivity": true
+    },
+    {
+      "id": "terminal.agent.kept-the-sitting",
+      "text": "You delegated the typing to the agent and kept all {minutes} minutes of the sitting for yourself. Renegotiate: five minutes on your feet.",
+      "tone": "roast",
+      "category": "ai_pairing",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "terminal"
+          ]
+        },
+        {
+          "p": "activity",
+          "in": [
+            "aiCoding"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": true
+    },
+    {
+      "id": "terminal.agent.absolutely-etched",
+      "text": "{minutes} minutes of \"you're absolutely right\". THE PHRASE IS ETCHED INTO THE SCREEN AND HAS STARTED ON THE DESK. Stand up before it reaches the floor.",
+      "tone": "nuclear",
+      "category": "ai_pairing",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "terminal"
+          ]
+        },
+        {
+          "p": "activity",
+          "in": [
+            "aiCoding"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": true,
+      "theatrical": true
+    },
+    {
       "id": "vscode.tabs.forty-seven-open",
       "text": "Forty-seven tabs open in the editor, zero of them the file you're looking for. Close the laptop, open a door.",
       "tone": "sarcastic",
@@ -893,6 +997,57 @@
       ]
     },
     {
+      "id": "xcode.concurrency.you-are-sendable",
+      "text": "Strict concurrency asks one question at every isolation boundary: is it Sendable? Good news: you are. Go cross one for five minutes.",
+      "tone": "friendly",
+      "category": "xcode",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "xcode"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "xcode.typecheck.distinct-sub-expressions",
+      "text": "{minutes} minutes in one unbroken expression. The compiler has advice for this: try breaking it up into distinct sub-expressions.",
+      "tone": "sarcastic",
+      "category": "xcode",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "xcode"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ]
+    },
+    {
       "id": "jetbrains.index.more-memory",
       "text": "The IDE has been indexing for six minutes and is now using more memory than your deployment target has. Let it cook. Go outside.",
       "tone": "sarcastic",
@@ -1024,6 +1179,109 @@
           ]
         }
       ]
+    },
+    {
+      "id": "jetbrains.caches.the-other-kind-of-stop",
+      "text": "Invalidate and Restart fixes things by forgetting everything. A break is the other kind of stop: no restart, and {app} forgets nothing.",
+      "tone": "friendly",
+      "category": "jetbrains",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [
+        "app"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "jetbrains"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jetbrains.power.nobody-gave-you-the-switch",
+      "text": "In Power Save Mode, {app} stops having opinions about your code. Nobody gave you that switch, so here it is: five minutes.",
+      "tone": "sarcastic",
+      "category": "jetbrains",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [
+        "app"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "jetbrains"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jetbrains.imports.grey-all-day",
+      "text": "{app} greys out an unused import and it is gone within the minute. I have been greyed out all day. Take five and I will be gone too.",
+      "tone": "sarcastic",
+      "category": "jetbrains",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [
+        "app"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "jetbrains"
+          ]
+        },
+        {
+          "p": "streak",
+          "key": "skippedToday",
+          "atLeast": 3
+        }
+      ]
+    },
+    {
+      "id": "jetbrains.index.find-usages-on-the-chair",
+      "text": "The indexer finished the project and moved on to the room. IT HAS INDEXED THE CHAIR. FIND USAGES: ONE RESULT. Stand up and make it zero.",
+      "tone": "nuclear",
+      "category": "jetbrains",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "jetbrains"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "theatrical": true
     },
     {
       "id": "terminal.build.watched-it-four-times",
@@ -1512,6 +1770,71 @@
       ]
     },
     {
+      "id": "debug.breakpoint.pause-costs-nothing",
+      "text": "A breakpoint proves a pause costs nothing: same stack, same registers, same next instruction. Only sockets time out. You are not a socket.",
+      "tone": "friendly",
+      "category": "debugging",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.75,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "activity",
+          "in": [
+            "debugging"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "debug.optimized.take-the-hint",
+      "text": "When the debugger says a variable was optimized out, the compiler has decided you do not need to see it. Take the hint for five minutes.",
+      "tone": "sarcastic",
+      "category": "debugging",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "activity",
+          "in": [
+            "debugging"
+          ]
+        }
+      ],
+      "claimsActivity": true
+    },
+    {
+      "id": "debug.bug.surrounded",
+      "text": "Breakpoints above it, below it and on it. The bug is surrounded. It is not going anywhere, which means you can. Five minutes.",
+      "tone": "roast",
+      "category": "debugging",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "activity",
+          "in": [
+            "debugging"
+          ]
+        }
+      ],
+      "claimsActivity": true
+    },
+    {
       "id": "test.rerun.flaky-in-your-favor",
       "text": "You've run the same test eighteen times hoping it turns flaky in your favor. It won't. Break.",
       "tone": "roast",
@@ -1704,6 +2027,106 @@
           ]
         }
       ]
+    },
+    {
+      "id": "test.run.not-quantum",
+      "text": "Staring at the run will not collapse it to green. Tests are not quantum. Same result in five minutes, observed or not.",
+      "tone": "roast",
+      "category": "testing",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "activity",
+          "in": [
+            "testing"
+          ]
+        }
+      ],
+      "claimsActivity": true
+    },
+    {
+      "id": "test.green.first-run-is-a-question",
+      "text": "A new test that passes on its very first run is not a win yet. It is a question. Ask it again after five minutes away.",
+      "tone": "sarcastic",
+      "category": "testing",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "activity",
+          "in": [
+            "testing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "test.skip.load-bearing-by-friday",
+      "text": "Skipped breaks age like skipped tests: temporary on Monday, load-bearing by Friday. Un-skip this one. Five minutes.",
+      "tone": "sarcastic",
+      "category": "testing",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "activity",
+          "in": [
+            "testing"
+          ]
+        },
+        {
+          "p": "streak",
+          "key": "skippedToday",
+          "atLeast": 2
+        }
+      ]
+    },
+    {
+      "id": "test.mocks.stubs-taking-sides",
+      "text": "Somewhere in this suite THE MOCKS HAVE STARTED MOCKING EACH OTHER AND THE STUBS ARE TAKING SIDES. Go find a room with no test doubles in it.",
+      "tone": "nuclear",
+      "category": "testing",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "activity",
+          "in": [
+            "testing"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "claimsActivity": true,
+      "theatrical": true
     },
     {
       "id": "review.diff.doomscrolling-with-highlighting",
@@ -1911,6 +2334,34 @@
           ]
         }
       ]
+    },
+    {
+      "id": "review.suggestion.commit-suggestion",
+      "text": "Suggested change for this session: replace \"next file\" with \"five minutes away\". Commit suggestion?",
+      "tone": "sarcastic",
+      "category": "code_review",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.85,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        },
+        {
+          "p": "activity",
+          "in": [
+            "codeReview"
+          ]
+        }
+      ],
+      "claimsActivity": true
     },
     {
       "id": "chat.draft.fine-the-first-time",
@@ -2909,6 +3360,52 @@
       ]
     },
     {
+      "id": "night.nightly.the-whole-design",
+      "text": "It's {hour}. Nightly builds run at this hour so that no human has to be awake for them. That was the whole design.",
+      "tone": "friendly",
+      "category": "late_night",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "timeBand",
+          "in": [
+            "lateNight"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "night.gitlog.does-not-round",
+      "text": "Anything you commit now is stamped {hour}, permanently. git log does not round. Five minutes first.",
+      "tone": "sarcastic",
+      "category": "late_night",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "timeBand",
+          "in": [
+            "lateNight"
+          ]
+        }
+      ]
+    },
+    {
       "id": "morning.coffee.one-of-you-boot-up",
       "text": "You opened the editor before the coffee finished. Bold. Take five and let one of the two of you finish booting.",
       "tone": "sarcastic",
@@ -3055,6 +3552,52 @@
       },
       "minConfidence": 0.0,
       "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "timeBand",
+          "in": [
+            "earlyMorning"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "morning.boot.watch-it-post",
+      "text": "It's {hour}. Outside, the day is still running its boot sequence, and it only runs once. Go watch it POST.",
+      "tone": "friendly",
+      "category": "early_morning",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [
+        "hour"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "timeBand",
+          "in": [
+            "earlyMorning"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "morning.queue.cheapest-break-of-the-day",
+      "text": "Nobody is waiting on you at {hour}: no reviews, no pings, no standup. This is the cheapest break you'll get all day.",
+      "tone": "friendly",
+      "category": "early_morning",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [
+        "hour"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -3271,6 +3814,66 @@
         {
           "p": "streak",
           "key": "skippedToday",
+          "atLeast": 2
+        }
+      ]
+    },
+    {
+      "id": "streak.sigtstp.catchable-by-design",
+      "text": "You've caught more than one of these today. That's allowed: SIGTSTP is catchable by design. Let one through sometime, just to see.",
+      "tone": "friendly",
+      "category": "skip_streak",
+      "escalation": {
+        "min": 1,
+        "max": 1
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "streak",
+          "key": "skippedToday",
+          "atLeast": 2
+        }
+      ]
+    },
+    {
+      "id": "streak.material.timing-or-jokes",
+      "text": "A few skips today. Either my timing is off or my material is. Let's test the timing: how about now?",
+      "tone": "friendly",
+      "category": "skip_streak",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "streak",
+          "key": "skippedToday",
+          "atLeast": 3
+        }
+      ]
+    },
+    {
+      "id": "streak.backoff.could-be-headphones",
+      "text": "No answer on the last couple of rounds, so I've cut back to one prompt a round. Could be flow, could be headphones. This is the one.",
+      "tone": "friendly",
+      "category": "skip_streak",
+      "escalation": {
+        "min": 1,
+        "max": 1
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "streak",
+          "key": "skippedConsecutive",
           "atLeast": 2
         }
       ]
@@ -3520,6 +4123,79 @@
       ]
     },
     {
+      "id": "long.state.r-then-t",
+      "text": "{minutes} minutes in state R. Most processes on this machine spend their day in S. We only ask for T: five minutes stopped, then SIGCONT.",
+      "tone": "friendly",
+      "category": "long_session",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "long.fetch.the-world-pushed",
+      "text": "{minutes} minutes since your last fetch from the outside world. It has pushed a few commits since then. Go pull.",
+      "tone": "friendly",
+      "category": "long_session",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon",
+            "absurd"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "long.scheduler.part-of-the-kernel",
+      "text": "{minutes} minutes and not one preemption. THE SCHEDULER NOW THINKS YOU ARE PART OF THE KERNEL. Correct the record: stand up.",
+      "tone": "nuclear",
+      "category": "long_session",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "workBand",
+          "in": [
+            "absurd"
+          ]
+        }
+      ],
+      "theatrical": true
+    },
+    {
       "id": "generic.sincebreak.two-hours-is-the-number",
       "text": "It has been {minutes} minutes since the last break. That counter has earned a reset. Five minutes.",
       "tone": "friendly",
@@ -3539,6 +4215,36 @@
           "atLeast": 120
         }
       ],
+      "isFallback": true
+    },
+    {
+      "id": "generic.stash.applies-clean",
+      "text": "Treat this as git stash for whatever you're holding in your head. Five minutes, then pop. Nobody else works in there, so it applies clean.",
+      "tone": "friendly",
+      "category": "generic_fallback",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
+      "isFallback": true
+    },
+    {
+      "id": "generic.signal.between-instructions",
+      "text": "Signals land between instructions, never in the middle of one. Finish the line you're on. Then five minutes.",
+      "tone": "friendly",
+      "category": "generic_fallback",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.0,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [],
       "isFallback": true
     },
     {
@@ -3736,6 +4442,79 @@
       "claimsActivity": false
     },
     {
+      "id": "vscode.palette.reload-developer",
+      "text": "The palette has Developer: Reload Window, and nothing that reloads the developer. The missing command: five minutes away, nothing closes.",
+      "tone": "sarcastic",
+      "category": "editor_generic",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "vscode"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "zed.multibuffer.in-none-of-them",
+      "text": "A multibuffer lets you be in a dozen files at once. Impressive. Now try being in none of them for five minutes.",
+      "tone": "sarcastic",
+      "category": "editor_generic",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "zed"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vscode.minimap.minimaps-all-the-way-down",
+      "text": "{minutes} minutes straight. THE MINIMAP HAS STARTED DRAWING A MINIMAP OF ITSELF. IT IS MINIMAPS ALL THE WAY DOWN. Stand up.",
+      "tone": "nuclear",
+      "category": "editor_generic",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "vscode"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "theatrical": true
+    },
+    {
       "id": "shell.scrollback.nothing-expires",
       "text": "Scrollback has no session timeout. No idle warning, no are-you-still-there, no polite logout at minute six. Whatever is in that buffer is not counting the minutes you are gone. Take the five.",
       "tone": "friendly",
@@ -3861,6 +4640,108 @@
         }
       ],
       "claimsActivity": false
+    },
+    {
+      "id": "terminal.sleep.three-hundred",
+      "text": "The shell already has a command for this: sleep 300. Nobody has ever had to debug it. Run it in person.",
+      "tone": "friendly",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 1,
+        "max": 3
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "terminal"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal.sigterm.flush-first",
+      "text": "This is SIGTERM, and like any process in that terminal, you get a handler. Run it: finish the current write, flush your buffers to a note, then go.",
+      "tone": "friendly",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 3,
+        "max": 3
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "terminal"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal.prompt.no-segment-for-this",
+      "text": "Your prompt can show the branch, the runtime, the cluster and the battery. Nobody has ever added a segment for {minutes} minutes without a break.",
+      "tone": "sarcastic",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [
+        "minutes"
+      ],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "terminal"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "deep",
+            "marathon",
+            "absurd"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "terminal.cursor.switched-to-morse",
+      "text": "The cursor has blinked at this prompt so long IT HAS SWITCHED TO MORSE. IT IS SPELLING OUT STAND UP. IT IS ON ITS ELEVENTH ATTEMPT.",
+      "tone": "nuclear",
+      "category": "terminal_build",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "terminal"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "theatrical": true
     },
     {
       "id": "chat.scroll.no-last-page",
@@ -4062,6 +4943,77 @@
       "claimsActivity": false
     },
     {
+      "id": "chat.ping.sigint-from-elsewhere",
+      "text": "Every ping in here is a SIGINT from somebody else's process. This one is mine, and it needs no reply: five minutes away from the desk.",
+      "tone": "friendly",
+      "category": "chat_context",
+      "escalation": {
+        "min": 2,
+        "max": 2
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chat.thread.quick-question-never-quick",
+      "text": "No thread that opened with \"quick question\" has ever been quick. Take five now, before the follow-up to the follow-up.",
+      "tone": "sarcastic",
+      "category": "chat_context",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chat.unread.gone-negative",
+      "text": "You have been in here so long THE UNREAD COUNT HAS GONE NEGATIVE. CHAT NOW OWES YOU MESSAGES. Stand up and let it start paying them back.",
+      "tone": "nuclear",
+      "category": "chat_context",
+      "escalation": {
+        "min": 3,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "chat"
+          ]
+        },
+        {
+          "p": "workBand",
+          "in": [
+            "marathon",
+            "absurd"
+          ]
+        }
+      ],
+      "theatrical": true
+    },
+    {
       "id": "browse.blindspot.tabs-titles-urls",
       "text": "A browser in front is the one signal that means nothing. {minutes} minutes of it could be the docs, or it could be the exact opposite of the docs, and the call is the same either way. Stand up.",
       "tone": "sarcastic",
@@ -4203,6 +5155,48 @@
         }
       ],
       "claimsActivity": false
+    },
+    {
+      "id": "browse.thread.nvm-fixed-it",
+      "text": "Every thread with your exact error ends in \"nvm, fixed it\", and reloading will not make it say how. Take five, then try page two.",
+      "tone": "sarcastic",
+      "category": "research_browsing",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "browse.tabs.zombie-processes",
+      "text": "Every tab you kept open \"for later\" is a zombie process: finished with, never reaped. Take five, then come back and reap a few.",
+      "tone": "roast",
+      "category": "research_browsing",
+      "escalation": {
+        "min": 2,
+        "max": 4
+      },
+      "minConfidence": 0.55,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "appFamily",
+          "in": [
+            "browser"
+          ]
+        }
+      ]
     },
     {
       "id": "canvas.infinite.the-day-is-not",
@@ -4368,6 +5362,48 @@
         }
       ],
       "claimsActivity": false
+    },
+    {
+      "id": "figma.instance.force-push-of-design",
+      "text": "Detach instance is the force push of design: quick, satisfying, and somebody finds out later. Take five before you reach for it.",
+      "tone": "sarcastic",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "figma"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "figma.layers.minified-by-hand",
+      "text": "Frame 1184, Group 96, Group 96, Rectangle, Rectangle. Every layers panel ends up reading like minified code. Take five, then name one thing.",
+      "tone": "sarcastic",
+      "category": "design_canvas",
+      "escalation": {
+        "min": 1,
+        "max": 4
+      },
+      "minConfidence": 0.7,
+      "requiredSlots": [],
+      "optionalSlots": [],
+      "when": [
+        {
+          "p": "app",
+          "in": [
+            "figma"
+          ]
+        }
+      ]
     },
     {
       "id": "stack.pace.not-yours-to-set",

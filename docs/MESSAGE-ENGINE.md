@@ -1051,7 +1051,7 @@ Humor does not translate; it gets rewritten. The format is built for that.
 1. **Activity inference accuracy is unmeasured.** The confidence thresholds in §6 are
    reasoned, not fitted. They need calibration against labeled sessions before the 0.85 tier
    can be trusted; until then, ship conservative (raise floors, accept more generic lines).
-2. **The ledger's 72h cooldown assumes a ~40-line-per-context corpus.** With the 187-line
+2. **The ledger's 72h cooldown assumes a ~40-line-per-context corpus.** With the 230-line
    corpus, a heavy user in one app will hit relaxation stage 2–3 within a week. Either
    the corpus grows or the cooldown shortens — instrument before choosing.
 3. **NUCLEAR opt-in default.** Defaulting it off means most users never see the best lines;
