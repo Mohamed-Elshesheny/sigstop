@@ -416,17 +416,8 @@ public final class ContextEngine {
         hints: ConcurrentHints,
         tiers: SignalTierSet
     ) -> (ConcurrentStates, caveat: String?) {
-        var meetingEvidence: [Evidence] = []
+        var meetingEvidence = meetingEvidence(signals, hints: hints)
         var caveat: String?
-
-        let micRunning = signals.audioInput.contributesToMeeting
-        if micRunning { meetingEvidence.append(Ev.micRunning()) }
-
-        for bundleID in BundleIDs.conferencing where signals.isRunning(bundleID) {
-            meetingEvidence.append(Ev.conferencingRunning(Self.conferencingName(bundleID)))
-        }
-
-        meetingEvidence.append(contentsOf: hints.meetingEvidence)
 
         let hasTitleEvidence = meetingEvidence.contains { $0.tier == .tier1 }
         if signals.audioInput == .unreliable && !hasTitleEvidence {
@@ -444,6 +435,38 @@ public final class ContextEngine {
             fullscreen: signals.windowGeometry?.hasFullscreenWindow ?? false
         )
         return (states, caveat)
+    }
+
+    nonisolated static func meetingEvidence(
+        _ signals: SignalContext,
+        hints: ConcurrentHints
+    ) -> [Evidence] {
+        var evidence: [Evidence] = []
+        if signals.audioInput.contributesToMeeting { evidence.append(Ev.micRunning()) }
+        let running = BundleIDs.conferencing
+            .filter { signals.isRunning($0) }
+            .map { Self.conferencingName($0) }
+            .sorted()
+        if let first = running.first {
+            let one = Ev.conferencingRunning(first)
+            evidence.append(
+                running.count == 1
+                    ? one
+                    : Evidence(
+                        id: one.id,
+                        tier: one.tier,
+                        logOdds: one.logOdds,
+                        summary: Self.listed(running) + " are running"
+                    )
+            )
+        }
+        evidence.append(contentsOf: hints.meetingEvidence)
+        return evidence
+    }
+
+    nonisolated static func listed(_ names: [String]) -> String {
+        guard let last = names.last, names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " and " + last
     }
 
     nonisolated static func conferencingName(_ bundleID: String) -> String {

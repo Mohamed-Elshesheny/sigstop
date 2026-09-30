@@ -1277,7 +1277,7 @@ produces wrong answers for anyone who codes during a standup.
 | Evidence | Tier | log-odds |
 |---|---|---|
 | Audio input `.running` | 0 | +1.8 |
-| A conferencing app is **running** (need not be frontmost) | 0 | +1.0 |
+| A conferencing app is **running** (need not be frontmost) | 0 | +1.0, once however many are |
 | A conferencing app (Zoom, Teams, Slack, Discord) is frontmost | 0 | +0.8 (additive) |
 | Zoom window title == `"Zoom Meeting"` (vs `"Zoom"` when idle) | 1 | +1.6 |
 | Browser title starts with `Meet - ` or `Meet – ` (case-sensitive, a Meet call's own tab), or contains `| Microsoft Teams` or `Zoom Meeting` | 1 | +1.6 |
@@ -1304,6 +1304,12 @@ which [the rules a PR cannot break](../CONTRIBUTING.md#the-rules-a-pr-cannot-bre
 functional. The ceiling is right and is not being raised to let a guess through; the
 call latch gets its deferral from a capture fact instead.
 | Audio input `.unreliable` | 0 | **contributes nothing** |
+
+The running row is one line naming every conferencing app that is open, not one line each. Three
+apps idling in the background are one fact about how you work, not three pieces of evidence for a
+call: counted separately, Slack, Zoom and Teams reached 0.78 with no microphone, and chat in front
+with Zoom open reached 0.74, both over the claim threshold. Without a microphone or a title, the
+most this ledger can now reach is 0.52.
 
 Bands: mic + conferencing app running → **0.75**. Plus a title match → **0.88**. Never above 0.90 —
 a waiting room, a lingering device hold, and a dictation session all look identical to the best
