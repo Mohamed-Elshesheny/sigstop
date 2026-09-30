@@ -37,7 +37,11 @@ public struct PromptOutlook: Sendable, Hashable {
 
         let opened = last([.breakOpen])
         let closed = last([.cycleClose])
-        let cycleIsOpen = opened != nil && (closed == nil || closed!.at < opened!.at)
+        let cycleIsOpen: Bool = {
+            guard let opened else { return false }
+            guard let closed else { return true }
+            return closed.at < opened.at
+        }()
 
         if let opened, cycleIsOpen {
             return openCycle(opened, in: sorted, now: now, policy: policy, clock: clock)
