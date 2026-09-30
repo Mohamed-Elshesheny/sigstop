@@ -245,8 +245,8 @@ public final class ContextEngine {
 
         let classified = registry.classify(signals)
 
-        let (concurrent, meetingCaveat) = concurrentStates(
-            signals, tiers: tiers
+        let (concurrent, meetingCaveat) = Self.concurrentStates(
+            signals, hints: classified.verdict.concurrentHints, tiers: tiers
         )
         if let meetingCaveat { caveats.append(meetingCaveat) }
 
@@ -411,13 +411,11 @@ public final class ContextEngine {
         )
     }
 
-    private func concurrentStates(
+    nonisolated static func concurrentStates(
         _ signals: SignalContext,
+        hints: ConcurrentHints,
         tiers: SignalTierSet
     ) -> (ConcurrentStates, caveat: String?) {
-        let (_, providerID) = (0, ProviderID(""))
-        _ = providerID
-
         var meetingEvidence: [Evidence] = []
         var caveat: String?
 
@@ -428,7 +426,6 @@ public final class ContextEngine {
             meetingEvidence.append(Ev.conferencingRunning(Self.conferencingName(bundleID)))
         }
 
-        let hints = registry.classify(signals).verdict.concurrentHints
         meetingEvidence.append(contentsOf: hints.meetingEvidence)
 
         let hasTitleEvidence = meetingEvidence.contains { $0.tier == .tier1 }
@@ -449,7 +446,7 @@ public final class ContextEngine {
         return (states, caveat)
     }
 
-    static func conferencingName(_ bundleID: String) -> String {
+    nonisolated static func conferencingName(_ bundleID: String) -> String {
         switch bundleID {
         case BundleIDs.zoom:    return "Zoom"
         case BundleIDs.teams:   return "Microsoft Teams"
