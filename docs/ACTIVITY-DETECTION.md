@@ -1244,10 +1244,14 @@ produces wrong answers for anyone who codes during a standup.
 |---|---|---|
 | Audio input `.running` | 0 | +1.8 |
 | A conferencing app is **running** (need not be frontmost) | 0 | +1.0 |
-| A conferencing app is frontmost | 0 | +0.8 (additive) |
+| A conferencing app (Zoom, Teams, Slack, Discord) is frontmost | 0 | +0.8 (additive) |
 | Zoom window title == `"Zoom Meeting"` (vs `"Zoom"` when idle) | 1 | +1.6 |
 | Browser title contains `Meet - `, `| Microsoft Teams`, `Zoom Meeting` | 1 | +1.6 |
 | Camera in use (§2.3a, shipped) | 0 | not wired into this ledger |
+
+Mail and Messages are claimed by `CommunicationProvider` and read as `COMMUNICATION`, but they are
+not conferencing apps and add no meeting evidence, neither for being in front nor for a title: a
+subject line that says `Zoom Meeting` is an email about a call, not a call.
 
 The camera bit is a **hard block** (docs/BREAK-DECISION.md §7.1), not a term in this inference. It
 is deliberately kept out of the ledger for now: a fact that already prevents an interruption on its

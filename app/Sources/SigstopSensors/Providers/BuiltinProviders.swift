@@ -830,10 +830,13 @@ public struct CommunicationProvider: ActivityProvider {
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
         var evidence: [Evidence] = [Ev.communicationFrontmost(name)]
-        var meetingEvidence: [Evidence] = [Ev.conferencingFrontmost(name)]
+        var meetingEvidence: [Evidence] = []
+        let isConferencing = context.frontmost.bundleID.map(BundleIDs.conferencing.contains) ?? false
+        if isConferencing { meetingEvidence.append(Ev.conferencingFrontmost(name)) }
 
         if let title = context.titleIfPermitted {
-            if BrowserTitlePatterns.isMeeting(title) || title.caseInsensitiveCompare("Zoom Meeting") == .orderedSame {
+            if isConferencing,
+               BrowserTitlePatterns.isMeeting(title) || title.caseInsensitiveCompare("Zoom Meeting") == .orderedSame {
                 meetingEvidence.append(Ev.meetingTitle("a meeting is in progress"))
             } else if title.contains("#") || title.localizedCaseInsensitiveContains("DM") {
                 evidence.append(Ev.communicationTitle())
