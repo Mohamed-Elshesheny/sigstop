@@ -111,4 +111,20 @@ struct SessionEndClosesCycleTests {
         }
         #expect(quiet.cause == .userPaused)
     }
+
+    @Test("--doctor does not call a cycle the session took with it merely stale")
+    func outlookNamesTheSessionEnd() {
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        let events: [LoggedEvent] = [
+            .start(at: start),
+            .breakOpen(at: start.addingTimeInterval(2700), cycle: .initial),
+            .breakPrompt(at: start.addingTimeInterval(2700), cycle: .initial, reason: .sigtstp),
+            .cycleClose(at: start.addingTimeInterval(5100), cycle: .initial, outcome: .expired),
+        ]
+        let outlook = PromptOutlook.read(
+            events: events, now: start.addingTimeInterval(5400), policy: BreakPolicy(), calendar: CalendarDay.utcCalendar
+        )
+        #expect(outlook.detail.contains { $0.contains("its session ended") })
+        #expect(outlook.detail.contains { $0.contains("45 minutes in a new session") })
+    }
 }

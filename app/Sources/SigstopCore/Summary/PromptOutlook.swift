@@ -84,10 +84,12 @@ public struct PromptOutlook: Sendable, Hashable {
         case .expired:
             let target = policy.targetContinuousWork + policy.rearmAfterStale
             return PromptOutlook(
-                headline: "The last opportunity went stale at \(at) and was abandoned.",
+                headline: "The last opportunity was abandoned at \(at), unanswered.",
                 detail: [
-                    "A break that is an hour overdue is noise, so it is dropped rather than fired late.",
-                    "The next one needs about \(DurationText.long(target)) of continuous work.",
+                    "It went stale an hour after it opened, or its session ended: a long sleep or the"
+                        + " 4am day change. Either way it is dropped rather than fired late.",
+                    "The next one needs about \(DurationText.long(target)) of continuous work, or"
+                        + " \(DurationText.long(policy.targetContinuousWork)) in a new session.",
                 ]
             )
         case .quietSuppressed:
