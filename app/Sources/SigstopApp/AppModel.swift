@@ -306,6 +306,7 @@ final class AppModel {
 
     private func apply(settings newValue: SigstopSettings) {
         settings = newValue
+        if !newValue.useSystemNotifications { notificationState = .notYetNeeded }
         onSettingsChanged?()
         let previousTarget = policy.targetContinuousWork
         policy = Self.policy(for: newValue)
@@ -687,7 +688,8 @@ final class AppModel {
             }
         }
         notifier.onStateChange = { [weak self] state in
-            self?.notificationState = state
+            guard let self, self.settings.useSystemNotifications else { return }
+            self.notificationState = state
         }
         notifier.onFallbackNeeded = { [weak self] request, message in
             guard let self else { return }
