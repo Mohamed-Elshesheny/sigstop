@@ -78,7 +78,9 @@ body:
       description: >-
         Paste the whole thing, and read it first. It contains no window title and no branch
         name: a title is parsed and dropped, and Tier 2 prints how many characters long your
-        branch is rather than what it is called. It does name the apps you have open, your
+        branch is rather than what it is called. But the evidence lines can name the file and
+        the project parsed from the title in front, and with the browser host switched on it
+        prints the host of the page in front. It also names the apps you have open, your
         camera devices, and the project folders you added. Redact anything there you would
         not put in a public issue.
       render: shell
