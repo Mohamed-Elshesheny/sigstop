@@ -141,6 +141,13 @@ struct RawSignals: Sendable {
         audio.contributesToMeeting || camera.contributesToMeeting
     }
 
+    var captureLive: Bool {
+        if liveCaptureAlreadyBlocks || micLiveForLatch { return true }
+        guard let holders = audioProcesses.inputBundleIDs else { return false }
+        if audioProcesses.unnamedInputHolders > 0 { return true }
+        return holders.contains { !CallCapableApps.isNeverAMeeting($0) }
+    }
+
     var systemSignals: SystemSignals {
         SystemSignals(
             audioInputRunning: audio.contributesToMeeting,

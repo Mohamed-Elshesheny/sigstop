@@ -370,7 +370,7 @@ final class AppModel {
         advanceLatch(raw, now: now, monotonic: monotonic)
 
         lastAudioDeviceRunning = raw.audio.contributesToMeeting
-        captureLive = raw.audio.contributesToMeeting || raw.camera.contributesToMeeting
+        captureLive = raw.captureLive
         var signals = raw.systemSignals
         signals.audioInputRunning = audioBlocks(raw, monotonic: monotonic)
         signals.frontmostIsFullscreen = sample.context.concurrent.fullscreen

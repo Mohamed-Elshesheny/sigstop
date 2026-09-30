@@ -978,7 +978,12 @@ does not chime into somebody's recording.
 `AppModel.deliver` plays `PromptSound` on every rung that is delivered, whatever its channel: Tink
 at L1, Morse at L2, Submarine at L3 and Sosumi at L4, louder at each rung. It is skipped while a
 microphone or camera is running, read on the same tick, so it never lands in a call or a recording
-either. So the table above describes the notification's own sound, and a rung whose channel is
+either. "Running" is `RawSignals.captureLive`, which does not stop at the device bit: once a Mac's
+input device reads `.unreliable` (on most of the time, §7.1.1) that bit is no longer a positive, so
+the sound is also skipped while any process other than the speech services (Siri, dictation,
+the list in `CallCapableApps.neverAMeetingPrefixes`) is capturing input. On a Mac whose input is
+always held by something, such as a noise-suppression app, that means no sound at all, which is
+the side to be wrong on. So the table above describes the notification's own sound, and a rung whose channel is
 silent can still be heard.
 
 The same switch covers the other end of the break. When a break ends because its planned duration
