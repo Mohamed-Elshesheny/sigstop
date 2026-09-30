@@ -271,7 +271,7 @@ public final class MessageEngine: @unchecked Sendable {
     }
 ```
 
-From `app/Sources/SigstopCore/Message/MessageEngine.swift`. Selection is `select(for:record:)`, which
+From `app/Sources/SigstopCore/Message/MessageEngine.swift`. Selection is `select(for:)`, which
 takes a `MessageContext` and returns a `SelectionResult`.
 
 Pipeline, in order:

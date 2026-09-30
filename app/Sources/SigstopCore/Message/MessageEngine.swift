@@ -135,7 +135,7 @@ public final class MessageEngine: @unchecked Sendable {
         return true
     }
 
-    public func select(for ctx: MessageContext, record: Bool = true) -> SelectionResult {
+    public func select(for ctx: MessageContext) -> SelectionResult {
         var trace = SelectionTrace()
         trace.totalTemplates = corpus.templates.count
 
@@ -211,9 +211,7 @@ public final class MessageEngine: @unchecked Sendable {
         let template = chosen ?? Corpus.lastResort
         let text = rendered ?? Corpus.lastResort.text
 
-        if record {
-            ledger.record(template, at: ctx.now)
-        }
+        ledger.record(template, at: ctx.now)
 
         let message = RenderedMessage(
             templateID: template.id,
