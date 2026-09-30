@@ -27,7 +27,7 @@ public struct WaitingLine: Sendable, Hashable {
     public var text: String { "\(claim.prefix), \(body)." }
 
     public static let unexplained = WaitingLine(
-        .notAskingYet, "and it cannot say why, which is a bug. Run make doctor"
+        .notAskingYet, "and it cannot say why, which is a bug. Run sigstop with --doctor"
     )
 }
 

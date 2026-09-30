@@ -88,6 +88,14 @@ struct WaitingLineTests {
         }
     }
 
+    @Test("the line for a state it cannot explain points at something the shipped app can run")
+    func unexplainedNeedsNoCheckout() {
+        let text = WaitingLine.unexplained.text
+        #expect(!text.contains("make "), "make needs a source checkout: \(text)")
+        #expect(text.contains("--doctor"))
+        #expect(!text.contains("—"))
+    }
+
     @Test("the backed-off cooldown names the backoff and says when it ends")
     func backedOffCooldownCarriesItsDeadline() {
         let line = read(
