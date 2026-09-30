@@ -1011,7 +1011,6 @@ public struct GenericProvider: ActivityProvider {
     public init() {}
 
     static let categories: [String: (Activity, Double, String)] = [
-        "com.apple.dt.Xcode":     (.coding, 1.2, "an IDE"),
         "com.apple.TextEdit":     (.documentation, 1.0, "a text editor"),
         "com.apple.Notes":        (.documentation, 1.0, "a notes app"),
         "com.apple.finder":       (.unknown, 0.2, "the Finder"),

@@ -82,6 +82,14 @@ struct ProviderHonestyTests {
         }
     }
 
+    @Test("every app in the fallback table reaches the fallback, so no entry is shadowed")
+    func fallbackCategoriesAreReachable() {
+        for bundleID in GenericProvider.categories.keys.sorted() {
+            let first = ProviderRegistry().resolve(for: Self.app(bundleID, bundleID)).first
+            #expect(first?.identifier == GenericProvider.identifier, "\(bundleID)")
+        }
+    }
+
     static func classify(
         _ app: AppIdentity,
         title: String?,

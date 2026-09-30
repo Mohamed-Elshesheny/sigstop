@@ -828,6 +828,12 @@ everything else is evidence fed into it via `SignalContext`.
 `BuiltinProviders.all` lists the thirteen above `GenericProvider`, in this order; `GenericProvider`
 is the registry's fallback, not a member of that list.
 
+An app that has a provider of its own has no row in `GenericProvider.categories`. Every built-in
+provider returns a verdict, so the fallback is never asked about an app one of them claims, and a row
+for it would be a second, silently ignored classification that reads as if it mattered. Xcode had
+one, saying CODING at +1.2, while `XcodeProvider` decided everything. A test now resolves every row
+and fails if any of them is shadowed.
+
 ### 5.5 Third-party extension without touching core
 
 Two mechanisms, in order of preference. Neither was built: nothing reads a manifest from disk, and
