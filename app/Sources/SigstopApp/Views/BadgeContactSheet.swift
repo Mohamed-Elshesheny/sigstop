@@ -330,6 +330,10 @@ enum PromptRenderer {
             ("l4", .incident, .panel, [], 3, .cooldown),
             ("l4-battery", .incident, .notification, [], 3, .cooldown),
         ]
+        let minutes = SigstopSettings.default.breakDurationMinutes
+        let text = template.text
+            .replacingOccurrences(of: "{breakLength}", with: SlotResolver.spokenLength(minutes: minutes))
+            .replacingOccurrences(of: "{breakSeconds}", with: String(minutes * 60))
         for (suffix, level, channel, snooze, skipArmsAfter, ifIgnored) in cases {
             let request = PromptRequest(
                 cycle: CycleID.initial, level: level, channel: channel,
@@ -337,7 +341,7 @@ enum PromptRenderer {
                 snoozeOffered: snooze, ifIgnored: ifIgnored
             )
             let message = RenderedMessage(
-                templateID: template.id, title: nil, text: template.text,
+                templateID: template.id, title: nil, text: text,
                 tone: template.tone, category: template.category, escalation: level,
                 isFallback: false
             )
