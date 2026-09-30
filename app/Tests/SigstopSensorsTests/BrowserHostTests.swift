@@ -15,6 +15,8 @@ struct BrowserHostTests {
             "http://localhost:3000/admin?key=secret": "localhost",
             "https://WWW.GitHub.com/Foo": "github.com",
             "https://user:pw@internal.example.com/secret": "internal.example.com",
+            "http://127.0.0.1:8080/admin": "127.0.0.1",
+            "http://[::1]:3000/admin": "::1",
         ]
         for (raw, expected) in cases {
             let host = AccessibilityCollector.host(from: raw)
@@ -33,6 +35,18 @@ struct BrowserHostTests {
             "chrome://settings/passwords",
             "",
             "not a url at all",
+        ] {
+            #expect(AccessibilityCollector.host(from: raw) == nil, "\(raw) should be refused")
+        }
+    }
+
+    @Test("a percent-encoded host cannot carry a path or an address out")
+    func encodedHostsAreRefused() {
+        for raw in [
+            "https://github.com%2Fsecret%2Fpath/",
+            "https://a%40b.example.com/x",
+            "https://example.com%3Fq%3Dtoken/",
+            "https://example.com%23frag/",
         ] {
             #expect(AccessibilityCollector.host(from: raw) == nil, "\(raw) should be refused")
         }

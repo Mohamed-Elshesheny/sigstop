@@ -506,7 +506,9 @@ page. `ContextEngine` passes the host only when `permissions.browserHostPermitte
 which is `browserHostEnabled && tier1`. Settings has the switch, under the title switch and
 disabled while titles are off. `BrowserHostTests` asserts that a path, a query, a fragment,
 credentials and a port are all gone, and that `file:` and `https:` never cross into each other's
-parser. `ConfidenceEngine.observation` then keeps the host whenever Tier 1 was *available*, not
+parser. The host is read still percent-encoded and refused unless every character is a letter, a
+digit, `.`, `-`, `_` or an IPv6 `:`, because `URL.host` decodes, and `github.com%2Fa%2Fb` would
+otherwise come back as `github.com/a/b`: only a bare host can leave the function. `ConfidenceEngine.observation` then keeps the host whenever Tier 1 was *available*, not
 only when Tier 1 was *cited*: a plain page cites nothing above Tier 0, and gating on the citation
 threw the host away between the collector and the panel. `BrowserHostPublicationTests` holds that
 line. `tiersUsed` is still derived from the evidence alone, so the host never raises a ceiling.

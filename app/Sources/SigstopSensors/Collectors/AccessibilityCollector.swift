@@ -240,12 +240,15 @@ public final class AccessibilityCollector: @unchecked Sendable {
         }
     }
 
+    static let hostCharacters = Set("abcdefghijklmnopqrstuvwxyz0123456789.-_:")
+
     static func host(from raw: String) -> String? {
         guard let url = URL(string: raw),
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
-              let host = url.host?.lowercased(),
-              !host.isEmpty
+              let host = url.host(percentEncoded: true)?.lowercased(),
+              !host.isEmpty,
+              host.allSatisfy(hostCharacters.contains)
         else { return nil }
         return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
     }
