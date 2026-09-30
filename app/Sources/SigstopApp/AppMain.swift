@@ -171,6 +171,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             renderIcon()
             indicatorSeen = model.indicator
             trackIcon()
+            followSystemAppearance(of: button)
         }
 
         content.sizingOptions = [.preferredContentSize]
@@ -187,6 +188,26 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(3))
                 self?.model.takeBreakNow()
+            }
+        }
+    }
+
+    private var appearanceObservation: NSKeyValueObservation?
+
+    private func followSystemAppearance(of button: NSStatusBarButton) {
+        appearanceObservation = button.observe(\.effectiveAppearance) { [weak self] _, _ in
+            Task { @MainActor in self?.renderIcon() }
+        }
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard let self else { return }
+                Brand.apply(self.model.settings.appearance, pinning: self.item.button)
+                self.renderIcon()
             }
         }
     }
