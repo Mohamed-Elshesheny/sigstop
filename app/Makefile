@@ -1,6 +1,6 @@
 # sigstop, build with Command Line Tools only. No Xcode required.
 .DEFAULT_GOAL := help
-.PHONY: help build bundle run test doctor fmt lint clean dev-cert verify verify-shipped dmg release badges badges-check
+.PHONY: help build bundle run test bench smoke doctor clean dev-cert verify verify-shipped dmg release badges badges-check
 
 APP     := sigstop
 CONFIG  ?= release
@@ -21,16 +21,14 @@ run: bundle ## Build, bundle, and launch
 	@open $(BUNDLE)
 	@echo "launched, look in the menu bar"
 
-# swift-testing ships INSIDE Command Line Tools but is not on any default search
-# path, and its Foundation cross-import overlay has a broken module symlink there.
-# These four flags are the whole reason `swift test` works without Xcode:
+# swift-testing ships inside the toolchain but is not on any default search path, and
+# its Foundation cross-import overlay has a broken module symlink under Command Line
+# Tools. Command Line Tools puts the framework here; a machine with full Xcode selected
+# puts it under the developer directory instead, which is what a GitHub runner has. Ask,
+# then fall back, so the same `make test` works on a laptop and in CI. The four flags:
 #   -F / -Xlinker -F   find Testing.framework at compile and link time
 #   -rpath             let the built test bundle dlopen it (DYLD_* is stripped by SIP)
 #   -disable-cross-import-overlay-search   skip the broken _Testing_Foundation overlay
-# swift-testing ships inside the toolchain but is not on any default search path.
-# Command Line Tools puts it here; a machine with full Xcode selected puts it under the
-# developer directory instead, which is what a GitHub runner has. Ask, then fall back,
-# so the same `make test` works on a laptop and in CI.
 TESTING_FW := $(shell test -d "$$(xcode-select -p 2>/dev/null)/Library/Developer/Frameworks" \
                 && echo "$$(xcode-select -p)/Library/Developer/Frameworks" \
                 || echo /Library/Developer/CommandLineTools/Library/Developer/Frameworks)
@@ -66,12 +64,6 @@ badges-check: ## Fail if Exports/badges.json has drifted from the Swift catalogu
 
 doctor: ## Print exactly what the app can observe right now
 	@swift run -c $(CONFIG) $(APP) --doctor
-
-fmt: ## Format sources
-	@swift-format format -i -r Sources Tests && echo "formatted"
-
-lint: ## Lint sources
-	@swift-format lint -r Sources Tests
 
 verify: bundle ## Prove the privacy claims against the built binary
 	@BUNDLE=$(BUNDLE) ./Scripts/verify.sh
