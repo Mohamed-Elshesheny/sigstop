@@ -809,7 +809,7 @@
     },
     {
       "id": "xcode.signing.no-fixing-this",
-      "text": "Provisioning profile expired. That does not get fixed in {breakLength}, so do not spend {breakLength} trying.",
+      "text": "Provisioning profile expired. That does not get fixed in {breakLength}, so spend {breakLength} away from it.",
       "tone": "sarcastic",
       "category": "xcode",
       "escalation": {
@@ -2185,7 +2185,7 @@
     },
     {
       "id": "chat.generic.context-switch-reset",
-      "text": "Lots of context-switching in chat. A break resets it faster than another scroll.",
+      "text": "Lots of context-switching in chat. Let a break be the reset instead of another scroll.",
       "tone": "friendly",
       "category": "chat_context",
       "escalation": {
