@@ -142,7 +142,11 @@ final class StatusItemController: NSObject, NSWindowDelegate {
     private let item: NSStatusItem
     private let panel = MenuBarPanel()
     private lazy var content = PanelHostingController(
-        rootView: PanelChrome(model: model, openSettings: { [weak self] in self?.openSettings() })
+        rootView: PanelChrome(
+            model: model,
+            openSettings: { [weak self] in self?.openSettings() },
+            openAbout: { [weak self] in self?.openSettings(on: .about) }
+        )
     )
     private var settingsWindow: NSWindow?
     private var outsideClickMonitor: Any?
@@ -382,11 +386,14 @@ final class StatusItemController: NSObject, NSWindowDelegate {
         )
     }
 
-    func openSettings() {
+    func openSettings(on pane: SettingsView.Pane? = nil) {
         dismiss()
         model.refreshRollup(force: true)
 
         if let existing = settingsWindow {
+            if let pane {
+                existing.contentViewController = settingsContent(on: pane)
+            }
             NSApp.activate(ignoringOtherApps: true)
             existing.makeKeyAndOrderFront(nil)
             return
@@ -400,9 +407,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
             defer: false
         )
         window.title = "sigstop Settings"
-        window.contentViewController = NSHostingController(
-            rootView: SettingsView(model: model).environment(\.locale, DisplayLocale.english(from: .current))
-        )
+        window.contentViewController = settingsContent(on: pane ?? .rhythm)
         window.isReleasedWhenClosed = false
         window.delegate = self
         var frame = window.frameRect(forContentRect: content)
@@ -412,6 +417,13 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    private func settingsContent(on pane: SettingsView.Pane) -> NSViewController {
+        NSHostingController(
+            rootView: SettingsView(model: model, initialPane: pane)
+                .environment(\.locale, DisplayLocale.english(from: .current))
+        )
     }
 }
 
@@ -460,11 +472,12 @@ private final class PanelHostingController: NSHostingController<PanelChrome> {
 private struct PanelChrome: View {
     let model: AppModel
     let openSettings: () -> Void
+    let openAbout: () -> Void
 
     private static let cornerRadius = 12.0
 
     var body: some View {
-        MenuBarView(model: model, openSettings: openSettings)
+        MenuBarView(model: model, openSettings: openSettings, openAbout: openAbout)
             .background(PopoverMaterial())
             .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
             .overlay(

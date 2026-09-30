@@ -11,6 +11,7 @@ struct MenuBarView: View {
 
     let model: AppModel
     var openSettings: () -> Void = {}
+    var openAbout: () -> Void = {}
 
     @State private var showEvidence: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -23,9 +24,15 @@ struct MenuBarView: View {
 
     private static let command = "❯"
 
-    init(model: AppModel, openSettings: @escaping () -> Void = {}, expandEvidence: Bool = false) {
+    init(
+        model: AppModel,
+        openSettings: @escaping () -> Void = {},
+        openAbout: @escaping () -> Void = {},
+        expandEvidence: Bool = false
+    ) {
         self.model = model
         self.openSettings = openSettings
+        self.openAbout = openAbout
         _showEvidence = State(initialValue: expandEvidence)
     }
 
@@ -463,7 +470,7 @@ struct MenuBarView: View {
             }
 
             if let version = model.updates.state.offeredVersion {
-                railLink("Update to \(version)…") { openSettings() }
+                railLink("Update to \(version)…") { openAbout() }
             }
         }
     }
