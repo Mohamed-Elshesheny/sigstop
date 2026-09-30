@@ -564,14 +564,14 @@ engine is allowed to *say*.
 | `idle` | input resumes | gap `< qualifyingBreak`, ladder parked | `ignored` | **resume the ladder at its rung**; gap ages `totalElapsed`, not `ladderElapsed` |
 | `idle` | input resumes | gap `< qualifyingBreak` | `working` or `breakDue` | resume clock; re-evaluate `W >= T` |
 | `idle` | input resumes | gap `>= qualifyingBreak` | `working` | reset, record break, close any open cycle honored |
-| `idle` | gap `>= sessionGap` | — | `working` (new session) | finalize session |
+| any but `breakActive` and `quiet` | the session ends: a gap reaches `sessionGap`, or the 04:00 boundary | — | `working`, armed at `T` | withdraw and close any open cycle `.expired`; a stand-down or cooldown ends with the session (rule 4) |
 | `quiet` | window ends | `W >= T` | `breakDue` | fresh cycle, fresh deferral clocks — **never a backlog** |
 | `quiet` | window ends | `W < T` | `working` | — |
 | `quiet` | user picks "break now" | — | `breakActive` | begin break, `origin: .userInitiated`; the break keeps the quiet state (`BreakActive.quietBefore`) |
 | `quiet` | gap ≥ `qualifyingBreak` | the quiet still holds | `quiet` | break recorded, backoff reset, the quiet state is left alone (rule 3) |
 | any | user pauses the app | — | `quiet(.userPaused)` | duration chosen by user: one hour, or until the next day boundary (§14, 04:00 by default); measurement continues |
 
-Three structural rules the table encodes:
+Four structural rules the table encodes:
 
 1. **A break taken without being asked always closes the open cycle as honored.** The user walking away
    on their own is the success case, not a missed prompt.
@@ -591,6 +591,15 @@ Three structural rules the table encodes:
    every qualifying break does. Quiet hours and the daily cap used to come back on their own at the
    next due point, by opening a cycle and closing it in the same step; going straight back means the
    indicator says quiet in between rather than working, and no cycle is opened only to be excluded.
+4. **A cycle never outlives its session.** The session model ends a session on a gap of
+   `sessionGap` and at the 04:00 boundary, and resets the work clock with it. A system sleep that
+   long records no break (§4.1 row 13), so nothing used to close the cycle: a prompt left up when
+   the lid closed became an ignored prompt on waking, a ladder resumed at whatever rung the sleep
+   had carried it to, and a cycle held behind the lock screen prompted at zero minutes of work the
+   moment it opened. The engine now reads `.sessionEnded` from `sessionEvents`, closes any open
+   cycle `.expired`, and starts the new session armed at `T`. The break itself is the session
+   model's to judge, so the cycle is not closed honored; a pause or quiet hours that still hold
+   are left alone, and a running break ends by its own timer.
 
 ---
 

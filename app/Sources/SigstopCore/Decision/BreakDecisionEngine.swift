@@ -57,6 +57,10 @@ public struct EngineInput: Sendable {
     public var qualifyingBreakObserved: Bool {
         sessionEvents.contains { if case .breakRecorded = $0 { return true } else { return false } }
     }
+
+    public var sessionEnded: Bool {
+        sessionEvents.contains { if case .sessionEnded = $0 { return true } else { return false } }
+    }
 }
 
 public struct EngineOutcome: Sendable {
@@ -131,6 +135,16 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.setIndicator(.working))
             let working = WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork)
             return EngineOutcome(state: .working(working), effects: effects, day: day, verdict: nil)
+        }
+
+        if input.sessionEnded, !isBreakActive(state), !isQuiet(state) {
+            if let cycle = state.openCycle {
+                if case .snoozed = state { effects.append(.cancelScheduledWake) }
+                effects.append(.withdrawPrompt(cycle: cycle, reason: .cycleExpired))
+                effects.append(.closeCycle(cycle, .expired))
+                day.excludedOpportunities += 1
+            }
+            state = .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
         }
 
         let inQuietWindow = input.settings.quietHours.contains(input.now, calendar: input.calendarSystem)
@@ -784,5 +798,9 @@ public struct BreakDecisionEngine: Sendable {
 
     private func isBreakActive(_ state: EngineState) -> Bool {
         if case .breakActive = state { return true } else { return false }
+    }
+
+    private func isQuiet(_ state: EngineState) -> Bool {
+        if case .quiet = state { return true } else { return false }
     }
 }
