@@ -186,20 +186,17 @@ public enum GitHead: String, Sendable, Hashable, Codable {
 public struct GitSignal: Sendable, Hashable, Codable {
     public let branch: String?
     public let repoState: RepoState?
-    public let repoName: String?
     public let readAt: Date
     public let headInReftable: Bool
 
     public init(
         branch: String?,
         repoState: RepoState?,
-        repoName: String?,
         readAt: Date,
         headInReftable: Bool = false
     ) {
         self.branch = branch
         self.repoState = repoState
-        self.repoName = repoName
         self.readAt = readAt
         self.headInReftable = headInReftable
     }

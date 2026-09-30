@@ -60,10 +60,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         deadline: 0.1,
         reader: { folder, now in
             if folder.hasSuffix("dead") { _ = stuck.wait(timeout: .now() + 10) }
-            return .success(GitSignal(
-                branch: "main", repoState: .clean,
-                repoName: (folder as NSString).lastPathComponent, readAt: now
-            ))
+            return .success(GitSignal(branch: "main", repoState: .clean, readAt: now))
         }
     )
 
@@ -104,7 +101,6 @@ private func collector(gitOn: Bool) -> GitCollector {
     let result = GitCollector.readRepository(at: repo, now: Date())
     #expect(try! result.get().branch == "fix/retry-loop")
     #expect(try! result.get().repoState == .clean)
-    #expect(try! result.get().repoName == "sigstop")
 }
 
 @Test func aDetachedHeadIsNotPresentedAsABranch() {
@@ -561,7 +557,6 @@ private extension Sandbox {
     #expect(scan.signal?.branch == nil)
     #expect(scan.signal?.head == .detached)
     #expect(scan.signal?.repoState == .detachedHead)
-    #expect(scan.signal?.repoName == "beta")
     box.keepAlive()
 }
 
@@ -595,7 +590,7 @@ private extension Sandbox {
     }
     let without = observe(nil)
     let with = observe(GitSignal(
-        branch: "fix/retry-loop", repoState: .clean, repoName: "sigstop", readAt: Date()
+        branch: "fix/retry-loop", repoState: .clean, readAt: Date()
     ))
     #expect(with.context.branch == "fix/retry-loop")
     #expect(with.confidence.value == without.confidence.value)
@@ -610,7 +605,7 @@ private extension Sandbox {
         frontmost: editor,
         input: InputActivity(idleSeconds: 3, source: .hidSystemState),
         windowTitle: "main.swift — sigstop",
-        git: GitSignal(branch: "secret", repoState: .clean, repoName: "sigstop", readAt: Date())
+        git: GitSignal(branch: "secret", repoState: .clean, readAt: Date())
     )
     let classified = ProviderRegistry().classify(signals)
     let observation = ConfidenceEngine.observation(
@@ -628,7 +623,7 @@ private extension Sandbox {
         input: InputActivity(idleSeconds: 3, source: .hidSystemState),
         windowTitle: "main.swift — sigstop",
         git: GitSignal(
-            branch: "main", repoState: .rebaseInProgress, repoName: "sigstop", readAt: Date()
+            branch: "main", repoState: .rebaseInProgress, readAt: Date()
         )
     )
     let classified = ProviderRegistry().classify(signals)
@@ -655,7 +650,7 @@ private extension Sandbox {
             windowTitle: "main.swift — sigstop",
             git: GitSignal(
                 branch: state == .detachedHead ? nil : "main",
-                repoState: state, repoName: "sigstop", readAt: Date()
+                repoState: state, readAt: Date()
             )
         )
         let summaries = ProviderRegistry().classify(signals).verdict.evidence

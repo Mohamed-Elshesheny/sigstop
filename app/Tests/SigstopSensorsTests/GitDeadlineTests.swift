@@ -16,7 +16,7 @@ struct GitDeadlineTests {
         let value: Result<GitSignal, GitCollector.GitReadFailure>? = await withCheckedContinuation { continuation in
             once.attach(continuation, deadline: deadline)
             deadline.resume()
-            once.resume(.success(GitSignal(branch: "main", repoState: .clean, repoName: nil, readAt: Date())))
+            once.resume(.success(GitSignal(branch: "main", repoState: .clean, readAt: Date())))
         }
 
         #expect((try? value?.get())?.branch == "main")

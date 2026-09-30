@@ -293,7 +293,6 @@ public final class GitCollector: @unchecked Sendable {
                 return .success(GitSignal(
                     branch: branch,
                     repoState: repoState(in: gitDirectory, detached: parsed.detached && branch == nil),
-                    repoName: (folder as NSString).lastPathComponent,
                     readAt: now,
                     headInReftable: parsed.reftable
                 ))
