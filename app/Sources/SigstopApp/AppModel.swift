@@ -131,6 +131,7 @@ final class AppModel {
     @ObservationIgnored private var persistedDay: DailyCounters?
     @ObservationIgnored private var badgesLeftAlone = false
     @ObservationIgnored private var countersLeftAlone = false
+    @ObservationIgnored private var settingsLeftAlone: Bool
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private var observerTasks: [Task<Void, Never>] = []
     @ObservationIgnored private var pendingAction: UserAction?
@@ -176,9 +177,11 @@ final class AppModel {
     }
 
     init() {
-        let loaded = SettingsStore.load()
+        let read = SettingsStore.read()
+        let loaded = read.settings
         let policy = Self.policy(for: loaded)
 
+        self.settingsLeftAlone = read.unreadable
         self.settings = loaded
         self.policy = policy
         self.workTarget = policy.targetContinuousWork
@@ -297,7 +300,9 @@ final class AppModel {
 
     func update(settings newValue: SigstopSettings) {
         guard newValue != settings else { return }
-        if SettingsStore.save(newValue) {
+        if settingsLeftAlone {
+            surfaceFilesLeftAlone()
+        } else if SettingsStore.save(newValue) {
             clearStoreError(prefixed: Self.settingsFailurePrefix)
         } else {
             lastStoreError = "\(Self.settingsFailurePrefix) to \(AppPaths.settingsFile.path), "
@@ -753,10 +758,10 @@ final class AppModel {
     }
 
     private func surfaceFilesLeftAlone() {
-        guard let store else { return }
         let files = [
-            badgesLeftAlone ? store.badgesFile.path : nil,
-            countersLeftAlone ? store.countersFile.path : nil,
+            settingsLeftAlone ? AppPaths.settingsFile.path : nil,
+            badgesLeftAlone ? store?.badgesFile.path : nil,
+            countersLeftAlone ? store?.countersFile.path : nil,
         ].compactMap { $0 }
         guard !files.isEmpty else { return }
         let message = "\(Self.leftAlonePrefix) \(files.joined(separator: " and ")). "
@@ -1143,6 +1148,7 @@ final class AppModel {
             _ = InstanceLock.acquire(in: AppPaths.storageRoot)
             notifier.withdrawEverything()
             try? FileManager.default.removeItem(at: AppPaths.settingsFile)
+            settingsLeftAlone = false
             apply(settings: .default)
             latch = latch.resettingDailyHold()
             lastPersistedHold = 0

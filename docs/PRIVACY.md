@@ -884,11 +884,19 @@ holds impossible numbers, is only the day's budgets, so the app starts them fres
 write replaces the file. A badge write that fails for any other reason says "Could not write the
 badges", is tried again with the next summary write, and the message goes once one succeeds.
 
+`settings.json` is the one file here a person is invited to edit, so it is the one most likely to
+hold a value this build does not know, a hand-typed `"Nuclear"` or a tone added by a newer sigstop.
+One unknown value fails the whole decode. The app then runs on the defaults, says in the menu bar
+that it left the file as it is, and keeps every change made in Settings in memory only, because
+saving would replace the project folders and opt-ins in that file with defaults nobody chose. It
+reads the file again at the next launch, and *Delete my data…* removes it like everything else.
+
 | File | There, but will not open | Opens, but will not decode |
 |---|---|---|
 | `summaries/YYYY-MM.json` | left as it is, that month is not written or read | moved aside to `.unreadable`, the month starts again; written by a newer sigstop, left as it is and not read |
 | `badges.json` | left as it is, nothing written over it | left as it is, nothing written over it |
 | `counters.json` | left as it is, nothing written over it | started fresh, replaced at the next write |
+| `settings.json` | left as it is, nothing written over it | left as it is, nothing written over it |
 
 There is no database, no binary blob, no `.sqlite`, and nothing encrypted or encoded. Formats were
 chosen so that `cat` is a complete audit tool.

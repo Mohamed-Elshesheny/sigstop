@@ -24,11 +24,19 @@ enum AppPaths {
 
 enum SettingsStore {
     static func load() -> SigstopSettings {
-        guard let data = FileManager.default.contents(atPath: AppPaths.settingsFile.path) else {
-            return .default
+        read().settings
+    }
+
+    static func read() -> (settings: SigstopSettings, unreadable: Bool) {
+        let path = AppPaths.settingsFile.path
+        guard let data = FileManager.default.contents(atPath: path) else {
+            return (.default, FileManager.default.fileExists(atPath: path))
         }
         tightenPermissions()
-        return (try? JSONDecoder().decode(SigstopSettings.self, from: data)) ?? .default
+        guard let settings = try? JSONDecoder().decode(SigstopSettings.self, from: data) else {
+            return (.default, true)
+        }
+        return (settings, false)
     }
 
     private static func tightenPermissions() {
