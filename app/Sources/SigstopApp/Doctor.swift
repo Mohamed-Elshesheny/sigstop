@@ -588,9 +588,7 @@ enum Doctor {
         guard FileManager.default.fileExists(atPath: root.path) else {
             out.append("  days on disk     nothing stored yet, the app has not run here")
             out.append("")
-            out.append("  Never stored, by construction: window titles, URLs, file paths, document text,")
-            out.append("  keystrokes, clipboard contents, screen contents, message text. There is no")
-            out.append("  field in the log's type that could hold one.")
+            out.append(contentsOf: neverStored)
             return out
         }
         if let store = try? FileEventStore(root: root), let days = try? store.availableDays() {
@@ -614,11 +612,15 @@ enum Doctor {
             out.append("  days on disk     could not read the store")
         }
         out.append("")
-        out.append("  Never stored, by construction: window titles, URLs, file paths, document text,")
-        out.append("  keystrokes, clipboard contents, screen contents, message text. There is no")
-        out.append("  field in the log's type that could hold one.")
+        out.append(contentsOf: neverStored)
         return out
     }
+
+    private static let neverStored = [
+        "  Never stored: window titles, URLs, file paths, document text, keystrokes,",
+        "  clipboard contents, screen contents, message text. No field in the log is ever",
+        "  written with one: sig, the only slot shaped for a title, is always left empty.",
+    ]
 
     private static func cameraText(_ state: CameraInputState) -> String {
         switch state {
