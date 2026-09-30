@@ -7,30 +7,19 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
     public private(set) var endedAt: Date?
 
     public private(set) var continuousActiveWork: TimeInterval = 0
-    public private(set) var totalActiveWork: TimeInterval = 0
-    public private(set) var peakContinuousActiveWork: TimeInterval = 0
     public private(set) var clock: WorkClockState = .running
     public private(set) var provisionalGraceCredit: TimeInterval = 0
 
-    public private(set) var observedElapsed: TimeInterval = 0
-
-    public private(set) var lastBreakAt: Date?
     public private(set) var lastBreakEndedAt: Date?
     public private(set) var breakCount: Int = 0
-    public private(set) var abandonedBreakCount: Int = 0
     public private(set) var skippedBreakCount: Int = 0
-    public private(set) var snoozeCount: Int = 0
-    public private(set) var ignoredPromptCount: Int = 0
-    public private(set) var resetCount: Int = 0
 
     public private(set) var lastInputAt: Date
     public private(set) var idleDuration: TimeInterval = 0
-    public private(set) var accumulatedIdle: TimeInterval = 0
 
     public private(set) var activeApplication: AppIdentity?
     public private(set) var activity: Activity = .unknown
     public private(set) var activityConfidence: Confidence = .none
-    public private(set) var applicationSwitches: Int = 0
     public private(set) var recentSwitches: [Date] = []
     public private(set) var appActiveSeconds: [String: TimeInterval] = [:]
 
@@ -62,15 +51,10 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         return 0.6 * switchTerm + 0.4 * dominance
     }
 
-    mutating func observe(elapsed: TimeInterval) {
-        observedElapsed += max(0, elapsed)
-    }
-
     mutating func credit(_ amount: TimeInterval, provisional: TimeInterval, bundleID: String?) {
         guard amount > 0, isRunning else { return }
         let prov = max(0, min(provisional, amount))
         continuousActiveWork += amount
-        totalActiveWork += amount
         provisionalGraceCredit += prov
         if let bundleID {
             appActiveSeconds[bundleID, default: 0] += amount
@@ -98,8 +82,6 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         provisionalByApp.removeAll(keepingCapacity: true)
         guard amount > 0 else { return }
         continuousActiveWork = max(0, continuousActiveWork - amount)
-        totalActiveWork = max(0, totalActiveWork - amount)
-        accumulatedIdle += amount
     }
 
     mutating func pauseClock(cause: PauseCause, since: Date) {
@@ -118,18 +100,14 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         clock = .running
     }
 
-    mutating func reset(reason: ResetReason) {
-        peakContinuousActiveWork = max(peakContinuousActiveWork, continuousActiveWork)
+    mutating func reset() {
         continuousActiveWork = 0
         provisionalGraceCredit = 0
         provisionalByApp.removeAll(keepingCapacity: true)
-        resetCount += 1
-        _ = reason
     }
 
-    mutating func recordBreak(start: Date, end: Date) {
+    mutating func recordBreak(endingAt end: Date) {
         breakCount += 1
-        lastBreakAt = start
         lastBreakEndedAt = end
     }
 
@@ -138,18 +116,11 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         lastBreakEndedAt = end
     }
 
-    mutating func recordAbandonedBreak() { abandonedBreakCount += 1 }
     mutating func recordSkip() { skippedBreakCount += 1 }
-    mutating func recordSnooze() { snoozeCount += 1 }
-    mutating func recordIgnoredPrompt() { ignoredPromptCount += 1 }
 
     mutating func noteIdle(_ seconds: TimeInterval, lastInputAt inputDate: Date) {
         idleDuration = max(0, seconds)
         if inputDate > lastInputAt { lastInputAt = inputDate }
-    }
-
-    mutating func accumulateIdle(_ seconds: TimeInterval) {
-        accumulatedIdle += max(0, seconds)
     }
 
     mutating func note(
@@ -162,7 +133,6 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         if let application {
             if let current = activeApplication {
                 if current.bundleID != application.bundleID || current.pid != application.pid {
-                    applicationSwitches += 1
                     recentSwitches.append(now)
                     activeApplication = application
                 }
@@ -177,7 +147,6 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
 
     mutating func end(at date: Date) {
         guard endedAt == nil else { return }
-        peakContinuousActiveWork = max(peakContinuousActiveWork, continuousActiveWork)
         endedAt = date
         clock = .stopped
     }

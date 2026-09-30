@@ -129,8 +129,8 @@ public struct SessionTracker: Sendable {
         let start = breakStart?.wall ?? gap?.startWall ?? now
         let duration = mono - (breakStart?.mono ?? gap?.startMono ?? mono)
         if duration >= (threshold ?? policy.qualifyingBreak) {
-            session.reset(reason: .qualifyingBreak)
-            session.recordBreak(start: start, end: now)
+            session.reset()
+            session.recordBreak(endingAt: now)
             events.append(.clockReset(reason: .qualifyingBreak))
             events.append(.breakRecorded(origin: origin, start: start, end: now, duration: duration))
             gap = ActiveGap(
@@ -138,7 +138,6 @@ public struct SessionTracker: Sendable {
                 didReset: true, didRecordBreak: true
             )
         } else {
-            session.recordAbandonedBreak()
             gap = nil
         }
         breakStart = nil
@@ -149,8 +148,6 @@ public struct SessionTracker: Sendable {
     }
 
     public mutating func recordSkip() { session.recordSkip() }
-    public mutating func recordSnooze() { session.recordSnooze() }
-    public mutating func recordIgnoredPrompt() { session.recordIgnoredPrompt() }
 
     @discardableResult
     public mutating func tick(_ sample: TickSample) -> [SessionEvent] {
@@ -174,7 +171,6 @@ public struct SessionTracker: Sendable {
         lastTickMono = mono
         lastTickWall = now
 
-        session.observe(elapsed: delta)
         session.note(application: sample.application, activity: sample.activity, confidence: sample.confidence, at: now)
 
         let discontinuity = delta > policy.tickInterval + policy.tickTolerance
@@ -191,7 +187,7 @@ public struct SessionTracker: Sendable {
             let today = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
             if today != dayIndex {
                 dayIndex = today
-                session.reset(reason: .dayBoundary)
+                session.reset()
                 events.append(.clockReset(reason: .dayBoundary))
                 events.append(contentsOf: endSession(at: now))
             }
@@ -242,14 +238,7 @@ public struct SessionTracker: Sendable {
         events: inout [SessionEvent]
     ) {
         if gap == nil {
-            let startMono: Double
-            switch cause {
-            case .microIdleExceeded, .meetingNoInput:
-                startMono = lastInputMono
-            default:
-                startMono = min(lastInputMono, lastTickMonoBefore(mono: mono, discontinuity: discontinuity))
-            }
-            let clamped = min(startMono, mono)
+            let clamped = min(lastInputMono, mono)
             gap = ActiveGap(
                 cause: cause,
                 startMono: clamped,
@@ -286,10 +275,6 @@ public struct SessionTracker: Sendable {
         segment.didRecordBreak = false
         segment.didEndSession = false
         segment.lastReportedKind = nil
-    }
-
-    private func lastTickMonoBefore(mono: Double, discontinuity: Bool) -> Double {
-        mono
     }
 
     private mutating func closeGap(now: Date, mono: Double, events: inout [SessionEvent]) {
@@ -333,7 +318,7 @@ public struct SessionTracker: Sendable {
             }
             if duration >= policy.longPauseReset, !current.didReset {
                 current.didReset = true
-                session.reset(reason: .longPause)
+                session.reset()
                 events.append(.clockReset(reason: .longPause))
             }
 
@@ -349,9 +334,8 @@ public struct SessionTracker: Sendable {
             if !current.didRecordBreak, breakStart == nil {
                 current.didRecordBreak = true
                 current.didReset = true
-                session.reset(reason: .qualifyingBreak)
-                session.recordBreak(start: current.startWall, end: now)
-                session.accumulateIdle(duration)
+                session.reset()
+                session.recordBreak(endingAt: now)
                 events.append(.clockReset(reason: .qualifyingBreak))
                 events.append(.breakRecorded(origin: .idleInferred, start: current.startWall, end: now, duration: duration))
             }
@@ -369,7 +353,7 @@ public struct SessionTracker: Sendable {
                 current.didEndSession = true
                 if !current.didReset {
                     current.didReset = true
-                    session.reset(reason: .longPause)
+                    session.reset()
                     events.append(.clockReset(reason: .longPause))
                 }
                 events.append(contentsOf: endSession(at: current.startWall))
@@ -434,8 +418,7 @@ public struct SessionTracker: Sendable {
             concurrent: concurrent,
             continuousWork: session.continuousActiveWork,
             timeSinceLastBreak: session.timeSinceLastBreak(now: now),
-            idleSeconds: session.idleDuration,
-            applicationSwitches: session.applicationSwitches
+            idleSeconds: session.idleDuration
         )
     }
 

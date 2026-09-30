@@ -313,8 +313,7 @@ public final class ContextEngine {
             tiersUsed: gated.observation.tiersUsed,
             continuousWork: reading.continuousWork,
             timeSinceLastBreak: reading.timeSinceLastBreak,
-            idleSeconds: input.knownIdleSeconds ?? 0,
-            applicationSwitches: signals.switchCount(within: 60)
+            idleSeconds: input.knownIdleSeconds ?? 0
         )
 
         return ContextSample(

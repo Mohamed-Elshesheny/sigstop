@@ -48,7 +48,7 @@ and separately:
 
 | Effect | Meaning |
 |---|---|
-| **record break** | `breakCount += 1`, `lastBreakAt = gap.start`, `lastBreakEndedAt = gap.end` |
+| **record break** | `breakCount += 1`, `lastBreakEndedAt = gap.end` |
 | **end session** | finalize the `DeveloperSession`, start a new one on return |
 
 `gap.end` is the return, not the tick that decided the gap was a break. An idle-inferred break is
@@ -134,35 +134,31 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
     public private(set) var endedAt: Date?
 
     public private(set) var continuousActiveWork: TimeInterval = 0
-    public private(set) var totalActiveWork: TimeInterval = 0
-    public private(set) var peakContinuousActiveWork: TimeInterval = 0
     public private(set) var clock: WorkClockState = .running
     public private(set) var provisionalGraceCredit: TimeInterval = 0
 
-    public private(set) var observedElapsed: TimeInterval = 0
-
-    public private(set) var lastBreakAt: Date?
     public private(set) var lastBreakEndedAt: Date?
     public private(set) var breakCount: Int = 0
-    public private(set) var abandonedBreakCount: Int = 0
     public private(set) var skippedBreakCount: Int = 0
-    public private(set) var snoozeCount: Int = 0
-    public private(set) var ignoredPromptCount: Int = 0
-    public private(set) var resetCount: Int = 0
 
     public private(set) var lastInputAt: Date
     public private(set) var idleDuration: TimeInterval = 0
-    public private(set) var accumulatedIdle: TimeInterval = 0
 
     public private(set) var activeApplication: AppIdentity?
     public private(set) var activity: Activity = .unknown
     public private(set) var activityConfidence: Confidence = .none
-    public private(set) var applicationSwitches: Int = 0
     public private(set) var recentSwitches: [Date] = []
     public private(set) var appActiveSeconds: [String: TimeInterval] = [:]
 
     private var provisionalByApp: [String: TimeInterval] = [:]
 ```
+
+The session is the live clock and nothing else. It is never saved, and the day's totals, the
+longest stretch and the break counts in the uptime panel are all computed from the event log
+(§14), so the session keeps only what the tick loop, the engine and the prompt read. It used to
+also keep a total, a peak, the elapsed time, snooze, ignore, reset and abandoned-break counters,
+the accumulated idle and the start of the last break, which were written on every tick and read
+by nothing.
 
 ### 2.3 Focus estimate
 
@@ -242,7 +238,6 @@ if skewed {
 lastTickMono = mono
 lastTickWall = now
 
-session.observe(elapsed: delta)
 session.note(application: sample.application, activity: sample.activity, confidence: sample.confidence, at: now)
 
 let discontinuity = delta > policy.tickInterval + policy.tickTolerance
@@ -707,10 +702,12 @@ and `focusModeActive` to `nil`. The rules that depend only on them cannot fire. 
 passes `frontmostIsFullscreen: false`, but that one is produced: `AppModel` overwrites it on every
 tick from window geometry (§7.1).
 
-The engine also reads from the session: `continuousActiveWork`, `timeSinceLastBreak`, `idleDuration`,
-`activity` + `activityConfidence`, `applicationSwitches`, `focusScore`, `snoozeCount`,
-`ignoredPromptCount`, `skippedBreakCount`, plus today's `notificationsDelivered` and
-`consecutiveIgnoredCycles`.
+From the session the engine reads, through `context`, `continuousWork`, `idleSeconds`, `activity`
+and `confidence` and the concurrent meeting state, and beside it `focusScore` and
+`lastBreakEndedAt`; from `day` it reads the day's counters, among them `notificationsDelivered`,
+`consecutiveIgnoredCycles` and the opportunities. It does not read snoozes, ignored prompts or
+skips from the session: it keeps those itself, per cycle and per day. The session's
+`skippedBreakCount` and `breakCount` are read by `AppModel`, for the prompt's copy.
 
 ---
 
@@ -1745,9 +1742,11 @@ substitution, and `CalendarSystemTests` pins both.
   `start` on your return, and the first stretch of the new session is work, not the tail of the
   old idle. It used to be counted as idle until the next pause, which lost the first stretch of
   every morning after the Mac had slept.
-- **`longestContinuousSession`** — `max` over the day of `peakContinuousActiveWork`, sampled at every
-  clock reset and again at day end so an in-flight stretch is included. Note this is a *continuous work
-  stretch*, not a `DeveloperSession`; the field name follows the everyday meaning.
+- **`longestContinuousSession`** — the longest run of credited work in the day's log, where a run
+  ends at a non-working stretch of `qualifyingBreak` or more, and includes the stretch still
+  running at the end of the log. Note this is a *continuous work stretch*, not a
+  `DeveloperSession`; the field name follows the everyday meaning. It is computed from the log, by
+  `DailyRollup.creditWork`, and not sampled from the live session, which keeps no peak.
 - **`totalBreakTime`** — the seconds inside the breaks `breakCount` counts, each measured the way
   its verdict is: the longer of its two timestamps and its `dur_s`. An idle-inferred break runs
   from the last input to the first input back, or to the session gap (§4.1 rows 5 and 10) if

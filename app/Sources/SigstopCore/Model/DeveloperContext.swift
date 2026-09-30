@@ -13,7 +13,6 @@ public struct DeveloperContext: Sendable, Codable, Hashable {
     public let continuousWork: TimeInterval
     public let timeSinceLastBreak: TimeInterval?
     public let idleSeconds: TimeInterval
-    public let applicationSwitches: Int
 
     public init(
         timestamp: Date,
@@ -26,8 +25,7 @@ public struct DeveloperContext: Sendable, Codable, Hashable {
         tiersUsed: SignalTierSet = [.tier0],
         continuousWork: TimeInterval = 0,
         timeSinceLastBreak: TimeInterval? = nil,
-        idleSeconds: TimeInterval = 0,
-        applicationSwitches: Int = 0
+        idleSeconds: TimeInterval = 0
     ) {
         self.timestamp = timestamp
         self.application = application
@@ -40,7 +38,6 @@ public struct DeveloperContext: Sendable, Codable, Hashable {
         self.continuousWork = continuousWork
         self.timeSinceLastBreak = timeSinceLastBreak
         self.idleSeconds = idleSeconds
-        self.applicationSwitches = applicationSwitches
     }
 
     public var continuousWorkMinutes: Int { Int(continuousWork / 60) }

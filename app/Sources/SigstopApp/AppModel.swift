@@ -586,12 +586,8 @@ final class AppModel {
         case .recordSkip:
             tracker.recordSkip()
 
-        case .recordIgnoredPrompt(let cycle):
-            guard promptWasPresented(cycle: cycle) else { break }
-            tracker.recordIgnoredPrompt()
-
-        case .recordSnooze:
-            tracker.recordSnooze()
+        case .recordIgnoredPrompt, .recordSnooze:
+            break
         }
     }
 
@@ -669,11 +665,6 @@ final class AppModel {
 
     private var canPresentNow: Bool {
         !(lastVerdict?.isHardBlocked ?? false)
-    }
-
-    private func promptWasPresented(cycle: CycleID?) -> Bool {
-        guard let cycle, let presentation, presentation.request.cycle == cycle else { return false }
-        return presentation.verifiedAt != nil
     }
 
     private var logContext: EffectLogContext {
