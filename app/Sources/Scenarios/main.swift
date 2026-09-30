@@ -270,10 +270,18 @@ let scenarios: [Scenario] = [
             Beat(2, note: "back to work"),
         ],
         check: { w in
-            let opened = w.trace.filter { $0.line.contains("cycle opened") }.count
-            if opened < 1 { return "the break never started" }
-            let immediate = w.trace.contains { $0.line.contains("PROMPT") }
-            return immediate ? nil : "no prompt at all"
+            let accepted: TimeInterval = 6 * 60
+            guard let began = w.trace.first(where: { $0.at > accepted && $0.line == "state -> onBreak" }) else {
+                return "the break never started after it was accepted"
+            }
+            guard let ended = w.trace.first(where: { $0.at > began.at && $0.line == "cycle closed: honored" }) else {
+                return "the break started at \(Int(began.at))s and never ended as an honored break"
+            }
+            if let next = w.trace.first(where: { $0.at > ended.at && $0.line == "cycle opened" }) {
+                return "the next cycle opened \(Int(next.at - ended.at))s after the break ended, "
+                    + "against a five minute target"
+            }
+            return nil
         }
     ),
 
