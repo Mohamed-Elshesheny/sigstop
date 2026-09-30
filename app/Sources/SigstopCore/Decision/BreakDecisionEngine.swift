@@ -429,7 +429,7 @@ public struct BreakDecisionEngine: Sendable {
         e.withdrawnForBlock = false
         e.ladderElapsed += dt
 
-        var target = ladderLevel(for: e, input: input)
+        let target = ladderLevel(for: e, input: input)
         if target > e.level { e.level = target }
 
         if e.level != .first, !e.deliveredLevels.contains(e.level), verdict.isDeliverable {
