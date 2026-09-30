@@ -114,7 +114,9 @@ the day's rollup, or the session's own count when that is larger because the rol
 caught up yet; `skippedConsecutive` is the run of rounds nobody answered, the same count the
 backoff in `docs/BREAK-DECISION.md` reads; `takenToday` is the breaks taken this session. The
 `{streak}` slot prints `skippedToday` and nothing else, because every line that prints it is
-gated on that key, and a count that disagrees with its own gate is a false sentence.
+gated on that key, and a count that disagrees with its own gate is a false sentence. `facts`
+carries one key, `branchIsDefault`, and only when a branch is known. No `slotOverrides` are
+passed, so `{count}` is never filled. The lint (§4.4, L13) holds the corpus to exactly this set.
 
 ### 1.2 Predicates
 
@@ -649,6 +651,7 @@ actually hurt somebody was enforced by a paragraph. What is below is what runs.
 | L6 | `minConfidence` in `0...1`. If `claimsActivity` is true, `minConfidence >= 0.75` **and** at least one `app` or `activity` predicate is present. |
 | L7 | **Banned lexicon.** Case-insensitive regexes over `text`+`altText` across the six families §4.2 forbids. Each family carries a rationale that is printed with the failure, so a contributor is told which rail they hit rather than which regex. `.github/lint/banned-lexicon.json`, append-only. |
 | L9 | `text` at most 240 characters. |
+| L13 | **Every input is produced.** A declared slot, a `streak` key and a `fact` key must each be one the app fills: the slots `SlotResolver.table` builds without an override, the three streaks and the one fact §1.1 says `AppModel.deliver` passes. A missing fact fails its predicate even for `isFalse`, so a line that needs anything else can never be chosen, and it still counted towards the README's number. Fifteen such lines were removed rather than shipped as dead weight: `{count}`, `editorTabCount`, `buildRunning`, `testsFailing`, `prOpenInForeground`, `ciPending`, `hasUncommittedChanges`, `buildsWatchedInSession` and `sameCommandRepeats` have no producer, and the last of those facts is declined on principle (`--doctor` says why). The format still accepts every key, so a pack for a future collector parses; the lint is what keeps the shipped corpus honest. |
 
 **Warnings:**
 
@@ -1058,7 +1061,7 @@ Humor does not translate; it gets rewritten. The format is built for that.
 1. **Activity inference accuracy is unmeasured.** The confidence thresholds in §6 are
    reasoned, not fitted. They need calibration against labeled sessions before the 0.85 tier
    can be trusted; until then, ship conservative (raise floors, accept more generic lines).
-2. **The ledger's 72h cooldown assumes a ~40-line-per-context corpus.** With the 230-line
+2. **The ledger's 72h cooldown assumes a ~40-line-per-context corpus.** With the 215-line
    corpus, a heavy user in one app will hit relaxation stage 2–3 within a week. Either
    the corpus grows or the cooldown shortens — instrument before choosing.
 3. **NUCLEAR opt-in default.** Defaulting it off means most users never see the best lines;

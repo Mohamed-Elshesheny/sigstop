@@ -34,6 +34,13 @@ SHOUT = re.compile(r"\b[A-Z]{2,}\b(?:\s+\b[A-Z]{2,}\b)+")
 STOP = {"the","a","an","you","your","and","is","are","it","that","this","to","of",
         "for","in","on","have","has","been","not","one","be","at","with","was"}
 
+# What the app actually hands the engine, from AppModel.deliver and SlotResolver.table.
+# A line that needs anything else can never be chosen, and it still counted towards the
+# number on the README. Widen these in the same commit that starts producing the input.
+PRODUCED_SLOTS = {"app", "minutes", "project", "branch", "activity", "streak", "hour"}
+PRODUCED_STREAKS = {"skippedToday", "skippedConsecutive", "takenToday"}
+PRODUCED_FACTS = {"branchIsDefault"}
+
 fails: list[str] = []
 warns: list[str] = []
 
@@ -107,6 +114,15 @@ def main() -> int:
                         f"L7 {mid}: {hit.group(0)!r} is in the {fam['family']} family\n"
                         f"       {fam['rationale']}"
                     )
+
+        # L13 every input the line needs is one the app produces
+        for s in sorted(declared - PRODUCED_SLOTS):
+            fails.append(f"L13 {mid}: slot {s!r} is never filled, so the line can never be chosen")
+        for w in m.get("when", []):
+            if w.get("p") == "streak" and w.get("key") not in PRODUCED_STREAKS:
+                fails.append(f"L13 {mid}: streak {w.get('key')!r} is never counted, so the line can never be chosen")
+            if w.get("p") == "fact" and w.get("key") not in PRODUCED_FACTS:
+                fails.append(f"L13 {mid}: fact {w.get('key')!r} is never answered, so the line can never be chosen")
 
         # L9  length
         if len(m.get("text", "")) > 240:

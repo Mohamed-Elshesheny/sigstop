@@ -10,44 +10,6 @@
   "defaultWeight": 1.0,
   "messages": [
     {
-      "id": "cursor.ai.hostage-situation",
-      "text": "You've accepted {count} suggestions in a row without reading one. That's not pair programming, that's a hostage situation.",
-      "tone": "roast",
-      "category": "ai_pairing",
-      "escalation": {
-        "min": 2,
-        "max": 4
-      },
-      "minConfidence": 0.85,
-      "requiredSlots": [
-        "count"
-      ],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "app",
-          "in": [
-            "cursor"
-          ]
-        },
-        {
-          "p": "activity",
-          "in": [
-            "aiCoding"
-          ]
-        },
-        {
-          "p": "workBand",
-          "in": [
-            "deep",
-            "marathon",
-            "absurd"
-          ]
-        }
-      ],
-      "claimsActivity": true
-    },
-    {
       "id": "cursor.ai.tab-tab-tab",
       "text": "Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five and go meet your new codebase.",
       "tone": "sarcastic",
@@ -428,33 +390,6 @@
       ],
       "claimsActivity": true,
       "theatrical": true
-    },
-    {
-      "id": "vscode.tabs.forty-seven-open",
-      "text": "Forty-seven tabs open in the editor, zero of them the file you're looking for. Close the laptop, open a door.",
-      "tone": "sarcastic",
-      "category": "editor_generic",
-      "escalation": {
-        "min": 1,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "app",
-          "in": [
-            "vscode"
-          ]
-        },
-        {
-          "p": "fact",
-          "key": "editorTabCount",
-          "match": "intAtLeast",
-          "value": 25
-        }
-      ]
     },
     {
       "id": "vscode.status.spinner-gave-up",
@@ -1284,39 +1219,6 @@
       "theatrical": true
     },
     {
-      "id": "terminal.build.watched-it-four-times",
-      "text": "That build takes six minutes and you've watched it four times. Twenty-four minutes of progress bar. You could have spent them standing.",
-      "tone": "roast",
-      "category": "terminal_build",
-      "escalation": {
-        "min": 2,
-        "max": 4
-      },
-      "minConfidence": 0.85,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "app",
-          "in": [
-            "terminal"
-          ]
-        },
-        {
-          "p": "activity",
-          "in": [
-            "terminalWork"
-          ]
-        },
-        {
-          "p": "streak",
-          "key": "buildsWatchedInSession",
-          "atLeast": 4
-        }
-      ],
-      "claimsActivity": true
-    },
-    {
       "id": "terminal.make.hope-is-not-a-build-system",
       "text": "You ran make again without changing anything. Hope is not a build system. Break.",
       "tone": "roast",
@@ -1343,85 +1245,6 @@
         }
       ],
       "claimsActivity": true
-    },
-    {
-      "id": "terminal.history.up-arrow-enter",
-      "text": "Your shell history for the last hour is up-arrow, enter, sixty times. Take five and come back with a different command.",
-      "tone": "roast",
-      "category": "terminal_build",
-      "escalation": {
-        "min": 2,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "app",
-          "in": [
-            "terminal"
-          ]
-        },
-        {
-          "p": "streak",
-          "key": "sameCommandRepeats",
-          "atLeast": 8
-        }
-      ]
-    },
-    {
-      "id": "terminal.npm.colonizing-node-modules",
-      "text": "The install has been running four minutes and has downloaded a small country. Go get air while it finishes colonizing node_modules.",
-      "tone": "sarcastic",
-      "category": "terminal_build",
-      "escalation": {
-        "min": 1,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "app",
-          "in": [
-            "terminal"
-          ]
-        },
-        {
-          "p": "fact",
-          "key": "buildRunning",
-          "match": "isTrue"
-        }
-      ]
-    },
-    {
-      "id": "terminal.repeat.control-group",
-      "text": "You have run the same failing command twenty-three times. YOU ARE THE CONTROL GROUP IN AN EXPERIMENT NOBODY IS RUNNING. STAND UP.",
-      "tone": "nuclear",
-      "category": "terminal_build",
-      "escalation": {
-        "min": 3,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "app",
-          "in": [
-            "terminal"
-          ]
-        },
-        {
-          "p": "streak",
-          "key": "sameCommandRepeats",
-          "atLeast": 15
-        }
-      ],
-      "theatrical": true
     },
     {
       "id": "terminal.cargo.commute-not-a-build",
@@ -1498,32 +1321,6 @@
           "in": [
             "terminal"
           ]
-        }
-      ]
-    },
-    {
-      "id": "terminal.generic.free-break-no-guilt",
-      "text": "Long compile. Free break, no guilt.",
-      "tone": "friendly",
-      "category": "terminal_build",
-      "escalation": {
-        "min": 1,
-        "max": 2
-      },
-      "minConfidence": 0.55,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "appFamily",
-          "in": [
-            "terminal"
-          ]
-        },
-        {
-          "p": "fact",
-          "key": "buildRunning",
-          "match": "isTrue"
         }
       ]
     },
@@ -1879,33 +1676,6 @@
       "claimsActivity": true
     },
     {
-      "id": "test.assert.changed-the-assertion",
-      "text": "Red, red, red, red. You've changed the assertion three times and the code zero times. Walk it off.",
-      "tone": "roast",
-      "category": "testing",
-      "escalation": {
-        "min": 2,
-        "max": 4
-      },
-      "minConfidence": 0.85,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "activity",
-          "in": [
-            "testing"
-          ]
-        },
-        {
-          "p": "fact",
-          "key": "testsFailing",
-          "match": "isTrue"
-        }
-      ],
-      "claimsActivity": true
-    },
-    {
       "id": "test.suite.forty-four-minutes-of-nothing",
       "text": "The suite takes eleven minutes and you haven't left the chair for any of the four runs. That's forty-four minutes of nothing. Go.",
       "tone": "roast",
@@ -1956,34 +1726,6 @@
         }
       ],
       "claimsActivity": true
-    },
-    {
-      "id": "test.flaky.ci-screening-your-calls",
-      "text": "You have re-run the flaky test so many times THE CI CLUSTER HAS STARTED SCREENING YOUR CALLS. Stand up. Touch a wall. Any wall.",
-      "tone": "nuclear",
-      "category": "testing",
-      "escalation": {
-        "min": 3,
-        "max": 4
-      },
-      "minConfidence": 0.85,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "activity",
-          "in": [
-            "testing"
-          ]
-        },
-        {
-          "p": "fact",
-          "key": "testsFailing",
-          "match": "isTrue"
-        }
-      ],
-      "claimsActivity": true,
-      "theatrical": true
     },
     {
       "id": "test.coverage.take-the-win",
@@ -2173,66 +1915,6 @@
       "claimsActivity": true
     },
     {
-      "id": "review.self.nobody-reads-it",
-      "text": "You've re-read your own PR description four times. It's fine. Nobody else is going to read it anyway. Break.",
-      "tone": "sarcastic",
-      "category": "code_review",
-      "escalation": {
-        "min": 1,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "fact",
-          "key": "prOpenInForeground",
-          "match": "isTrue"
-        }
-      ]
-    },
-    {
-      "id": "review.thread.hostage-negotiation",
-      "text": "Sixty-three comments and the PR has moved eleven lines. This isn't a code review, it's a hostage negotiation. Take a recess.",
-      "tone": "roast",
-      "category": "code_review",
-      "escalation": {
-        "min": 2,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "fact",
-          "key": "prOpenInForeground",
-          "match": "isTrue"
-        }
-      ]
-    },
-    {
-      "id": "review.ci.forty-two-refreshes",
-      "text": "Fourteen minutes waiting on CI, refreshing every twenty seconds. That's forty-two refreshes. Go away and come back to a green check or a red X. Both read better with coffee.",
-      "tone": "roast",
-      "category": "code_review",
-      "escalation": {
-        "min": 1,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "fact",
-          "key": "ciPending",
-          "match": "isTrue"
-        }
-      ]
-    },
-    {
       "id": "review.lgtm.deleted-it-twice",
       "text": "Forty minutes on this PR and you've typed LGTM twice, deleting it both times. Take five. It's still going to be LGTM.",
       "tone": "sarcastic",
@@ -2262,26 +1944,6 @@
         }
       ],
       "claimsActivity": true
-    },
-    {
-      "id": "review.conflict.no-dignity-down-there",
-      "text": "Merge conflict in a lockfile. There is no dignity down there. Step away first.",
-      "tone": "sarcastic",
-      "category": "code_review",
-      "escalation": {
-        "min": 1,
-        "max": 4
-      },
-      "minConfidence": 0.7,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "fact",
-          "key": "hasUncommittedChanges",
-          "match": "isTrue"
-        }
-      ]
     },
     {
       "id": "review.branch.default-branch-energy",
@@ -3093,33 +2755,6 @@
       ]
     },
     {
-      "id": "long.commits.wip-wip2-ok",
-      "text": "Your commits this hour: wip, wip2, ok. Take a break and come back with a sentence.",
-      "tone": "roast",
-      "category": "long_session",
-      "escalation": {
-        "min": 2,
-        "max": 4
-      },
-      "minConfidence": 0.0,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "workBand",
-          "in": [
-            "marathon",
-            "absurd"
-          ]
-        },
-        {
-          "p": "fact",
-          "key": "hasUncommittedChanges",
-          "match": "isFalse"
-        }
-      ]
-    },
-    {
       "id": "long.generic.five-beats-an-hour",
       "text": "Long haul today. Take five now. The haul will be exactly where you left it.",
       "tone": "friendly",
@@ -3770,31 +3405,6 @@
           "p": "streak",
           "key": "skippedToday",
           "atLeast": 6
-        }
-      ]
-    },
-    {
-      "id": "streak.temp.same-signal",
-      "text": "Third skip, and your last commit message was \"temp\". Those are the same signal. Five minutes.",
-      "tone": "roast",
-      "category": "skip_streak",
-      "escalation": {
-        "min": 2,
-        "max": 4
-      },
-      "minConfidence": 0.0,
-      "requiredSlots": [],
-      "optionalSlots": [],
-      "when": [
-        {
-          "p": "streak",
-          "key": "skippedToday",
-          "atLeast": 3
-        },
-        {
-          "p": "fact",
-          "key": "hasUncommittedChanges",
-          "match": "isTrue"
         }
       ]
     },
