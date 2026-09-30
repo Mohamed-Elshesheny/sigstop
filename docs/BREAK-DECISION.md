@@ -529,7 +529,7 @@ engine is allowed to *say*.
 |---|---|---|---|---|
 | `working` | tick | `W >= T` and not quiet | `breakDue` | open cycle, passive indicator → "due" |
 | `working` | tick | `W >= T` and quiet-hours active | `quiet` | log `.quietSuppressed`, passive indicator only |
-| `working` | gap ≥ grace | — | `idle` | clock pauses (§4) |
+| `working` | gap ≥ grace | — | `idle` | clock pauses (§4); the `WorkingState` is parked in `IdleState.resume` |
 | `working` | quiet window starts | — | `quiet` | cancel nothing (nothing pending) |
 | `working` | user picks "break now" | — | `breakActive` | begin break, `origin: .userInitiated` |
 | `breakDue` | tick | verdict `.deliver` | `breakDue` (prompted) | deliver notification, `promptedAt = now` |
@@ -562,7 +562,7 @@ engine is allowed to *say*.
 | `breakActive` | the break ends, any of the three ways above | it started from `quiet` and that quiet still holds | that `quiet`, unchanged | as above, but the pause keeps its own end (rule 3) |
 | `breakActive` | input resumes | elapsed `< qualifyingBreak` | `breakActive` | keep the timer; do not nag; a break is not a jail |
 | `idle` | input resumes | gap `< qualifyingBreak`, ladder parked | `ignored` | **resume the ladder at its rung**; gap ages `totalElapsed`, not `ladderElapsed` |
-| `idle` | input resumes | gap `< qualifyingBreak` | `working` or `breakDue` | resume clock; re-evaluate `W >= T` |
+| `idle` | input resumes | gap `< qualifyingBreak` | `working` or `breakDue` | resume clock; back to the parked `WorkingState`, so a skip's re-arm, a cooldown and a stale re-arm outlast a short absence; re-evaluate `W` against its threshold |
 | `idle` | input resumes | gap `>= qualifyingBreak` | `working` | reset, record break, close any open cycle honored |
 | any but `breakActive` and `quiet` | the session ends: a gap reaches `sessionGap`, or the 04:00 boundary | — | `working`, armed at `T` | withdraw and close any open cycle `.expired`; a stand-down or cooldown ends with the session (rule 4) |
 | `quiet` | window ends | `W >= T` | `breakDue` | fresh cycle, fresh deferral clocks — **never a backlog** |
@@ -1499,6 +1499,15 @@ engine; in-process `continuousWork`, `armThreshold` and `cooldownUntilMono` are 
 and the panel used to infer a skip from the number, so a user whose opportunity expired unseen was
 told they had waved it off. `StandDownCause` names which it was, and the four causes have four
 sentences.
+
+A stand-down lasts until it is served or the work clock resets, and an absence is neither. Going
+idle used to drop the `WorkingState` and come back to a fresh one armed at `T`, so two minutes
+away cancelled a skip's twenty minutes and an exhausted ladder's cooldown, and the skip button's
+own label was untrue. `IdleState.resume` now carries it across the absence (optional, so an older
+encoding still decodes), and `retargeted` moves it with the interval as it moves a working state.
+A reset is a `.clockReset` in `sessionEvents`, or `W` going backwards on a tick that revoked no
+grace credit: the revocation that opens every pause (§3.3) takes back up to 90 s and is not a
+reset, and it used to be read as one.
 
 The same sentence leaves the process in exactly one other way: with the status line switch on
 (Settings → Data, off by default), `AppModel` writes the header's state word and the waiting line

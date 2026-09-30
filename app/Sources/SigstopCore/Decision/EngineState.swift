@@ -169,6 +169,14 @@ public struct WorkingState: Sendable, Codable, Hashable {
     }
 }
 
+extension WorkingState {
+    func retargeted(by shift: TimeInterval) -> WorkingState {
+        var w = self
+        w.armThreshold = max(0, w.armThreshold + shift)
+        return w
+    }
+}
+
 public struct BreakDue: Sendable, Codable, Hashable {
     public var cycle: CycleID
     public var dueSince: Date
@@ -299,27 +307,38 @@ public struct IdleState: Sendable, Codable, Hashable {
     public var suspendedCycle: CycleID?
     public var suspendedEscalation: Escalation?
     public var suspendedBreakDue: BreakDue?
+    public var resume: WorkingState?
 
     public init(
         since: Date,
         cause: PauseCause,
         suspendedCycle: CycleID? = nil,
         suspendedEscalation: Escalation? = nil,
-        suspendedBreakDue: BreakDue? = nil
+        suspendedBreakDue: BreakDue? = nil,
+        resume: WorkingState? = nil
     ) {
         self.since = since
         self.cause = cause
         self.suspendedCycle = suspendedCycle
         self.suspendedEscalation = suspendedEscalation
         self.suspendedBreakDue = suspendedBreakDue
+        self.resume = resume
     }
 }
 
 public extension EngineState {
     func retargeted(from old: TimeInterval, to new: TimeInterval) -> EngineState {
-        guard case .working(var w) = self, old != new else { return self }
-        w.armThreshold = max(0, w.armThreshold + (new - old))
-        return .working(w)
+        guard old != new else { return self }
+        switch self {
+        case .working(let w):
+            return .working(w.retargeted(by: new - old))
+        case .idle(var i):
+            guard let parked = i.resume else { return self }
+            i.resume = parked.retargeted(by: new - old)
+            return .idle(i)
+        case .breakDue, .breakActive, .snoozed, .ignored, .quiet:
+            return self
+        }
     }
 }
 

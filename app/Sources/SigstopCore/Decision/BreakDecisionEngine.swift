@@ -61,6 +61,14 @@ public struct EngineInput: Sendable {
     public var sessionEnded: Bool {
         sessionEvents.contains { if case .sessionEnded = $0 { return true } else { return false } }
     }
+
+    public var workClockWasReset: Bool {
+        sessionEvents.contains { if case .clockReset = $0 { return true } else { return false } }
+    }
+
+    public var graceWasRevoked: Bool {
+        sessionEvents.contains { if case .graceRevoked = $0 { return true } else { return false } }
+    }
 }
 
 public struct EngineOutcome: Sendable {
@@ -203,7 +211,8 @@ public struct BreakDecisionEngine: Sendable {
         effects: inout [Effect]
     ) -> EngineState {
         var w = working
-        if input.context.continuousWork < w.lastWorkSeen {
+        let dropped = input.context.continuousWork < w.lastWorkSeen && !input.graceWasRevoked
+        if input.workClockWasReset || dropped {
             w.armThreshold = policy.targetContinuousWork
             w.standDown = nil
         }
@@ -212,7 +221,7 @@ public struct BreakDecisionEngine: Sendable {
         if input.context.idleSeconds >= policy.microIdleGrace || input.signals.screenLocked {
             effects.append(.setIndicator(.idle))
             let cause: PauseCause = input.signals.screenLocked ? .screenLocked : .microIdleExceeded
-            return .idle(IdleState(since: input.now.addingTimeInterval(-input.context.idleSeconds), cause: cause))
+            return .idle(IdleState(since: input.now.addingTimeInterval(-input.context.idleSeconds), cause: cause, resume: w))
         }
 
         if let cooldown = w.cooldownUntilMono {
@@ -649,7 +658,7 @@ public struct BreakDecisionEngine: Sendable {
             return .breakDue(d)
         }
         effects.append(.setIndicator(.working))
-        return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
+        return .working(idle.resume ?? WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
     }
 
     private func handleQuiet(
