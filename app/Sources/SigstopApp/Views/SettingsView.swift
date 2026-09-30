@@ -178,7 +178,7 @@ struct SettingsView: View {
                 }
                 SettingRow(
                     "Hold my break during calls",
-                    detail: "After a microphone or camera stops, hold the prompt for up to 20 minutes in case you only muted. Turning it off also ends an \"I'm in a meeting\" hold, and turning it back on restores the feature. A live microphone or camera still blocks on its own, except on a Mac whose audio signal the app cannot trust, where this switch is the only thing holding; --doctor says which one this is."
+                    detail: "After a microphone or camera stops, hold the prompt for up to 20 minutes in case you only muted. Turning it off also ends an \"I'm in a meeting\" hold, and turning it back on restores the feature. A live microphone or camera still blocks on its own, except on a Mac whose audio signal the app cannot trust, where this switch is the only thing holding; -\u{2060}-\u{2060}doctor says which one this is."
                 ) {
                     TerminalSwitch(isOn: settings.holdBreaksDuringCalls)
                 }
