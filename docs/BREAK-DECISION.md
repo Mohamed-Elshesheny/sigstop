@@ -203,6 +203,9 @@ permanent shield is an app that never fires.
 
 - Tick every **5 s**, sooner when the end of a break, a snooze, a pause or the work target falls
   inside that. `AppModel.tickInterval` overrides the 1 s in `BreakPolicy`, and `tickTolerance` is 5 s.
+  The work target counts only while the work clock is moving: a clock that did not advance on the
+  last tick (idle, a listen-only call) will not reach the target on the next one, and re-arming a
+  deadline a second away every tick would run the whole sample four times a second for nothing.
 - Idle is read from `CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: any)`, where
   `any` is `CGEventType(rawValue: ~0)` unwrapped with `if let`, never forced, and the IOKit reading is
   the fallback (`ACTIVITY-DETECTION.md` §2.5). `~0` is `kCGAnyInputEventType`. This counts keyboard,

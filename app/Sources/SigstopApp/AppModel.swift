@@ -153,6 +153,7 @@ final class AppModel {
     @ObservationIgnored private var unheldDeviceSince: Double?
     @ObservationIgnored private var lastAudioDeviceRunning = false
     @ObservationIgnored private var captureLive = false
+    @ObservationIgnored private var workClockAdvanced = false
     @ObservationIgnored private var breakOrigin: BreakOrigin?
     @ObservationIgnored private var lastVerdict: InterruptionVerdict?
     @ObservationIgnored private var rollupComputedAt: Date?
@@ -236,7 +237,7 @@ final class AppModel {
             .map { $0.timeIntervalSince(now) }
             .filter { $0 > 0 }
 
-        if workTargetInForce, continuousWork < workTarget {
+        if workTargetInForce, workClockAdvanced, continuousWork < workTarget {
             deadlines.append(workTarget - continuousWork)
         }
 
@@ -857,6 +858,7 @@ final class AppModel {
     private func publishViewState(
         sample: ContextSample, context: DeveloperContext, outcome: EngineOutcome
     ) {
+        workClockAdvanced = context.continuousWork > continuousWork
         continuousWork = context.continuousWork
         continuousWorkMeasuredAt = time.continuousSeconds
         timeSinceLastBreak = context.timeSinceLastBreak
