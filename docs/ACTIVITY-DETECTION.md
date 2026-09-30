@@ -264,8 +264,8 @@ Three jobs, and it is used for nothing else:
 
    What this does **not** cover, said plainly because `AudioDeviceCollector`'s own warning names
    Krisp first: Krisp is an app and holds input through its own process, so the table is not
-   empty and attribution buys nothing there. That case is covered by the Core ceiling in §7.1.1,
-   not here.
+   empty and attribution buys nothing there. That case is covered by the Core ceiling in
+   docs/BREAK-DECISION.md §7.1.1, not here.
 
 Caveats that do not go away, and are printed in `--doctor` rather than smoothed over:
 

@@ -8,7 +8,7 @@ this document, in the engine, or in the corpus — packs are portable.
 
 **Scope boundary:** the app tells jokes. It does not make health claims. Nothing in the corpus
 asserts a physiological, medical, or psychological effect of taking a break, and the lint in
-§8 enforces that. The value proposition is "a timer that is funny enough that you don't kill
+§4.4 enforces that. The value proposition is "a timer that is funny enough that you don't kill
 it in week two," not "a timer that fixes your body."
 
 ---
@@ -350,7 +350,7 @@ public static func tieBreakKey(_ t: MessageTemplate, ctx: MessageContext) -> UIn
 the start of the day and the level, so the key is the same on every launch.
 
 Order: higher weight → lower `tieBreakKey` → lexicographic `id`. Fully deterministic, so the
-golden tests in §8 can assert exact output.
+golden tests in §4.4 can assert exact output.
 
 **Step 6 — render.** Fill slots (§2), record to the ledger, return with the trace.
 
@@ -408,7 +408,7 @@ From `app/Sources/SigstopCore/Message/SlotFiller.swift`. `canDegrade` is false f
 
 ### 2.2 Declaration is mandatory
 
-Every template declares `requiredSlots` and `optionalSlots`. Lint (§8) enforces the
+Every template declares `requiredSlots` and `optionalSlots`. Lint (§4.4, L3) enforces the
 bidirectional invariant: every `{slot}` appearing in `text` is declared, and every declared
 slot appears in `text`. This is the mechanism that guarantees **a template needing `{branch}`
 is never selected when branch is unknown** — it isn't a runtime string check, it's a hard gate
@@ -453,7 +453,7 @@ Two slots never degrade, because a wrong value is worse than no line at all:
 - `{streak}` — required-only. A wrong count destroys the joke's entire premise.
 
 Number and time slots (`minutes`, `count`, `hour`, `streak`) are rendered through
-`NumberFormatter` / `Date.FormatStyle` at fill time, never string-interpolated — see §9.
+`IntegerFormatStyle` / `Date.FormatStyle` at fill time, never string-interpolated: see §7.4.
 
 ---
 
