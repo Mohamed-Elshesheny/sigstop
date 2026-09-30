@@ -249,29 +249,33 @@ public final class CameraDeviceCollector: @unchecked Sendable {
             CMIOObjectID(kCMIOObjectSystemObject), &address, 0, nil, &dataSize
         ) == noErr, dataSize > 0 else { return [] }
 
-        let count = Int(dataSize) / MemoryLayout<CMIOObjectID>.size
+        let stride = MemoryLayout<CMIOObjectID>.size
+        let count = Int(dataSize) / stride
+        guard count > 0 else { return [] }
         var ids = [CMIOObjectID](repeating: 0, count: count)
         var used: UInt32 = 0
         let status = ids.withUnsafeMutableBufferPointer { buffer -> OSStatus in
             guard let base = buffer.baseAddress else { return OSStatus(-1) }
             return CMIOObjectGetPropertyData(
-                CMIOObjectID(kCMIOObjectSystemObject), &address, 0, nil, dataSize, &used, base
+                CMIOObjectID(kCMIOObjectSystemObject), &address, 0, nil,
+                UInt32(buffer.count * stride), &used, base
             )
         }
         guard status == noErr else { return [] }
-        return ids
+        return Array(ids.prefix(min(count, Int(used) / stride)))
     }
 
     static func deviceIsRunningSomewhere(_ device: CMIOObjectID) -> Bool? {
         var address = runningAddress()
         var dataSize: UInt32 = 0
+        let size = UInt32(MemoryLayout<UInt32>.size)
         guard CMIOObjectGetPropertyDataSize(device, &address, 0, nil, &dataSize) == noErr,
-              dataSize >= UInt32(MemoryLayout<UInt32>.size) else { return nil }
+              dataSize == size else { return nil }
         var value: UInt32 = 0
         var used: UInt32 = 0
         guard CMIOObjectGetPropertyData(
-            device, &address, 0, nil, dataSize, &used, &value
-        ) == noErr else { return nil }
+            device, &address, 0, nil, size, &used, &value
+        ) == noErr, used == size else { return nil }
         return value != 0
     }
 
@@ -281,14 +285,14 @@ public final class CameraDeviceCollector: @unchecked Sendable {
             mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
             mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
         )
+        let size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
         var dataSize: UInt32 = 0
-        guard CMIOObjectGetPropertyDataSize(device, &address, 0, nil, &dataSize) == noErr else {
-            return nil
-        }
+        guard CMIOObjectGetPropertyDataSize(device, &address, 0, nil, &dataSize) == noErr,
+              dataSize == size else { return nil }
         var value: Unmanaged<CFString>?
         var used: UInt32 = 0
         guard CMIOObjectGetPropertyData(
-            device, &address, 0, nil, dataSize, &used, &value
+            device, &address, 0, nil, size, &used, &value
         ) == noErr, let value else { return nil }
         return value.takeRetainedValue() as String
     }
