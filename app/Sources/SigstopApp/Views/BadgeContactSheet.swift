@@ -134,7 +134,7 @@ enum PanelRenderer {
             continuousWork: 31 * 60 + 40, sinceLastBreak: 33 * 60,
             application: "Xcode", activity: "coding", confidence: 0.86, evidence: codingEvidence,
             finishedCommand: "swift test finished",
-            waiting: WaitingLine(.notAskingYet, "the next one is 13m of work away"),
+            waiting: WaitingLine(.notAskingYet, "next break in 13m of work"),
             summary: sampleSummary
         ))
         let breakEnds = now.addingTimeInterval(4 * 60 + 37)
@@ -168,7 +168,7 @@ enum PanelRenderer {
             indicator: .held, engineStateName: "breakDue", statusWord: "break due",
             continuousWork: 46 * 60 + 30, sinceLastBreak: 58 * 60,
             application: "zoom.us", activity: "in a meeting", confidence: 0.88, evidence: meetingEvidence,
-            waiting: WaitingLine(.holdingOff, "you said you are in a meeting, so prompts are held"),
+            waiting: WaitingLine(.holdingOff, "you said you are in a meeting"),
             meetingHeld: true,
             summary: sampleSummary
         ))

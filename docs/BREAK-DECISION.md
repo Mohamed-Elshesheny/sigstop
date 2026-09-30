@@ -1519,11 +1519,16 @@ cause, every stand-down cause and every gate reason produces exactly one short l
 branch names itself as a bug rather than rendering nothing. It carries one of three claims, and they
 are three different claims:
 
-| Claim | Means |
-|---|---|
-| `holding off, X.` | something is blocking or rate-limiting a prompt right now |
-| `not asking yet, X.` | nothing is, and the engine is waiting on its own clock |
-| `waiting on you, X.` | the ask is already out, or a break is running; the silence is yours |
+| Claim | Printed as | Means |
+|---|---|---|
+| `holdingOff` | `held: X.` | something is blocking or rate-limiting a prompt right now, or a break fell due before you walked away |
+| `notAskingYet` | `X.` with no label | nothing is, and the engine is waiting on its own clock |
+| `waitingOnYou` | `waiting on you: X.` in amber | the ask is already out, or a break is running; the silence is yours |
+
+The calm claim is the one without a label, the way an empty flags column in `ps` means nothing is
+wrong: the line most people see most of the day reads `next break in 44m of work.` It used to be
+`not asking yet, the next one is 44m of work away.`, which put a promise of a later ask in front of
+every quiet moment. A label now appears only when something needs reading: a hold, or you.
 
 Deadlines in it are wall-clock times and never countdowns, and every one of them comes from a value
 the engine already holds (`cooldownUntilMono`, `snoozeUntil`, `plannedEnd`, `pausedUntil`, the quiet

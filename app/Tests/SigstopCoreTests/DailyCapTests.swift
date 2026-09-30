@@ -74,7 +74,7 @@ struct DailyCapTests {
         #expect(withdrew, "and must not leave the panel up for a cycle it has closed")
     }
 
-    @Test("the panel says it is holding off, not that nothing is holding it")
+    @Test("the panel says the prompt is held, not that nothing is holding it")
     func theLineDoesNotContradictItself() {
         let capped = WaitingLine.read(
             WaitingLine.Reading(
@@ -83,7 +83,7 @@ struct DailyCapTests {
             )
         )
         #expect(capped.claim == .holdingOff, "got \(capped.claim)")
-        #expect(capped.text.hasPrefix("holding off,"))
+        #expect(capped.text.hasPrefix("held: "))
 
         let policy = BreakPolicy()
         let spent = WaitingLine.read(
@@ -96,7 +96,7 @@ struct DailyCapTests {
             )
         )
         #expect(spent.claim == .holdingOff, "got \(spent.claim): \(spent.text)")
-        #expect(!spent.text.contains("of work away"), "no countdown to a prompt that cannot be sent")
+        #expect(!spent.text.contains("next break in"), "no countdown to a prompt that cannot be sent")
     }
 
     private static func delivered(_ effects: [Effect]) -> [PromptRequest] {

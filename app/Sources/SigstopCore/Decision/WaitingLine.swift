@@ -9,8 +9,8 @@ public struct WaitingLine: Sendable, Hashable {
 
         public var prefix: String {
             switch self {
-            case .holdingOff:   return "holding off"
-            case .notAskingYet: return "not asking yet"
+            case .holdingOff:   return "held"
+            case .notAskingYet: return ""
             case .waitingOnYou: return "waiting on you"
             }
         }
@@ -24,10 +24,10 @@ public struct WaitingLine: Sendable, Hashable {
         self.body = body
     }
 
-    public var text: String { "\(claim.prefix), \(body)." }
+    public var text: String { claim.prefix.isEmpty ? "\(body)." : "\(claim.prefix): \(body)." }
 
     public static let unexplained = WaitingLine(
-        .notAskingYet, "and it cannot say why, which is a bug. Run sigstop with --doctor"
+        .holdingOff, "by something it cannot name, which is a bug. Run sigstop with --doctor"
     )
 }
 
@@ -81,8 +81,11 @@ public extension WaitingLine {
         case .snoozed(let s):
             return WaitingLine(.waitingOnYou, "you snoozed it, asking again at \(clock(s.until, r))")
 
-        case .idle:
-            return WaitingLine(.notAskingYet, "the clock is stopped while you are away")
+        case .idle(let i):
+            if i.suspendedBreakDue != nil || i.suspendedEscalation != nil {
+                return WaitingLine(.holdingOff, "a break is due and you are away")
+            }
+            return WaitingLine(.notAskingYet, "the work clock is stopped while you are away")
 
         case .quiet(let q):
             return quiet(q, r)
@@ -102,7 +105,7 @@ public extension WaitingLine {
             return WaitingLine(.notAskingYet, "you paused it until \(clock(until, r))")
         case .scheduledQuietHours:
             let ends = minuteOfDay(r.settings.quietHours.endMinute)
-            return WaitingLine(.notAskingYet, "you are inside your quiet hours until \(ends)")
+            return WaitingLine(.notAskingYet, "your quiet hours end at \(ends)")
         case .dailyCapReached, .sustainedFocusMode:
             return WaitingLine(.holdingOff, q.cause.summary)
         }
@@ -112,25 +115,25 @@ public extension WaitingLine {
         if let cooldown = w.cooldownUntilMono, r.monotonic < cooldown {
             let until = r.now.addingTimeInterval(cooldown - r.monotonic)
             let why = (w.standDown ?? .ladderExhausted).summary
-            return WaitingLine(.notAskingYet, "\(why), so nothing new until \(clock(until, r))")
+            return WaitingLine(.notAskingYet, "\(why), so it leaves you alone until \(clock(until, r))")
         }
         if w.armThreshold > r.policy.targetContinuousWork {
             let extra = DurationText.short(w.armThreshold - r.policy.targetContinuousWork)
             let why = (w.standDown ?? .skipped).summary
-            return WaitingLine(.notAskingYet, "\(why), so the next is \(extra) later than usual")
+            return WaitingLine(.notAskingYet, "\(why), so the next break is \(extra) later than usual")
         }
         if let until = r.micIgnoredUntil, until > r.now, r.audioInputRunning {
             return WaitingLine(
                 .notAskingYet,
-                "taking your word for it, the mic will not hold your break until \(clock(until, r))"
+                "the mic will not hold a break until \(clock(until, r)), as you asked"
             )
         }
         if r.notificationsDelivered >= r.policy.dailyNotificationCap {
             return WaitingLine(.holdingOff, QuietCause.dailyCapReached.summary)
         }
         let remaining = max(0, w.armThreshold - r.continuousWork)
-        guard remaining >= 60 else { return WaitingLine(.notAskingYet, "the next one is due any moment") }
-        return WaitingLine(.notAskingYet, "the next one is \(DurationText.short(remaining)) of work away")
+        guard remaining >= 60 else { return WaitingLine(.notAskingYet, "next break in under 1m of work") }
+        return WaitingLine(.notAskingYet, "next break in \(DurationText.short(remaining)) of work")
     }
 
     private static func pending(_ r: Reading) -> WaitingLine {
@@ -141,7 +144,7 @@ public extension WaitingLine {
             return WaitingLine(.waitingOnYou, "you waved the last one off, and it has been due \(overdue)")
         }
         if case .breakDue(let d) = r.state, d.promptedAt != nil {
-            return WaitingLine(.waitingOnYou, "you have been asked and it is still waiting")
+            return WaitingLine(.waitingOnYou, "you have been asked")
         }
 
         if let gate = r.gate, gate != .delivered {

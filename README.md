@@ -13,7 +13,7 @@ Break reminders that know what you're doing, and when not to interrupt.
 macOS 14+ · Apple Silicon and Intel · Free and open source · [Website](https://sigstop-app.vercel.app)
 
 [![CI](https://github.com/Mohamed-Elshesheny/sigstop/actions/workflows/ci.yml/badge.svg)](https://github.com/Mohamed-Elshesheny/sigstop/actions/workflows/ci.yml)
-[![570 tests](https://img.shields.io/badge/tests-570%20passing-3fb950?style=flat-square)](#build)
+[![571 tests](https://img.shields.io/badge/tests-571%20passing-3fb950?style=flat-square)](#build)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 
 <img src="docs/images/prompt.png" width="100%" alt="A sigstop prompt on a MacBook screen, dimming the Cursor window behind it, under a small amber face: SIGTSTP L1, 47m continuous. Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five and go meet your new codebase. Buttons: Take it, Snooze (SIGALRM), Skip, quiet for 20m, Ignore it.">
@@ -172,7 +172,7 @@ In `~/.claude/settings.json`, as a Claude Code status line:
 }
 ```
 
-The line looks like `running · not asking yet, the next one is 12m of work away.` It never holds a project, a branch, a file or a title.
+The line looks like `running · next break in 12m of work.` It never holds a project, a branch, a file or a title.
 
 </details>
 

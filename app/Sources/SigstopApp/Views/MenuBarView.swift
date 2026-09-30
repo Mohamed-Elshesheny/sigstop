@@ -253,12 +253,15 @@ struct MenuBarView: View {
     }
 
     private func claim(_ line: WaitingLine) -> some View {
-        (Text(line.claim.prefix)
-            .font(Brand.mono(11, weight: .semibold))
-            .foregroundStyle(Self.ink(for: line.claim))
-            + Text(", \(line.body).")
+        let label = line.claim.prefix.isEmpty
+            ? Text("")
+            : Text("\(line.claim.prefix): ")
+                .font(Brand.mono(11, weight: .semibold))
+                .foregroundStyle(Self.ink(for: line.claim))
+        return (label
+            + Text("\(line.body).")
             .font(Brand.mono(11))
-            .foregroundStyle(Brand.fgMuted))
+            .foregroundStyle(line.claim.prefix.isEmpty ? Brand.fg : Brand.fgMuted))
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityLabel(line.text)

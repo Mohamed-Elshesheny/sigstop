@@ -59,9 +59,9 @@ struct StatusLineTests {
     func renderedLine() {
         let line = StatusLine.render(
             word: "running",
-            waiting: WaitingLine(.notAskingYet, "the next one is 12m of work away")
+            waiting: WaitingLine(.notAskingYet, "next break in 12m of work")
         )
-        #expect(line == "running \u{00B7} not asking yet, the next one is 12m of work away.\n")
+        #expect(line == "running \u{00B7} next break in 12m of work.\n")
         #expect(line.filter { $0 == "\n" }.count == 1)
         #expect(!line.contains("\u{2014}"))
         #expect(StatusLine.fileName == "status.txt")
@@ -70,8 +70,8 @@ struct StatusLineTests {
     @Test("the ledger writes on a change, never on a repeat, and removes once when switched off")
     func ledgerWritesOnlyOnChange() {
         var ledger = StatusLineLedger()
-        let first = "running \u{00B7} not asking yet, the next one is 12m of work away.\n"
-        let second = "running \u{00B7} not asking yet, the next one is 11m of work away.\n"
+        let first = "running \u{00B7} next break in 12m of work.\n"
+        let second = "running \u{00B7} next break in 11m of work.\n"
 
         #expect(ledger.update(enabled: false, line: first, now: 0) == nil)
         #expect(ledger.update(enabled: true, line: first, now: 5) == .write(first))
@@ -86,8 +86,8 @@ struct StatusLineTests {
     @Test("a failed write is tried again when the line changes or after a minute, never per tick")
     func failedWriteIsRetriedOnChangeOrAfterAMinute() {
         var ledger = StatusLineLedger()
-        let line = "idle \u{00B7} not asking yet, the clock is stopped while you are away.\n"
-        let other = "running \u{00B7} not asking yet, the next one is 12m of work away.\n"
+        let line = "idle \u{00B7} the work clock is stopped while you are away.\n"
+        let other = "running \u{00B7} next break in 12m of work.\n"
         #expect(ledger.update(enabled: true, line: line, now: 0) == .write(line))
         ledger.noteWriteFailed(at: 0)
         #expect(ledger.update(enabled: true, line: line, now: 5) == nil)
@@ -102,7 +102,7 @@ struct StatusLineTests {
     @Test("switching off after a failed write still removes the file the last good write left")
     func switchOffAfterAFailedWriteStillRemoves() {
         var ledger = StatusLineLedger()
-        let line = "idle \u{00B7} not asking yet, the clock is stopped while you are away.\n"
+        let line = "idle \u{00B7} the work clock is stopped while you are away.\n"
         #expect(ledger.update(enabled: true, line: line, now: 0) == .write(line))
         ledger.noteWriteFailed(at: 0)
         #expect(ledger.update(enabled: false, line: line, now: 5) == .remove)

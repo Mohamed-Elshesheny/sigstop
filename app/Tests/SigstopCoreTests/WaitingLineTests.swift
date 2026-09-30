@@ -105,7 +105,7 @@ struct WaitingLineTests {
         )
         #expect(line.claim == .notAskingYet)
         #expect(line.body.contains("the last few went unanswered"))
-        #expect(line.text.contains("nothing new until 22:38"), "\(line.text)")
+        #expect(line.text.contains("leaves you alone until 22:38"), "\(line.text)")
     }
 
     @Test("a cycle that expired unseen is not reported as a skip")
@@ -145,7 +145,7 @@ struct WaitingLineTests {
             audioInputRunning: true,
             micIgnoredUntil: noon.addingTimeInterval(1800)
         )
-        #expect(line.body.contains("taking your word for it"))
+        #expect(line.body.contains("as you asked"))
         #expect(line.text.contains("22:43"), "\(line.text)")
     }
 
@@ -157,7 +157,7 @@ struct WaitingLineTests {
             continuousWork: 33 * 60
         )
         #expect(line.claim == .notAskingYet)
-        #expect(line.body == "the next one is 12m of work away")
+        #expect(line.body == "next break in 12m of work")
     }
 
     @Test("every stand-down cause has its own words")
@@ -189,7 +189,7 @@ struct WaitingLineTests {
         for state in states {
             let line = read(state, audioInputRunning: true, micIgnoredUntil: ignored)
             #expect(
-                !line.body.contains("taking your word for it"),
+                !line.body.contains("as you asked"),
                 "\(state.name) had its own reason and the mic answered for it: \(line.text)"
             )
         }
@@ -225,9 +225,23 @@ struct WaitingLineTests {
         #expect(egyptian.text.contains("10:43"), "\(egyptian.text)")
     }
 
-    @Test("the three claims stay three claims")
+    @Test("the three claims stay three claims, and only the calm one goes unlabelled")
     func claimsAreDistinct() {
         #expect(Set(WaitingLine.Claim.allCases.map(\.prefix)).count == 3)
+        #expect(WaitingLine.Claim.allCases.filter { $0.prefix.isEmpty } == [.notAskingYet])
+        #expect(WaitingLine(.notAskingYet, "next break in 12m of work").text == "next break in 12m of work.")
+        #expect(WaitingLine(.holdingOff, "the screen is locked").text == "held: the screen is locked.")
+        #expect(WaitingLine.unexplained.claim == .holdingOff)
+    }
+
+    @Test("a break that fell due before you walked away is held, not reported as a stopped clock")
+    func idleWithABreakDueIsHeld() {
+        let due = read(.idle(IdleState(suspendedBreakDue: BreakDue(cycle: CycleID.initial, dueSince: noon, lastStepMono: 0))))
+        #expect(due.claim == .holdingOff, "\(due.text)")
+        #expect(due.text == "held: a break is due and you are away.")
+        let plain = read(.idle(IdleState()))
+        #expect(plain.claim == .notAskingYet)
+        #expect(plain.text == "the work clock is stopped while you are away.")
     }
 
     @Test("a call hold reads as one sentence in the menu and in status.txt")
@@ -243,11 +257,11 @@ struct WaitingLineTests {
             let body = try #require(hold.summary)
             let line = WaitingLine(.holdingOff, body)
             let text = line.text
-            #expect(text.hasPrefix("holding off, "), "\(text)")
+            #expect(text.hasPrefix("held: "), "\(text)")
             #expect(text.hasSuffix("."), "\(text)")
             #expect(!text.contains(".."), "\(text)")
             #expect(text.filter { $0 == "." }.count == 1, "\(text)")
-            let afterComma = text.dropFirst("holding off, ".count).first
+            let afterComma = text.dropFirst("held: ".count).first
             #expect(afterComma?.isLowercase == true, "\(text)")
             #expect(StatusLine.render(word: "break due", waiting: line) == "break due \u{00B7} \(text)\n")
         }
