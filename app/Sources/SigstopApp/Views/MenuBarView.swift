@@ -72,15 +72,19 @@ struct MenuBarView: View {
                 BrandMark(size: 40, fill: markFill, resting: model.indicator == .held)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        TimelineView(.periodic(from: .now, by: 1)) { _ in
-                            Text(Format.clock(model.displayedContinuousWork))
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            Text(Format.clock(headlineSeconds(at: context.date)))
                                 .font(Brand.mono(40, weight: .bold))
                                 .tracking(-1.4)
                                 .monospacedDigit()
                                 .foregroundStyle(status.accent ? Brand.amber : Brand.fg)
                                 .contentTransition(reduceMotion ? .identity : .numericText())
                         }
-                        if model.workTargetInForce {
+                        if model.breakEndsAt != nil {
+                            Text("/ \(Format.clock(model.settings.breakDuration))")
+                                .font(Brand.mono(11))
+                                .foregroundStyle(Brand.fgMuted)
+                        } else if model.workTargetInForce {
                             Text("/ \(Format.clock(model.workTarget))")
                                 .font(Brand.mono(11))
                                 .foregroundStyle(Brand.fgMuted)
@@ -93,6 +97,11 @@ struct MenuBarView: View {
                 }
             }
         }
+    }
+
+    private func headlineSeconds(at date: Date) -> TimeInterval {
+        guard let ends = model.breakEndsAt else { return model.displayedContinuousWork }
+        return max(0, ends.timeIntervalSince(date))
     }
 
     private var markFill: Double {
