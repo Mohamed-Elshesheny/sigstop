@@ -270,10 +270,9 @@ public enum BrowserTitlePatterns {
     ]
 
     static let meetingPatterns = [
-        #"Meet - "#,
+        #"(?-i)^Meet [-\x{2013}] "#,
         #"\| Microsoft Teams"#,
         #"Zoom Meeting"#,
-        #"Google Meet"#,
     ]
 
     public static let forgeHosts: Set<String> = ["github.com", "gitlab.com", "bitbucket.org"]

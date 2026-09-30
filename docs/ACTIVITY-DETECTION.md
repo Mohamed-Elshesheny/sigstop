@@ -1253,8 +1253,12 @@ produces wrong answers for anyone who codes during a standup.
 | A conferencing app is **running** (need not be frontmost) | 0 | +1.0 |
 | A conferencing app (Zoom, Teams, Slack, Discord) is frontmost | 0 | +0.8 (additive) |
 | Zoom window title == `"Zoom Meeting"` (vs `"Zoom"` when idle) | 1 | +1.6 |
-| Browser title contains `Meet - `, `| Microsoft Teams`, `Zoom Meeting` | 1 | +1.6 |
+| Browser title starts with `Meet - ` or `Meet – ` (case-sensitive, a Meet call's own tab), or contains `| Microsoft Teams` or `Zoom Meeting` | 1 | +1.6 |
 | Camera in use (§2.3a, shipped) | 0 | not wired into this ledger |
+
+The Meet pattern is anchored because an unanchored `Meet - ` matched `google meet - Google Search`
+(the patterns are otherwise case-insensitive), and a bare `Google Meet` matched the landing page and
+every help article. A page about Meet is not a call.
 
 Mail and Messages are claimed by `CommunicationProvider` and read as `COMMUNICATION`, but they are
 not conferencing apps and add no meeting evidence, neither for being in front nor for a title: a

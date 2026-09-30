@@ -68,4 +68,17 @@ struct ProviderHonestyTests {
         #expect(!Self.citesAChannel(discord, "Friends - Discord"))
         #expect(!Self.citesAChannel(discord, "#4411 | Server - Discord"))
     }
+
+    @Test("a Meet call is its own tab title, not a page that mentions Google Meet")
+    func meetTitleIsTheCallNotTheWord() {
+        for title in ["Meet - abc-defg-hij", "Meet \u{2013} abc-defg-hij", "Meet - Weekly sync"] {
+            #expect(BrowserTitlePatterns.isMeeting(title), "\(title)")
+        }
+        for title in [
+            "google meet - Google Search", "Google Meet", "Google Meet - Online video calls",
+            "How to meet - Wikipedia", "meet - the team",
+        ] {
+            #expect(!BrowserTitlePatterns.isMeeting(title), "\(title)")
+        }
+    }
 }
