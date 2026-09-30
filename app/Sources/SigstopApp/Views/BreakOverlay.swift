@@ -297,6 +297,9 @@ struct BreakScreen: View {
                     .tracking(-4)
                     .monospacedDigit()
                     .foregroundStyle(Brand.Dark.fg)
+                    .accessibilityLabel(
+                        "\(Format.clock(remaining(at: context.date))) remaining of \(Format.clock(total))"
+                    )
             }
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("remaining")
@@ -305,6 +308,7 @@ struct BreakScreen: View {
             }
             .font(Brand.mono(12))
             .foregroundStyle(Brand.Dark.fgMuted)
+            .accessibilityHidden(true)
             TimelineView(.periodic(from: .now, by: 5)) { context in
                 TransferBar(
                     fraction: min(1, max(0, 1 - remaining(at: context.date) / total)),
