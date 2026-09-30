@@ -340,7 +340,7 @@ public final class ContextEngine {
                 Ev.make(
                     "decay.stale", .tier0,
                     -(staleness / configuration.decayHalfLife) * log(2.0),
-                    "nothing has corroborated this for \(Int(staleness / 60)) minutes"
+                    Self.staleSummary(staleness)
                 )
             )
         }
@@ -362,6 +362,11 @@ public final class ContextEngine {
             concurrent: concurrent
         )
         return (observation, verdict.labelOverride, providerID)
+    }
+
+    nonisolated static func staleSummary(_ seconds: TimeInterval) -> String {
+        let span = seconds < 120 ? "\(Int(seconds))s" : "\(Int(seconds / 60)) minutes"
+        return "nothing has corroborated this for \(span)"
     }
 
     private func awayReason(_ session: SessionState) -> String {
