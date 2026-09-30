@@ -15,13 +15,15 @@ struct PauseKeepsStandDownTests {
         var description: String { rawValue }
     }
 
-    private static func pauseAndComeBack(_ bench: inout Bench, _ ending: Ending) {
+    @discardableResult
+    private static func pauseAndComeBack(_ bench: inout Bench, _ ending: Ending) -> [Effect] {
+        var resumed: [Effect] = []
         switch ending {
         case .resume:
             bench.tick(action: .pauseApp(3600))
             bench.tick(idle: Bench.tick)
             bench.work(minutes: 10)
-            bench.tick(action: .resumeApp)
+            resumed = bench.tick(action: .resumeApp)
         case .runsOut:
             bench.tick(action: .pauseApp(10 * 60))
             bench.tick(idle: Bench.tick)
@@ -29,6 +31,7 @@ struct PauseKeepsStandDownTests {
         }
         bench.tick()
         bench.tick()
+        return resumed
     }
 
     private static func isPaused(_ state: EngineState) -> Bool {
@@ -67,7 +70,11 @@ struct PauseKeepsStandDownTests {
         _ = try #require(exhausted)
         let cooldownFrom = bench.time.continuousSeconds
 
-        Self.pauseAndComeBack(&bench, ending)
+        let resumed = Self.pauseAndComeBack(&bench, ending)
+        if ending == .resume {
+            #expect(resumed.contains(.setIndicator(.backedOff)), "\(resumed)")
+            #expect(!resumed.contains(.setIndicator(.working)), "\(resumed)")
+        }
 
         let working = try #require(bench.working, "expected working, got \(bench.state)")
         #expect(working.standDown == .ladderExhausted)

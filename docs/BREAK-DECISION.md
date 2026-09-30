@@ -1359,8 +1359,8 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   later, and the next prompt still waits for `rearmAfterSkip` of work counted from the skip, not for
   `T` counted from nothing, which with `W` already past `T` meant at once. The work clock does not
   run while the app is paused, so the pause neither spends the twenty minutes nor adds to them.
-  A pause that runs out does the same, and a break or a reset of the work clock inside the pause
-  ends the promise the way it would outside one (§5.1, rule 6).
+  A pause that runs out does the same, and a break that counts, or a reset of the work clock,
+  inside the pause ends the promise the way it would outside one (§5.1, rule 6).
 - **Skip is not the cheap gesture, and the UI must not let it look like one.** Twenty minutes of
   silence is the longest suppression in the engine, so the control that buys it says so, and Escape
   does not call it. Escape and *Ignore it* take the panel down and tell the engine nothing
