@@ -1835,4 +1835,7 @@ long form keeps it a description of a day.
   every one is for taking the break or for not needing it, and `yielded` is explicitly
   for a full working day in which no single stretch passed an hour. A badge for a long
   session would have the product arguing with itself, and is the one shape of badge this
-  file forbids.
+  file forbids. A break, to a badge, is a break `breakCount` counts (§14.1): the two clock
+  badges, *early return* and *still running*, read the start of each break that qualified, paired
+  with its `break_end` the way the rollup pairs them. They used to read every `break_begin`, so
+  starting a break before 10:00 and ending it at once earned the day.

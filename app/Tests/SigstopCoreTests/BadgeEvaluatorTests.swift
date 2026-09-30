@@ -318,6 +318,27 @@ struct ClockBadgeTests {
         #expect(!Fix.evaluate([Fix.events(1, many)]).contains(.earlyReturn))
     }
 
+    private func abandonedAt(_ day: Int, hour: Int) -> [LoggedEvent] {
+        [
+            .breakBegin(at: Fix.at(day, hour), origin: .accepted, cycle: .initial),
+            .breakEnd(
+                at: Fix.at(day, hour, 0, 20), origin: .accepted,
+                durationSeconds: 20, thresholdSeconds: 5 * 60, cycle: .initial
+            ),
+        ]
+    }
+
+    @Test("A break ended after twenty seconds is not a break, early or late")
+    func abandoned_breaks_do_not_count() {
+        let early = (1...5).map { Fix.events($0, abandonedAt($0, hour: 8)) }
+        #expect(!Fix.evaluate(early).contains(.earlyReturn))
+
+        let late = (1...5).map { n in
+            BadgeDay(summary: DailySummary(day: Fix.day(n)), events: abandonedAt(n + 1, hour: 2))
+        }
+        #expect(!Fix.evaluate(late).contains(.nohup))
+    }
+
     @Test("A break at 10:00 is not an early return")
     func ten_is_not_early() {
         let days = (1...5).map { Fix.events($0, breakAt($0, hour: 10)) }

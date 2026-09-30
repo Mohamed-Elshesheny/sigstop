@@ -88,9 +88,8 @@ public enum BadgeEvaluator {
             evidence.reachedSigstop = true
         }
 
-        let hours = events
-            .filter { $0.kind == .breakBegin }
-            .map { calendar.component(.hour, from: $0.at) }
+        let hours = keptBreakStarts(day, calendar: calendar, policy: policy)
+            .map { calendar.component(.hour, from: $0) }
         if hours.contains(where: {
             $0 >= policy.dayBoundaryHour && $0 < BadgeThreshold.earlyHour
         }) {
@@ -113,6 +112,21 @@ public enum BadgeEvaluator {
             boundaryHour: policy.dayBoundaryHour, calendar: calendar
         ) else { return ordered }
         return ordered.filter { $0.at >= interval.start && $0.at < interval.end }
+    }
+
+    private static func keptBreakStarts(
+        _ day: BadgeDay,
+        calendar: Calendar,
+        policy: RollupPolicy
+    ) -> [Date] {
+        let ordered = day.events.sorted { $0.at < $1.at }
+        let interval = day.day.interval(boundaryHour: policy.dayBoundaryHour, calendar: calendar)
+        let dayEnd = interval?.end ?? ordered.last?.at ?? .distantFuture
+        return DailyRollup.breakSpans(ordered, dayEnd: dayEnd, policy: policy)
+            .filter { span in
+                span.qualifies && interval.map { span.start >= $0.start && span.start < $0.end } ?? true
+            }
+            .map(\.start)
     }
 
     private static func reflexAccepts(in events: [LoggedEvent]) -> Int {
