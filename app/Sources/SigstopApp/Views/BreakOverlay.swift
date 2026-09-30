@@ -39,7 +39,7 @@ final class BreakOverlayController {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, let model = self.model, !self.breakPanels.isEmpty else { return }
+                guard let self, let model = self.model else { return }
                 self.tearDownBreakPanels()
                 self.buildBreakPanels(model: model)
             }
@@ -108,8 +108,6 @@ final class BreakOverlayController {
     @discardableResult
     func presentPromptPanel(_ request: PromptRequest, message: RenderedMessage, model: AppModel) -> Bool {
         dismissPromptPanel()
-        let screens = NSScreen.screens
-        guard !screens.isEmpty else { return false }
         self.model = model
         shownPrompt = (request, message)
         promptScreenObserver = NotificationCenter.default.addObserver(
@@ -118,11 +116,12 @@ final class BreakOverlayController {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, let model = self.model, let shown = self.shownPrompt,
-                      !self.fallbackPanels.isEmpty else { return }
+                guard let self, let model = self.model, let shown = self.shownPrompt else { return }
                 self.presentPromptPanel(shown.request, message: shown.message, model: model)
             }
         }
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return false }
 
         for screen in screens {
             fallbackPanels.append(fullScreenPanel(on: screen, request: request, message: message, model: model))
