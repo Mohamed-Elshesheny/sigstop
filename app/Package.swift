@@ -29,7 +29,6 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "sigstop", targets: ["SigstopApp"]),
-        .library(name: "SigstopCore", targets: ["SigstopCore"]),
     ],
     dependencies: [
         // Pinned exactly, not by range. An updater that quietly changes version underneath
