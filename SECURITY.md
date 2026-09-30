@@ -36,8 +36,10 @@ Accessibility it can read window titles. The things that would matter most:
 quarantine flag is cleared, and the README says how. This is a cost decision, not an
 oversight, and it is written down in `docs/RELEASING.md`.
 
-**`--doctor` prints what the app can currently see**, including a redacted window title,
-and the bug form asks people to paste it. Read it before you paste it. That is a documented
+**`--doctor` prints what the app can currently see**, and the bug form asks people to paste
+it. It prints no window title, but the file and project names parsed from one can appear in
+its evidence lines, and with the browser host switched on it prints the host of the page in
+front. Read it before you paste it. That is a documented
 trade, not a leak, but if you find something in that output nobody would expect to be
 there, report it.
 
