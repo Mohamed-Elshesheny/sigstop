@@ -140,11 +140,15 @@ struct SettingsView: View {
                 SettingRow("Window", detail: "24-hour clock, local time. Wraps past midnight.") {
                     HStack(spacing: 8) {
                         TimeField(minutes: settings.quietHours.startMinute, enabled: model.settings.quietHours.enabled)
+                            .accessibilityLabel("Quiet from")
                         Text("→")
                             .font(Brand.mono(11))
                             .foregroundStyle(Brand.fgFaint)
+                            .accessibilityHidden(true)
                         TimeField(minutes: settings.quietHours.endMinute, enabled: model.settings.quietHours.enabled)
+                            .accessibilityLabel("Quiet until")
                     }
+                    .accessibilityElement(children: .contain)
                 }
             }
 
@@ -431,12 +435,13 @@ struct SettingsView: View {
         @ViewBuilder extra: () -> Extra,
         @ViewBuilder control: () -> Control
     ) -> some View {
-        SignalRow(
-            Self.title(for: signal),
+        let title = Self.title(for: signal)
+        return SignalRow(
+            title,
             reads: signal.reads,
             state: StateLabel(signal.state),
             extra: extra,
-            control: control
+            control: { control().accessibilityLabel(title) }
         )
     }
 
