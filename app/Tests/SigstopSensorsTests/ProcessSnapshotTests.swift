@@ -81,6 +81,13 @@ private func classify(_ signals: SignalContext) -> ActivityObservation {
     #expect(ToolAllowlist.undetectable.contains(.pytest))
 }
 
+@Test func everyToolTokenIsEitherDetectedOrSaidNotToBe() {
+    let accounted = Set(ToolAllowlist.entries.map(\.token)).union(ToolAllowlist.undetectable)
+    for token in ToolToken.allCases {
+        #expect(accounted.contains(token), "\(token) is neither detected nor listed as not detected")
+    }
+}
+
 @Test func ancestryWalksThroughAnIntermediateProcess() {
     let parents: [pid_t: pid_t] = [900: 800, 800: 102, 102: 1]
     #expect(ProcessCollector.descends(900, from: 102, parents: parents))

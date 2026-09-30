@@ -604,8 +604,10 @@ runs is knowing something about them. The rules are absolute:
   its arguments, not by its executable. A `#!/usr/bin/env node` script called `jest` is `node` to the
   kernel and a `#!/usr/bin/env python3` script called `pytest` is `Python`. So `nodeInspect`,
   `debugpy`, `goTest`, `cargoTest`, `swiftTesting`, `swiftBuild`, `pytest`, `jest`, `vitest`,
-  `playwright`, `rspec` and `phpunit` are **not detected**, and `--doctor` says so in those words
-  instead of reporting them absent. Bare `node` is not matched either: eleven were running on this
+  `playwright`, `rspec`, `phpunit`, `tsc`, `webpack` and `vite` are **not detected**, and `--doctor`
+  says so in those words instead of reporting them absent. Every `ToolToken` is either on the
+  allowlist or on that list, and a test holds it there: a token that is neither is a tool the
+  enum claims to know about and nothing looks for. Bare `node` is not matched either: eleven were running on this
   machine, every one of them an editor helper.
 - What survives is every tool that is its own Mach-O binary carrying its own name, which includes
   the whole debugger set: `debugserver`, `lldb`, `gdb`, `delve`. That is the trade. `DEBUGGING`

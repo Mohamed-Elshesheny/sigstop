@@ -115,7 +115,7 @@ public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
     case pytest, jest, vitest, xctest, goTest, cargoTest, swiftTesting, rspec, phpunit, playwright
     case vim, nvim, helix, emacs, nano
     case claudeCLI, aider, codexCLI, gooseCLI
-    case gitProcess, ghCLI, xcodebuild, gradle, cargo, swiftBuild, tsc, webpack, vite
+    case swiftBuild, tsc, webpack, vite
     case ssh, mosh, kubectl
 
     public static let debuggers: Set<ToolToken> = [.lldb, .debugserver, .gdb, .delve, .debugpy, .nodeInspect]
@@ -132,8 +132,6 @@ public enum ToolToken: String, Sendable, Codable, CaseIterable, Hashable {
         case .goTest:       return "go test"
         case .cargoTest:    return "cargo test"
         case .swiftTesting: return "swift test"
-        case .gitProcess:   return "git"
-        case .ghCLI:        return "gh"
         case .claudeCLI:    return "claude"
         case .codexCLI:     return "codex"
         case .gooseCLI:     return "goose"
