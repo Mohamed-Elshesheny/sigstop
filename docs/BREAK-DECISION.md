@@ -1736,8 +1736,11 @@ substitution, and `CalendarSystemTests` pins both.
   old idle. It used to be counted as idle until the next pause, which lost the first stretch of
   every morning after the Mac had slept.
 - **`longestContinuousSession`** — the longest run of credited work in the day's log, where a run
-  ends at a non-working stretch of `qualifyingBreak` or more, and includes the stretch still
-  running at the end of the log. Note this is a *continuous work stretch*, not a
+  ends at a non-working stretch of `qualifyingBreak` or more, or at one that holds a break
+  `breakCount` counts, and includes the stretch still running at the end of the log. The second
+  clause is for a break set shorter than the idle cutoff: two minutes planned and two taken is a
+  kept break, judged by its own `plan_s`, and it used to count toward *kept* while the longest
+  stretch ran straight through it. Note this is a *continuous work stretch*, not a
   `DeveloperSession`; the field name follows the everyday meaning. It is computed from the log, by
   `DailyRollup.creditWork`, and not sampled from the live session, which keeps no peak.
 - **`totalBreakTime`** — the seconds inside the breaks `breakCount` counts, each measured the way

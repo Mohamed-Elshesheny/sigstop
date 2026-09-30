@@ -65,4 +65,37 @@ struct ShortBreakRollupTests {
         )
         #expect(older.first?.qualifies == false, "no plan_s means the five minute policy cutoff")
     }
+
+    private static func workBreakWork(breakSeconds: Int, plan: Int, origin: BreakOrigin) -> DailySummary {
+        let day = CalendarDay(year: 2026, month: 9, day: 22)
+        let t0 = day.interval(boundaryHour: 4, calendar: calendar)?.start.addingTimeInterval(5 * 3600)
+            ?? Date(timeIntervalSince1970: 1_790_000_000)
+        let breakAt = t0.addingTimeInterval(30 * 60)
+        let back = breakAt.addingTimeInterval(TimeInterval(breakSeconds))
+        let lines: [LoggedEvent] = [
+            .start(at: t0),
+            .focus(at: t0, app: "com.apple.dt.Xcode", activity: .coding),
+            .breakBegin(at: breakAt, origin: origin),
+            .breakEnd(at: back, origin: origin, durationSeconds: breakSeconds, thresholdSeconds: plan),
+            .focus(at: back.addingTimeInterval(30 * 60), app: "com.apple.dt.Xcode", activity: .coding),
+            .stop(at: back.addingTimeInterval(30 * 60)),
+        ]
+        return DailyRollup.compute(day: day, events: lines, policy: .default, calendar: calendar)
+    }
+
+    @Test("a kept break shorter than the idle cutoff still ends the longest stretch")
+    func keptShortBreakEndsTheStretch() {
+        for origin in [BreakOrigin.accepted, .idleInferred, .userInitiated] {
+            let s = Self.workBreakWork(breakSeconds: 120, plan: 120, origin: origin)
+            #expect(s.breakCount == 1)
+            #expect(s.longestContinuousSession == 30 * 60, "\(origin): two half hours either side of a kept break")
+        }
+    }
+
+    @Test("a break cut short does not end the stretch")
+    func abandonedShortBreakDoesNotEndTheStretch() {
+        let s = Self.workBreakWork(breakSeconds: 60, plan: 120, origin: .accepted)
+        #expect(s.breakCount == 0)
+        #expect(s.longestContinuousSession == 60 * 60)
+    }
 }

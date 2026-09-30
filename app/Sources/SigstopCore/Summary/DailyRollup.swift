@@ -235,10 +235,10 @@ public enum DailyRollup {
 
         let ordered = events.sorted { $0.at < $1.at }
         let timeline = buildTimeline(ordered, in: interval)
-        let work = creditWork(timeline, policy: policy)
         let inDay = ordered.filter { $0.at >= interval.start && $0.at < interval.end }
         let spans = breakSpans(ordered, dayEnd: interval.end, policy: policy)
             .filter { $0.start >= interval.start && $0.start < interval.end }
+        let work = creditWork(timeline, keptBreaks: spans.filter(\.qualifies).map(\.start), policy: policy)
         let breaks = countBreaks(spans)
         let counters = countPromptOutcomes(inDay)
         let opportunities = scoreOpportunities(inDay, spans: spans, policy: policy)
@@ -384,7 +384,7 @@ public enum DailyRollup {
         var longestRun: TimeInterval = 0
     }
 
-    static func creditWork(_ segments: [Segment], policy: RollupPolicy) -> WorkTotals {
+    static func creditWork(_ segments: [Segment], keptBreaks: [Date], policy: RollupPolicy) -> WorkTotals {
         var totals = WorkTotals()
         var run: TimeInterval = 0
 
@@ -412,9 +412,12 @@ public enum DailyRollup {
                 if segments[j].kind != .idle { idleOnly = false }
                 j += 1
             }
-            if idleOnly && stretch <= policy.microIdleGrace {
+            let from = segments[i].start
+            let to = segments[j - 1].end
+            let holdsABreak = keptBreaks.contains { $0 >= from && $0 < to }
+            if idleOnly && stretch <= policy.microIdleGrace && !holdsABreak {
                 for k in i..<j { credit(segments[k]) }
-            } else if stretch >= policy.qualifyingBreak {
+            } else if stretch >= policy.qualifyingBreak || holdsABreak {
                 totals.longestRun = max(totals.longestRun, run)
                 run = 0
             }
