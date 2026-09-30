@@ -787,10 +787,8 @@ public struct BreakDecisionEngine: Sendable {
             ))
 
         case .resumeApp:
-            let resumed: WorkingState = {
-                if case .quiet(let q) = state { return unparked(q, input: input) }
-                return WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork)
-            }()
+            guard case .quiet(let paused) = state, paused.cause == .userPaused else { return state }
+            let resumed = unparked(paused, input: input)
             let coolingDown = resumed.cooldownUntilMono.map { input.monotonic < $0 } ?? false
             effects.append(.setIndicator(coolingDown ? .backedOff : .working))
             return .working(resumed)

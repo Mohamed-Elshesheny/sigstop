@@ -603,6 +603,7 @@ engine is allowed to *say*.
 | `quiet` | window ends, or the pause runs out | `W` at or past the threshold of the `WorkingState` parked in `QuietState.resume`, else `T` | `breakDue` | fresh cycle, fresh deferral clocks — **never a backlog** |
 | `quiet` | window ends, or the pause runs out | otherwise, or a cooldown parked with it is still running | `working` | the parked `WorkingState`, so a skip's re-arm, a cooldown and a stale re-arm outlast the pause (rule 6) |
 | `quiet(.userPaused)` | user resumes | — | `working` | the parked `WorkingState`, or one armed at `T` when nothing is parked; indicator `backedOff` while a parked cooldown runs (rule 6) |
+| any but `quiet(.userPaused)` | user resumes | — | unchanged | nothing: there is no pause to undo (rule 6) |
 | `quiet` | user picks "break now" | — | `breakActive` | begin break, `origin: .userInitiated`; the break keeps the quiet state (`BreakActive.quietBefore`) |
 | `quiet` | gap ≥ `qualifyingBreak` | the quiet still holds | `quiet` | break recorded, backoff reset, the quiet state is left alone but for its parked stand-down, which is dropped (rules 3 and 6) |
 | `quiet` | the work clock resets, or the session ends | the quiet still holds | `quiet` | the parked `WorkingState` is dropped (rule 6) |
@@ -664,6 +665,10 @@ Six structural rules the table encodes:
    a pause reaches that, so when *Pause · 1h* runs out the next break is a full `T` of work away
    whatever was parked. `PauseKeepsStandDownTests` holds the skip, the exhausted ladder and the
    stale re-arm, each through *Pause · 1h* then *Resume* and through a pause that runs out.
+   Outside a pause, *Resume* does nothing at all. The panel offers it only while paused, but a
+   click can land on the tick after the pause ran out, and it used to start a fresh `WorkingState`
+   from whatever state it found: a skip's twenty minutes were gone again, and a cycle with a prompt
+   up was dropped without being closed. `ResumeOnlyUndoesAPauseTests` holds both.
 
 ---
 
