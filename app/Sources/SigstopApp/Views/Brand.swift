@@ -105,8 +105,6 @@ struct BrandMark: View {
     var size: CGFloat = 40
     var fill: Double = 0.5
     var resting: Bool = false
-    var tint: Color = Brand.amber
-    var fillTint: Color = Brand.amberFill
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -125,7 +123,7 @@ struct BrandMark: View {
         if resting {
             GeometryReader { geometry in
                 Capsule(style: .continuous)
-                    .fill(tint)
+                    .fill(Brand.amber)
                     .frame(width: geometry.size.width + size * 0.08, height: max(2, size * 0.09))
                     .position(x: geometry.size.width / 2, y: geometry.size.height * 0.62)
             }
@@ -139,9 +137,9 @@ struct BrandMark: View {
             let shape = RoundedRectangle(cornerRadius: size * 0.09, style: .continuous)
             ZStack(alignment: .bottom) {
                 shape
-                    .fill(fillTint)
+                    .fill(Brand.amberFill)
                     .frame(height: geometry.size.height * min(1, max(0, fill)))
-                shape.strokeBorder(tint, lineWidth: max(1.5, size * 0.045))
+                shape.strokeBorder(Brand.amber, lineWidth: max(1.5, size * 0.045))
             }
         }
     }
@@ -202,7 +200,6 @@ struct TerminalButton: View {
     var style: Style = .outlined
     var mark: String? = nil
     var enabled: Bool = true
-    var shortcut: KeyboardShortcut? = nil
     let action: () -> Void
 
     @FocusState private var focused: Bool
@@ -213,19 +210,17 @@ struct TerminalButton: View {
         style: Style = .outlined,
         mark: String? = nil,
         enabled: Bool = true,
-        shortcut: KeyboardShortcut? = nil,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.style = style
         self.mark = mark
         self.enabled = enabled
-        self.shortcut = shortcut
         self.action = action
     }
 
     var body: some View {
-        let button = Button(action: action) {
+        Button(action: action) {
             Text(title)
                 .font(Brand.mono(11, weight: style.weight))
         }
@@ -239,12 +234,6 @@ struct TerminalButton: View {
         .focused($focused)
         .onChange(of: focused) { _, isFocused in
             keyboardFocused = isFocused && NSApp.currentEvent?.type == .keyDown
-        }
-
-        if let shortcut {
-            button.keyboardShortcut(shortcut)
-        } else {
-            button
         }
     }
 }
@@ -544,45 +533,5 @@ struct TransferBar: View {
         }
         .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: height / 2, style: .continuous))
-    }
-}
-
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? .infinity
-        return arrange(in: width, subviews: subviews).size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let arrangement = arrange(in: bounds.width, subviews: subviews)
-        for (index, origin) in arrangement.origins.enumerated() {
-            subviews[index].place(
-                at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
-                proposal: .unspecified
-            )
-        }
-    }
-
-    private func arrange(in width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
-        var origins: [CGPoint] = []
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var maxX: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > width {
-                x = 0
-                y += rowHeight + spacing
-                rowHeight = 0
-            }
-            origins.append(CGPoint(x: x, y: y))
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-            maxX = max(maxX, x - spacing)
-        }
-        return (CGSize(width: maxX, height: y + rowHeight), origins)
     }
 }
