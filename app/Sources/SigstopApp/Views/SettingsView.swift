@@ -194,7 +194,7 @@ struct SettingsView: View {
                         options: AppearancePreference.allCases.map { ($0, $0.displayName) }
                     )
                 }
-                SettingRow("Show in the Dock", detail: "Menu bar only by default; some people want the app where they look for apps.") {
+                SettingRow("Show in the Dock", detail: "On by default, so the app is still findable when the menu bar hides its mark. Turn it off for menu bar only.") {
                     TerminalSwitch(isOn: settings.showInDock)
                 }
                 SettingRow("Launch at login", detail: launchAtLoginFailure) {
