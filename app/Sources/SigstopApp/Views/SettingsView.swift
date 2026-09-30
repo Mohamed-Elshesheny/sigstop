@@ -285,8 +285,7 @@ struct SettingsView: View {
                 Note(
                     "If a prompt is ignored the ladder climbs one signal per rung, SIGTSTP, SIGINT, "
                         + "SIGTERM, then SIGSTOP, ordered by how easy each is to ignore. It stops "
-                        + "there. There is no SIGKILL, because SIGKILL destroys the exact thing this "
-                        + "app promises to keep."
+                        + "there, at the one signal that cannot be ignored and destroys nothing."
                 )
             }
         }
