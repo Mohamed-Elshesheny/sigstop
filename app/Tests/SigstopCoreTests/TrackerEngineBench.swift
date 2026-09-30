@@ -7,7 +7,7 @@ struct TrackerEngineBench {
     static let app = AppIdentity(bundleID: "com.apple.dt.Xcode", localizedName: "Xcode", pid: 1)
     static let tick: TimeInterval = 5
 
-    let time: MutableTimeSource
+    let time: BenchClock
     let settings: SigstopSettings
     let policy: BreakPolicy
     let engine: BreakDecisionEngine
@@ -37,7 +37,7 @@ struct TrackerEngineBench {
         self.policy = policy
         engine = BreakDecisionEngine(policy: policy)
         calendar = CalendarDay.utcCalendar
-        time = MutableTimeSource(now: start, monotonic: 1_000)
+        time = BenchClock(now: start, monotonic: 1_000)
         tracker = SessionTracker(time: time, policy: policy, calendar: calendar)
         state = .initial(policy: policy)
         day = DailyCounters(
@@ -141,6 +141,31 @@ struct TrackerEngineBench {
     var working: WorkingState? {
         if case .working(let w) = state { return w }
         return nil
+    }
+}
+
+final class BenchClock: TimeSource, @unchecked Sendable {
+    private let lock = NSLock()
+    private var wall: Date
+    private var mono: Double
+
+    init(now: Date, monotonic: Double) {
+        wall = now
+        mono = monotonic
+    }
+
+    var now: Date { lock.withLock { wall } }
+    var continuousSeconds: Double { lock.withLock { mono } }
+
+    func advance(by seconds: TimeInterval) {
+        lock.withLock {
+            wall = wall.addingTimeInterval(seconds)
+            mono += seconds
+        }
+    }
+
+    func setWallClock(by seconds: TimeInterval) {
+        lock.withLock { wall = wall.addingTimeInterval(seconds) }
     }
 }
 
