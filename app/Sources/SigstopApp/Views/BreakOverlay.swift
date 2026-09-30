@@ -290,8 +290,9 @@ struct BreakScreen: View {
 
     private var countdown: some View {
         let total = max(1, duration)
+        let anchor = (endsAt ?? .distantPast).addingTimeInterval(-86_400)
         return VStack(spacing: 14) {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            TimelineView(.periodic(from: anchor, by: 1)) { context in
                 Text(Format.clock(remaining(at: context.date)))
                     .font(Brand.mono(120, weight: .light))
                     .tracking(-4)
@@ -309,7 +310,7 @@ struct BreakScreen: View {
             .font(Brand.mono(12))
             .foregroundStyle(Brand.Dark.fgMuted)
             .accessibilityHidden(true)
-            TimelineView(.periodic(from: .now, by: 5)) { context in
+            TimelineView(.periodic(from: anchor, by: 5)) { context in
                 TransferBar(
                     fraction: min(1, max(0, 1 - remaining(at: context.date) / total)),
                     animated: false,
