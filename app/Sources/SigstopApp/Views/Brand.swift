@@ -14,7 +14,7 @@ enum Brand {
     static let fg = dynamic(light: 0x17191C, dark: 0xE8EAED)
     static let fgMuted = dynamic(light: 0x53585E, dark: 0x9AA2AD)
 
-    static let fgFaint = dynamic(light: 0x6B7177, dark: 0x656D78)
+    static let fgFaint = dynamic(light: 0x6B7177, dark: 0x808894)
 
     static let chrome = dynamic(light: 0xF4F4F1, dark: 0x101317)
 
@@ -33,7 +33,6 @@ enum Brand {
         static let bg = fixed(0x101317)
         static let fg = fixed(0xE8EAED)
         static let fgMuted = fixed(0x9AA2AD)
-        static let fgFaint = fixed(0x656D78)
         static let line = fixed(0x2D343D)
         static let amber = fixed(0xF5A524)
         static let onAmber = fixed(0x000000)

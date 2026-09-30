@@ -382,12 +382,12 @@ struct FallbackPromptView: View {
                         .foregroundStyle(isIncident ? Brand.alert : Brand.Dark.amber)
                     Text("L\(request.level.rawValue)")
                         .font(Brand.mono(12))
-                        .foregroundStyle(Brand.Dark.fgFaint)
+                        .foregroundStyle(Brand.Dark.fgMuted)
                 }
 
                 Text("\(DurationText.short(request.continuousWork)) continuous")
                     .font(Brand.mono(12))
-                    .foregroundStyle(Brand.Dark.fgFaint)
+                    .foregroundStyle(Brand.Dark.fgMuted)
                     .padding(.top, 10)
 
                 if let title = message.title {
@@ -429,7 +429,7 @@ struct FallbackPromptView: View {
 
                 Text(PromptFooter.text(for: request, quietAfterLast: quietAfterLast))
                     .font(Brand.mono(11))
-                    .foregroundStyle(Brand.Dark.fgFaint)
+                    .foregroundStyle(Brand.Dark.fgMuted)
                     .padding(.top, 18)
             }
             .padding(48)
