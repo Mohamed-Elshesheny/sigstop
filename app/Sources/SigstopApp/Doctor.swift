@@ -343,11 +343,8 @@ enum Doctor {
         out.append(String(format: "  confidence       %.2f", context.confidence.value))
         out.append("  provider         \(sample.providerID.rawValue)")
         out.append("  tiers used       \(tierText(context.tiersUsed))")
-        out.append("  continuous work  \(DurationText.short(context.continuousWork))")
-        out.append(
-            "  since last break "
-                + (context.timeSinceLastBreak.map(DurationText.short) ?? "no break recorded yet")
-        )
+        out.append("  work clock       not shown: this process started just now, so its own clock")
+        out.append("                   reads zero. The running app's clock is in the menu bar.")
 
         out.append("")
         out.append("  EVIDENCE  (log-odds; the prior is about -1.74, single items clamp at ±2.00)")
