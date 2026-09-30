@@ -139,7 +139,7 @@ struct MenuBarView: View {
 
     private var subtitle: String {
         if let until = model.pausedUntil {
-            let day = until.timeIntervalSinceNow >= 24 * 3600 ? " tomorrow" : ""
+            let day = Calendar.current.isDate(until, inSameDayAs: .now) ? "" : " tomorrow"
             return "paused until \(Self.clock(until))\(day)"
         }
         if let until = model.snoozeUntil, until > .now {
