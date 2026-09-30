@@ -594,19 +594,21 @@ engine is allowed to *say*.
 | `breakActive` | tick | `now >= plannedEnd` | `working` | reset clock, record break, `lastBreakEndedAt = now` |
 | `breakActive` | user ends early | elapsed `>= qualifyingBreak` | `working` | as above |
 | `breakActive` | user ends early | elapsed `< qualifyingBreak` | `working` | **no reset, no break recorded**, log `.abandoned` |
-| `breakActive` | the break ends, any of the three ways above | it started from `quiet` and that quiet still holds | that `quiet`, unchanged | as above, but the pause keeps its own end (rule 3) |
+| `breakActive` | the break ends, any of the three ways above | it started from `quiet` and that quiet still holds | that `quiet`, unchanged but for its parked stand-down, which a break that counts drops | as above, but the pause keeps its own end (rules 3 and 6) |
 | `breakActive` | input resumes | elapsed `< qualifyingBreak` | `breakActive` | keep the timer; do not nag; a break is not a jail |
 | `idle` | input resumes | gap `< qualifyingBreak`, ladder parked | `ignored` | **resume the ladder at its rung**; gap ages `totalElapsed`, not `ladderElapsed` |
 | `idle` | input resumes | gap `< qualifyingBreak` | `working` or `breakDue` | resume clock; back to the parked `WorkingState`, so a skip's re-arm, a cooldown and a stale re-arm outlast a short absence; re-evaluate `W` against its threshold |
 | `idle` | input resumes | gap `>= qualifyingBreak` | `working` | reset, record break, close any open cycle honored |
 | any but `breakActive` and `quiet` | the session ends: a gap reaches `sessionGap`, or the 04:00 boundary | — | `working`, armed at `T` | withdraw and close any open cycle `.expired`; a stand-down or cooldown ends with the session (rule 4) |
-| `quiet` | window ends | `W >= T` | `breakDue` | fresh cycle, fresh deferral clocks — **never a backlog** |
-| `quiet` | window ends | `W < T` | `working` | — |
+| `quiet` | window ends, or the pause runs out | `W` at or past the threshold of the `WorkingState` parked in `QuietState.resume`, else `T` | `breakDue` | fresh cycle, fresh deferral clocks — **never a backlog** |
+| `quiet` | window ends, or the pause runs out | otherwise, or a cooldown parked with it is still running | `working` | the parked `WorkingState`, so a skip's re-arm, a cooldown and a stale re-arm outlast the pause (rule 6) |
+| `quiet(.userPaused)` | user resumes | — | `working` | the parked `WorkingState`, or one armed at `T` when nothing is parked; indicator `backedOff` while a parked cooldown runs (rule 6) |
 | `quiet` | user picks "break now" | — | `breakActive` | begin break, `origin: .userInitiated`; the break keeps the quiet state (`BreakActive.quietBefore`) |
-| `quiet` | gap ≥ `qualifyingBreak` | the quiet still holds | `quiet` | break recorded, backoff reset, the quiet state is left alone (rule 3) |
-| any | user pauses the app | — | `quiet(.userPaused)` | duration chosen by user: one hour, or until the next day boundary (§14, 04:00 by default); measurement continues |
+| `quiet` | gap ≥ `qualifyingBreak` | the quiet still holds | `quiet` | break recorded, backoff reset, the quiet state is left alone but for its parked stand-down, which is dropped (rules 3 and 6) |
+| `quiet` | the work clock resets, or the session ends | the quiet still holds | `quiet` | the parked `WorkingState` is dropped (rule 6) |
+| any | user pauses the app | — | `quiet(.userPaused)` | duration chosen by user: one hour, or until the next day boundary (§14, 04:00 by default); measurement continues; a `working` state, or the one `idle` or an earlier pause was holding, is parked in `QuietState.resume` (rule 6) |
 
-Five structural rules the table encodes:
+Six structural rules the table encodes:
 
 1. **A break taken without being asked always closes the open cycle as honored.** The user walking away
    on their own is the success case, not a missed prompt.
@@ -640,6 +642,28 @@ Five structural rules the table encodes:
    `breakDue` and `ignored` park on it as they park on idle. Waking with input a second old used to
    charge the whole sleep to the prompt's timeout and to `ladderElapsed`, so three minutes with the
    lid shut was an ignored prompt, and four and a half moved the ladder a rung.
+6. **A pause does not take back a promise the app made before it.** *Skip, quiet for 20m* is a
+   promise, and so are the 25-minute cooldown after a ladder nobody answered and the re-arm after a
+   cycle that went stale. The pause used to replace the `WorkingState` that carried them, and both
+   ways out of it, *Resume* and the pause running out, started a fresh one armed at `T`: skip,
+   pause, change your mind a minute later and resume, and the prompt you had just waved off came
+   straight back, because `W` was already past `T`. Resume undoes the pause. It does not ask to be
+   interrupted, and nothing about pausing should cost the user quiet they had already been given.
+   So `pauseApp` parks the `WorkingState` it replaces in `QuietState.resume`, the way `idle` parks it
+   in `IdleState.resume` (optional, so an older encoding still decodes). A pause started from `idle`
+   parks what `idle` was holding, a second pause keeps what the first parked, and a pause started
+   with a cycle open closes that cycle as before and parks nothing. *Resume*, the pause running out,
+   and the quiet hours a pause can run out into all hand the parked state back, and its threshold
+   and cooldown are then judged against the clocks as usual: a stand-down that ran out during the
+   pause is simply over. The parked state ends the way a stand-down ends outside a pause. A break
+   that counts (one taken inside the pause, rule 3, or one the session model records), a reset of
+   the work clock and the end of the session each drop it, and the pause then ends into `working`
+   armed at `T`. Credit the session model takes back as the pause starts (`graceRevoked`) lowers the
+   parked `lastWorkSeen` with it, so it is not mistaken for a reset. In practice this decides a
+   pause that ends inside `longPauseReset` (20 min): the session model resets the work clock once
+   a pause reaches that, so when *Pause · 1h* runs out the next break is a full `T` of work away
+   whatever was parked. `PauseKeepsStandDownTests` holds the skip, the exhausted ladder and the
+   stale re-arm, each through *Pause · 1h* then *Resume* and through a pause that runs out.
 
 ---
 
@@ -1326,6 +1350,12 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   counted as a *missed* opportunity in compliance (it was a real, answered opportunity). The engine
   re-arms after another `rearmAfterSkip` (20 min) of continuous active work. This is the mid-deploy
   escape hatch and it is deliberately cheap to use.
+- **A pause keeps the skip's twenty minutes.** Skip, then *Pause · 1h*, then *Resume* ten minutes
+  later, and the next prompt still waits for `rearmAfterSkip` of work counted from the skip, not for
+  `T` counted from nothing, which with `W` already past `T` meant at once. The work clock does not
+  run while the app is paused, so the pause neither spends the twenty minutes nor adds to them.
+  A pause that runs out does the same, and a break or a reset of the work clock inside the pause
+  ends the promise the way it would outside one (§5.1, rule 6).
 - **Skip is not the cheap gesture, and the UI must not let it look like one.** Twenty minutes of
   silence is the longest suppression in the engine, so the control that buys it says so, and Escape
   does not call it. Escape and *Ignore it* take the panel down and tell the engine nothing

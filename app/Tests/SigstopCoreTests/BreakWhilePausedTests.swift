@@ -24,6 +24,12 @@ struct BreakWhilePausedTests {
         if case .quiet(let q) = state { return q } else { return nil }
     }
 
+    private static func afterABreak(_ quiet: QuietState?) -> QuietState? {
+        guard var quiet else { return nil }
+        quiet.resume = nil
+        return quiet
+    }
+
     private static func runBreakOut(_ driver: inout EngineHarness.Driver) -> [Effect] {
         driver.step(untilLimit: 200) { ended($0) }
     }
@@ -47,12 +53,12 @@ struct BreakWhilePausedTests {
 
         let ending = Self.runBreakOut(&driver)
         #expect(Self.ended(ending))
-        #expect(Self.quiet(driver.state) == paused, "after the break the engine is \(driver.state)")
+        #expect(Self.quiet(driver.state) == Self.afterABreak(paused), "after the break the engine is \(driver.state)")
         #expect(Self.indicators(ending).last == .quiet)
         #expect(!ending.contains { if case .openCycle = $0 { return true } else { return false } })
 
         for _ in 0..<60 { driver.step() }
-        #expect(Self.quiet(driver.state) == paused, "prompts came back before the hour: \(driver.state)")
+        #expect(Self.quiet(driver.state) == Self.afterABreak(paused), "prompts came back before the hour: \(driver.state)")
     }
 
     @Test("SIGCONT early from a paused break goes back to the pause too")
@@ -157,7 +163,7 @@ struct BreakWhilePausedTests {
             duration: 330
         )]
         let produced = driver.step()
-        #expect(Self.quiet(driver.state) == paused, "the locked screen ended the pause: \(driver.state)")
+        #expect(Self.quiet(driver.state) == Self.afterABreak(paused), "the locked screen ended the pause: \(driver.state)")
         #expect(Self.indicators(produced) == [.quiet])
         #expect(driver.day.consecutiveIgnoredCycles == 0, "a qualifying break still resets the backoff")
     }

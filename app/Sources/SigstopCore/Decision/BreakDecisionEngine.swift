@@ -127,6 +127,8 @@ public struct BreakDecisionEngine: Sendable {
             }
         }
 
+        state = settleParked(state, input: input)
+
         if let action = input.userAction {
             state = handle(action, state: state, input: input, day: &day, effects: &effects)
             return EngineOutcome(state: state, effects: effects, day: day, verdict: nil)
@@ -163,7 +165,9 @@ public struct BreakDecisionEngine: Sendable {
         if inQuietWindow, !isBreakActive(state), !state.isWorking {
             if case .quiet(let quiet) = state {
                 effects.append(.setIndicator(.quiet))
-                let held = stillQuiet(quiet, input: input, day: day) ? quiet : QuietState(cause: .scheduledQuietHours)
+                let held = stillQuiet(quiet, input: input, day: day)
+                    ? quiet
+                    : QuietState(cause: .scheduledQuietHours, resume: quiet.resume)
                 return EngineOutcome(state: .quiet(held), effects: effects, day: day, verdict: nil)
             }
             if let cycle = state.openCycle {
@@ -600,7 +604,8 @@ public struct BreakDecisionEngine: Sendable {
             if honored { day.honoredOpportunities += 1 }
         }
         if honored { day.consecutiveIgnoredCycles = 0 }
-        if let quiet = active.quietBefore, stillQuiet(quiet, input: input, day: day) {
+        if var quiet = active.quietBefore, stillQuiet(quiet, input: input, day: day) {
+            if honored { quiet.resume = nil }
             effects.append(.setIndicator(.quiet))
             return .quiet(quiet)
         }
@@ -672,16 +677,16 @@ public struct BreakDecisionEngine: Sendable {
                 effects.append(.setIndicator(.quiet))
                 return .quiet(quiet)
             }
-            return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
+            return .working(unparked(quiet, input: input))
         case .userPaused:
             if let untilMono = quiet.untilMono, input.monotonic >= untilMono {
-                return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
+                return .working(unparked(quiet, input: input))
             }
             effects.append(.setIndicator(.quiet))
             return .quiet(quiet)
         case .sustainedFocusMode:
             if input.signals.focusModeActive != true {
-                return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
+                return .working(unparked(quiet, input: input))
             }
             effects.append(.setIndicator(.quiet))
             return .quiet(quiet)
@@ -777,13 +782,43 @@ public struct BreakDecisionEngine: Sendable {
             return .quiet(QuietState(
                 until: input.now.addingTimeInterval(duration),
                 untilMono: input.monotonic + duration,
-                cause: .userPaused
+                cause: .userPaused,
+                resume: parked(state)
             ))
 
         case .resumeApp:
-            effects.append(.setIndicator(.working))
-            return .working(WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork))
+            let resumed: WorkingState = {
+                if case .quiet(let q) = state { return unparked(q, input: input) }
+                return WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork)
+            }()
+            let coolingDown = resumed.cooldownUntilMono.map { input.monotonic < $0 } ?? false
+            effects.append(.setIndicator(coolingDown ? .backedOff : .working))
+            return .working(resumed)
         }
+    }
+
+    private func parked(_ state: EngineState) -> WorkingState? {
+        switch state {
+        case .working(let w): return w
+        case .idle(let i):    return i.resume
+        case .quiet(let q):   return q.resume
+        case .breakDue, .breakActive, .snoozed, .ignored: return nil
+        }
+    }
+
+    private func unparked(_ quiet: QuietState, input: EngineInput) -> WorkingState {
+        quiet.resume ?? WorkingState(armThreshold: policy.targetContinuousWork, lastWorkSeen: input.context.continuousWork)
+    }
+
+    private func settleParked(_ state: EngineState, input: EngineInput) -> EngineState {
+        guard case .quiet(var quiet) = state, var parked = quiet.resume else { return state }
+        if input.workClockWasReset || input.qualifyingBreakObserved || input.sessionEnded {
+            quiet.resume = nil
+        } else if input.graceWasRevoked {
+            parked.lastWorkSeen = min(parked.lastWorkSeen, input.context.continuousWork)
+            quiet.resume = parked
+        }
+        return .quiet(quiet)
     }
 
     private func pendingCycle(_ state: EngineState) -> BreakDue? {

@@ -321,7 +321,11 @@ public extension EngineState {
             guard let parked = i.resume else { return self }
             i.resume = parked.retargeted(by: new - old)
             return .idle(i)
-        case .breakDue, .breakActive, .snoozed, .ignored, .quiet:
+        case .quiet(var q):
+            guard let parked = q.resume else { return self }
+            q.resume = parked.retargeted(by: new - old)
+            return .quiet(q)
+        case .breakDue, .breakActive, .snoozed, .ignored:
             return self
         }
     }
@@ -331,11 +335,13 @@ public struct QuietState: Sendable, Codable, Hashable {
     public var until: Date?
     public var untilMono: Double?
     public var cause: QuietCause
+    public var resume: WorkingState?
 
-    public init(until: Date? = nil, untilMono: Double? = nil, cause: QuietCause) {
+    public init(until: Date? = nil, untilMono: Double? = nil, cause: QuietCause, resume: WorkingState? = nil) {
         self.until = until
         self.untilMono = untilMono
         self.cause = cause
+        self.resume = resume
     }
 }
 
