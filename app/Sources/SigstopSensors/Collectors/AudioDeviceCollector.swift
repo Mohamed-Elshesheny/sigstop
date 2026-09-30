@@ -21,6 +21,7 @@ public final class AudioDeviceCollector: @unchecked Sendable {
     private var systemAwake = true
     private var started = false
     private var deviceListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
+    private var pendingDevices: Set<AudioObjectID> = []
     private var hardwareListener: AudioObjectPropertyListenerBlock?
     private var continuations: [UUID: AsyncStream<AudioInputState>.Continuation] = [:]
 
@@ -183,20 +184,20 @@ public final class AudioDeviceCollector: @unchecked Sendable {
     }
 
     private func registerDeviceListeners(_ devices: [AudioObjectID]) {
-        lock.lock()
-        let existing = Set(deviceListeners.keys)
-        lock.unlock()
-
         let wanted = Set(devices)
 
-        for gone in existing.subtracting(wanted) {
-            lock.lock()
-            let block = deviceListeners.removeValue(forKey: gone)
-            lock.unlock()
-            if let block { Self.removeRunningListener(gone, block, queue) }
+        lock.lock()
+        var removed: [(AudioObjectID, AudioObjectPropertyListenerBlock)] = []
+        for gone in Set(deviceListeners.keys).subtracting(wanted) {
+            if let block = deviceListeners.removeValue(forKey: gone) { removed.append((gone, block)) }
         }
+        let claimed = wanted.subtracting(deviceListeners.keys).subtracting(pendingDevices)
+        pendingDevices.formUnion(claimed)
+        lock.unlock()
 
-        for added in wanted.subtracting(existing) {
+        for (gone, block) in removed { Self.removeRunningListener(gone, block, queue) }
+
+        for added in claimed {
             var address = AudioObjectPropertyAddress(
                 mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
                 mScope: kAudioObjectPropertyScopeGlobal,
@@ -211,11 +212,12 @@ public final class AudioDeviceCollector: @unchecked Sendable {
                 self.update(raw: raw)
             }
             let status = AudioObjectAddPropertyListenerBlock(added, &address, queue, block)
-            if status == noErr {
-                lock.lock()
-                deviceListeners[added] = block
-                lock.unlock()
-            }
+            lock.lock()
+            pendingDevices.remove(added)
+            let kept = status == noErr && started
+            if kept { deviceListeners[added] = block }
+            lock.unlock()
+            if status == noErr && !kept { Self.removeRunningListener(added, block, queue) }
         }
     }
 

@@ -39,6 +39,7 @@ public final class AudioProcessCollector: @unchecked Sendable {
     private var bundleIDs: [AudioObjectID: String] = [:]
     private var snapshotValue: AudioProcessSnapshot = .unreadable
     private var objectListeners: [AudioObjectID: AudioObjectPropertyListenerBlock] = [:]
+    private var pendingObjects: Set<AudioObjectID> = []
     private var listListener: AudioObjectPropertyListenerBlock?
 
     public init(time: any TimeSource = SystemTimeSource()) {
@@ -139,20 +140,20 @@ public final class AudioProcessCollector: @unchecked Sendable {
     }
 
     private func registerObjectListeners(_ objects: [AudioObjectID]) {
-        lock.lock()
-        let existing = Set(objectListeners.keys)
-        lock.unlock()
-
         let wanted = Set(objects)
 
-        for gone in existing.subtracting(wanted) {
-            lock.lock()
-            let block = objectListeners.removeValue(forKey: gone)
-            lock.unlock()
-            if let block { Self.removeInputListener(gone, block, queue) }
+        lock.lock()
+        var removed: [(AudioObjectID, AudioObjectPropertyListenerBlock)] = []
+        for gone in Set(objectListeners.keys).subtracting(wanted) {
+            if let block = objectListeners.removeValue(forKey: gone) { removed.append((gone, block)) }
         }
+        let claimed = wanted.subtracting(objectListeners.keys).subtracting(pendingObjects)
+        pendingObjects.formUnion(claimed)
+        lock.unlock()
 
-        for added in wanted.subtracting(existing) {
+        for (gone, block) in removed { Self.removeInputListener(gone, block, queue) }
+
+        for added in claimed {
             var address = Self.inputAddress()
             let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 guard let self else { return }
@@ -163,11 +164,12 @@ public final class AudioProcessCollector: @unchecked Sendable {
                 self.recompute(objects: objects, cache: cache)
             }
             let status = AudioObjectAddPropertyListenerBlock(added, &address, queue, block)
-            if status == noErr {
-                lock.lock()
-                objectListeners[added] = block
-                lock.unlock()
-            }
+            lock.lock()
+            pendingObjects.remove(added)
+            let kept = status == noErr && started
+            if kept { objectListeners[added] = block }
+            lock.unlock()
+            if status == noErr && !kept { Self.removeInputListener(added, block, queue) }
         }
     }
 
