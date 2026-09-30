@@ -23,11 +23,10 @@ struct BreakContent: Sendable, Hashable {
         "Say the last thing you were doing out loud. It will still be there.",
     ]
 
-    static func make(for context: DeveloperContext, settings: SigstopSettings, seed: UInt64) -> BreakContent {
+    static func make(settings: SigstopSettings, seed: UInt64) -> BreakContent {
         var rng = SeededGenerator(seed: seed)
         let prompt = prompts.randomElement(using: &rng) ?? "Stand up."
         let quest = settings.breakQuestsEnabled ? quests.randomElement(using: &rng) : nil
-        _ = context
         return BreakContent(prompt: prompt, quest: quest)
     }
 }

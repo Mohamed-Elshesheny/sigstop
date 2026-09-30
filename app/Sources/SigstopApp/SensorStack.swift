@@ -4,7 +4,6 @@ import SigstopSensors
 
 @MainActor
 struct SensorStack {
-    let time: any TimeSource
     let permissions: PermissionBroker
     let frontmost: FrontmostAppCollector
     let system: SystemStateCollector
@@ -29,7 +28,6 @@ struct SensorStack {
         let processes = ProcessCollector(permissions: permissions)
         let git = GitCollector(permissions: permissions)
 
-        self.time = time
         self.permissions = permissions
         self.frontmost = frontmost
         self.system = system

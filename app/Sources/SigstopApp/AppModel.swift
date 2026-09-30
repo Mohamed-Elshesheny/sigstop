@@ -29,16 +29,12 @@ final class AppModel {
     private(set) var gitReading: GitReading?
     private(set) var gitStatusLine: String = "not sampled yet"
     private(set) var waiting: WaitingLine = WaitingLine(.notAskingYet, "starting up")
-    private(set) var holdReason: String?
     private(set) var workTarget: TimeInterval
     private(set) var workTargetInForce = true
     private(set) var indicator: IndicatorState = .working
     private(set) var statusWord: String = "running"
     private(set) var engineStateName: String = "working"
-    private(set) var quietCause: QuietCause?
     private(set) var todaySummary: DailySummary?
-    private(set) var todayLine: String = ""
-    private(set) var todayDetail: String = ""
     private(set) var badges: BadgeLedger = .empty
     private(set) var badgeEvidence: BadgeEvidence = BadgeEvidence()
     private(set) var badgeNote: String?
@@ -432,7 +428,7 @@ final class AppModel {
 
         record(sessionEvents: sessionEvents, sample: tickSample, at: now)
         persistCountersIfChanged()
-        logFocusIfNeeded(context: context, sample: sample, at: now)
+        logFocusIfNeeded(context: context, at: now)
         publishViewState(sample: sample, context: context, outcome: outcome)
     }
 
@@ -565,7 +561,6 @@ final class AppModel {
             breakOrigin = origin
             breakEndsAt = plannedEnd
             breakContent = BreakContent.make(
-                for: context,
                 settings: settings,
                 seed: UInt64(bitPattern: Int64(now.timeIntervalSince1970.rounded()))
             )
@@ -829,7 +824,7 @@ final class AppModel {
         }
     }
 
-    private func logFocusIfNeeded(context: DeveloperContext, sample: ContextSample, at now: Date) {
+    private func logFocusIfNeeded(context: DeveloperContext, at now: Date) {
         let bundle = context.application.bundleID
         let appChanged = loggedApp.map { $0 != bundle } ?? true
         let activityChanged = loggedActivity != context.activity
@@ -848,7 +843,6 @@ final class AppModel {
                 titleSignal: nil
             )
         )
-        _ = sample
     }
 
     static func category(for bundleID: String?) -> String {
@@ -881,11 +875,9 @@ final class AppModel {
 
         publishHold(gate: outcome.verdict.map(GateReason.init))
 
-        if case .quiet(let q) = engineState {
-            quietCause = q.cause
-            pausedUntil = q.cause == .userPaused ? q.until : nil
+        if case .quiet(let q) = engineState, q.cause == .userPaused {
+            pausedUntil = q.until
         } else {
-            quietCause = nil
             pausedUntil = nil
         }
         statusWord = StatusWord.read(state: engineState, indicator: indicator)
@@ -988,8 +980,6 @@ final class AppModel {
            waiting.claim != .holdingOff {
             waiting = WaitingLine(.holdingOff, hold)
         }
-
-        holdReason = waiting.body
     }
 
     private static let unreadableLogPrefix = "Could not read the event log for"
@@ -1010,17 +1000,11 @@ final class AppModel {
             let list = days.map(\.description).joined(separator: ", ")
             lastStoreError = "\(Self.unreadableLogPrefix) \(list), so today's numbers are not shown."
             todaySummary = nil
-            todayLine = ""
-            todayDetail = ""
             return
         } catch {
             return
         }
         todaySummary = summary
-        let narrator = SummaryNarrator(tone: settings.tone)
-        let seed = UInt64(bitPattern: Int64(today.year * 10_000 + today.month * 100 + today.day))
-        todayLine = narrator.line(for: summary, seed: seed)
-        todayDetail = narrator.detail(for: summary)
         refreshBadges(today: summary, store: store, force: force)
     }
 
@@ -1153,8 +1137,6 @@ final class AppModel {
             latch = latch.resettingDailyHold()
             lastPersistedHold = 0
             todaySummary = nil
-            todayLine = ""
-            todayDetail = ""
             lastWrittenSummary = nil
             badges = .empty
             badgeEvidence = BadgeEvidence()
