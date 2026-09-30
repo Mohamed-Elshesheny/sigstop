@@ -749,10 +749,13 @@ L4, were a design that was not built.
 
 Two non-negotiables, enforced in the notification layer rather than the engine:
 
-- **L4 never steals keyboard focus.** The window is non-activating
-  (`NSWindow.StyleMask.nonactivatingPanel`, `becomesKeyOnlyIfNeeded = true`). It is visually
-  loud and input-transparent to the app underneath. A break reminder that eats a keystroke
-  mid-edit gets uninstalled that afternoon, correctly.
+- **No rung steals keyboard focus, L4 included.** The prompt panel is non-activating
+  (`NSWindow.StyleMask.nonactivatingPanel`) and is ordered front with `orderFrontRegardless`
+  without being made key, so the app underneath keeps the keyboard and a keystroke mid-edit
+  still lands in the editor. It is not input-transparent: `BreakOverlay` puts one panel over
+  the whole of every screen and it takes the mouse, and a click on it makes it key, which is
+  when Escape reaches it. A break reminder that eats a keystroke mid-edit gets uninstalled
+  that afternoon, correctly.
 - **A live camera holds every rung** until it ends. A full-screen presentation on its own
   does not: `SensorStack` passes `frontmostIsPresentationApp: false`, so the full-screen gate
   can only fire while a camera is running, and the camera has already held. Screen sharing and
