@@ -2670,7 +2670,7 @@
     },
     {
       "id": "long.generic.five-beats-an-hour",
-      "text": "Long haul today. Five minutes now beats an hour of fog later.",
+      "text": "Long haul today. Take five now. The haul will be exactly where you left it.",
       "tone": "friendly",
       "category": "long_session",
       "escalation": {
@@ -3453,7 +3453,7 @@
     },
     {
       "id": "generic.unknown.problem-solves-itself-in-the-kitchen",
-      "text": "Statistically, whatever you're stuck on solves itself somewhere between here and the kitchen. Go collect the answer.",
+      "text": "Whatever you're stuck on will still be stuck in five minutes. It has nowhere to be. Go to the kitchen and let it wait for once.",
       "tone": "sarcastic",
       "category": "generic_fallback",
       "escalation": {
@@ -3521,7 +3521,7 @@
     },
     {
       "id": "generic.sincebreak.two-hours-is-the-number",
-      "text": "It has been {minutes} minutes since the last break. Two hours is roughly where the returns stop returning. Five minutes.",
+      "text": "It has been {minutes} minutes since the last break. That counter has earned a reset. Five minutes.",
       "tone": "friendly",
       "category": "generic_fallback",
       "escalation": {
