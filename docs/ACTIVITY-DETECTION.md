@@ -1444,16 +1444,26 @@ The handler samples once and calls `scheduleNextWake()` again.
 
 ### 8.4 Suspension
 
-Everything periodic is **fully suspended** — source cancelled, not merely skipped — on:
+`ContextEngine`'s timer is **fully suspended**, source cancelled and not merely skipped, and its
+`AXObserver` torn down, on:
 
 - screen locked, displays asleep, system sleeping,
 - session inactive (fast user switching),
-- `idleSeconds > 300`,
-- `thermalState >= .serious`,
-- Low Power Mode **and** on battery (Tier 2 process scanning only).
+- `thermalState >= .serious`.
 
-Resumed on the corresponding wake/unlock/activity event. This is worth more than every other
+Resumed on the corresponding wake or unlock event. This is worth more than every other
 optimisation combined: a laptop lid-closed for 8 hours must cost exactly zero.
+
+Other conditions only thin the work out, and saying they suspend it would overstate the saving:
+
+- **`idleSeconds > 300`** does not cancel the timer. It stretches it to the idle ceiling, 300 s, or
+  60 s with Tier 1 because the title reconcile keeps its own interval. What stops is the title
+  read: past the idle threshold a sample reuses the cached title instead of asking Accessibility.
+- **Tier 2 process scanning** is skipped, not suspended, when nobody has touched the Mac for 120 s,
+  when the Mac is thermally throttled, or on battery **and** in Low Power Mode.
+- **The App's tick loop is not this timer.** `AppModel` ticks every 5 s whatever the idle time and
+  takes a sample each tick (`docs/BREAK-DECISION.md` owns it), so this timer adds about one wakeup a
+  minute to that train rather than being the only one.
 
 The window's `AXObserver` is torn down on suspension and re-armed on the frontmost app when sampling
 resumes, whichever event resumed it, so a title change after the displays wake reaches a sample in
