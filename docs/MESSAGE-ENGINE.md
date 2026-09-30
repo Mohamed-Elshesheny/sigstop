@@ -440,7 +440,10 @@ For each slot referenced by a template, in order:
 4. **Generic.** A neutral filler that can't be wrong: `{project}` → "this", `{app}` → "that".
    *Optional slots only.*
 5. **Alt text.** If the template supplies `altText` (a variant sentence with the slot removed),
-   use it. This is how a line keeps its joke when one detail goes missing.
+   use it. This is how a line keeps its joke when one detail goes missing. It is reached only
+   through an *optional* slot that cannot degrade (`branch`, `streak`, `minutes`, `count`,
+   `hour`): a required slot drops the line before `altText` is looked at, and a degradable one
+   never fails. A test holds every `altText` in the corpus to that, and none ships today.
 6. **Ineligible.** If the slot is required, or is optional with no degraded form and no
    `altText`, the template is dropped in Step 1 and never reaches rendering.
 

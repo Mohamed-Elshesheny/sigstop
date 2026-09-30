@@ -451,10 +451,10 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [
+      "requiredSlots": [],
+      "optionalSlots": [
         "project"
       ],
-      "optionalSlots": [],
       "when": [
         {
           "p": "app",
@@ -462,8 +462,7 @@
             "vscode"
           ]
         }
-      ],
-      "altText": "Sixty-one extensions installed, four of them used. Take a break. Your editor is carrying more dependencies than your project."
+      ]
     },
     {
       "id": "vscode.theme.honest-move",

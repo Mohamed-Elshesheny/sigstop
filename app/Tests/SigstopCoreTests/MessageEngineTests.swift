@@ -131,6 +131,14 @@ struct CorpusTests {
         }
     }
 
+    @Test("Every altText can actually be shown: it needs an optional slot that cannot degrade")
+    func altTextIsReachable() {
+        for t in Corpus.bundled.templates where t.altText != nil {
+            let reachable = t.optionalSlots.contains { !$0.canDegrade }
+            #expect(reachable, "\(t.id) carries an altText the slot filler can never pick")
+        }
+    }
+
     @Test("A line that claims an activity is gated at 0.75 or higher and names something")
     func claimingTemplatesAreGated() {
         for t in Corpus.bundled.templates where t.claimsActivity {
@@ -666,6 +674,16 @@ struct SlotFillerTests {
             category: "test_slots", escalation: EscalationLevel.first...EscalationLevel.incident,
             requiredSlots: [.project])
         #expect(resolver.fill(required, in: ctx) == nil)
+    }
+
+    @Test("A corpus line with an optional project still renders when no project is known")
+    func optionalProjectDegradesInTheCorpus() throws {
+        let line = try #require(Corpus.bundled.template(id: "vscode.ext.more-deps-than-project"))
+        let resolver = SlotResolver()
+        let unknown = resolver.fill(line, in: makeContext(app: .vscode, project: nil))
+        #expect(unknown?.hasSuffix("more dependencies than this project.") == true)
+        let known = resolver.fill(line, in: makeContext(app: .vscode, project: "sigstop"))
+        #expect(known?.hasSuffix("more dependencies than sigstop.") == true)
     }
 
     @Test("altText carries the joke when an optional detail is missing")
