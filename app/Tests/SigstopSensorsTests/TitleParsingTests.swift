@@ -37,4 +37,35 @@ struct TitleParsingTests {
         }
         #expect(TitleParsing.plausibleProject("sigstop-web") == "sigstop-web")
     }
+
+    @Test("a project-first title takes a project only from the folder position, and only a plausible one")
+    func projectFirstRefusesWhatFileFirstRefuses() {
+        let lone = TitleParsing.projectFirst("main.swift")
+        #expect(lone?.projectName == nil, "one component is never a project")
+        #expect(lone?.fileName == "main.swift")
+
+        #expect(TitleParsing.projectFirst("Dear Sam the deal closes Friday")?.projectName == nil)
+
+        let address = TitleParsing.projectFirst("someone@example.com \u{2013} notes.md")
+        #expect(address?.projectName == nil)
+        #expect(address?.fileName == "notes.md")
+
+        let secret = TitleParsing.projectFirst("postgres://admin:pw@db \u{2022} scratch.sql")
+        #expect(secret?.projectName == nil)
+
+        let ordinary = TitleParsing.projectFirst("sigstop \u{2013} AppModel.swift")
+        #expect(ordinary?.projectName == "sigstop")
+        #expect(ordinary?.fileName == "AppModel.swift")
+
+        let withPath = TitleParsing.projectFirst("sigstop [~/code/sigstop] \u{2013} main.swift")
+        #expect(withPath?.projectName == "sigstop")
+    }
+
+    @Test("an email address is not a file name")
+    func addressIsNotAFile() {
+        #expect(TitleParsing.fileFirst("someone@example.com \u{2013} notes.md")?.fileName == nil)
+        #expect(TitleParsing.fileComponent("someone@example.com") == nil)
+        #expect(TitleParsing.fileComponent("Package@swift-5.9.swift")?.name == "Package@swift-5.9.swift")
+        #expect(TitleParsing.fileComponent("README.md")?.name == "README.md")
+    }
 }

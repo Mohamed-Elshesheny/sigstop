@@ -252,7 +252,11 @@ through the `{project}` slot, and macOS keeps notification text in its own store
 `{branch}` and `{project}` are now withheld there. The parser also takes a project only from the
 folder position in the title, never from a lone component, and refuses anything that looks like a
 buffer's text rather than a folder (`•`, `://`, `@`, `=`, `Untitled-`), because the first line of
-an untitled editor buffer can be the window title.
+an untitled editor buffer can be the window title. Both parsers hold to that: `fileFirst` (VS Code,
+Cursor, Zed) and `projectFirst` (JetBrains, Android Studio, Xcode), which used to take its first
+component as the project unchecked, so a lone `main.swift` or `someone@example.com – notes.md` came
+back as a project. A component with an `@` in it is taken as a file name only when its extension
+is a code or prose one (`Package@swift-5.9.swift`), so an address is not read as a file either.
 
 **And there is no raw-title debug ring.** Row 14 of the inventory promised "last 20 titles, memory
 only, off by default, and the UI switch is labelled as such". There is no ring, no switch and no

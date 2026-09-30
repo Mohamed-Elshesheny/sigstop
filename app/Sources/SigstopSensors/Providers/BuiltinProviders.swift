@@ -195,6 +195,7 @@ public enum TitleParsing {
         guard let dot = value.lastIndex(of: "."), dot != value.startIndex else { return nil }
         let ext = String(value[value.index(after: dot)...])
         guard (1...10).contains(ext.count), ext.allSatisfy({ $0.isLetter || $0.isNumber }) else { return nil }
+        if value.contains("@"), !isCodeFile(ext), !isDocumentFile(ext) { return nil }
         return (value, ext.lowercased())
     }
 
@@ -233,10 +234,13 @@ public enum TitleParsing {
         let parts = droppingAppName(components(title))
         guard !parts.isEmpty else { return nil }
         var parsed = ParsedTitle()
-        if let first = parts.first {
-            let withoutPath = first.components(separatedBy: " [").first ?? first
-            parsed.projectName = withoutPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard parts.count > 1 else {
+            guard let first = parts.first, let file = fileComponent(first) else { return nil }
+            parsed.fileName = file.name
+            parsed.fileExtension = file.ext
+            return parsed
         }
+        parsed.projectName = plausibleProject(parts.first)
         for part in parts.dropFirst() {
             if let file = fileComponent(part) {
                 parsed.fileName = file.name
