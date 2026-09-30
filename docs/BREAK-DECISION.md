@@ -1039,18 +1039,14 @@ placed with `.equatable()`, so a hover on `SIGCONT` does not redraw it. Strokes 
 Increase Contrast. VoiceOver reads it as one image with `spokenLabel`, which carries no em dash and
 names a mood, never a feeling about the user.
 
-**The break screen counts in minutes.** The countdown reads `5 min`, `4 min`, down to `2 min`, in
-whole minutes rounded up so a fresh break shows its full length, and only inside the last minute does
-it read seconds, `60 s` to `0 s`. It used to be `mm:ss` at 120 pt redrawn every second, which was the
-break screen's main recurring work against the app's CPU budget, and an exact clock that large
-is a thing to stare at rather than a break. `BreakCountdown` in `SigstopCore/Model/BreakCountdown.swift`
-owns both the reading and the schedule: `redraws(from:until:)` returns the moments the reading
-changes and nothing else, so the `TimelineView` on the break screen wakes 64 times over a five-minute
-break instead of 300, and `BreakCountdownTests` pins that the schedule is exactly the set of changes,
-for breaks of one minute to an hour. The reading rounds to the nearest second before it decides,
-because a redraw lands a few milliseconds after its date and the arithmetic on two `Date`s carries
-noise, and a boundary that reads `5 min` on the redraw meant to show `4 min` would be a lie at the
-worst moment. The progress bar under it moves with the same redraws, unanimated.
+**The break screen counts down in minutes and seconds.** The countdown reads `mm:ss` at 120 pt and
+ticks every second, because a clock that only moved once a minute read as frozen: v0.2.0 shipped it
+counting whole minutes to save energy, and a still number on a break screen looks like a hung app.
+What keeps the ticking cheap is how little of the screen ticks. Only the clock sits inside a
+once-a-second `TimelineView`; the line under it (`remaining · of 5:00`) is static, the face is drawn
+once, and the progress bar has its own `TimelineView` that redraws every five seconds, which at 320
+points is a step of a few points for any break of a minute or more. Before, one `TimelineView` redrew
+the clock, the line and the bar together every second.
 
 ### 7.6 Low battery
 
