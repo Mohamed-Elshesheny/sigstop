@@ -16,7 +16,7 @@ macOS 14+ · Apple Silicon and Intel · Free and open source · [Website](https:
 [![578 tests](https://img.shields.io/badge/tests-578%20passing-3fb950?style=flat-square)](#build)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 
-<img src="docs/images/prompt.png" width="100%" alt="A sigstop prompt on a MacBook screen, dimming the Cursor window behind it, under a small amber face: SIGTSTP L1, 47m continuous. Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five and go meet your new codebase. Buttons: Take it, Snooze (SIGALRM), Skip, quiet for 20m, Ignore it.">
+<img src="docs/images/prompt.png" width="100%" alt="A sigstop prompt on a MacBook screen, dimming the Cursor window behind it, under a small amber face: SIGTSTP L1, 47m continuous. Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five minutes and go meet your new codebase. Buttons: Take it, Snooze (SIGALRM), Skip, quiet for 20m, Ignore it.">
 
 </div>
 
