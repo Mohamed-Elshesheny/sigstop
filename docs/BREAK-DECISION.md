@@ -546,7 +546,7 @@ engine is allowed to *say*.
 | `breakDue` | user snoozes | `snoozesUsed < maxSnoozesPerCycle` (2) and `snoozeTotal + d <= 30 min` | `snoozed` | **work clock keeps running** |
 | `breakDue` | user skips | — | `working` | `skippedBreakCount += 1`; re-arm at `W + rearmAfterSkip`; no reset; `consecutiveIgnoredCycles` **unchanged** |
 | `breakDue` | no interaction for `promptTimeout` | user was present (input seen) | `ignored` | ladder level 1 (passive) |
-| `breakDue` | no interaction for `promptTimeout` | user was absent (idle ≥ grace) | `idle` | not an ignore; retract prompt |
+| `breakDue` | no interaction for `promptTimeout` | user was absent (idle ≥ grace, or the Mac slept) | `idle` | not an ignore; retract prompt |
 | `breakDue` | gap ≥ `qualifyingBreak` | — | `working` | break recorded (`.idleInferred`), cycle closed **honored** |
 | `breakDue` | quiet window starts | — | `quiet` | withdraw the pending prompt; never queue it |
 | `snoozed` | deadline reached | not hard-blocked | `breakDue` | `seamWaitElapsed = 0`; `totalElapsed` continues |
@@ -554,7 +554,7 @@ engine is allowed to *say*.
 | `snoozed` | user picks "break now" | — | `breakActive` | begin break |
 | `ignored` | tick | ladder timing (§11) | `ignored` | next level; at most one notification per level |
 | `ignored` | any user interaction | — | per action | ladder stops |
-| `ignored` | no input for `microIdleGrace` | gap `< qualifyingBreak` | `idle` | not an ignore; retract prompt and **park the ladder** |
+| `ignored` | no input for `microIdleGrace`, or the Mac slept | gap `< qualifyingBreak` | `idle` | not an ignore; retract prompt and **park the ladder** |
 | `ignored` | gap ≥ `qualifyingBreak` | — | `working` | break recorded; cycle closed honored |
 | `ignored` | tick | `totalElapsed >= staleBreakCeiling` | `working` | abandon cycle `.expired`; re-arm at `W + rearmAfterStale` |
 | `ignored` | the last prompt the cycle allows + no response for `promptTimeout` | — | `working` | cycle `.ignoredExhausted`; cooldown 25 min; consecutive-ignore counter += 1; `quiet(.dailyCapReached)` instead of the cooldown when the day's cap is spent |
@@ -574,7 +574,7 @@ engine is allowed to *say*.
 | `quiet` | gap ≥ `qualifyingBreak` | the quiet still holds | `quiet` | break recorded, backoff reset, the quiet state is left alone (rule 3) |
 | any | user pauses the app | — | `quiet(.userPaused)` | duration chosen by user: one hour, or until the next day boundary (§14, 04:00 by default); measurement continues |
 
-Four structural rules the table encodes:
+Five structural rules the table encodes:
 
 1. **A break taken without being asked always closes the open cycle as honored.** The user walking away
    on their own is the success case, not a missed prompt.
@@ -603,6 +603,11 @@ Four structural rules the table encodes:
    cycle `.expired`, and starts the new session armed at `T`. The break itself is the session
    model's to judge, so the cycle is not closed honored; a pause or quiet hours that still hold
    are left alone, and a running break ends by its own timer.
+5. **A sleep is an absence.** A sleep too short to be a break parks the cycle as idle does: the
+   tick that wakes carries a gap the session model classified with cause `.systemSleep`, and
+   `breakDue` and `ignored` park on it as they park on idle. Waking with input a second old used to
+   charge the whole sleep to the prompt's timeout and to `ladderElapsed`, so three minutes with the
+   lid shut was an ignored prompt, and four and a half moved the ladder a rung.
 
 ---
 

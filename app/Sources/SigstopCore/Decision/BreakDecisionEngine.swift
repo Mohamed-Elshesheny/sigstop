@@ -62,6 +62,10 @@ public struct EngineInput: Sendable {
         sessionEvents.contains { if case .sessionEnded = $0 { return true } else { return false } }
     }
 
+    public var systemSlept: Bool {
+        sessionEvents.contains { if case .gapClassified(_, _, .systemSleep) = $0 { return true } else { return false } }
+    }
+
     public var workClockWasReset: Bool {
         sessionEvents.contains { if case .clockReset = $0 { return true } else { return false } }
     }
@@ -263,7 +267,7 @@ public struct BreakDecisionEngine: Sendable {
         d.lastStepMono = input.monotonic
         d.totalElapsed += dt
 
-        if input.context.idleSeconds >= policy.microIdleGrace {
+        if input.context.idleSeconds >= policy.microIdleGrace || input.systemSlept {
             if d.promptedAt != nil { effects.append(.withdrawPrompt(cycle: d.cycle, reason: .userLeft)) }
             effects.append(.setIndicator(idleIndicator(input, holding: d.budget)))
             return (.idle(IdleState(
@@ -389,7 +393,7 @@ public struct BreakDecisionEngine: Sendable {
         e.lastStepMono = input.monotonic
         e.totalElapsed += dt
 
-        if input.context.idleSeconds >= policy.microIdleGrace {
+        if input.context.idleSeconds >= policy.microIdleGrace || input.systemSlept {
             effects.append(.withdrawPrompt(cycle: e.cycle, reason: .userLeft))
             effects.append(.setIndicator(idleIndicator(input, holding: e.budget)))
             return (.idle(IdleState(
