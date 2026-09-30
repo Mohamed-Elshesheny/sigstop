@@ -101,6 +101,7 @@ public struct MessageContext: Sendable, Hashable {
     public var locale: Locale
     public var appConfidenceOverride: Double?
     public var withheldSlots: Set<SlotKey>
+    public var breakMinutes: Int
 ```
 
 `app`, `appFamily`, `appConfidence`, `activity`, `activityConfidence`, `continuousWorkMinutes`,
@@ -117,6 +118,12 @@ backoff in `docs/BREAK-DECISION.md` reads; `takenToday` is the breaks taken this
 gated on that key, and a count that disagrees with its own gate is a false sentence. `facts`
 carries one key, `branchIsDefault`, and only when a branch is known. No `slotOverrides` are
 passed, so `{count}` is never filled. The lint (§4.4, L13) holds the corpus to exactly this set.
+
+`breakMinutes` is the break the user will be asked to take: `settings.breakDurationMinutes`,
+1 to 60, the same value `InterruptionPolicy.breakDurationTarget` is built from. The
+`init(developer:escalation:settings:...)` that `AppModel.deliver` calls copies it across, so there
+is no second place for it to be forgotten; the plain initialiser defaults it to the settings
+default, five. It feeds `{breakLength}` and `{breakSeconds}` (§2.4) and nothing else.
 
 ### 1.2 Predicates
 
@@ -217,7 +224,7 @@ public enum Scorer {
 
     public static func score(_ t: MessageTemplate) -> Int {
         var s = t.when.reduce(0) { $0 + $1.specificity }
-        s += slotBonus * t.requiredSlots.count
+        s += slotBonus * t.requiredSlots.filter(\.earnsSpecificity).count
         if t.escalation.lowerBound == t.escalation.upperBound { s += tightEscalationBonus }
         s += t.authorPriority
         return s
@@ -226,7 +233,10 @@ public enum Scorer {
 ```
 
 `Scorer`, in `MessageTemplate.swift`. The score depends on the template alone, and `bandTolerance`
-lives here too.
+lives here too. The slot bonus pays for a slot that describes the moment. `{breakLength}` and
+`{breakSeconds}` describe the user's settings and are the same in every context; counting them
+would have handed 68 lines four points each for no reason but having been rewritten, so
+`SlotKey.earnsSpecificity` is false for both and a line scores the same with or without them.
 
 A Cursor + aiCoding + marathon template scores `40 + 30 + 12 = 82` plus bonuses. A generic
 `workBand(.marathon)` template scores `12`. The Cursor line wins by construction, and it wins
@@ -370,11 +380,21 @@ public enum SlotKey: String, Codable, Sendable, CaseIterable, Hashable {
     case streak
     case count
     case hour
+    case breakLength
+    case breakSeconds
 
     public var canDegrade: Bool {
         switch self {
         case .branch, .streak, .minutes, .count, .hour: return false
+        case .breakLength, .breakSeconds:               return false
         case .app, .project, .activity:                 return true
+        }
+    }
+
+    public var earnsSpecificity: Bool {
+        switch self {
+        case .breakLength, .breakSeconds: return false
+        default:                          return true
         }
     }
 }
@@ -404,7 +424,7 @@ public struct SlotValue: Sendable, Hashable, Codable {
 ```
 
 From `app/Sources/SigstopCore/Message/SlotFiller.swift`. `canDegrade` is false for `branch`,
-`streak`, `minutes`, `count` and `hour`.
+`streak`, `minutes`, `count`, `hour`, `breakLength` and `breakSeconds`.
 
 ### 2.2 Declaration is mandatory
 
@@ -442,7 +462,7 @@ For each slot referenced by a template, in order:
 5. **Alt text.** If the template supplies `altText` (a variant sentence with the slot removed),
    use it. This is how a line keeps its joke when one detail goes missing. It is reached only
    through an *optional* slot that cannot degrade (`branch`, `streak`, `minutes`, `count`,
-   `hour`): a required slot drops the line before `altText` is looked at, and a degradable one
+   `hour`, `breakLength`, `breakSeconds`): a required slot drops the line before `altText` is looked at, and a degradable one
    never fails. A test holds every `altText` in the corpus to that, and none ships today.
 6. **Ineligible.** If the slot is required, or is optional with no degraded form and no
    `altText`, the template is dropped in Step 1 and never reaches rendering.
@@ -454,6 +474,75 @@ Two slots never degrade, because a wrong value is worse than no line at all:
 
 Number and time slots (`minutes`, `count`, `hour`, `streak`) are rendered through
 `IntegerFormatStyle` / `Date.FormatStyle` at fill time, never string-interpolated: see §7.4.
+The two break slots are the exceptions, for the reasons in §2.4.
+
+### 2.4 The break's length
+
+The break is as long as the user set it in Settings, anywhere from one minute to sixty. The
+corpus was written when it was always five, and 85 of its 215 lines said so: "take five",
+"five minutes", "a five-minute pause", "for five", "sleep 300", "no polite logout at minute
+six", "a short break". So did three of the six emergency lines ("for four of them") and the
+last resort, "Back in five". With the length at thirty, every one of those was a false sentence
+about the one thing the user had just chosen, in the one place the app asks them to trust it
+with their time.
+
+**The decision: a line that states the break's length gets it from Settings, through a slot,
+and a line where the number was only ever an idiom stops stating one.** Two slots:
+
+| Slot | Renders | At 1 / 5 / 60 |
+|---|---|---|
+| `{breakLength}` | the length spelled out, with its unit, singular at one | `one minute` / `five minutes` / `sixty minutes` |
+| `{breakSeconds}` | the length in seconds, bare digits | `60` / `300` / `3600` |
+
+Both are `.derived` at 0.99 and always present, so a line that requires one is never made
+ineligible by it. Neither earns the specificity bonus (§1.3).
+
+**Why spelled out, and why one form.** Every length the corpus ever stated was a word
+("five", never "5"), and a digit in the middle of a joke reads like a readout. Spelling needs
+no locale, so `{breakLength}` is English words by construction and never carries native
+digits. One noun phrase covers every sentence the corpus needs. The other forms were
+considered and refused. The adjective ("a five-minute pause") needs `a` or `an` chosen by the
+number ("an eleven-minute", "an eighteen-minute") and reads badly as "a sixty-minute pause".
+The bare number ("take five", "for five") is an idiom at five and nonsense at one or sixty.
+Every line that used either was rewritten around the noun phrase instead.
+
+**Why `{breakSeconds}` exists at all.** One line's joke is the literal command, `sleep 300`.
+Its value is the break, not a fact about the past, so it has to follow the setting, and a
+shell argument has to be digits with no grouping: `String(Int)`, not `IntegerFormatStyle`,
+which would print `3,600` in en-US. It is only ever written straight after `sleep `, and a
+test holds it there.
+
+**Not every line should say the number.** Of the 85, 67 now name `{breakLength}`, one uses
+`{breakSeconds}`, and 17 dropped the length altogether: where "take five" was a way of saying
+"take a break", the line now says "step away" or "take the break", or makes a different joke
+("Walk away from the table", "Different day, same chair. Change one of them"). A number in
+every other line is its own kind of repetition, and the break screen already shows the
+timer. The last resort lost its number too, and more deliberately: it is the line printed when
+everything else failed, slot filling included, so it carries no slot. It now says "Everything
+stays exactly where you left it", which is §0 of CLAUDE.md and true at any length.
+
+**Durations that are not the break's length stay literal.** "The spinner has been going for
+eleven minutes", "140 times in twenty minutes", "nine minutes to compile" are facts about the
+past. Only the break's own length follows the setting.
+
+**The grammar the slot relies on.** This is what makes one form enough, and
+`BreakLengthMessageTests` checks it on every line, corpus and fallbacks, at 1, 2, 5, 10, 15, 30
+and 60 minutes:
+
+- It never starts a sentence. `one minute` is lowercase, and a capitalised form would be a
+  second slot for one position, so the lines say "Take {breakLength}." where they used to say
+  "Five minutes."
+- It never follows a determiner or quantifier: `a`, `the`, `all`, `every`, `next`, `full`,
+  `whole`, `this`, `that` and the rest. "The next one minute" and "take all one minute" are
+  why.
+- It is never followed by a hyphen or by a plural-only verb (`are`, `were`, `have`, `do`), and
+  nothing after it says `they`, `them`, `those`, `these` or `their`: each of those points back
+  at a plural, and one minute is not one.
+- Rendered at each length, the line contains the expected phrase, and never "one minutes".
+
+**Keeping it from coming back.** Lint L14 (§4.4) fails a corpus line that states a break
+length of its own. The same patterns are applied to the Swift fallbacks by a test, because the
+lint only reads `corpus.json`.
 
 ---
 
@@ -654,6 +743,7 @@ actually hurt somebody was enforced by a paragraph. What is below is what runs.
 | L6 | `minConfidence` in `0...1`. If `claimsActivity` is true, `minConfidence >= 0.75` **and** at least one `app` or `activity` predicate is present. |
 | L7 | **Banned lexicon.** Case-insensitive regexes over `text`+`altText` across the six families §4.2 forbids. Each family carries a rationale that is printed with the failure, so a contributor is told which rail they hit rather than which regex. `.github/lint/banned-lexicon.json`, append-only. |
 | L9 | `text` at most 240 characters. |
+| L14 | **No literal break length.** The break is as long as the user set it (§2.4), so a line that states it uses `{breakLength}`. Fails on the forms the old corpus wrote five in: `take N` (with `all`, `the` or `another` allowed between), `back in N`, an `N-minute` adjective, `five minutes`, `for N` closing a phrase ("for five."), `sleep N`, and `short break`, which sixty minutes is not. N is a number word from two to sixty, or digits; `one` is left out of the idioms because "Take one." means a break, not a length. It is deliberately narrower than "a number next to minutes": "going for eleven minutes" and "140 times in twenty minutes" describe the past and are allowed, and the price is that a brand-new idiom for the length would get through. Every one of the 85 lines rewritten in §2.4 fails it as it was written. |
 | L13 | **Every input is produced.** A declared slot, a `streak` key and a `fact` key must each be one the app fills: the slots `SlotResolver.table` builds without an override, the three streaks and the one fact §1.1 says `AppModel.deliver` passes. A missing fact fails its predicate even for `isFalse`, so a line that needs anything else can never be chosen, and it still counted towards the README's number. Fifteen such lines were removed rather than shipped as dead weight: `{count}`, `editorTabCount`, `buildRunning`, `testsFailing`, `prOpenInForeground`, `ciPending`, `hasUncommittedChanges`, `buildsWatchedInSession` and `sameCommandRepeats` have no producer, and the last of those facts is declined on principle (`--doctor` says why). The format still accepts every key, so a pack for a future collector parses; the lint is what keeps the shipped corpus honest. |
 
 **Warnings:**
@@ -702,6 +792,10 @@ tests, stay human. `.github/PULL_REQUEST_TEMPLATE.md` asks for them.
   LRU window of §3.1.
 - *A template shown today is not shown again today* (`Recency ledger`): 30 selections in one
   day, no repeat while the relaxation stage is at or below `dropCooldown`.
+- *Every line renders at every break length, and the grammar the slot relies on holds*
+  (suite `messages say the break length the user set`): every corpus line, every emergency
+  line and the last resort, at 1, 2, 5, 10, 15, 30 and 60 minutes, under the placement rules of
+  §2.4. The same suite applies L14's patterns to the Swift fallbacks.
 - *A specific joke beats a generic one* and *Specificity holds for every app that has its own
   lines* (`MessageEngine selection`): a Cursor context picks a `cursor.` line, and each of
   eight apps picks a line with its own prefix.
@@ -860,7 +954,8 @@ be a consolation prize; it carries ~10% of the corpus and gets the same rubric.
   },
   "$defs": {
     "slotKey": {
-      "enum": ["app", "minutes", "project", "branch", "activity", "streak", "count", "hour"]
+      "enum": ["app", "minutes", "project", "branch", "activity", "streak", "count", "hour",
+               "breakLength", "breakSeconds"]
     },
     "tone":     { "enum": ["friendly", "sarcastic", "roast", "nuclear"] },
     "appKey":   { "enum": ["cursor","vscode","zed","xcode","jetbrains","terminal",
@@ -1035,11 +1130,14 @@ Humor does not translate; it gets rewritten. The format is built for that.
   `WaitingLine`, the menu bar panel's status rows and every SwiftUI root. That is right for the one pack
   that ships, `en-US`, and a pack in another language would have to change it. Never
   `"\(minutes)"`.
-- **Plurals are not built.** The format once carried a `plural` map, keyed by slot and CLDR
-  category, that nothing read, so it was removed. English gets away without it in practice,
-  because a prompt arrives long after "1 minutes" could be printed and the `{streak}` lines
-  are gated at three or more, but nothing enforces that. A locale that needs `few` or `many`
-  needs the map put back and read by `SlotResolver.fill`.
+- **Plurals are not built, with one English exception.** The format once carried a `plural`
+  map, keyed by slot and CLDR category, that nothing read, so it was removed. English gets
+  away without it in practice, because a prompt arrives long after "1 minutes" could be
+  printed and the `{streak}` lines are gated at three or more, but nothing enforces that. The
+  exception is `{breakLength}`, which can be one: `SlotResolver.spokenLength` carries its own
+  unit, chooses "minute" or "minutes" itself, and spells the number in English (§2.4). A
+  locale that needs `few` or `many`, or its own number words, needs the map put back and read
+  by `SlotResolver.fill`.
 - **Length budget.** Translations run roughly 35% longer than English. `text` caps at 240, but
   localizable lines should target ≤ 180 so a translation still fits a notification body
   without truncation.

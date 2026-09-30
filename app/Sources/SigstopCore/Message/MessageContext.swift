@@ -191,6 +191,7 @@ public struct MessageContext: Sendable, Hashable {
     public var locale: Locale
     public var appConfidenceOverride: Double?
     public var withheldSlots: Set<SlotKey>
+    public var breakMinutes: Int
 
     public init(
         developer: DeveloperContext,
@@ -202,7 +203,8 @@ public struct MessageContext: Sendable, Hashable {
         calendar: Calendar = .current,
         locale: Locale = .current,
         appConfidence: Double? = nil,
-        withheldSlots: Set<SlotKey> = []
+        withheldSlots: Set<SlotKey> = [],
+        breakMinutes: Int = SigstopSettings.default.breakDurationMinutes
     ) {
         self.developer = developer
         self.escalation = escalation
@@ -214,6 +216,7 @@ public struct MessageContext: Sendable, Hashable {
         self.locale = locale
         self.appConfidenceOverride = appConfidence
         self.withheldSlots = withheldSlots
+        self.breakMinutes = max(1, breakMinutes)
     }
 
     public init(
@@ -236,7 +239,8 @@ public struct MessageContext: Sendable, Hashable {
             slotOverrides: slotOverrides,
             calendar: calendar,
             locale: locale,
-            withheldSlots: withheldSlots
+            withheldSlots: withheldSlots,
+            breakMinutes: settings.breakDurationMinutes
         )
     }
 

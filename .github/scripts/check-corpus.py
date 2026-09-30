@@ -37,9 +37,28 @@ STOP = {"the","a","an","you","your","and","is","are","it","that","this","to","of
 # What the app actually hands the engine, from AppModel.deliver and SlotResolver.table.
 # A line that needs anything else can never be chosen, and it still counted towards the
 # number on the README. Widen these in the same commit that starts producing the input.
-PRODUCED_SLOTS = {"app", "minutes", "project", "branch", "activity", "streak", "hour"}
+PRODUCED_SLOTS = {"app", "minutes", "project", "branch", "activity", "streak", "hour",
+                  "breakLength", "breakSeconds"}
 PRODUCED_STREAKS = {"skippedToday", "skippedConsecutive", "takenToday"}
 PRODUCED_FACTS = {"branchIsDefault"}
+
+# The break is as long as the user set it, 1 to 60 minutes, so a line that says how long it
+# is has to say it through {breakLength} (or {breakSeconds} for `sleep`). These are the forms
+# the length used to be written in, all of them "five": the idiom, the adjective, the bare
+# number closing a phrase, the shell command. They are deliberately narrower than "any
+# number next to the word minutes", because "the spinner has been going for eleven minutes"
+# is a fact about the past and is allowed. MessageEngineTests holds the Swift fallbacks, which
+# this script cannot read, to the same list.
+MANY = r"(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|[0-9]+)"
+LITERAL_LENGTH = [
+    (re.compile(rf"\btake (?:all |the |another )?{MANY}\b", re.I), "take N"),
+    (re.compile(rf"\bback in {MANY}\b", re.I), "back in N"),
+    (re.compile(rf"(?<![-\w])(?:one|{MANY})-minute\b", re.I), "an N-minute break"),
+    (re.compile(r"(?<![-\w])five[- ]minutes?\b", re.I), "five minutes"),
+    (re.compile(rf"\bfor {MANY}(?=\s*[.,:;!?])", re.I), "a bare N closing a phrase, as in \"for five.\""),
+    (re.compile(r"\bsleep [0-9]", re.I), "sleep N"),
+    (re.compile(r"\bshort break\b", re.I), "a short break, which sixty minutes is not"),
+]
 
 fails: list[str] = []
 warns: list[str] = []
@@ -123,6 +142,15 @@ def main() -> int:
                 fails.append(f"L13 {mid}: streak {w.get('key')!r} is never counted, so the line can never be chosen")
             if w.get("p") == "fact" and w.get("key") not in PRODUCED_FACTS:
                 fails.append(f"L13 {mid}: fact {w.get('key')!r} is never answered, so the line can never be chosen")
+
+        # L14 the break's length comes from Settings, never from the line
+        for pat, form in LITERAL_LENGTH:
+            hit = pat.search(body)
+            if hit:
+                fails.append(
+                    f"L14 {mid}: {hit.group(0)!r} states the break length ({form}); "
+                    f"the user sets it, so write {{breakLength}}"
+                )
 
         # L9  length
         if len(m.get("text", "")) > 240:

@@ -9,11 +9,21 @@ public enum SlotKey: String, Codable, Sendable, CaseIterable, Hashable {
     case streak
     case count
     case hour
+    case breakLength
+    case breakSeconds
 
     public var canDegrade: Bool {
         switch self {
         case .branch, .streak, .minutes, .count, .hour: return false
+        case .breakLength, .breakSeconds:               return false
         case .app, .project, .activity:                 return true
+        }
+    }
+
+    public var earnsSpecificity: Bool {
+        switch self {
+        case .breakLength, .breakSeconds: return false
+        default:                          return true
         }
     }
 }
@@ -56,6 +66,14 @@ public struct SlotResolver: Sendable {
 
         out[.hour] = SlotValue(
             text: format(time: ctx.now, locale: ctx.locale, timeZone: ctx.calendar.timeZone),
+            confidence: 0.99, provenance: .derived)
+
+        out[.breakLength] = SlotValue(
+            text: Self.spokenLength(minutes: ctx.breakMinutes),
+            confidence: 0.99, provenance: .derived)
+
+        out[.breakSeconds] = SlotValue(
+            text: String(ctx.breakMinutes * 60),
             confidence: 0.99, provenance: .derived)
 
         if let name = ctx.appDisplayName.flatMap(Self.outsideText) {
@@ -173,6 +191,34 @@ public struct SlotResolver: Sendable {
         guard !text.isEmpty else { return nil }
         guard text.count > outsideTextLimit else { return text }
         return String(text.prefix(outsideTextLimit - 1)) + "…"
+    }
+
+    public static func spokenLength(minutes: Int) -> String {
+        let unit = minutes == 1 ? "minute" : "minutes"
+        guard let words = spokenNumber(minutes) else { return "\(String(minutes)) \(unit)" }
+        return "\(words) \(unit)"
+    }
+
+    private static let units = [
+        "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+        "eighteen", "nineteen",
+    ]
+
+    private static let tens = [
+        "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+    ]
+
+    private static func spokenNumber(_ n: Int) -> String? {
+        switch n {
+        case 1..<20:
+            return units[n]
+        case 20..<100:
+            let (ten, unit) = n.quotientAndRemainder(dividingBy: 10)
+            return unit == 0 ? tens[ten] : "\(tens[ten])-\(units[unit])"
+        default:
+            return nil
+        }
     }
 
     private func format(integer: Int, locale: Locale) -> String {

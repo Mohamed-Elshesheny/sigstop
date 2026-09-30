@@ -310,7 +310,7 @@ public enum Scorer {
 
     public static func score(_ t: MessageTemplate) -> Int {
         var s = t.when.reduce(0) { $0 + $1.specificity }
-        s += slotBonus * t.requiredSlots.count
+        s += slotBonus * t.requiredSlots.filter(\.earnsSpecificity).count
         if t.escalation.lowerBound == t.escalation.upperBound { s += tightEscalationBonus }
         s += t.authorPriority
         return s
@@ -443,9 +443,9 @@ public struct Corpus: Sendable, Hashable {
     public static let emergencyPool: [MessageTemplate] = [
         MessageTemplate(
             id: "emergency.fallback.still-here",
-            text: "Whatever this is, it will still be here in five minutes. Go be somewhere else for four of them.",
+            text: "Whatever this is, it will still be here in {breakLength}. Go be somewhere else until then.",
             tone: .friendly, category: "emergency", escalation: EscalationLevel.first...EscalationLevel.incident,
-            isFallback: true),
+            requiredSlots: [.breakLength], isFallback: true),
         MessageTemplate(
             id: "emergency.fallback.nothing-is-lost",
             text: "Stopping here costs nothing. You come back with everything you had.",
@@ -458,9 +458,9 @@ public struct Corpus: Sendable, Hashable {
             isFallback: true),
         MessageTemplate(
             id: "emergency.fallback.five-minutes",
-            text: "Five minutes. That is the entire ask.",
+            text: "The entire ask is {breakLength}. Nothing else.",
             tone: .friendly, category: "emergency", escalation: EscalationLevel.first...EscalationLevel.incident,
-            isFallback: true),
+            requiredSlots: [.breakLength], isFallback: true),
         MessageTemplate(
             id: "emergency.fallback.stand-once",
             text: "Stand up once. Sit back down if you must. The offer stands either way.",
@@ -468,14 +468,14 @@ public struct Corpus: Sendable, Hashable {
             isFallback: true),
         MessageTemplate(
             id: "emergency.fallback.the-stack-survives",
-            text: "The stack you are holding survives a five-minute pause. That is the whole promise.",
+            text: "The stack you are holding survives {breakLength} away. That is the whole promise.",
             tone: .friendly, category: "emergency", escalation: EscalationLevel.first...EscalationLevel.incident,
-            isFallback: true),
+            requiredSlots: [.breakLength], isFallback: true),
     ]
 
     public static let lastResort = MessageTemplate(
         id: "emergency.fallback.last-resort",
-        text: "Break time. Back in five.",
+        text: "Break time. Everything stays exactly where you left it.",
         tone: .friendly, category: "emergency", escalation: EscalationLevel.first...EscalationLevel.incident,
         isFallback: true)
 }

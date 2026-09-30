@@ -11,7 +11,7 @@
   "messages": [
     {
       "id": "cursor.ai.tab-tab-tab",
-      "text": "Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take five and go meet your new codebase.",
+      "text": "Tab. Tab. Tab. Tab. You are 200 lines into a file you have never read. Take {breakLength} and go meet your new codebase.",
       "tone": "sarcastic",
       "category": "ai_pairing",
       "escalation": {
@@ -19,7 +19,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -288,7 +290,7 @@
     },
     {
       "id": "terminal.agent.default-is-yes",
-      "text": "One more permission prompt for the pile. Step away for five minutes? [Y/n] The default is yes. Answer this one by leaving the keyboard alone.",
+      "text": "One more permission prompt for the pile. Step away for {breakLength}? [Y/n] The default is yes. Answer this one by leaving the keyboard alone.",
       "tone": "sarcastic",
       "category": "ai_pairing",
       "escalation": {
@@ -296,7 +298,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -316,7 +320,7 @@
     },
     {
       "id": "terminal.agent.kept-the-sitting",
-      "text": "You delegated the typing to the agent and kept all {minutes} minutes of the sitting for yourself. Renegotiate: five minutes on your feet.",
+      "text": "You delegated the typing to the agent and kept all {minutes} minutes of the sitting for yourself. Renegotiate: {breakLength} on your feet.",
       "tone": "roast",
       "category": "ai_pairing",
       "escalation": {
@@ -325,7 +329,8 @@
       },
       "minConfidence": 0.85,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -391,7 +396,7 @@
     },
     {
       "id": "vscode.status.spinner-gave-up",
-      "text": "The spinner in the status bar has been going for eleven minutes. It has given up. You can too, for five.",
+      "text": "The spinner in the status bar has been going for eleven minutes. It has given up. You can too, for {breakLength}.",
       "tone": "sarcastic",
       "category": "editor_generic",
       "escalation": {
@@ -399,7 +404,9 @@
         "max": 3
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -540,7 +547,7 @@
     },
     {
       "id": "vscode.generic.still-compiles",
-      "text": "Long stretch in the editor. The code will still compile in five minutes.",
+      "text": "Long stretch in the editor. The code will still compile in {breakLength}.",
       "tone": "friendly",
       "category": "editor_generic",
       "escalation": {
@@ -548,7 +555,9 @@
         "max": 2
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -610,7 +619,7 @@
     },
     {
       "id": "zed.buffer.cursor-afterimage",
-      "text": "You've been in this buffer so long the cursor keeps blinking in your peripheral vision after you look away. Five minutes.",
+      "text": "You've been in this buffer so long the cursor keeps blinking in your peripheral vision after you look away. Look away for {breakLength} and let it stop.",
       "tone": "sarcastic",
       "category": "editor_generic",
       "escalation": {
@@ -618,7 +627,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -669,7 +680,7 @@
     },
     {
       "id": "zed.generic.fast-somewhere-else",
-      "text": "Fast editor, long session. Go be fast somewhere else for five minutes.",
+      "text": "Fast editor, long session. Go be fast somewhere else for {breakLength}.",
       "tone": "friendly",
       "category": "editor_generic",
       "escalation": {
@@ -677,7 +688,9 @@
         "max": 3
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -711,7 +724,7 @@
     },
     {
       "id": "xcode.clean.fourth-ritual",
-      "text": "Fourth clean build of the afternoon. You're not debugging, you're performing a ritual. Take five and come back with a theory.",
+      "text": "Fourth clean build of the afternoon. You're not debugging, you're performing a ritual. Step away and come back with a theory.",
       "tone": "roast",
       "category": "xcode",
       "escalation": {
@@ -796,7 +809,7 @@
     },
     {
       "id": "xcode.signing.no-fixing-this",
-      "text": "Provisioning profile expired. There is no fixing that in the next five minutes, so take the five minutes.",
+      "text": "Provisioning profile expired. That does not get fixed in {breakLength}, so do not spend {breakLength} trying.",
       "tone": "sarcastic",
       "category": "xcode",
       "escalation": {
@@ -804,7 +817,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -929,7 +944,7 @@
     },
     {
       "id": "xcode.concurrency.you-are-sendable",
-      "text": "Strict concurrency asks one question at every isolation boundary: is it Sendable? Good news: you are. Go cross one for five minutes.",
+      "text": "Strict concurrency asks one question at every isolation boundary: is it Sendable? Good news: you are. Go cross one for {breakLength}.",
       "tone": "friendly",
       "category": "xcode",
       "escalation": {
@@ -937,7 +952,9 @@
         "max": 3
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1043,7 +1060,7 @@
     },
     {
       "id": "jetbrains.debug.evaluate-rent",
-      "text": "You've been in the Evaluate Expression window so long it should start charging rent. Five minutes.",
+      "text": "You've been in the Evaluate Expression window so long it should start charging rent. Move out for {breakLength}.",
       "tone": "sarcastic",
       "category": "jetbrains",
       "escalation": {
@@ -1051,7 +1068,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1092,7 +1111,7 @@
     },
     {
       "id": "jetbrains.generic.let-indexer-have-cpu",
-      "text": "Long session in a heavy IDE. Let the indexer have the CPU for five minutes.",
+      "text": "Long session in a heavy IDE. Let the indexer have the CPU for {breakLength}.",
       "tone": "friendly",
       "category": "jetbrains",
       "escalation": {
@@ -1100,7 +1119,9 @@
         "max": 3
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1136,7 +1157,7 @@
     },
     {
       "id": "jetbrains.power.nobody-gave-you-the-switch",
-      "text": "In Power Save Mode, {app} stops having opinions about your code. Nobody gave you that switch, so here it is: five minutes.",
+      "text": "In Power Save Mode, {app} stops having opinions about your code. Nobody gave you that switch, so here it is: {breakLength}.",
       "tone": "sarcastic",
       "category": "jetbrains",
       "escalation": {
@@ -1145,7 +1166,8 @@
       },
       "minConfidence": 0.7,
       "requiredSlots": [
-        "app"
+        "app",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -1159,7 +1181,7 @@
     },
     {
       "id": "jetbrains.imports.grey-all-day",
-      "text": "{app} greys out an unused import and it is gone within the minute. I have been greyed out all day. Take five and I will be gone too.",
+      "text": "{app} greys out an unused import and it is gone within the minute. I have been greyed out all day. Take the break and I will be gone too.",
       "tone": "sarcastic",
       "category": "jetbrains",
       "escalation": {
@@ -1300,7 +1322,7 @@
     },
     {
       "id": "terminal.clear.i-saw-that",
-      "text": "You just ran clear to feel productive. I saw that. Take five real minutes.",
+      "text": "You just ran clear to feel productive. I saw that. Now take a real break.",
       "tone": "sarcastic",
       "category": "terminal_build",
       "escalation": {
@@ -1321,7 +1343,7 @@
     },
     {
       "id": "terminal.ssh.wrong-box-entirely",
-      "text": "Twenty minutes of debugging and you're on the wrong host. Take five, then check the prompt you've been ignoring.",
+      "text": "Twenty minutes of debugging and you're on the wrong host. Step away, then check the prompt you've been ignoring.",
       "tone": "roast",
       "category": "terminal_build",
       "escalation": {
@@ -1395,7 +1417,7 @@
     },
     {
       "id": "debug.assumption.definitely-already-checked",
-      "text": "The bug is in the part you definitely already checked. It always is. Take five and check it again with new eyes.",
+      "text": "The bug is in the part you definitely already checked. It always is. Take {breakLength} and check it again with new eyes.",
       "tone": "sarcastic",
       "category": "debugging",
       "escalation": {
@@ -1403,7 +1425,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1468,7 +1492,7 @@
     },
     {
       "id": "debug.impossible.line-above",
-      "text": "You've said \"that's impossible\" three times this hour. It's possible. Take five, then read the line above the one you're staring at.",
+      "text": "You've said \"that's impossible\" three times this hour. It's possible. Take the break, then read the line above the one you're staring at.",
       "tone": "roast",
       "category": "debugging",
       "escalation": {
@@ -1519,7 +1543,7 @@
     },
     {
       "id": "debug.log.escalating-capitals",
-      "text": "here. here2. HERE. The escalating capitals in your log statements say everything. Five minutes.",
+      "text": "here. here2. HERE. The escalating capitals in your log statements say everything. Take {breakLength} before it gets to HERE3.",
       "tone": "roast",
       "category": "debugging",
       "escalation": {
@@ -1527,7 +1551,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1583,7 +1609,7 @@
     },
     {
       "id": "debug.optimized.take-the-hint",
-      "text": "When the debugger says a variable was optimized out, the compiler has decided you do not need to see it. Take the hint for five minutes.",
+      "text": "When the debugger says a variable was optimized out, the compiler has decided you do not need to see it. Take the hint for {breakLength}.",
       "tone": "sarcastic",
       "category": "debugging",
       "escalation": {
@@ -1591,7 +1617,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1605,7 +1633,7 @@
     },
     {
       "id": "debug.bug.surrounded",
-      "text": "Breakpoints above it, below it and on it. The bug is surrounded. It is not going anywhere, which means you can. Five minutes.",
+      "text": "Breakpoints above it, below it and on it. The bug is surrounded. It is not going anywhere, which means you can, for {breakLength}.",
       "tone": "roast",
       "category": "debugging",
       "escalation": {
@@ -1613,7 +1641,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1649,7 +1679,7 @@
     },
     {
       "id": "test.only.other-four-hundred",
-      "text": "That .only is still on. Take five, then go meet the other four hundred tests you've been ignoring.",
+      "text": "That .only is still on. Take a break, then go meet the other four hundred tests you've been ignoring.",
       "tone": "sarcastic",
       "category": "testing",
       "escalation": {
@@ -1701,7 +1731,7 @@
     },
     {
       "id": "test.sleep.we-both-know",
-      "text": "You just added a sleep(2) to a test. We both know how this ends. Take five and think about literally anything else.",
+      "text": "You just added a sleep(2) to a test. We both know how this ends. Take {breakLength} and think about literally anything else.",
       "tone": "roast",
       "category": "testing",
       "escalation": {
@@ -1709,7 +1739,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1766,7 +1798,7 @@
     },
     {
       "id": "test.run.not-quantum",
-      "text": "Staring at the run will not collapse it to green. Tests are not quantum. Same result in five minutes, observed or not.",
+      "text": "Staring at the run will not collapse it to green. Tests are not quantum. Same result in {breakLength}, observed or not.",
       "tone": "roast",
       "category": "testing",
       "escalation": {
@@ -1774,7 +1806,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1788,7 +1822,7 @@
     },
     {
       "id": "test.green.first-run-is-a-question",
-      "text": "A new test that passes on its very first run is not a win yet. It is a question. Ask it again after five minutes away.",
+      "text": "A new test that passes on its very first run is not a win yet. It is a question. Ask it again after {breakLength} away.",
       "tone": "sarcastic",
       "category": "testing",
       "escalation": {
@@ -1796,7 +1830,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1809,7 +1845,7 @@
     },
     {
       "id": "test.skip.load-bearing-by-friday",
-      "text": "Skipped breaks age like skipped tests: temporary on Monday, load-bearing by Friday. Un-skip this one. Five minutes.",
+      "text": "Skipped breaks age like skipped tests: temporary on Monday, load-bearing by Friday. Un-skip this one: {breakLength}.",
       "tone": "sarcastic",
       "category": "testing",
       "escalation": {
@@ -1817,7 +1853,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1887,7 +1925,7 @@
     },
     {
       "id": "review.nit.ultranit",
-      "text": "Seventh \"nit:\" in a row. Take five before the next one starts with \"ultranit:\".",
+      "text": "Seventh \"nit:\" in a row. Step away before the next one starts with \"ultranit:\".",
       "tone": "roast",
       "category": "code_review",
       "escalation": {
@@ -1909,7 +1947,7 @@
     },
     {
       "id": "review.lgtm.deleted-it-twice",
-      "text": "Forty minutes on this PR and you've typed LGTM twice, deleting it both times. Take five. It's still going to be LGTM.",
+      "text": "Forty minutes on this PR and you've typed LGTM twice, deleting it both times. Take {breakLength}. It's still going to be LGTM.",
       "tone": "sarcastic",
       "category": "code_review",
       "escalation": {
@@ -1917,7 +1955,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -1940,7 +1980,7 @@
     },
     {
       "id": "review.branch.default-branch-energy",
-      "text": "You've been committing straight to {branch} for {minutes} minutes. Take five and let that sink in.",
+      "text": "You've been committing straight to {branch} for {minutes} minutes. Take {breakLength} and let that sink in.",
       "tone": "roast",
       "category": "code_review",
       "escalation": {
@@ -1950,7 +1990,8 @@
       "minConfidence": 0.7,
       "requiredSlots": [
         "branch",
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -1992,7 +2033,7 @@
     },
     {
       "id": "review.suggestion.commit-suggestion",
-      "text": "Suggested change for this session: replace \"next file\" with \"five minutes away\". Commit suggestion?",
+      "text": "Suggested change for this session: replace \"next file\" with \"{breakLength} away\". Commit suggestion?",
       "tone": "sarcastic",
       "category": "code_review",
       "escalation": {
@@ -2000,7 +2041,9 @@
         "max": 4
       },
       "minConfidence": 0.85,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -2142,7 +2185,7 @@
     },
     {
       "id": "chat.generic.context-switch-reset",
-      "text": "Lots of context-switching in chat. A short break resets it faster than another scroll.",
+      "text": "Lots of context-switching in chat. A break resets it faster than another scroll.",
       "tone": "friendly",
       "category": "chat_context",
       "escalation": {
@@ -2205,7 +2248,7 @@
     },
     {
       "id": "browse.tabs.how-to-x-in-y",
-      "text": "Nine tabs, all of them \"How to X in Y\". Take five. The tenth one isn't going to have it either.",
+      "text": "Nine tabs, all of them \"How to X in Y\". Take {breakLength}. The tenth one isn't going to have it either.",
       "tone": "roast",
       "category": "research_browsing",
       "escalation": {
@@ -2213,7 +2256,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -2375,7 +2420,7 @@
     },
     {
       "id": "figma.grey.same-grey",
-      "text": "Forty minutes choosing between two greys. They are the same grey. Take five and they will still be the same grey.",
+      "text": "Forty minutes choosing between two greys. They are the same grey. Take {breakLength} and both will still be the same grey.",
       "tone": "sarcastic",
       "category": "design_canvas",
       "escalation": {
@@ -2383,7 +2428,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -2501,7 +2548,7 @@
     },
     {
       "id": "docker.env.meet-env-file",
-      "text": "Five full rebuilds to change one environment variable. Take five, then go meet --env-file, the friend you've been avoiding.",
+      "text": "Five full rebuilds to change one environment variable. Take a break, then go meet --env-file, the friend you've been avoiding.",
       "tone": "roast",
       "category": "containers",
       "escalation": {
@@ -2703,7 +2750,7 @@
     },
     {
       "id": "long.negotiating.stopped-writing-code",
-      "text": "Four hours. You stopped writing code an hour ago and started negotiating with it. Take five.",
+      "text": "Four hours. You stopped writing code an hour ago and started negotiating with it. Walk away from the table.",
       "tone": "roast",
       "category": "long_session",
       "escalation": {
@@ -2746,7 +2793,7 @@
     },
     {
       "id": "long.generic.five-beats-an-hour",
-      "text": "Long haul today. Take five now. The haul will be exactly where you left it.",
+      "text": "Long haul today. Take {breakLength} now. The haul will be exactly where you left it.",
       "tone": "friendly",
       "category": "long_session",
       "escalation": {
@@ -2754,7 +2801,9 @@
         "max": 3
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -2818,7 +2867,7 @@
     },
     {
       "id": "night.branch.nobody-decides-well-here",
-      "text": "Past midnight, on a branch called {branch}. Nobody makes good decisions here. Take five.",
+      "text": "Past midnight, on a branch called {branch}. Nobody makes good decisions here. Make one: stand up.",
       "tone": "sarcastic",
       "category": "late_night",
       "escalation": {
@@ -2936,7 +2985,7 @@
     },
     {
       "id": "night.refactor.reverted-by-its-own-author",
-      "text": "Late-night refactor detected. Every one of these has eventually been reverted by its own author. Take five and sleep on it.",
+      "text": "Late-night refactor detected. Every one of these has eventually been reverted by its own author. Step away and sleep on it.",
       "tone": "roast",
       "category": "late_night",
       "escalation": {
@@ -2963,7 +3012,7 @@
     },
     {
       "id": "night.generic.short-break-then-longer",
-      "text": "It's late. A short break now, and maybe a longer one after.",
+      "text": "It's late. A break now, and maybe a longer one after.",
       "tone": "friendly",
       "category": "late_night",
       "escalation": {
@@ -3008,7 +3057,7 @@
     },
     {
       "id": "night.gitlog.does-not-round",
-      "text": "Anything you commit now is stamped {hour}, permanently. git log does not round. Five minutes first.",
+      "text": "Anything you commit now is stamped {hour}, permanently. git log does not round. Take {breakLength} first.",
       "tone": "sarcastic",
       "category": "late_night",
       "escalation": {
@@ -3017,7 +3066,8 @@
       },
       "minConfidence": 0.0,
       "requiredSlots": [
-        "hour"
+        "hour",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -3031,7 +3081,7 @@
     },
     {
       "id": "morning.coffee.one-of-you-boot-up",
-      "text": "You opened the editor before the coffee finished. Bold. Take five and let one of the two of you finish booting.",
+      "text": "You opened the editor before the coffee finished. Bold. Take {breakLength} and let one of the two of you finish booting.",
       "tone": "sarcastic",
       "category": "early_morning",
       "escalation": {
@@ -3039,7 +3089,9 @@
         "max": 4
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -3114,7 +3166,7 @@
     },
     {
       "id": "morning.first-commit.so-the-second-is-good",
-      "text": "First commit of the day at {hour}. Impressive. Take five so the second one is also good.",
+      "text": "First commit of the day at {hour}. Impressive. Take {breakLength} so the second one is also good.",
       "tone": "sarcastic",
       "category": "early_morning",
       "escalation": {
@@ -3123,7 +3175,8 @@
       },
       "minConfidence": 0.0,
       "requiredSlots": [
-        "hour"
+        "hour",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -3167,7 +3220,7 @@
     },
     {
       "id": "morning.generic.sets-the-pace",
-      "text": "Early start. A short break now sets the pace for the day.",
+      "text": "Early start. A break now sets the pace for the day.",
       "tone": "friendly",
       "category": "early_morning",
       "escalation": {
@@ -3254,7 +3307,7 @@
     },
     {
       "id": "streak.fourth.this-is-a-relationship",
-      "text": "Fourth skip. At this point we both know this is a relationship. Five minutes.",
+      "text": "Fourth skip. At this point we both know this is a relationship. It is asking for {breakLength}.",
       "tone": "roast",
       "category": "skip_streak",
       "escalation": {
@@ -3262,7 +3315,9 @@
         "max": 4
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -3510,7 +3565,7 @@
     },
     {
       "id": "generic.unknown.five-minutes-of-nothing",
-      "text": "{minutes} minutes of uninterrupted something. Go do five minutes of nothing.",
+      "text": "{minutes} minutes of uninterrupted something. Go do {breakLength} of nothing.",
       "tone": "sarcastic",
       "category": "generic_fallback",
       "escalation": {
@@ -3519,7 +3574,8 @@
       },
       "minConfidence": 0.0,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [],
@@ -3527,7 +3583,7 @@
     },
     {
       "id": "generic.unknown.survives-five-minutes",
-      "text": "No idea what's on your screen. Whatever it is, it survives five minutes without you.",
+      "text": "No idea what's on your screen. Whatever it is, it survives {breakLength} without you.",
       "tone": "sarcastic",
       "category": "generic_fallback",
       "escalation": {
@@ -3535,7 +3591,9 @@
         "max": 4
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [],
       "isFallback": true
@@ -3621,7 +3679,7 @@
     },
     {
       "id": "generic.unknown.then-back-in",
-      "text": "It's been a while since the last break. Five minutes, then back in.",
+      "text": "It's been a while since the last break. Out for {breakLength}, then back in.",
       "tone": "friendly",
       "category": "generic_fallback",
       "escalation": {
@@ -3629,7 +3687,9 @@
         "max": 4
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [],
       "isFallback": true
@@ -3653,7 +3713,7 @@
     },
     {
       "id": "generic.unknown.problem-solves-itself-in-the-kitchen",
-      "text": "Whatever you're stuck on will still be stuck in five minutes. It has nowhere to be. Go to the kitchen and let it wait for once.",
+      "text": "Whatever you're stuck on will still be stuck in {breakLength}. It has nowhere to be. Go to the kitchen and let it wait for once.",
       "tone": "sarcastic",
       "category": "generic_fallback",
       "escalation": {
@@ -3661,14 +3721,16 @@
         "max": 4
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [],
       "isFallback": true
     },
     {
       "id": "weekend.saturday.same-chair-different-day",
-      "text": "It's Saturday and you're {minutes} minutes into the same chair. Different day, same chair. Take five.",
+      "text": "It's Saturday and you're {minutes} minutes into the same chair. Different day, same chair. Change one of them.",
       "tone": "roast",
       "category": "long_session",
       "escalation": {
@@ -3721,7 +3783,7 @@
     },
     {
       "id": "long.state.r-then-t",
-      "text": "{minutes} minutes in state R. Most processes on this machine spend their day in S. We only ask for T: five minutes stopped, then SIGCONT.",
+      "text": "{minutes} minutes in state R. Most processes on this machine spend their day in S. We only ask for T: {breakLength} stopped, then SIGCONT.",
       "tone": "friendly",
       "category": "long_session",
       "escalation": {
@@ -3730,7 +3792,8 @@
       },
       "minConfidence": 0.0,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -3793,7 +3856,7 @@
     },
     {
       "id": "generic.sincebreak.two-hours-is-the-number",
-      "text": "It has been {minutes} minutes since the last break. That counter has earned a reset. Five minutes.",
+      "text": "It has been {minutes} minutes since the last break. That counter has earned a reset, and a reset takes {breakLength}.",
       "tone": "friendly",
       "category": "generic_fallback",
       "escalation": {
@@ -3802,7 +3865,8 @@
       },
       "minConfidence": 0.0,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -3815,7 +3879,7 @@
     },
     {
       "id": "generic.stash.applies-clean",
-      "text": "Treat this as git stash for whatever you're holding in your head. Five minutes, then pop. Nobody else works in there, so it applies clean.",
+      "text": "Treat this as git stash for whatever you're holding in your head. Stash it for {breakLength}, then pop. Nobody else works in there, so it applies clean.",
       "tone": "friendly",
       "category": "generic_fallback",
       "escalation": {
@@ -3823,14 +3887,16 @@
         "max": 4
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [],
       "isFallback": true
     },
     {
       "id": "generic.signal.between-instructions",
-      "text": "Signals land between instructions, never in the middle of one. Finish the line you're on. Then five minutes.",
+      "text": "Signals land between instructions, never in the middle of one. Finish the line you're on, then take {breakLength}.",
       "tone": "friendly",
       "category": "generic_fallback",
       "escalation": {
@@ -3838,7 +3904,9 @@
         "max": 4
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [],
       "isFallback": true
@@ -3890,7 +3958,7 @@
     },
     {
       "id": "hydration.water.refill",
-      "text": "💧 Five minutes away from the screen. The kitchen is on the way.",
+      "text": "💧 Time for {breakLength} away from the screen. The kitchen is on the way.",
       "tone": "friendly",
       "category": "hydration",
       "escalation": {
@@ -3898,7 +3966,9 @@
         "max": 2
       },
       "minConfidence": 0.0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [],
       "claimsActivity": false
@@ -3935,7 +4005,7 @@
     },
     {
       "id": "editor.state.nothing-expires",
-      "text": "Your undo stack does not drain while you are away. The folds stay folded, the cursor keeps its line and its column. The editor has no opinion about how long five minutes is, so take all five.",
+      "text": "Your undo stack does not drain while you are away. The folds stay folded, the cursor keeps its line and its column. The editor has no opinion about how long {breakLength} is, so take every second of it.",
       "tone": "friendly",
       "category": "editor_generic",
       "escalation": {
@@ -3943,7 +4013,9 @@
         "max": 2
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -3957,7 +4029,7 @@
     },
     {
       "id": "editor.window.no-view-out",
-      "text": "{minutes} minutes in the editor. It will give you a minimap, a sidebar and as many split windows as you ask for, and none of them is made of glass. Go stand near one that is, for five.",
+      "text": "{minutes} minutes in the editor. It will give you a minimap, a sidebar and as many split windows as you ask for, and none of them is made of glass. Go stand near one that is, for {breakLength}.",
       "tone": "sarcastic",
       "category": "editor_generic",
       "escalation": {
@@ -3966,7 +4038,8 @@
       },
       "minConfidence": 0.55,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -4017,7 +4090,7 @@
     },
     {
       "id": "editor.progress.no-bar-to-watch",
-      "text": "A build tells you when it is done. A scrollbar only tells you where you are. Nothing in an editor will ever announce the moment, so it has to be picked rather than waited for. Pick this one. Five minutes.",
+      "text": "A build tells you when it is done. A scrollbar only tells you where you are. Nothing in an editor will ever announce the moment, so it has to be picked rather than waited for. Pick this one and give it {breakLength}.",
       "tone": "friendly",
       "category": "editor_generic",
       "escalation": {
@@ -4025,7 +4098,9 @@
         "max": 3
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4039,7 +4114,7 @@
     },
     {
       "id": "vscode.palette.reload-developer",
-      "text": "The palette has Developer: Reload Window, and nothing that reloads the developer. The missing command: five minutes away, nothing closes.",
+      "text": "The palette has Developer: Reload Window, and nothing that reloads the developer. The missing command: {breakLength} away, nothing closes.",
       "tone": "sarcastic",
       "category": "editor_generic",
       "escalation": {
@@ -4047,7 +4122,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4060,7 +4137,7 @@
     },
     {
       "id": "zed.multibuffer.in-none-of-them",
-      "text": "A multibuffer lets you be in a dozen files at once. Impressive. Now try being in none of them for five minutes.",
+      "text": "A multibuffer lets you be in a dozen files at once. Impressive. Now try being in none of them for {breakLength}.",
       "tone": "sarcastic",
       "category": "editor_generic",
       "escalation": {
@@ -4068,7 +4145,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4111,7 +4190,7 @@
     },
     {
       "id": "shell.scrollback.nothing-expires",
-      "text": "Scrollback has no session timeout. No idle warning, no are-you-still-there, no polite logout at minute six. Whatever is in that buffer is not counting the minutes you are gone. Take the five.",
+      "text": "Scrollback has no session timeout. No idle warning, no are-you-still-there, no polite logout. Whatever is in that buffer is not counting the minutes you are gone. You can afford {breakLength}.",
       "tone": "friendly",
       "category": "terminal_build",
       "escalation": {
@@ -4119,7 +4198,9 @@
         "max": 2
       },
       "minConfidence": 0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4133,7 +4214,7 @@
     },
     {
       "id": "shell.window.looks-the-same",
-      "text": "A shell prompt comes back the same shape whether the thing worked or it did not. Excellent poker face, no help at all to me. So I am calling it either way: five minutes. It will be in exactly that shape when you get back.",
+      "text": "A shell prompt comes back the same shape whether the thing worked or it did not. Excellent poker face, no help at all to me. So I am calling it either way: {breakLength}. It will be in exactly that shape when you get back.",
       "tone": "sarcastic",
       "category": "terminal_build",
       "escalation": {
@@ -4141,7 +4222,9 @@
         "max": 3
       },
       "minConfidence": 0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4155,7 +4238,7 @@
     },
     {
       "id": "shell.dismiss.not-a-shell",
-      "text": "A shell takes one instruction, runs it and returns to the prompt with no further opinions. I have never once managed that. Give me five minutes on your feet and I will return to the prompt too.",
+      "text": "A shell takes one instruction, runs it and returns to the prompt with no further opinions. I have never once managed that. Give me {breakLength} on your feet and I will return to the prompt too.",
       "tone": "sarcastic",
       "category": "terminal_build",
       "escalation": {
@@ -4163,7 +4246,9 @@
         "max": 4
       },
       "minConfidence": 0,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4177,7 +4262,7 @@
     },
     {
       "id": "shell.hour.runs-anything",
-      "text": "It is {hour}. The shell has no confirmation step, no opinion about the hour, and no undo. Be the half of this pair with a sense of timing: five minutes off before the next line.",
+      "text": "It is {hour}. The shell has no confirmation step, no opinion about the hour, and no undo. Be the half of this pair with a sense of timing: {breakLength} off before the next line.",
       "tone": "roast",
       "category": "terminal_build",
       "escalation": {
@@ -4186,7 +4271,8 @@
       },
       "minConfidence": 0,
       "requiredSlots": [
-        "hour"
+        "hour",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -4238,7 +4324,7 @@
     },
     {
       "id": "terminal.sleep.three-hundred",
-      "text": "The shell already has a command for this: sleep 300. Nobody has ever had to debug it. Run it in person.",
+      "text": "The shell already has a command for this: sleep {breakSeconds}. Nobody has ever had to debug it. Run it in person.",
       "tone": "friendly",
       "category": "terminal_build",
       "escalation": {
@@ -4246,7 +4332,9 @@
         "max": 3
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakSeconds"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4339,7 +4427,7 @@
     },
     {
       "id": "chat.scroll.no-last-page",
-      "text": "Chat has no last page. The bottom moves because other people move it, and they are not done. Take five minutes. Catching up was never on the table.",
+      "text": "Chat has no last page. The bottom moves because other people move it, and they are not done. Take {breakLength}. Catching up was never on the table.",
       "tone": "friendly",
       "category": "chat_context",
       "escalation": {
@@ -4347,7 +4435,9 @@
         "max": 2
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4361,7 +4451,7 @@
     },
     {
       "id": "chat.refill.never-reach-the-end",
-      "text": "{minutes} minutes in a window where answering a message is how you get another message. There is no end of it to reach. Step away for five: it refills whether you are watching or not, so it will be exactly this full when you get back.",
+      "text": "{minutes} minutes in a window where answering a message is how you get another message. There is no end of it to reach. Step away for {breakLength}: it refills whether you watch or not, and will be exactly this full when you get back.",
       "tone": "friendly",
       "category": "chat_context",
       "escalation": {
@@ -4370,7 +4460,8 @@
       },
       "minConfidence": 0.55,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -4393,7 +4484,7 @@
     },
     {
       "id": "chat.attention.somewhere-with-a-door",
-      "text": "Builds finish. Files save. A conversation just keeps having more of itself. Take your attention somewhere with a door for five minutes.",
+      "text": "Builds finish. Files save. A conversation just keeps having more of itself. Take your attention somewhere with a door for {breakLength}.",
       "tone": "sarcastic",
       "category": "chat_context",
       "escalation": {
@@ -4401,7 +4492,9 @@
         "max": 3
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4507,7 +4600,7 @@
     },
     {
       "id": "chat.state.loses-nothing",
-      "text": "This window puts itself back exactly as you left it: scroll position, unread line, draft box. Nothing in here is being held in your head, so for once the excuse is unavailable. Five minutes.",
+      "text": "This window puts itself back exactly as you left it: scroll position, unread line, draft box. Nothing in here is being held in your head, so for once the excuse is unavailable. Take {breakLength}.",
       "tone": "roast",
       "category": "chat_context",
       "escalation": {
@@ -4515,7 +4608,9 @@
         "max": 4
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4538,7 +4633,7 @@
     },
     {
       "id": "chat.ping.sigint-from-elsewhere",
-      "text": "Every ping in here is a SIGINT from somebody else's process. This one is mine, and it needs no reply: five minutes away from the desk.",
+      "text": "Every ping in here is a SIGINT from somebody else's process. This one is mine, and it needs no reply: {breakLength} away from the desk.",
       "tone": "friendly",
       "category": "chat_context",
       "escalation": {
@@ -4546,7 +4641,9 @@
         "max": 2
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4559,7 +4656,7 @@
     },
     {
       "id": "chat.thread.quick-question-never-quick",
-      "text": "No thread that opened with \"quick question\" has ever been quick. Take five now, before the follow-up to the follow-up.",
+      "text": "No thread that opened with \"quick question\" has ever been quick. Take {breakLength} now, before the follow-up to the follow-up.",
       "tone": "sarcastic",
       "category": "chat_context",
       "escalation": {
@@ -4567,7 +4664,9 @@
         "max": 4
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4632,7 +4731,7 @@
     },
     {
       "id": "browse.entry.one-reason-different-reason",
-      "text": "Nothing in the browser is designed to let you finish. Leaving is a feature you have to supply yourself. Supply it for five minutes, then come back to whatever you opened it for.",
+      "text": "Nothing in the browser is designed to let you finish. Leaving is a feature you have to supply yourself. Supply it for {breakLength}, then come back to whatever you opened it for.",
       "tone": "sarcastic",
       "category": "research_browsing",
       "escalation": {
@@ -4640,7 +4739,9 @@
         "max": 3
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4661,7 +4762,7 @@
     },
     {
       "id": "browse.rung.built-for-ignoring",
-      "text": "We are past the polite signals now, which is a strange thing to announce inside the one window where you dismiss a banner a day without reading a word of it. Same reflex, same button. Five minutes. The tab keeps your scroll position.",
+      "text": "We are past the polite signals now, which is a strange thing to announce inside the one window where you dismiss a banner a day without reading a word of it. Same reflex, same button: {breakLength}. The tab keeps your scroll position.",
       "tone": "sarcastic",
       "category": "research_browsing",
       "escalation": {
@@ -4669,7 +4770,9 @@
         "max": 4
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4690,7 +4793,7 @@
     },
     {
       "id": "browse.tenure.visit-and-residency",
-      "text": "The browser is the one app whose entire job is going somewhere else. You have been in it {minutes} minutes and the chair has not moved. Five minutes outside, then come back a tourist.",
+      "text": "The browser is the one app whose entire job is going somewhere else. You have been in it {minutes} minutes and the chair has not moved. Go outside for {breakLength}, then come back a tourist.",
       "tone": "roast",
       "category": "research_browsing",
       "escalation": {
@@ -4699,7 +4802,8 @@
       },
       "minConfidence": 0.55,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -4721,7 +4825,7 @@
     },
     {
       "id": "browse.hour.nothing-expires-overnight",
-      "text": "It is {hour}. Everything in that browser was written hours ago by people who have since gone to bed. The whole internet clocked off and left you holding it. Take five, then consider calling it.",
+      "text": "It is {hour}. Everything in that browser was written hours ago by people who have since gone to bed. The whole internet clocked off and left you holding it. Take {breakLength}, then consider calling it.",
       "tone": "sarcastic",
       "category": "research_browsing",
       "escalation": {
@@ -4730,7 +4834,8 @@
       },
       "minConfidence": 0.55,
       "requiredSlots": [
-        "hour"
+        "hour",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -4751,7 +4856,7 @@
     },
     {
       "id": "browse.thread.nvm-fixed-it",
-      "text": "Every thread with your exact error ends in \"nvm, fixed it\", and reloading will not make it say how. Take five, then try page two.",
+      "text": "Every thread with your exact error ends in \"nvm, fixed it\", and reloading will not make it say how. Step away, then try page two.",
       "tone": "sarcastic",
       "category": "research_browsing",
       "escalation": {
@@ -4772,7 +4877,7 @@
     },
     {
       "id": "browse.tabs.zombie-processes",
-      "text": "Every tab you kept open \"for later\" is a zombie process: finished with, never reaped. Take five, then come back and reap a few.",
+      "text": "Every tab you kept open \"for later\" is a zombie process: finished with, never reaped. Take {breakLength}, then come back and reap a few.",
       "tone": "roast",
       "category": "research_browsing",
       "escalation": {
@@ -4780,7 +4885,9 @@
         "max": 4
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4793,7 +4900,7 @@
     },
     {
       "id": "canvas.infinite.the-day-is-not",
-      "text": "A page has a bottom. A canvas has no edge to hit, so it is never going to be the thing that tells you to stop. That leaves me. Five minutes, and it will be exactly this infinite when you get back.",
+      "text": "A page has a bottom. A canvas has no edge to hit, so it is never going to be the thing that tells you to stop. That leaves me: {breakLength}, and it will be exactly this infinite when you get back.",
       "tone": "friendly",
       "category": "design_canvas",
       "escalation": {
@@ -4801,7 +4908,9 @@
         "max": 2
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4815,7 +4924,7 @@
     },
     {
       "id": "canvas.deciding.stopped-deciding-started-adjusting",
-      "text": "Somewhere in the last {minutes} minutes you stopped deciding and started adjusting. Nothing on a canvas compiles, so nothing tells you which one the last change was. Five minutes away is the only thing that does.",
+      "text": "Somewhere in the last {minutes} minutes you stopped deciding and started adjusting. Nothing on a canvas compiles, so nothing tells you which one the last change was. Only {breakLength} away will.",
       "tone": "sarcastic",
       "category": "design_canvas",
       "escalation": {
@@ -4824,7 +4933,8 @@
       },
       "minConfidence": 0.55,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -4846,7 +4956,7 @@
     },
     {
       "id": "canvas.zoom.nobody-else-gets-this-zoom",
-      "text": "Whatever zoom you are at right now, nobody else will ever see it at that size. They get it at whatever scale their own screen decides. Look away for five minutes and come back as one of them.",
+      "text": "Whatever zoom you are at right now, nobody else will ever see it at that size. They get it at whatever scale their own screen decides. Look away for {breakLength} and come back seeing it the way everyone else will.",
       "tone": "sarcastic",
       "category": "design_canvas",
       "escalation": {
@@ -4854,7 +4964,9 @@
         "max": 3
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4936,7 +5048,7 @@
     },
     {
       "id": "canvas.state.everything-is-still-selected",
-      "text": "Nobody is going to pan the canvas while you are gone. Whatever you are zoomed into, however many groups deep, it is all still there and still selected when you get back. Five minutes.",
+      "text": "Nobody is going to pan the canvas while you are gone. Whatever you are zoomed into, however many groups deep, it is all still there and still selected when you get back. Take {breakLength}.",
       "tone": "friendly",
       "category": "design_canvas",
       "escalation": {
@@ -4944,7 +5056,9 @@
         "max": 3
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -4958,7 +5072,7 @@
     },
     {
       "id": "figma.instance.force-push-of-design",
-      "text": "Detach instance is the force push of design: quick, satisfying, and somebody finds out later. Take five before you reach for it.",
+      "text": "Detach instance is the force push of design: quick, satisfying, and somebody finds out later. Step away before you reach for it.",
       "tone": "sarcastic",
       "category": "design_canvas",
       "escalation": {
@@ -4979,7 +5093,7 @@
     },
     {
       "id": "figma.layers.minified-by-hand",
-      "text": "Frame 1184, Group 96, Group 96, Rectangle, Rectangle. Every layers panel ends up reading like minified code. Take five, then name one thing.",
+      "text": "Frame 1184, Group 96, Group 96, Rectangle, Rectangle. Every layers panel ends up reading like minified code. Take {breakLength}, then name one thing.",
       "tone": "sarcastic",
       "category": "design_canvas",
       "escalation": {
@@ -4987,7 +5101,9 @@
         "max": 4
       },
       "minConfidence": 0.7,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -5000,7 +5116,7 @@
     },
     {
       "id": "stack.pace.not-yours-to-set",
-      "text": "Nothing here moves at typing speed: not a pull, not a build, not a registry three continents away. The pace belongs to the daemon, and always did. Take five. A daemon keeps its own time whether or not anyone is watching.",
+      "text": "Nothing here moves at typing speed: not a pull, not a build, not a registry three continents away. The pace belongs to the daemon, and always did. Take {breakLength}. A daemon keeps its own time whether or not anyone is watching.",
       "tone": "friendly",
       "category": "containers",
       "escalation": {
@@ -5008,7 +5124,9 @@
         "max": 2
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
@@ -5053,7 +5171,7 @@
     },
     {
       "id": "stack.state.same-promise-other-way",
-      "text": "{minutes} minutes. You trust this thing to come down and back up with the volumes intact and the layers still cached. Extend yourself the same terms: down for five, up again, nothing rebuilt from scratch.",
+      "text": "{minutes} minutes. You trust this thing to come down and back up with the volumes intact and the layers still cached. Extend yourself the same terms: down for {breakLength}, up again, nothing rebuilt from scratch.",
       "tone": "friendly",
       "category": "containers",
       "escalation": {
@@ -5062,7 +5180,8 @@
       },
       "minConfidence": 0.55,
       "requiredSlots": [
-        "minutes"
+        "minutes",
+        "breakLength"
       ],
       "optionalSlots": [],
       "when": [
@@ -5114,7 +5233,7 @@
     },
     {
       "id": "stack.abstraction.thing-that-runs-the-thing",
-      "text": "You are in the app that runs the machine that runs the process that runs the code. Each of those layers is somewhere an hour can quietly go. The stack will be exactly this deep when you get back. Take five in one layer.",
+      "text": "You are in the app that runs the machine that runs the process that runs the code. Each of those layers is somewhere an hour can quietly go. The stack will be exactly this deep when you get back. Take {breakLength} in one layer.",
       "tone": "roast",
       "category": "containers",
       "escalation": {
@@ -5122,7 +5241,9 @@
         "max": 4
       },
       "minConfidence": 0.55,
-      "requiredSlots": [],
+      "requiredSlots": [
+        "breakLength"
+      ],
       "optionalSlots": [],
       "when": [
         {
