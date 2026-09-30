@@ -256,21 +256,20 @@ struct MenuBarView: View {
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: 6) {
-            hold(model.waiting.text)
+            hold(model.waiting)
+                .padding(.bottom, 4)
 
-            if model.isOnBreak {
-                TerminalButton("Resume · SIGCONT", style: .filled, mark: Self.command) {
-                    model.endBreak()
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    breakControl
+                    meetingControl(style: .outlined)
                 }
-            } else {
-                TerminalButton(
-                    "Take a break now",
-                    style: breakWanted ? .filled : .outlined,
-                    mark: Self.command
-                ) { model.takeBreakNow() }
+                VStack(alignment: .leading, spacing: 6) {
+                    breakControl
+                    meetingControl(style: .quiet)
+                }
             }
 
-            meetingControl
             if let version = model.updates.state.offeredVersion {
                 TerminalButton("Update to \(version)…", style: .quiet, mark: Self.command) {
                     openSettings()
@@ -297,33 +296,58 @@ struct MenuBarView: View {
     }
 
     @ViewBuilder
-    private var meetingControl: some View {
+    private var breakControl: some View {
+        if model.isOnBreak {
+            TerminalButton("Resume · SIGCONT", style: .filled, mark: Self.command) {
+                model.endBreak()
+            }
+        } else {
+            TerminalButton(
+                "Take a break now",
+                style: breakWanted ? .filled : .outlined,
+                mark: Self.command
+            ) { model.takeBreakNow() }
+        }
+    }
+
+    @ViewBuilder
+    private func meetingControl(style: TerminalButton.Style) -> some View {
         if model.callHoldSummary != nil {
-            TerminalButton("Not in a meeting", style: .quiet, mark: Self.command) {
+            TerminalButton("Not in a meeting", style: style, mark: Self.command) {
                 model.clearMeetingHold()
             }
         } else if model.inputDeviceIsHoldingABreak {
-            TerminalButton(model.ignoreInputDeviceLabel, style: .quiet, mark: Self.command) {
+            TerminalButton(model.ignoreInputDeviceLabel, style: style, mark: Self.command) {
                 model.clearMeetingHold()
             }
         } else if model.settings.holdBreaksDuringCalls {
-            TerminalButton("I'm in a meeting", style: .quiet, mark: Self.command) {
+            TerminalButton("I'm in a meeting", style: style, mark: Self.command) {
                 model.assertMeeting()
             }
         }
     }
 
-    private func hold(_ text: String) -> some View {
+    private func hold(_ line: WaitingLine) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
             Text(Self.output)
                 .frame(width: TerminalButton.markGutter, alignment: .leading)
-            Text(text)
+            (Text(line.claim.prefix).font(Brand.mono(10.5, weight: .medium)).foregroundStyle(Self.ink(for: line.claim))
+                + Text(", \(line.body)."))
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
         .font(Brand.mono(10.5))
         .foregroundStyle(Brand.fgMuted)
         .padding(.horizontal, TerminalButton.markInset)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(line.text)
+    }
+
+    private static func ink(for claim: WaitingLine.Claim) -> Color {
+        switch claim {
+        case .waitingOnYou: return Brand.amber
+        case .holdingOff, .notAskingYet: return Brand.fg
+        }
     }
 
     private var breakWanted: Bool {
@@ -334,23 +358,22 @@ struct MenuBarView: View {
     }
 
     private var uptime: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Kicker("uptime · today")
-
-            if let summary = model.todaySummary, !summary.isEmptyDay {
-                Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 10) {
-                    GridRow {
-                        ForEach(Self.workStats(for: summary), id: \.label) { stat in
-                            cell(stat)
-                        }
-                    }
-                    GridRow {
-                        ForEach(Self.breakStats(for: summary), id: \.label) { stat in
-                            cell(stat)
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Kicker("uptime · today")
+                Spacer(minLength: 0)
+                if let summary = recordedToday {
+                    Self.readout([(DurationText.short(summary.totalActiveWork), "active")])
+                        .lineLimit(1)
                 }
-                .padding(.top, 2)
+            }
+
+            if let summary = recordedToday {
+                if let top = summary.topApplication, top.seconds > 0, summary.totalActiveWork > 0 {
+                    share(of: top, in: summary)
+                }
+                Self.readout(Self.dayStats(for: summary))
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Nothing recorded yet today.")
                     .font(Brand.mono(10.5))
@@ -361,36 +384,55 @@ struct MenuBarView: View {
         }
     }
 
-    private func cell(_ stat: (value: String, label: String)) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(stat.value)
-                .font(Brand.mono(13, weight: .medium))
-                .monospacedDigit()
-                .foregroundStyle(Brand.fg)
-            Text(stat.label)
-                .font(Brand.mono(9))
-                .tracking(0.4)
+    private var recordedToday: DailySummary? {
+        guard let summary = model.todaySummary, !summary.isEmptyDay else { return nil }
+        return summary
+    }
+
+    private func share(of top: (bundleID: String, seconds: TimeInterval), in summary: DailySummary) -> some View {
+        let name = Self.displayName(for: top.bundleID)
+        return HStack(spacing: 10) {
+            Text(name.lowercased())
+                .font(Brand.mono(10.5))
                 .foregroundStyle(Brand.fgMuted)
                 .lineLimit(1)
+                .frame(maxWidth: 120, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
+            TransferBar(fraction: min(1, top.seconds / summary.totalActiveWork), animated: false)
+                .frame(height: 3)
+            Text(DurationText.short(top.seconds))
+                .font(Brand.mono(11, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(Brand.fg)
+                .fixedSize()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(name), \(DurationText.short(top.seconds)) of \(DurationText.short(summary.totalActiveWork)) active"
+        )
     }
 
-    private static func workStats(for summary: DailySummary) -> [(value: String, label: String)] {
+    private static func readout(_ stats: [(value: String, label: String)]) -> Text {
+        let glued = { (text: String) in text.replacingOccurrences(of: " ", with: "\u{00A0}") }
+        var line = Text("")
+        for (index, stat) in stats.enumerated() {
+            if index > 0 {
+                line = line + Text("\u{00A0}· ").font(Brand.mono(10.5)).foregroundStyle(Brand.fgFaint)
+            }
+            line = line
+                + Text(glued(stat.value)).font(Brand.mono(11, weight: .medium)).foregroundStyle(Brand.fg)
+                + Text("\u{00A0}" + glued(stat.label)).font(Brand.mono(10.5)).foregroundStyle(Brand.fgMuted)
+        }
+        return line.monospacedDigit()
+    }
+
+    private static func dayStats(for summary: DailySummary) -> [(value: String, label: String)] {
         var out: [(value: String, label: String)] = [
-            (DurationText.short(summary.totalActiveWork), "active"),
             (DurationText.short(summary.longestContinuousSession), "longest"),
+            ("\(summary.breakCount)", summary.breakCount == 1 ? "break" : "breaks"),
         ]
-        if let top = summary.topApplication, top.seconds > 0 {
-            out.append((DurationText.short(top.seconds), displayName(for: top.bundleID).lowercased()))
-        }
-        return out
-    }
-
-    private static func breakStats(for summary: DailySummary) -> [(value: String, label: String)] {
-        var out: [(value: String, label: String)] = [("\(summary.breakCount)", "breaks")]
         if let average = summary.averageBreakLength {
-            out.append((DurationText.short(average), "avg break"))
+            out.append((DurationText.short(average), "avg"))
         }
         let asked = summary.breakOpportunities - summary.excludedOpportunities
         if asked > 0 {
