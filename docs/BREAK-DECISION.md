@@ -212,9 +212,12 @@ permanent shield is an app that never fires.
 
 ### 3.2 The tick must never trust its own interval
 
-Notifications get dropped. App Nap throttles timers. The process is suspended under a debugger. Sleep
-stops `mach_absolute_time` but not the wall clock. So every tick reconstructs reality from two
-independent clocks and never credits more than one interval:
+Notifications get dropped. App Nap throttles timers. The process is suspended under a debugger. The
+lid closes. So every tick reconstructs reality from two independent clocks and never credits more
+than one interval. The monotonic one is `SystemTimeSource.continuousSeconds`, `CLOCK_MONOTONIC`,
+which on macOS keeps counting through sleep (`mach_absolute_time` would not), so a sleep arrives as
+one long monotonic step, the same shape as a throttle, and `noteSystemWake()` is what tells them
+apart:
 
 ```swift
 let delta = max(0, mono - lastTickMono)
@@ -1128,10 +1131,11 @@ adopted app still running.
 **Unobserved gaps.** A step larger than `latchGapTolerance` on either clock is time nobody watched,
 and it is credited in neither direction: if it exceeds what was left of the hold the latch closes,
 because a call can end while the lid is shut; if it is shorter, the hold is not *spent* on it, so a
-two-minute lid-close on the way to a meeting room does not end the call. Note that the monotonic
-clock does not advance across a system sleep while the wall clock does, so the gap is the larger of
-the two deltas. `MutableTimeSource.sleepAndWake` advances both and therefore models a throttle, not
-a sleep; the test for this uses two separately-advanced values.
+two-minute lid-close on the way to a meeting room does not end the call. The gap is the larger of
+the two deltas. `CLOCK_MONOTONIC` counts through sleep on macOS (§3.2), so a sleep shows on both
+clocks; taking the larger also covers a monotonic clock that did not, which is what the test for
+this checks with two separately-advanced values. `MutableTimeSource.sleepAndWake` and `throttle`
+advance both clocks alike, as the real clocks do.
 
 Three clauses of that rule are load-bearing and were each missing once:
 
@@ -1762,7 +1766,7 @@ long form keeps it a description of a day.
 4. A stream of `[work 44 min, idle 3 min, work 2 min]` reaches `breakDue` at 46 min of *credited* work,
    with the grace revoked — a short pause neither resets nor secretly credits.
 5. A stream of `[work 40 min, idle 40 min, work 5 min]` never reaches `breakDue` from the pre-gap work.
-6. Replay with sleep injected (wall advances, uptime does not) credits zero for the sleep.
+6. Replay with a sleep injected (both clocks jump together, and `noteSystemWake()` labels the step) credits zero for the sleep.
 7. No two notifications in any replay are less than `minNotificationSpacing` apart.
 8. No replay emits more than 4 notifications per cycle, or more than `dailyNotificationCap` per day.
 9. No notification is ever emitted while any `HardBlock` predicate holds.
