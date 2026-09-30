@@ -17,8 +17,10 @@ struct MenuBarView: View {
 
     private static let width: CGFloat = 356
     private static let gutter: CGFloat = 16
+    private static let keyColumn: CGFloat = 70
+    private static let meterLabel: CGFloat = 50
+    private static let maxMeterCells = 48
 
-    private static let output = "→"
     private static let command = "❯"
 
     init(model: AppModel, openSettings: @escaping () -> Void = {}, expandEvidence: Bool = false) {
@@ -31,21 +33,28 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.horizontal, Self.gutter)
-                .padding(.top, 14)
-                .padding(.bottom, 14)
+                .padding(.top, 13)
+                .padding(.bottom, 15)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Brand.chrome)
+                .background(headerBackdrop)
             Rule()
-            VStack(alignment: .leading, spacing: 22) {
-                inference
+            VStack(alignment: .leading, spacing: 14) {
+                table
                 actions
             }
             .padding(.horizontal, Self.gutter)
-            .padding(.vertical, 14)
+            .padding(.top, 13)
+            .padding(.bottom, 14)
             Rule()
             uptime
                 .padding(.horizontal, Self.gutter)
-                .padding(.vertical, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Rule()
+            commandBar
+                .padding(.horizontal, Self.gutter - TerminalButton.quietInset)
+                .padding(.vertical, 5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Brand.chrome)
         }
@@ -53,64 +62,205 @@ struct MenuBarView: View {
         .background(Brand.content)
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                StateDot(state: status.dot)
-                Text(status.title)
-                    .font(Brand.mono(10, weight: .medium))
-                    .tracking(1.6)
-                    .textCase(.uppercase)
-                    .foregroundStyle(status.tint)
-                Spacer()
-                Text(status.signal)
-                    .font(Brand.mono(10.5))
-                    .foregroundStyle(Brand.fgMuted)
-            }
-
-            HStack(alignment: .center, spacing: 12) {
-                BrandMark(size: 40, fill: markFill, resting: model.indicator == .held)
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            Text(Format.clock(headlineSeconds(at: context.date)))
-                                .font(Brand.mono(40, weight: .bold))
-                                .tracking(-1.4)
-                                .monospacedDigit()
-                                .foregroundStyle(status.accent ? Brand.amber : Brand.fg)
-                                .contentTransition(reduceMotion ? .identity : .numericText())
-                        }
-                        if model.breakEndsAt != nil {
-                            Text("/ \(Format.clock(model.settings.breakDuration))")
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fgMuted)
-                        } else if model.workTargetInForce {
-                            Text("/ \(Format.clock(model.workTarget))")
-                                .font(Brand.mono(11))
-                                .foregroundStyle(Brand.fgMuted)
-                        }
-                    }
-                    Text(subtitle)
-                        .font(Brand.mono(10.5))
-                        .foregroundStyle(Brand.fgMuted)
-                        .lineLimit(1)
-                }
+    private var headerBackdrop: some View {
+        ZStack {
+            Brand.chrome
+            if breakWanted {
+                LinearGradient(
+                    colors: [Brand.amberWash, Brand.chrome],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             }
         }
     }
 
-    private func headlineSeconds(at date: Date) -> TimeInterval {
-        guard let ends = model.breakEndsAt else { return model.displayedContinuousWork }
-        return max(0, ends.timeIntervalSince(date))
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                StateDot(state: status.dot)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 0.5 }
+                Text(status.title)
+                    .font(Brand.mono(10, weight: .semibold))
+                    .tracking(1.6)
+                    .textCase(.uppercase)
+                    .foregroundStyle(status.tint)
+                Spacer(minLength: 8)
+                signal
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(heroClock(at: context.date))
+                        .font(Brand.mono(42, weight: .bold))
+                        .tracking(-1.6)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(clockInk)
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                }
+                if let suffix = clockSuffix {
+                    Text(suffix)
+                        .font(Brand.mono(11))
+                        .monospacedDigit()
+                        .foregroundStyle(Brand.fgFaint)
+                }
+                Spacer(minLength: 8)
+                BrandMark(size: 28, fill: markFill, resting: model.indicator == .held)
+            }
+            .padding(.top, 8)
+
+            meter
+                .padding(.top, 8)
+
+            claim(model.waiting)
+                .padding(.top, 10)
+        }
+    }
+
+    private var signal: some View {
+        Group {
+            if status.signal.hasPrefix("state ") {
+                Text("state ").foregroundStyle(Brand.fgFaint)
+                    + Text(String(status.signal.dropFirst(6)))
+                    .font(Brand.mono(10.5, weight: .bold))
+                    .foregroundStyle(status.accent ? Brand.amber : Brand.fg)
+            } else {
+                Text(status.signal)
+                    .font(Brand.mono(10.5, weight: .semibold))
+                    .foregroundStyle(status.accent ? Brand.amber : Brand.fgMuted)
+            }
+        }
+        .font(Brand.mono(10.5))
+        .accessibilityLabel(status.signal)
+    }
+
+    private func heroClock(at date: Date) -> String {
+        if let ends = model.breakEndsAt {
+            return Format.clock(max(0, ends.timeIntervalSince(date)))
+        }
+        return Format.clock(model.displayedContinuousWork)
+    }
+
+    private var clockSuffix: String? {
+        if model.isOnBreak { return "left" }
+        if model.workTargetInForce { return "/ \(Format.clock(model.workTarget))" }
+        return nil
+    }
+
+    private var clockInk: Color {
+        if breakWanted { return Brand.amber }
+        if model.isOnBreak || status.dot == .running { return Brand.fg }
+        return Brand.fgMuted
     }
 
     private var markFill: Double {
         switch model.indicator {
         case .onBreak: return 0
         case .breakDue, .escalating, .held, .backedOff: return 1
-        default:
-            guard model.workTarget > 0 else { return 0 }
-            return min(1, max(0, model.continuousWork / model.workTarget))
+        default: return min(1, workRatio)
+        }
+    }
+
+    private var workRatio: Double {
+        guard model.workTarget > 0 else { return 0 }
+        return max(0, model.continuousWork / model.workTarget)
+    }
+
+    private struct MeterReading {
+        let cells: Int
+        let lit: Int
+        let tint: Color
+        let label: String
+        let ink: Color
+        let spoken: String
+    }
+
+    private var meterReading: MeterReading {
+        let cells = Self.meterCells(for: model.workTarget)
+        if let ends = model.breakEndsAt {
+            let length = max(1, model.policy.breakDurationTarget)
+            let fraction = min(1, max(0, ends.timeIntervalSinceNow / length))
+            return MeterReading(
+                cells: cells,
+                lit: Int((fraction * Double(cells)).rounded(.up)),
+                tint: Brand.fgMuted,
+                label: Format.percent(fraction),
+                ink: Brand.fgMuted,
+                spoken: "\(Format.percent(fraction)) of the break left"
+            )
+        }
+        let ratio = workRatio
+        let percent = model.workTargetInForce ? Format.percent(ratio) : "--"
+        let spokenPercent = model.workTargetInForce
+            ? "\(Format.percent(ratio)) of the work target"
+            : "no work target in force"
+        if breakWanted {
+            let over = model.continuousWork - model.workTarget
+            let label = over >= 60 ? "+\(DurationText.short(over))" : "100%"
+            return MeterReading(
+                cells: cells,
+                lit: cells,
+                tint: model.indicator == .held ? Brand.amberFill.opacity(0.45) : Brand.amberFill,
+                label: label,
+                ink: Brand.amber,
+                spoken: over >= 60 ? "\(DurationText.short(over)) past the work target" : "at the work target"
+            )
+        }
+        let lit = Int((min(1, ratio) * Double(cells)).rounded(.down))
+        if model.indicator == .working {
+            return MeterReading(
+                cells: cells, lit: lit, tint: Brand.fg.opacity(0.72),
+                label: percent, ink: Brand.fgMuted, spoken: spokenPercent
+            )
+        }
+        return MeterReading(
+            cells: cells, lit: lit, tint: Brand.fgFaint.opacity(0.5),
+            label: percent, ink: Brand.fgFaint, spoken: spokenPercent
+        )
+    }
+
+    private static func meterCells(for target: TimeInterval) -> Int {
+        let minutes = max(1, Int((target / 60).rounded()))
+        for step in [1, 2, 3, 5, 10, 15, 30] where minutes <= step * maxMeterCells {
+            return Int((Double(minutes) / Double(step)).rounded(.up))
+        }
+        return maxMeterCells
+    }
+
+    private var meter: some View {
+        let reading = meterReading
+        return HStack(alignment: .center, spacing: 8) {
+            CellMeter(cells: reading.cells, lit: reading.lit, tint: reading.tint, brackets: true)
+                .frame(height: 12)
+            Text(reading.label)
+                .font(Brand.mono(10.5, weight: .semibold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .foregroundStyle(reading.ink)
+                .frame(width: Self.meterLabel, alignment: .trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(reading.spoken)
+    }
+
+    private func claim(_ line: WaitingLine) -> some View {
+        (Text(line.claim.prefix)
+            .font(Brand.mono(11, weight: .semibold))
+            .foregroundStyle(Self.ink(for: line.claim))
+            + Text(", \(line.body).")
+            .font(Brand.mono(11))
+            .foregroundStyle(Brand.fgMuted))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel(line.text)
+    }
+
+    private static func ink(for claim: WaitingLine.Claim) -> Color {
+        switch claim {
+        case .waitingOnYou: return Brand.amber
+        case .holdingOff, .notAskingYet: return Brand.fg
         }
     }
 
@@ -146,169 +296,192 @@ struct MenuBarView: View {
         }
     }
 
-    private var subtitle: String {
-        if let until = model.pausedUntil {
-            let day = Calendar.current.isDate(until, inSameDayAs: .now) ? "" : " tomorrow"
-            return "paused until \(Self.clock(until))\(day)"
+    private var breakWanted: Bool {
+        switch model.indicator {
+        case .breakDue, .escalating, .held, .backedOff: return true
+        default: return false
         }
-        if let until = model.snoozeUntil, until > .now {
-            return "asking again at \(Self.clock(until))"
-        }
-        if let ends = model.breakEndsAt {
-            return "on a break until \(Self.clock(ends))"
-        }
-        if let since = model.timeSinceLastBreak {
-            return "continuous · \(DurationText.short(since)) since your last break"
-        }
-        return "continuous · no break recorded yet"
     }
 
-    private var inference: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Kicker("inference")
-                Spacer()
-                confidence
-            }
-            .padding(.bottom, 8)
+    private var sinceRow: (key: String, value: String) {
+        if let until = model.pausedUntil {
+            let day = Calendar.current.isDate(until, inSameDayAs: .now) ? "" : " tomorrow"
+            return ("paused", "until \(Self.clock(until))\(day)")
+        }
+        if let until = model.snoozeUntil, until > .now {
+            return ("snoozed", "asking again at \(Self.clock(until))")
+        }
+        if let ends = model.breakEndsAt {
+            return ("break", "\(Format.clock(model.policy.breakDurationTarget)) planned, until \(Self.clock(ends))")
+        }
+        if let since = model.timeSinceLastBreak {
+            return ("last break", "\(DurationText.short(since)) ago")
+        }
+        return ("last break", "none recorded yet")
+    }
 
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                if !model.applicationName.isEmpty {
+    private var table: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            TableRow(sinceRow.key) {
+                Text(sinceRow.value)
+                    .font(Brand.mono(11))
+                    .foregroundStyle(Brand.fgMuted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            TableRow("app") {
+                if model.applicationName.isEmpty {
+                    Text("nothing sampled yet")
+                        .font(Brand.mono(11))
+                        .foregroundStyle(Brand.fgFaint)
+                } else {
                     Text(model.applicationName)
-                        .font(Brand.mono(14, weight: .semibold))
+                        .font(Brand.mono(11, weight: .semibold))
                         .foregroundStyle(Brand.fg)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Text("·")
-                        .font(Brand.mono(13))
-                        .foregroundStyle(Brand.fgMuted)
                 }
-                Text(model.activityLabel)
-                    .font(Brand.mono(13))
-                    .foregroundStyle(Brand.fgMuted)
-                    .lineLimit(1)
             }
 
-            DisclosureLine(open: showEvidence, title: "why do you think that?") {
-                showEvidence.toggle()
+            TableRow("activity") {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        activity
+                            .fixedSize()
+                        Spacer(minLength: 0)
+                        confidence
+                            .fixedSize()
+                    }
+                    VStack(alignment: .leading, spacing: 5) {
+                        activity
+                            .fixedSize(horizontal: false, vertical: true)
+                        confidence
+                            .fixedSize()
+                    }
+                }
             }
-            .padding(.top, 8)
+
+            TableRow("") {
+                DisclosureLine(open: showEvidence, title: "why do you think that?") {
+                    showEvidence.toggle()
+                }
+            }
 
             if showEvidence {
                 evidence
-                    .padding(.top, 8)
+                    .padding(.bottom, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var activity: some View {
+        Text(model.activityLabel)
+            .font(Brand.mono(11, weight: .medium))
+            .foregroundStyle(Brand.fg)
+    }
+
     private var confidence: some View {
-        let confident = model.confidence >= 0.6
-        return HStack(alignment: .firstTextBaseline, spacing: 5) {
+        let value = min(max(model.confidence, 0), 1)
+        let confident = value >= 0.6
+        return HStack(alignment: .center, spacing: 6) {
             Text("conf")
-                .foregroundStyle(Brand.fgMuted)
-            Text(String(format: "%.2f", min(max(model.confidence, 0), 1)))
+                .font(Brand.mono(10))
+                .foregroundStyle(Brand.fgFaint)
+            Text(String(format: "%.2f", value))
                 .font(Brand.mono(10.5, weight: .semibold))
-                .foregroundStyle(confident ? Brand.running : Brand.fgMuted)
-            Text("(\(Format.percent(model.confidence)))")
-                .foregroundStyle(Brand.fgMuted)
+                .monospacedDigit()
+                .foregroundStyle(confident ? Brand.fg : Brand.fgMuted)
+            CellMeter(
+                cells: 10,
+                lit: Int((value * 10).rounded(.down)),
+                tint: confident ? Brand.running : Brand.fgFaint
+            )
+            .frame(width: 39, height: 7)
         }
-        .font(Brand.mono(10.5))
-        .monospacedDigit()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("confidence \(Format.percent(value))")
     }
 
     private var evidence: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             if model.evidenceLines.isEmpty {
-                Text("No evidence either way yet.")
-                    .font(Brand.sans(11))
-                    .foregroundStyle(Brand.fgMuted)
+                TableRow("") {
+                    Text("No evidence either way yet.")
+                        .font(Brand.mono(10.5))
+                        .foregroundStyle(Brand.fgMuted)
+                }
             }
             ForEach(model.evidenceLines) { line in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(Format.logOdds(line.logOdds))
-                        .font(Brand.mono(10))
-                        .foregroundStyle(Brand.fgMuted)
-                        .frame(width: 40, alignment: .trailing)
-                    Text(line.summary)
-                        .font(Brand.sans(11))
-                        .foregroundStyle(Brand.fgMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                evidenceRow(
+                    Format.logOdds(line.logOdds),
+                    ink: line.logOdds >= 0 ? Brand.running : Brand.fgFaint,
+                    line.summary
+                )
             }
             ForEach(model.caveats, id: \.self) { caveat in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("!")
-                        .font(Brand.mono(10))
-                        .foregroundStyle(Brand.fgMuted)
-                        .frame(width: 40, alignment: .trailing)
-                    Text(caveat)
-                        .font(Brand.sans(11))
-                        .foregroundStyle(Brand.fgMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                evidenceRow("!", ink: Brand.amber, caveat)
             }
             if let finished = model.finishedCommand {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\u{21B5}")
-                        .font(Brand.mono(10))
-                        .foregroundStyle(Brand.fgMuted)
-                        .frame(width: 40, alignment: .trailing)
-                    Text("\(finished), a natural pause")
-                        .font(Brand.sans(11))
-                        .foregroundStyle(Brand.fgMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                evidenceRow("\u{21B5}", ink: Brand.fgMuted, "\(finished), a natural pause")
             }
         }
+    }
+
+    private func evidenceRow(_ mark: String, ink: Color, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(mark)
+                .font(Brand.mono(10, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(ink)
+                .frame(width: Self.keyColumn, alignment: .leading)
+            Text(text)
+                .font(Brand.mono(10.5))
+                .foregroundStyle(Brand.fgMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: 6) {
-            hold(model.waiting)
-                .padding(.bottom, 4)
-
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) {
-                    breakControl
-                    meetingControl(style: .outlined)
+                    primary
+                    meetingControl
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    breakControl
-                    meetingControl(style: .quiet)
+                    primary
+                    meetingControl
                 }
+            }
+
+            if model.pausedUntil != nil, !model.isOnBreak {
+                railLink("Take a break now") { model.takeBreakNow() }
             }
 
             if let version = model.updates.state.offeredVersion {
-                TerminalButton("Update to \(version)…", style: .quiet, mark: Self.command) {
-                    openSettings()
-                }
+                railLink("Update to \(version)…") { openSettings() }
             }
-
-            Rule()
-                .padding(.top, 2)
-
-            QuietRow {
-                if model.pausedUntil == nil {
-                    TerminalButton("Pause · 1h", style: .quiet) { model.pause(for: AppModel.hourPause) }
-                    TerminalButton("Pause · today", style: .quiet) { model.pauseUntilTomorrow() }
-                        .accessibilityLabel("Pause for the rest of today")
-                } else {
-                    TerminalButton("Resume", style: .quiet) { model.resume() }
-                }
-                TerminalButton("Settings…", style: .quiet) { openSettings() }
-                Spacer(minLength: 0)
-                TerminalButton("Quit", style: .quiet) { NSApp.terminate(nil) }
-            }
-            .padding(.trailing, -TerminalButton.quietInset)
         }
     }
 
+    private func railLink(_ title: String, action: @escaping () -> Void) -> some View {
+        TerminalButton(title, style: .quiet, mark: Self.command, action: action)
+            .padding(.leading, -TerminalButton.markInset)
+    }
+
     @ViewBuilder
-    private var breakControl: some View {
+    private var primary: some View {
         if model.isOnBreak {
             TerminalButton("Resume · SIGCONT", style: .filled, mark: Self.command) {
                 model.endBreak()
+            }
+        } else if model.pausedUntil != nil {
+            TerminalButton("Resume", style: .outlined, mark: Self.command) {
+                model.resume()
             }
         } else {
             TerminalButton(
@@ -320,49 +493,40 @@ struct MenuBarView: View {
     }
 
     @ViewBuilder
-    private func meetingControl(style: TerminalButton.Style) -> some View {
+    private var meetingControl: some View {
         if model.callHoldSummary != nil {
-            TerminalButton("Not in a meeting", style: style, mark: Self.command) {
+            TerminalButton("Not in a meeting", style: .outlined, mark: Self.command) {
                 model.clearMeetingHold()
             }
+            .overlay(releaseRing)
         } else if model.inputDeviceIsHoldingABreak {
-            TerminalButton(model.ignoreInputDeviceLabel, style: style, mark: Self.command) {
+            TerminalButton(model.ignoreInputDeviceLabel, style: .outlined, mark: Self.command) {
                 model.clearMeetingHold()
             }
+            .overlay(releaseRing)
         } else if model.settings.holdBreaksDuringCalls {
-            TerminalButton("I'm in a meeting", style: style, mark: Self.command) {
+            TerminalButton("I'm in a meeting", style: .outlined, mark: Self.command) {
                 model.assertMeeting()
             }
         }
     }
 
-    private func hold(_ line: WaitingLine) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
-            Text(Self.output)
-                .frame(width: TerminalButton.markGutter, alignment: .leading)
-            (Text(line.claim.prefix).font(Brand.mono(10.5, weight: .medium)).foregroundStyle(Self.ink(for: line.claim))
-                + Text(", \(line.body)."))
-                .fixedSize(horizontal: false, vertical: true)
+    private var releaseRing: some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .strokeBorder(Brand.amber, lineWidth: 1)
+            .allowsHitTesting(false)
+    }
+
+    private var commandBar: some View {
+        HStack(spacing: 2) {
+            if model.pausedUntil == nil {
+                TerminalButton("Pause · 1h", style: .quiet) { model.pause(for: AppModel.hourPause) }
+                TerminalButton("Pause · today", style: .quiet) { model.pauseUntilTomorrow() }
+                    .accessibilityLabel("Pause for the rest of today")
+            }
+            TerminalButton("Settings…", style: .quiet) { openSettings() }
             Spacer(minLength: 0)
-        }
-        .font(Brand.mono(10.5))
-        .foregroundStyle(Brand.fgMuted)
-        .padding(.horizontal, TerminalButton.markInset)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(line.text)
-    }
-
-    private static func ink(for claim: WaitingLine.Claim) -> Color {
-        switch claim {
-        case .waitingOnYou: return Brand.amber
-        case .holdingOff, .notAskingYet: return Brand.fg
-        }
-    }
-
-    private var breakWanted: Bool {
-        switch model.indicator {
-        case .breakDue, .escalating, .held, .backedOff: return true
-        default: return false
+            TerminalButton("Quit", style: .quiet) { NSApp.terminate(nil) }
         }
     }
 
@@ -372,17 +536,25 @@ struct MenuBarView: View {
                 Kicker("uptime · today")
                 Spacer(minLength: 0)
                 if let summary = recordedToday {
-                    Self.readout([(DurationText.short(summary.totalActiveWork), "active")])
+                    (Text(DurationText.short(summary.totalActiveWork))
+                        .font(Brand.mono(11, weight: .semibold))
+                        .foregroundStyle(Brand.fg)
+                        + Text(" active")
+                        .font(Brand.mono(10.5))
+                        .foregroundStyle(Brand.fgMuted))
+                        .monospacedDigit()
                         .lineLimit(1)
                 }
             }
 
             if let summary = recordedToday {
-                if let top = summary.topApplication, top.seconds > 0, summary.totalActiveWork > 0 {
-                    share(of: top, in: summary)
+                VStack(alignment: .leading, spacing: 6) {
+                    if let top = summary.topApplication, top.seconds > 0, summary.totalActiveWork > 0 {
+                        share(of: top, in: summary)
+                    }
+                    stats(for: summary)
                 }
-                Self.readout(Self.dayStats(for: summary))
-                    .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
             } else {
                 Text("Nothing recorded yet today.")
                     .font(Brand.mono(10.5))
@@ -400,20 +572,24 @@ struct MenuBarView: View {
 
     private func share(of top: (bundleID: String, seconds: TimeInterval), in summary: DailySummary) -> some View {
         let name = Self.displayName(for: top.bundleID)
-        return HStack(spacing: 10) {
-            Text(name.lowercased())
-                .font(Brand.mono(10.5))
-                .foregroundStyle(Brand.fgMuted)
-                .lineLimit(1)
-                .frame(maxWidth: 120, alignment: .leading)
-                .fixedSize(horizontal: true, vertical: false)
-            TransferBar(fraction: min(1, top.seconds / summary.totalActiveWork), animated: false)
-                .frame(height: 3)
-            Text(DurationText.short(top.seconds))
-                .font(Brand.mono(11, weight: .medium))
-                .monospacedDigit()
-                .foregroundStyle(Brand.fg)
-                .fixedSize()
+        let fraction = min(1, top.seconds / summary.totalActiveWork)
+        return TableRow("top") {
+            HStack(alignment: .center, spacing: 8) {
+                Text(name.lowercased())
+                    .font(Brand.mono(11, weight: .medium))
+                    .foregroundStyle(Brand.fg)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 104, alignment: .leading)
+                    .fixedSize(horizontal: true, vertical: false)
+                CellMeter(cells: 20, lit: Int((fraction * 20).rounded()), tint: Brand.fgMuted)
+                    .frame(height: 7)
+                Text(DurationText.short(top.seconds))
+                    .font(Brand.mono(11, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(Brand.fg)
+                    .fixedSize()
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -421,18 +597,31 @@ struct MenuBarView: View {
         )
     }
 
-    private static func readout(_ stats: [(value: String, label: String)]) -> Text {
-        let glued = { (text: String) in text.replacingOccurrences(of: " ", with: "\u{00A0}") }
-        var line = Text("")
-        for (index, stat) in stats.enumerated() {
-            if index > 0 {
-                line = line + Text("\u{00A0}· ").font(Brand.mono(10.5)).foregroundStyle(Brand.fgFaint)
+    private func stats(for summary: DailySummary) -> some View {
+        let pairs = Self.dayStats(for: summary)
+        let rows = stride(from: 0, to: pairs.count, by: 2).map { Array(pairs[$0..<min($0 + 2, pairs.count)]) }
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { index, stat in
+                        HStack(alignment: .firstTextBaseline, spacing: 0) {
+                            Text(stat.label)
+                                .font(Brand.mono(10))
+                                .foregroundStyle(Brand.fgFaint)
+                                .frame(width: index == 0 ? Self.keyColumn : 54, alignment: .leading)
+                            Text(stat.value)
+                                .font(Brand.mono(11, weight: .medium))
+                                .monospacedDigit()
+                                .foregroundStyle(Brand.fg)
+                                .lineLimit(1)
+                        }
+                        .frame(width: index == 0 ? 162 : nil, alignment: .leading)
+                    }
+                    Spacer(minLength: 0)
+                }
             }
-            line = line
-                + Text(glued(stat.value)).font(Brand.mono(11, weight: .medium)).foregroundStyle(Brand.fg)
-                + Text("\u{00A0}" + glued(stat.label)).font(Brand.mono(10.5)).foregroundStyle(Brand.fgMuted)
         }
-        return line.monospacedDigit()
+        .accessibilityElement(children: .combine)
     }
 
     private static func dayStats(for summary: DailySummary) -> [(value: String, label: String)] {
@@ -441,7 +630,7 @@ struct MenuBarView: View {
             ("\(summary.breakCount)", summary.breakCount == 1 ? "break" : "breaks"),
         ]
         if let average = summary.averageBreakLength {
-            out.append((DurationText.short(average), "avg"))
+            out.append((DurationText.short(average), "avg break"))
         }
         let asked = summary.breakOpportunities - summary.excludedOpportunities
         if asked > 0 {
@@ -478,11 +667,138 @@ struct MenuBarView: View {
     }
 
     private func footnote(_ text: String) -> some View {
-        Text(text)
-            .font(Brand.mono(10))
-            .foregroundStyle(Brand.fgMuted)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 4)
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text("*")
+                .font(Brand.mono(10, weight: .semibold))
+                .foregroundStyle(Brand.amber)
+                .frame(width: 12, alignment: .leading)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Brand.mono(10))
+                .foregroundStyle(Brand.fgMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 4)
+    }
+
+    private struct TableRow<Value: View>: View {
+        let key: String
+        @ViewBuilder let value: Value
+
+        init(_ key: String, @ViewBuilder value: () -> Value) {
+            self.key = key
+            self.value = value()
+        }
+
+        var body: some View {
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text(key)
+                    .font(Brand.mono(10))
+                    .foregroundStyle(Brand.fgFaint)
+                    .frame(width: MenuBarView.keyColumn, alignment: .leading)
+                    .accessibilityHidden(key.isEmpty)
+                value
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .accessibilityElement(children: key.isEmpty ? .contain : .combine)
+        }
+    }
+}
+
+struct CellMeter: View {
+    let cells: Int
+    let lit: Int
+    var tint: Color = Brand.amberFill
+    var track: Color = Brand.surfaceHi
+    var brackets = false
+    var ink: Color = Brand.fgFaint
+
+    @Environment(\.displayScale) private var scale
+
+    nonisolated fileprivate static let bracketWidth: CGFloat = 5
+    nonisolated fileprivate static let bracketGap: CGFloat = 4
+
+    var body: some View {
+        GeometryReader { geometry in
+            let grid = Grid(width: geometry.size.width, cells: cells, brackets: brackets, scale: scale)
+            let split = min(max(0, lit), cells)
+            ZStack(alignment: .leading) {
+                if brackets {
+                    Bracket(opening: true)
+                        .stroke(ink, lineWidth: 1)
+                        .frame(width: Self.bracketWidth)
+                    Bracket(opening: false)
+                        .stroke(ink, lineWidth: 1)
+                        .frame(width: Self.bracketWidth)
+                        .offset(x: geometry.size.width - Self.bracketWidth)
+                }
+                Cells(grid: grid, range: 0..<split)
+                    .fill(tint)
+                Cells(grid: grid, range: split..<cells)
+                    .fill(track)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private struct Grid {
+        let pitch: CGFloat
+        let cell: CGFloat
+        let originX: CGFloat
+        let scale: CGFloat
+
+        init(width: CGFloat, cells: Int, brackets: Bool, scale: CGFloat) {
+            let margin = brackets ? CellMeter.bracketWidth + CellMeter.bracketGap : 0
+            let count = CGFloat(max(1, cells))
+            let inner = max(0, width - 2 * margin)
+            var gap: CGFloat = 2
+            var pitch = (inner + gap) / count
+            if pitch < 6 {
+                gap = 1
+                pitch = (inner + gap) / count
+            }
+            self.pitch = pitch
+            self.cell = max(1, (pitch - gap).rounded())
+            self.originX = margin
+            self.scale = max(1, scale)
+        }
+
+        func x(_ index: Int) -> CGFloat {
+            ((originX + CGFloat(index) * pitch) * scale).rounded() / scale
+        }
+    }
+
+    private struct Cells: Shape {
+        let grid: Grid
+        let range: Range<Int>
+
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            let radius = min(1.5, grid.cell / 4)
+            for index in range {
+                path.addRoundedRect(
+                    in: CGRect(x: rect.minX + grid.x(index), y: rect.minY, width: grid.cell, height: rect.height),
+                    cornerSize: CGSize(width: radius, height: radius),
+                    style: .continuous
+                )
+            }
+            return path
+        }
+    }
+
+    private struct Bracket: Shape {
+        let opening: Bool
+
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            let spine = opening ? rect.minX + 0.5 : rect.maxX - 0.5
+            let arm = opening ? rect.maxX : rect.minX
+            path.move(to: CGPoint(x: arm, y: rect.minY + 0.5))
+            path.addLine(to: CGPoint(x: spine, y: rect.minY + 0.5))
+            path.addLine(to: CGPoint(x: spine, y: rect.maxY - 0.5))
+            path.addLine(to: CGPoint(x: arm, y: rect.maxY - 0.5))
+            return path
+        }
     }
 }
 
@@ -501,7 +817,7 @@ private struct DisclosureLine: View {
                 Text(title)
             }
             .font(Brand.mono(10.5))
-            .foregroundStyle(hovering ? Brand.fg : Brand.fgMuted)
+            .foregroundStyle(hovering || open ? Brand.fg : Brand.fgMuted)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

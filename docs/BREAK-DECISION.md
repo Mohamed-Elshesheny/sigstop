@@ -1529,10 +1529,10 @@ Deadlines in it are wall-clock times and never countdowns, and every one of them
 the engine already holds (`cooldownUntilMono`, `snoozeUntil`, `plannedEnd`, `pausedUntil`, the quiet
 window, the audio ceiling). Nothing is scheduled to make them true and nothing polls. They are
 rendered short style through `DisplayLocale.english(from:)`: English with Latin digits, keeping the
-reader's region and 12 or 24 hour clock, which is what the menu bar subtitle one row above uses. An
+reader's region and 12 or 24 hour clock, which is what the panel's status rows beside it use. An
 Arabic or Persian Mac would otherwise print native digits inside an English sentence. Every clock
 and number the app prints goes through the same locale: the corpus slots, `WaitingLine`, the menu
-bar subtitle and every SwiftUI root. The 24-hour `HH:mm` form is reserved for the quiet-hours
+bar panel's status rows and every SwiftUI root. The 24-hour `HH:mm` form is reserved for the quiet-hours
 window, where the reader is comparing two ends of a range against the settings field that produced
 it.
 
@@ -1660,12 +1660,12 @@ public struct QuietHours: Sendable, Codable, Hashable {
   `PauseUntilTomorrowTests` sweeps a year in four time zones, one second either side of every
   boundary. The rollup's `CalendarDay.interval` still draws a day from 04:00 to 04:00 on the
   clock, which predates this and is the same hour off on the same two nights. The pause cannot be
-  forgotten on, and the subtitle says when: "paused until 4:00 AM".
+  forgotten on, and the panel says when: "paused until 4:00 AM".
 - *Pause · today* is never shorter than the *Pause · 1h* beside it. `AppModel.pauseUntilTomorrow`
   asks `LocalDay` for the boundary at least an hour away, so at 03:30 the pause runs to the
   boundary after next, a day and a half hour, rather than to 04:00 thirty minutes on, which is
   what the button used to do and what nobody pressing "today" at 03:30 meant. When the end is a
-  day or more away the subtitle says so: "paused until 4:00 AM tomorrow".
+  later calendar day than today the panel says so: "paused until 4:00 AM tomorrow".
 - A pause does not stop the log from noticing that you left. `SessionTracker` ranks `.userPaused`
   above idle, so while the app is paused it never reports an idle gap, and the app used to write no
   `idle_begin` for the hour, or for the rest of the day, that a pause covers. The rollup learns idle

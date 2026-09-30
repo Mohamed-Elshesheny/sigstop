@@ -61,6 +61,10 @@ final class UpdateChecker {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 
+    func stageForRendering(offering version: String) {
+        state = .available(version: version)
+    }
+
     init() {
         guard AppPaths.isBundled else {
             state = .unavailable("Updating needs the bundled app. Build it with `make bundle`.")

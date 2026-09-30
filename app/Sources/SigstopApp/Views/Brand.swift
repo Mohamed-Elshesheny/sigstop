@@ -25,6 +25,7 @@ enum Brand {
     static let amber = dynamic(light: 0x8A4E00, dark: 0xF5A524)
 
     static let amberFill = dynamic(light: 0xF0A020, dark: 0xF5A524)
+    static let amberWash = dynamic(light: 0xF4ECDE, dark: 0x221F18)
     static let onAmber = dynamic(light: 0x1B1206, dark: 0x000000)
 
     static let alert = dynamic(light: 0xC0322B, dark: 0xF85149)
@@ -363,17 +364,6 @@ private struct TerminalButtonStyle: ButtonStyle {
             case .quiet: return .clear
             }
         }
-    }
-}
-
-struct QuietRow<Content: View>: View {
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        HStack(spacing: 4) {
-            content
-        }
-        .padding(.leading, -TerminalButton.quietInset)
     }
 }
 

@@ -1032,7 +1032,7 @@ Humor does not translate; it gets rewritten. The format is built for that.
   locale `DisplayLocale.english(from:)` builds: English, Latin digits, and the user's region and
   12 or 24 hour clock. An Arabic or Persian Mac would otherwise put native digits inside an
   English sentence. Every clock and number the app prints uses the same locale: these slots,
-  `WaitingLine`, the menu bar subtitle and every SwiftUI root. That is right for the one pack
+  `WaitingLine`, the menu bar panel's status rows and every SwiftUI root. That is right for the one pack
   that ships, `en-US`, and a pack in another language would have to change it. Never
   `"\(minutes)"`.
 - **Plurals are not built.** The format once carried a `plural` map, keyed by slot and CLDR

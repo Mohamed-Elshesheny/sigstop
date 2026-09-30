@@ -274,9 +274,55 @@ final class AppModel {
     func pause(for duration: TimeInterval) { enqueue(.pauseApp(duration)) }
     func resume() { enqueue(.resumeApp) }
 
-    func stageForRendering(indicator staged: IndicatorState, summary: DailySummary? = nil) {
-        indicator = staged
-        todaySummary = summary
+    struct RenderStage {
+        var indicator: IndicatorState = .working
+        var engineStateName = "working"
+        var statusWord = "running"
+        var continuousWork: TimeInterval = 0
+        var sinceLastBreak: TimeInterval?
+        var application = ""
+        var activity = "starting up"
+        var confidence: Double = 0
+        var evidence: [EvidenceLine] = []
+        var caveats: [String] = []
+        var finishedCommand: String?
+        var waiting = WaitingLine(.notAskingYet, "starting up")
+        var breakEndsAt: Date?
+        var snoozeUntil: Date?
+        var pausedUntil: Date?
+        var meetingHeld = false
+        var inputDeviceHeld = false
+        var targetInForce = true
+        var footnote: String?
+        var summary: DailySummary?
+    }
+
+    func stageForRendering(_ stage: RenderStage) {
+        indicator = stage.indicator
+        engineStateName = stage.engineStateName
+        statusWord = stage.statusWord
+        continuousWork = stage.continuousWork
+        continuousWorkMeasuredAt = 0
+        workTargetInForce = stage.targetInForce
+        timeSinceLastBreak = stage.sinceLastBreak
+        applicationName = stage.application
+        activityLabel = stage.activity
+        confidence = stage.confidence
+        evidenceLines = stage.evidence
+        caveats = stage.caveats
+        finishedCommand = stage.finishedCommand
+        waiting = stage.waiting
+        breakEndsAt = stage.breakEndsAt
+        snoozeUntil = stage.snoozeUntil
+        pausedUntil = stage.pausedUntil
+        badgeNote = stage.footnote
+        todaySummary = stage.summary
+        if stage.meetingHeld {
+            latch = latch.assertedByUser(at: time.continuousSeconds, policy: latchPolicy)
+        }
+        if stage.inputDeviceHeld {
+            lastVerdict = .hardBlocked(.audioInputInUse)
+        }
     }
 
     static let hourPause: TimeInterval = 3600

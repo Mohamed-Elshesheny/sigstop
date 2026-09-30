@@ -100,19 +100,123 @@ enum PanelRenderer {
         sessionCount: 1
     )
 
+    private static let codingEvidence: [AppModel.EvidenceLine] = [
+        .init(id: "editor.frontmost", summary: "Xcode is the frontmost app", logOdds: 1.6),
+        .init(id: "title.parsed", summary: "the window title names a file, SessionClock.swift", logOdds: 1.1),
+        .init(id: "title.project", summary: "the window title names a project, sigstop", logOdds: 0.5),
+        .init(id: "input.recent", summary: "you touched the keyboard or trackpad 4s ago", logOdds: 0.4),
+    ]
+
+    @MainActor
+    private static func stage(_ stage: AppModel.RenderStage) -> AppModel {
+        let model = AppModel()
+        model.stageForRendering(stage)
+        return model
+    }
+
+    private static let meetingEvidence: [AppModel.EvidenceLine] = [
+        .init(id: "mic.live", summary: "a microphone is live right now (zoom.us)", logOdds: 2.1),
+        .init(id: "app.callCapable", summary: "zoom.us is a conferencing app", logOdds: 1.4),
+        .init(id: "input.quiet", summary: "no keyboard or trackpad input for 3m", logOdds: -0.3),
+    ]
+
+    @MainActor
+    private static func variants() -> [(String, MenuBarView)] {
+        let now = Date()
+        let due = stage(.init(
+            indicator: .breakDue, engineStateName: "breakDue", statusWord: "break due",
+            continuousWork: 47 * 60 + 12, sinceLastBreak: 52 * 60,
+            application: "Xcode", activity: "coding", confidence: 0.86, evidence: codingEvidence,
+            waiting: WaitingLine(.waitingOnYou, "a break is due and nothing is holding it"),
+            summary: sampleSummary
+        ))
+        let working = stage(.init(
+            continuousWork: 31 * 60 + 40, sinceLastBreak: 33 * 60,
+            application: "Xcode", activity: "coding", confidence: 0.86, evidence: codingEvidence,
+            finishedCommand: "swift test finished",
+            waiting: WaitingLine(.notAskingYet, "the next one is 13m of work away"),
+            summary: sampleSummary
+        ))
+        let breakEnds = now.addingTimeInterval(4 * 60 + 37)
+        let onBreak = stage(.init(
+            indicator: .onBreak, engineStateName: "breakActive", statusWord: "stopped",
+            continuousWork: 0, sinceLastBreak: nil,
+            application: "Xcode", activity: "coding", confidence: 0.71, evidence: codingEvidence,
+            waiting: WaitingLine(.waitingOnYou, "the break runs to \(MenuBarView.clock(breakEnds))"),
+            breakEndsAt: breakEnds,
+            summary: sampleSummary
+        ))
+        let snoozeEnds = now.addingTimeInterval(10 * 60)
+        let snoozed = stage(.init(
+            indicator: .held, engineStateName: "snoozed", statusWord: "snoozed",
+            continuousWork: 49 * 60 + 5, sinceLastBreak: 54 * 60,
+            application: "Terminal", activity: "in the terminal", confidence: 0.64,
+            waiting: WaitingLine(.waitingOnYou, "you snoozed it, asking again at \(MenuBarView.clock(snoozeEnds))"),
+            snoozeUntil: snoozeEnds,
+            summary: sampleSummary
+        ))
+        let pauseEnds = now.addingTimeInterval(3600)
+        let paused = stage(.init(
+            indicator: .quiet, engineStateName: "quiet", statusWord: "paused",
+            continuousWork: 12 * 60, sinceLastBreak: 20 * 60,
+            application: "Google Chrome", activity: "browsing", confidence: 0.42,
+            waiting: WaitingLine(.notAskingYet, "you paused it until \(MenuBarView.clock(pauseEnds))"),
+            pausedUntil: pauseEnds, targetInForce: false,
+            summary: sampleSummary
+        ))
+        let meeting = stage(.init(
+            indicator: .held, engineStateName: "breakDue", statusWord: "break due",
+            continuousWork: 46 * 60 + 30, sinceLastBreak: 58 * 60,
+            application: "zoom.us", activity: "in a meeting", confidence: 0.88, evidence: meetingEvidence,
+            waiting: WaitingLine(.holdingOff, "you said you are in a meeting, so prompts are held"),
+            meetingHeld: true,
+            summary: sampleSummary
+        ))
+        let micStops = now.addingTimeInterval(18 * 60)
+        let mic = stage(.init(
+            indicator: .held, engineStateName: "breakDue", statusWord: "break due",
+            continuousWork: 52 * 60 + 10, sinceLastBreak: 61 * 60,
+            application: "Slack", activity: "in chat", confidence: 0.58,
+            waiting: WaitingLine(
+                .holdingOff,
+                "the mic has been open 12m with nothing call-shaped running. It stops holding at "
+                    + MenuBarView.clock(micStops)
+            ),
+            inputDeviceHeld: true,
+            summary: sampleSummary
+        ))
+        let long = stage(.init(
+            indicator: .escalating, engineStateName: "ignored", statusWord: "escalating",
+            continuousWork: 1 * 3600 + 18 * 60 + 44, sinceLastBreak: 83 * 60,
+            application: "Visual Studio Code - Insiders",
+            activity: "pair-programming with an AI", confidence: 0.55, evidence: codingEvidence,
+            caveats: ["Window titles are off, Accessibility is not granted. Everything still works without it."],
+            waiting: WaitingLine(.waitingOnYou, "you waved the last one off, and it has been due 33m"),
+            footnote: "New badge: SIG_DFL. Settings, Badges has the rest.",
+            summary: sampleSummary
+        ))
+        long.updates.stageForRendering(offering: "0.2.2")
+        return [
+            ("", MenuBarView(model: AppModel())),
+            ("-staged", MenuBarView(model: due)),
+            ("-working", MenuBarView(model: working, expandEvidence: true)),
+            ("-break", MenuBarView(model: onBreak)),
+            ("-snoozed", MenuBarView(model: snoozed)),
+            ("-paused", MenuBarView(model: paused)),
+            ("-meeting", MenuBarView(model: meeting)),
+            ("-mic", MenuBarView(model: mic)),
+            ("-long", MenuBarView(model: long, expandEvidence: true)),
+        ]
+    }
+
     @MainActor
     static func runAndExit(stem: String) -> Never {
         let base = stem.hasSuffix(".png") ? String(stem.dropLast(4)) : stem
-        let staged = AppModel()
-        staged.stageForRendering(indicator: .held, summary: sampleSummary)
-        let variants: [(String, AppModel)] = [("", AppModel()), ("-staged", staged)]
-        for (variant, model) in variants {
+        for (variant, view) in variants() {
             for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 let url = URL(fileURLWithPath: "\(base)\(variant)-\(suffix).png")
                 do {
-                    try BadgeSheetRenderer.write(
-                        MenuBarView(model: model), appearance: appearance, to: url
-                    )
+                    try BadgeSheetRenderer.write(view, appearance: appearance, to: url)
                     FileHandle.standardOutput.write(Data("\(url.path)\n".utf8))
                 } catch {
                     FileHandle.standardError.write(Data("render failed: \(error)\n".utf8))
