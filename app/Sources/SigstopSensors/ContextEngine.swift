@@ -499,9 +499,9 @@ public final class ContextEngine {
            now.timeIntervalSince(cache.readAt) < configuration.axReconcileInterval {
             return cache.info
         }
+        titleDirty = false
         let info = await accessibilityCollector.read(pid: pid)
         titleCache = (pid: pid, info: info, readAt: now)
-        titleDirty = false
         return info
     }
 
