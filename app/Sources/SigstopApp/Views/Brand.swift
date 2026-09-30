@@ -207,6 +207,7 @@ struct TerminalButton: View {
     let action: () -> Void
 
     @FocusState private var focused: Bool
+    @State private var keyboardFocused = false
 
     init(
         _ title: String,
@@ -230,13 +231,16 @@ struct TerminalButton: View {
                 .font(Brand.mono(11, weight: style.weight))
         }
         .buttonStyle(
-            TerminalButtonStyle(style: style, mark: mark, enabled: enabled, focused: focused)
+            TerminalButtonStyle(style: style, mark: mark, enabled: enabled, focused: focused && keyboardFocused)
         )
         .opacity(enabled ? 1 : 0.45)
         .disabled(!enabled)
         .focusable(enabled)
         .focusEffectDisabled()
         .focused($focused)
+        .onChange(of: focused) { _, isFocused in
+            keyboardFocused = isFocused && NSApp.currentEvent?.type == .keyDown
+        }
 
         if let shortcut {
             button.keyboardShortcut(shortcut)
