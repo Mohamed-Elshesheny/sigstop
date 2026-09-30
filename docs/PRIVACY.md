@@ -1811,7 +1811,12 @@ team ID, would inherit your existing grant silently.
 
 **8.3 A window title exists in the app's memory, briefly.** The claim is that it is never persisted,
 never logged, never transmitted, and dropped when the next read replaces it, which is at most a
-minute later while you are active (`ContextEngine`'s title cache). It is not a claim that
+minute later while you are active (`ContextEngine`'s title cache). While you are away from the
+keyboard for longer than the idle threshold (five minutes) the app stops reading, so the last
+title and document path stay in that cache until you come back and the next read replaces them,
+or until window titles are switched off, which empties it. Settings
+says "at most a minute while you are active" for this reason; it used to say "held for one
+sample", which promised less than the cache does. It is not a claim that
 the string never existed. It may appear in a memory dump, in a swap file if memory is paged (the
 app does not mark the buffer non-swappable), and potentially in a crash report if a crash occurs
 inside the classification path.

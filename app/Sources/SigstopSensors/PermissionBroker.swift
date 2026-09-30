@@ -105,7 +105,8 @@ public struct PermissionStatus: Sendable, Hashable {
                 name: "window titles",
                 state: state,
                 reads: "Two attributes of the front window, its title and its document path. "
-                    + "Held for one sample; nothing from either reaches the disk."
+                    + "Kept in memory until the next read, at most a minute while you are "
+                    + "active; nothing from either reaches the disk."
             )
         case .browserHost:
             let state: SignalState
