@@ -19,21 +19,21 @@ struct StatusLineTests {
         #expect(StatusWord.read(state: .breakDue(due), indicator: .held) == "break due")
 
         let escalation = Escalation(
-            cycle: cycle, dueSince: noon, ignoredAt: noon,
+            cycle: cycle, dueSince: noon,
             notificationsThisCycle: 1, totalElapsed: 600, lastStepMono: 0
         )
         #expect(StatusWord.read(state: .ignored(escalation), indicator: .escalating) == "escalating")
 
-        let snoozed = SnoozedState(cycle: cycle, until: noon, untilMono: 300, index: 1, due: due)
+        let snoozed = SnoozedState(cycle: cycle, until: noon, untilMono: 300, due: due)
         #expect(StatusWord.read(state: .snoozed(snoozed), indicator: .working) == "snoozed")
 
         let onBreak = BreakActive(
-            cycle: cycle, startedAt: noon, plannedEnd: noon.addingTimeInterval(300),
+            cycle: cycle, plannedEnd: noon.addingTimeInterval(300),
             startedMono: 0, plannedDuration: 300, origin: .accepted
         )
         #expect(StatusWord.read(state: .breakActive(onBreak), indicator: .onBreak) == "stopped")
 
-        let idle = IdleState(since: noon, cause: .microIdleExceeded)
+        let idle = IdleState()
         #expect(StatusWord.read(state: .idle(idle), indicator: .idle) == "idle")
     }
 

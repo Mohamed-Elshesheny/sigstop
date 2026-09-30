@@ -54,8 +54,7 @@ struct WaitingLineTests {
         var due = BreakDue(cycle: cycle, dueSince: noon, lastStepMono: 0)
         due.uncorroboratedAudioElapsed = 5 * 60
         let escalation = Escalation(
-            cycle: cycle, dueSince: noon, ignoredAt: noon,
-            notificationsThisCycle: 1, totalElapsed: 600, lastStepMono: 0
+            cycle: cycle, dueSince: noon, notificationsThisCycle: 1, totalElapsed: 600, lastStepMono: 0
         )
 
         var states: [EngineState] = [
@@ -66,10 +65,10 @@ struct WaitingLineTests {
             .working(WorkingState(armThreshold: 45 * 60, cooldownUntilMono: 600, standDown: .ladderExhausted)),
             .breakDue(due),
             .ignored(escalation),
-            .snoozed(SnoozedState(cycle: cycle, until: noon, untilMono: 0, index: 0, due: due)),
-            .idle(IdleState(since: noon, cause: .microIdleExceeded)),
+            .snoozed(SnoozedState(cycle: cycle, until: noon, untilMono: 0, due: due)),
+            .idle(IdleState()),
             .breakActive(BreakActive(
-                cycle: cycle, startedAt: noon, plannedEnd: noon, startedMono: 0,
+                cycle: cycle, plannedEnd: noon, startedMono: 0,
                 plannedDuration: 300, origin: .accepted
             )),
         ]
@@ -169,14 +168,14 @@ struct WaitingLineTests {
         let ignored = noon.addingTimeInterval(1800)
         let states: [EngineState] = [
             .breakActive(BreakActive(
-                cycle: .initial, startedAt: noon, plannedEnd: noon.addingTimeInterval(300),
+                cycle: .initial, plannedEnd: noon.addingTimeInterval(300),
                 startedMono: 0, plannedDuration: 300, origin: .accepted
             )),
             .snoozed(SnoozedState(
-                cycle: .initial, until: noon.addingTimeInterval(600), untilMono: 600, index: 0,
+                cycle: .initial, until: noon.addingTimeInterval(600), untilMono: 600,
                 due: BreakDue(cycle: .initial, dueSince: noon, lastStepMono: 0)
             )),
-            .idle(IdleState(since: noon, cause: .microIdleExceeded)),
+            .idle(IdleState()),
         ] + QuietCause.allCases.map { .quiet(QuietState(until: noon, cause: $0)) }
 
         for state in states {
@@ -201,7 +200,7 @@ struct WaitingLineTests {
     @Test("the clock follows the reader's locale, like the row above it")
     func theClockFollowsTheLocale() {
         let due = SnoozedState(
-            cycle: .initial, until: noon.addingTimeInterval(1800), untilMono: 1800, index: 0,
+            cycle: .initial, until: noon.addingTimeInterval(1800), untilMono: 1800,
             due: BreakDue(cycle: .initial, dueSince: noon, lastStepMono: 0)
         )
         let british = read(.snoozed(due), calendar: calendar("en_GB"))

@@ -221,8 +221,7 @@ public struct BreakDecisionEngine: Sendable {
 
         if input.context.idleSeconds >= policy.microIdleGrace || input.signals.screenLocked {
             effects.append(.setIndicator(.idle))
-            let cause: PauseCause = input.signals.screenLocked ? .screenLocked : .microIdleExceeded
-            return .idle(IdleState(since: input.now.addingTimeInterval(-input.context.idleSeconds), cause: cause, resume: w))
+            return .idle(IdleState(resume: w))
         }
 
         if let cooldown = w.cooldownUntilMono {
@@ -268,8 +267,6 @@ public struct BreakDecisionEngine: Sendable {
             if d.promptedAt != nil { effects.append(.withdrawPrompt(cycle: d.cycle, reason: .userLeft)) }
             effects.append(.setIndicator(idleIndicator(input, holding: d.budget)))
             return (.idle(IdleState(
-                since: input.now.addingTimeInterval(-input.context.idleSeconds),
-                cause: .microIdleExceeded,
                 suspendedCycle: d.cycle,
                 suspendedBreakDue: d
             )), nil)
@@ -289,7 +286,6 @@ public struct BreakDecisionEngine: Sendable {
 
         d.uncorroboratedAudioElapsed = advanceAudioHold(d.uncorroboratedAudioElapsed, by: dt, input: input)
         let verdict = interruption.verdict(input, budget: d.budget)
-        d.lastVerdict = verdict
         effects.append(.recordVerdict(verdict))
 
         if let promptedMono = d.promptedAtMono,
@@ -300,7 +296,6 @@ public struct BreakDecisionEngine: Sendable {
             var escalation = Escalation(
                 cycle: d.cycle,
                 dueSince: d.dueSince,
-                ignoredAt: input.now,
                 notificationsThisCycle: d.notificationsThisCycle,
                 uncorroboratedAudioElapsed: d.uncorroboratedAudioElapsed,
                 totalElapsed: d.totalElapsed,
@@ -398,8 +393,6 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.withdrawPrompt(cycle: e.cycle, reason: .userLeft))
             effects.append(.setIndicator(idleIndicator(input, holding: e.budget)))
             return (.idle(IdleState(
-                since: input.now.addingTimeInterval(-input.context.idleSeconds),
-                cause: .microIdleExceeded,
                 suspendedCycle: e.cycle,
                 suspendedEscalation: e
             )), nil)
@@ -727,7 +720,6 @@ public struct BreakDecisionEngine: Sendable {
             }()
             return .breakActive(BreakActive(
                 cycle: cycle,
-                startedAt: input.now,
                 plannedEnd: plannedEnd,
                 startedMono: input.monotonic,
                 plannedDuration: duration,
@@ -744,7 +736,6 @@ public struct BreakDecisionEngine: Sendable {
             guard let duration = offered.first else {
                 return state
             }
-            let index = d.snoozesUsed
             d.snoozesUsed += 1
             d.snoozeTotal += duration
             d.lastStepMono = input.monotonic
@@ -753,7 +744,7 @@ public struct BreakDecisionEngine: Sendable {
             effects.append(.recordSnooze(cycle: d.cycle, duration: duration))
             effects.append(.scheduleWake(at: until))
             effects.append(.setIndicator(.breakDue))
-            return .snoozed(SnoozedState(cycle: d.cycle, until: until, untilMono: input.monotonic + duration, index: index, due: d))
+            return .snoozed(SnoozedState(cycle: d.cycle, until: until, untilMono: input.monotonic + duration, due: d))
 
         case .skip:
             guard let cycle = state.openCycle else { return state }

@@ -46,7 +46,7 @@ struct RetargetTests {
 
         let others: [EngineState] = [
             .quiet(QuietState(cause: .dailyCapReached)),
-            .idle(IdleState(since: Date(timeIntervalSince1970: 0), cause: .microIdleExceeded)),
+            .idle(IdleState()),
             .breakDue(BreakDue(cycle: CycleID.initial, dueSince: Date(timeIntervalSince1970: 0), lastStepMono: 0)),
         ]
         for state in others {

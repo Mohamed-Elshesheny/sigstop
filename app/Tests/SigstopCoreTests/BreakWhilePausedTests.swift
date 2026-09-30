@@ -177,8 +177,7 @@ struct BreakWhilePausedTests {
     @Test("a break encoded before quietBefore existed still decodes")
     func olderEncodingDecodes() throws {
         let active = BreakActive(
-            cycle: nil, startedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            plannedEnd: Date(timeIntervalSince1970: 1_700_000_300), startedMono: 12,
+            cycle: nil, plannedEnd: Date(timeIntervalSince1970: 1_700_000_300), startedMono: 12,
             plannedDuration: 300, origin: .userInitiated,
             quietBefore: QuietState(until: Date(timeIntervalSince1970: 1_700_003_600), untilMono: 3612, cause: .userPaused)
         )

@@ -62,8 +62,7 @@ struct InterruptionPolicyMeetingTests {
     @Test("It beats the escalation budget, so no level 4 panel paints across a screen share")
     func beatsTheEscalationBudget() {
         let escalation = Escalation(
-            cycle: .initial, dueSince: Self.now, ignoredAt: Self.now,
-            notificationsThisCycle: 1, totalElapsed: 0, lastStepMono: 0
+            cycle: .initial, dueSince: Self.now, notificationsThisCycle: 1, totalElapsed: 0, lastStepMono: 0
         )
         let verdict = Self.interruption.verdict(
             Self.input(signals: SystemSignals(meetingLatch: Self.holding)),
@@ -191,8 +190,7 @@ struct BreakDecisionCallBlockTests {
     func ladderFreezes() {
         var state = EngineState.ignored(
             Escalation(
-                cycle: .initial, dueSince: Self.now, ignoredAt: Self.now,
-                notificationsThisCycle: 1, totalElapsed: 0, lastStepMono: 0
+                cycle: .initial, dueSince: Self.now, notificationsThisCycle: 1, totalElapsed: 0, lastStepMono: 0
             )
         )
         var day = DailyCounters()

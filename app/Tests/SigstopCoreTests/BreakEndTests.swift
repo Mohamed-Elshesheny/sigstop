@@ -18,7 +18,6 @@ struct BreakEndTests {
         var state = EngineState.breakActive(
             .init(
                 cycle: CycleID.initial,
-                startedAt: start,
                 plannedEnd: start.addingTimeInterval(300),
                 startedMono: 0,
                 plannedDuration: 300,

@@ -190,7 +190,6 @@ public struct BreakDue: Sendable, Codable, Hashable {
     public var snoozeTotal: TimeInterval = 0
     public var notificationsThisCycle: Int = 0
     public var uncorroboratedAudioElapsed: TimeInterval = 0
-    public var lastVerdict: InterruptionVerdict?
     public var lastStepMono: Double
 
     public init(cycle: CycleID, dueSince: Date, lastStepMono: Double) {
@@ -212,7 +211,6 @@ public struct BreakDue: Sendable, Codable, Hashable {
 
 public struct BreakActive: Sendable, Codable, Hashable {
     public var cycle: CycleID?
-    public var startedAt: Date
     public var plannedEnd: Date
     public var startedMono: Double
     public var plannedDuration: TimeInterval
@@ -221,7 +219,6 @@ public struct BreakActive: Sendable, Codable, Hashable {
 
     public init(
         cycle: CycleID?,
-        startedAt: Date,
         plannedEnd: Date,
         startedMono: Double,
         plannedDuration: TimeInterval,
@@ -229,7 +226,6 @@ public struct BreakActive: Sendable, Codable, Hashable {
         quietBefore: QuietState? = nil
     ) {
         self.cycle = cycle
-        self.startedAt = startedAt
         self.plannedEnd = plannedEnd
         self.startedMono = startedMono
         self.plannedDuration = plannedDuration
@@ -242,14 +238,12 @@ public struct SnoozedState: Sendable, Codable, Hashable {
     public var cycle: CycleID
     public var until: Date
     public var untilMono: Double
-    public var index: Int
     public var due: BreakDue
 
-    public init(cycle: CycleID, until: Date, untilMono: Double, index: Int, due: BreakDue) {
+    public init(cycle: CycleID, until: Date, untilMono: Double, due: BreakDue) {
         self.cycle = cycle
         self.until = until
         self.untilMono = untilMono
-        self.index = index
         self.due = due
     }
 }
@@ -257,7 +251,6 @@ public struct SnoozedState: Sendable, Codable, Hashable {
 public struct Escalation: Sendable, Codable, Hashable {
     public var cycle: CycleID
     public var dueSince: Date
-    public var ignoredAt: Date
     public var level: EscalationLevel
     public var ladderElapsed: TimeInterval = 0
     public var totalElapsed: TimeInterval = 0
@@ -273,7 +266,6 @@ public struct Escalation: Sendable, Codable, Hashable {
     public init(
         cycle: CycleID,
         dueSince: Date,
-        ignoredAt: Date,
         level: EscalationLevel = .first,
         notificationsThisCycle: Int,
         uncorroboratedAudioElapsed: TimeInterval = 0,
@@ -282,7 +274,6 @@ public struct Escalation: Sendable, Codable, Hashable {
     ) {
         self.cycle = cycle
         self.dueSince = dueSince
-        self.ignoredAt = ignoredAt
         self.level = level
         self.notificationsThisCycle = notificationsThisCycle
         self.uncorroboratedAudioElapsed = uncorroboratedAudioElapsed
@@ -302,23 +293,17 @@ public struct Escalation: Sendable, Codable, Hashable {
 }
 
 public struct IdleState: Sendable, Codable, Hashable {
-    public var since: Date
-    public var cause: PauseCause
     public var suspendedCycle: CycleID?
     public var suspendedEscalation: Escalation?
     public var suspendedBreakDue: BreakDue?
     public var resume: WorkingState?
 
     public init(
-        since: Date,
-        cause: PauseCause,
         suspendedCycle: CycleID? = nil,
         suspendedEscalation: Escalation? = nil,
         suspendedBreakDue: BreakDue? = nil,
         resume: WorkingState? = nil
     ) {
-        self.since = since
-        self.cause = cause
         self.suspendedCycle = suspendedCycle
         self.suspendedEscalation = suspendedEscalation
         self.suspendedBreakDue = suspendedBreakDue
@@ -459,12 +444,6 @@ public struct DailyCounters: Sendable, Codable, Hashable {
         self.honoredOpportunities = honoredOpportunities
         self.excludedOpportunities = excludedOpportunities
         self.nextCycle = nextCycle
-    }
-
-    public var breakCompliance: Double? {
-        let denominator = breakOpportunities - excludedOpportunities
-        guard denominator > 0 else { return nil }
-        return Double(honoredOpportunities) / Double(denominator)
     }
 
     public func rolledOver(to newDay: Int) -> DailyCounters {

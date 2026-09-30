@@ -108,7 +108,7 @@ struct AbsenceKeepsStandDownTests {
     func retargetWhileAway() throws {
         let parked = WorkingState(armThreshold: 45 * 60 + 20 * 60, lastWorkSeen: 45 * 60, standDown: .skipped)
         let idle = EngineState.idle(
-            IdleState(since: Date(timeIntervalSince1970: 0), cause: .microIdleExceeded, resume: parked)
+            IdleState(resume: parked)
         )
         guard case .idle(let after) = idle.retargeted(from: 45 * 60, to: 30 * 60) else {
             Issue.record("expected .idle"); return

@@ -512,7 +512,6 @@ public struct BreakDue: Sendable, Codable, Hashable {
     public var snoozeTotal: TimeInterval = 0
     public var notificationsThisCycle: Int = 0
     public var uncorroboratedAudioElapsed: TimeInterval = 0
-    public var lastVerdict: InterruptionVerdict?
     public var lastStepMono: Double
 ```
 
