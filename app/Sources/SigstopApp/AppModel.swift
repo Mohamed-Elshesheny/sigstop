@@ -600,12 +600,16 @@ final class AppModel {
 
     private func deliver(_ request: PromptRequest, context: DeveloperContext, now: Date) {
         let goesToTheSystem = request.channel != .panel && settings.useSystemNotifications
+        let today = CalendarDay.local(
+            of: now, calendar: .current, boundaryHour: BreakPolicy.default.dayBoundaryHour
+        )
+        let loggedSkips = todaySummary.flatMap { $0.day == today ? $0.skippedBreakCount : nil } ?? 0
         let messageContext = MessageContext(
             developer: context,
             escalation: request.level,
             settings: settings,
             streaks: [
-                .skippedToday: tracker.session.skippedBreakCount,
+                .skippedToday: max(loggedSkips, tracker.session.skippedBreakCount),
                 .skippedConsecutive: day.consecutiveIgnoredCycles,
                 .takenToday: tracker.session.breakCount,
             ],

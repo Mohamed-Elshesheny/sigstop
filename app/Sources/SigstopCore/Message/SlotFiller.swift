@@ -74,7 +74,7 @@ public struct SlotResolver: Sendable {
             text: ctx.activity.displayName,
             confidence: ctx.activityConfidence, provenance: .exact)
 
-        if let skipped = ctx.streaks[.skippedConsecutive] ?? ctx.streaks[.skippedToday] {
+        if let skipped = ctx.streaks[.skippedToday] {
             out[.streak] = SlotValue(
                 text: format(integer: skipped, locale: ctx.locale),
                 confidence: 0.99, provenance: .exact)

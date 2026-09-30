@@ -109,6 +109,13 @@ public struct MessageContext: Sendable, Hashable {
 `activity` is the detector's `claimableActivity`, so below 0.6 it has already fallen back to the
 parent.
 
+What `AppModel.deliver` puts in `streaks`: `skippedToday` is the day's skipped breaks, read from
+the day's rollup, or the session's own count when that is larger because the rollup has not
+caught up yet; `skippedConsecutive` is the run of rounds nobody answered, the same count the
+backoff in `docs/BREAK-DECISION.md` reads; `takenToday` is the breaks taken this session. The
+`{streak}` slot prints `skippedToday` and nothing else, because every line that prints it is
+gated on that key, and a count that disagrees with its own gate is a false sentence.
+
 ### 1.2 Predicates
 
 A template declares preconditions as a list of predicates. All predicates must hold

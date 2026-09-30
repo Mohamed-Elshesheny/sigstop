@@ -606,6 +606,27 @@ struct SlotFillerTests {
         #expect(table[.minutes]?.provenance == .derived)
     }
 
+    @Test("{streak} prints the day's skips, which is what every line that uses it is gated on")
+    func streakSlotCountsTheDay() throws {
+        let resolver = SlotResolver()
+        let ctx = makeContext(
+            escalation: .second, tone: .roast,
+            streaks: [.skippedToday: 3, .skippedConsecutive: 0])
+        #expect(resolver.table(for: ctx)[.streak]?.text == "3")
+
+        let gatedOnToday = Corpus.bundled.templates.filter { $0.requiredSlots.contains(.streak) }
+        #expect(!gatedOnToday.isEmpty)
+        for template in gatedOnToday {
+            let gate = template.when.contains {
+                if case .streak(.skippedToday, _) = $0 { return true }
+                return false
+            }
+            #expect(gate, "\(template.id) prints {streak} without being gated on skippedToday")
+        }
+        let line = try #require(Corpus.bundled.template(id: "streak.count.more-persistent-than-feature-flags"))
+        #expect(resolver.fill(line, in: ctx)?.contains("Skipped today: 3.") == true)
+    }
+
     @Test("The corpus is English, so its numbers stay Western even on an Arabic Mac")
     func numbersStayEnglishUnderArabicLocale() throws {
         let resolver = SlotResolver()
