@@ -357,6 +357,16 @@ the pause is taken to be the previous tick. The same lag means a Mac that sleeps
 a pause and wakes unlocked wakes into the pause, so that sleep is not counted as time away, only
 the idle after the wake; a Mac that wakes locked is different, because the lock takes the gap over.
 
+A silent call, `meetingNoInput`, is moved the same way, and by every cause, not only idle. The call
+is a pause and never a break (§4.1 row 6), so whatever takes it over, a lock, a sleep, or idle once
+the microphone stops, starts again at the last tick the call was seen, or at the last input if that
+came later, with the work clock's pause relabelled and a `clockPaused` emitted. Before this a gap
+kept its start when a call handed it over: locking the screen after a 25 minute call recorded a 25
+minute break the moment the lock was seen, a sleep after a long call ended the session instead of
+recording the sleep, and a call that simply ended left the gap saying `meetingNoInput`, so the
+absence after it was never a break or a session end however long it ran. `CallThenAwayTests` holds
+all three.
+
 A break the engine is running owns the clock. `beginBreak` pauses it as `breakActive` even when it
 was already paused, because a break taken from a pause used to leave the clock paused as
 `userPaused`, and once a lock inside the break ended nothing kept the gap open, so the work clock

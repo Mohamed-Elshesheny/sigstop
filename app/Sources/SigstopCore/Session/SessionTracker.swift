@@ -245,7 +245,14 @@ public struct SessionTracker: Sendable {
                 startWall: now.addingTimeInterval(-(mono - clamped))
             )
         } else if var existing = gap, existing.cause != cause {
-            if cause != .microIdleExceeded {
+            if existing.cause == .meetingNoInput {
+                beginSegment(&existing, at: min(max(lastInputMono, previousTick), mono), now: now, mono: mono)
+                existing.cause = cause
+                if existing.paused, !session.isStopped {
+                    session.relabelPause(cause: cause, since: existing.startWall)
+                    events.append(.clockPaused(cause: cause, since: existing.startWall))
+                }
+            } else if cause != .microIdleExceeded {
                 if existing.cause == .userPaused, lastInputMono > existing.startMono {
                     beginSegment(&existing, at: min(lastInputMono, mono), now: now, mono: mono)
                 }
