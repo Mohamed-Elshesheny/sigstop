@@ -618,7 +618,7 @@ public final class ContextEngine {
     }
 
     private func refreshGeometry() {
-        geometry = systemCollector.windowGeometry(frontmostPID: frontmostCollector.snapshot().frontmost.pid)
+        geometry = systemCollector.windowGeometry()
     }
 
     private func resumeSamplingIfNeeded() {

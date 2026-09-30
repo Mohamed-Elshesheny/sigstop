@@ -147,7 +147,7 @@ public final class SystemStateCollector {
         }
     }
 
-    public func windowGeometry(frontmostPID: pid_t) -> WindowGeometrySnapshot? {
+    public func windowGeometry() -> WindowGeometrySnapshot? {
         guard windowGeometryAvailable else { return nil }
         guard let raw = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]],
               !raw.isEmpty
@@ -157,13 +157,9 @@ public final class SystemStateCollector {
         }
 
         let screenSizes = NSScreen.screens.map(\.frame.size)
-        var frontmostCount = 0
         var fullscreen = false
 
         for window in raw {
-            if let owner = window[kCGWindowOwnerPID as String] as? pid_t, owner == frontmostPID {
-                frontmostCount += 1
-            }
             guard let layer = window[kCGWindowLayer as String] as? Int, layer == 0,
                   let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
                   let bounds = CGRect(dictionaryRepresentation: boundsDict)
@@ -174,12 +170,7 @@ public final class SystemStateCollector {
             }
         }
 
-        return WindowGeometrySnapshot(
-            onScreenWindowCount: raw.count,
-            frontmostWindowCount: frontmostCount,
-            hasFullscreenWindow: fullscreen,
-            capturedAt: time.now
-        )
+        return WindowGeometrySnapshot(hasFullscreenWindow: fullscreen, capturedAt: time.now)
     }
 
     private func emit(_ event: SystemEvent) {

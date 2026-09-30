@@ -13,31 +13,30 @@ public enum ToolAllowlist {
     public struct Entry: Sendable, Hashable {
         public let comm: String
         public let token: ToolToken
-        public let verifiedHere: Bool
     }
 
     public static let entries: [Entry] = [
-        Entry(comm: "debugserver", token: .debugserver, verifiedHere: true),
-        Entry(comm: "lldb", token: .lldb, verifiedHere: false),
-        Entry(comm: "gdb", token: .gdb, verifiedHere: false),
-        Entry(comm: "dlv", token: .delve, verifiedHere: false),
+        Entry(comm: "debugserver", token: .debugserver),
+        Entry(comm: "lldb", token: .lldb),
+        Entry(comm: "gdb", token: .gdb),
+        Entry(comm: "dlv", token: .delve),
 
-        Entry(comm: "xctest", token: .xctest, verifiedHere: false),
+        Entry(comm: "xctest", token: .xctest),
 
-        Entry(comm: "vim", token: .vim, verifiedHere: true),
-        Entry(comm: "nvim", token: .nvim, verifiedHere: false),
-        Entry(comm: "hx", token: .helix, verifiedHere: false),
-        Entry(comm: "emacs", token: .emacs, verifiedHere: false),
-        Entry(comm: "nano", token: .nano, verifiedHere: false),
+        Entry(comm: "vim", token: .vim),
+        Entry(comm: "nvim", token: .nvim),
+        Entry(comm: "hx", token: .helix),
+        Entry(comm: "emacs", token: .emacs),
+        Entry(comm: "nano", token: .nano),
 
-        Entry(comm: "claude", token: .claudeCLI, verifiedHere: true),
-        Entry(comm: "aider", token: .aider, verifiedHere: false),
-        Entry(comm: "codex", token: .codexCLI, verifiedHere: false),
-        Entry(comm: "goose", token: .gooseCLI, verifiedHere: false),
+        Entry(comm: "claude", token: .claudeCLI),
+        Entry(comm: "aider", token: .aider),
+        Entry(comm: "codex", token: .codexCLI),
+        Entry(comm: "goose", token: .gooseCLI),
 
-        Entry(comm: "ssh", token: .ssh, verifiedHere: true),
-        Entry(comm: "mosh-client", token: .mosh, verifiedHere: false),
-        Entry(comm: "kubectl", token: .kubectl, verifiedHere: false),
+        Entry(comm: "ssh", token: .ssh),
+        Entry(comm: "mosh-client", token: .mosh),
+        Entry(comm: "kubectl", token: .kubectl),
     ]
 
     public static let undetectable: [ToolToken] = [

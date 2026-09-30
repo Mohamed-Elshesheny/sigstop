@@ -85,14 +85,10 @@ public enum CameraInputState: String, Sendable, Codable, Hashable {
 }
 
 public struct WindowGeometrySnapshot: Sendable, Hashable, Codable {
-    public let onScreenWindowCount: Int
-    public let frontmostWindowCount: Int
     public let hasFullscreenWindow: Bool
     public let capturedAt: Date
 
-    public init(onScreenWindowCount: Int, frontmostWindowCount: Int, hasFullscreenWindow: Bool, capturedAt: Date) {
-        self.onScreenWindowCount = onScreenWindowCount
-        self.frontmostWindowCount = frontmostWindowCount
+    public init(hasFullscreenWindow: Bool, capturedAt: Date) {
         self.hasFullscreenWindow = hasFullscreenWindow
         self.capturedAt = capturedAt
     }
