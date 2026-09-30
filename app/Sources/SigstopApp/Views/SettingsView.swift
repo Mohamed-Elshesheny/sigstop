@@ -770,7 +770,7 @@ struct SettingsView: View {
                         TerminalButton("Later") { updater.dismiss() }.fixedSize()
                     case .informational(_, let link):
                         TerminalButton("Open releases in browser") {
-                            NSWorkspace.shared.open(link ?? Links.releases)
+                            if let url = link ?? Links.releases { NSWorkspace.shared.open(url) }
                         }
                         .fixedSize()
                         TerminalButton("Check for updates", enabled: updater.canCheck) {
@@ -786,7 +786,7 @@ struct SettingsView: View {
                         TerminalButton("Try again") { updater.retryInstalling() }.fixedSize()
                     case .unavailable:
                         TerminalButton("Open releases in browser") {
-                            NSWorkspace.shared.open(Links.releases)
+                            if let url = Links.releases { NSWorkspace.shared.open(url) }
                         }
                         .fixedSize()
                     default:
@@ -864,17 +864,17 @@ struct SettingsView: View {
     }
 
     private enum Links {
-        static let repo = URL(string: "https://github.com/Mohamed-Elshesheny/sigstop")!
-        static let releases = URL(string: "https://github.com/Mohamed-Elshesheny/sigstop/releases")!
+        static let repo = URL(string: "https://github.com/Mohamed-Elshesheny/sigstop")
+        static let releases = URL(string: "https://github.com/Mohamed-Elshesheny/sigstop/releases")
         static let privacy = URL(
-            string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/PRIVACY.md")!
+            string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/docs/PRIVACY.md")
         static let docs = URL(
-            string: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs")!
+            string: "https://github.com/Mohamed-Elshesheny/sigstop/tree/main/docs")
         static let issues = URL(
-            string: "https://github.com/Mohamed-Elshesheny/sigstop/issues/new/choose")!
+            string: "https://github.com/Mohamed-Elshesheny/sigstop/issues/new/choose")
         static let collector = URL(
             string: "https://github.com/Mohamed-Elshesheny/sigstop/blob/main/app/Sources/"
-                + "SigstopSensors/Collectors/AccessibilityCollector.swift")!
+                + "SigstopSensors/Collectors/AccessibilityCollector.swift")
     }
 }
 
@@ -915,46 +915,48 @@ private struct NavRow: View {
 private struct LinkRow: View {
     let title: String
     let detail: String
-    let url: URL
+    let url: URL?
 
     @State private var hovering = false
 
-    init(_ title: String, _ detail: String, _ url: URL) {
+    init(_ title: String, _ detail: String, _ url: URL?) {
         self.title = title
         self.detail = detail
         self.url = url
     }
 
     var body: some View {
-        Button {
-            NSWorkspace.shared.open(url)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(Brand.mono(12, weight: .medium))
-                        .foregroundStyle(hovering ? Brand.fg : Brand.fgMuted)
-                    Text(detail)
-                        .font(Brand.sans(11.5))
-                        .foregroundStyle(Brand.fgFaint)
-                        .fixedSize(horizontal: false, vertical: true)
+        if let url {
+            Button {
+                NSWorkspace.shared.open(url)
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(Brand.mono(12, weight: .medium))
+                            .foregroundStyle(hovering ? Brand.fg : Brand.fgMuted)
+                        Text(detail)
+                            .font(Brand.sans(11.5))
+                            .foregroundStyle(Brand.fgFaint)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Text("\u{2197}")
+                        .font(Brand.mono(11))
+                        .foregroundStyle(hovering ? Brand.amber : Brand.fgFaint)
                 }
-                Spacer(minLength: 8)
-                Text("\u{2197}")
-                    .font(Brand.mono(11))
-                    .foregroundStyle(hovering ? Brand.amber : Brand.fgFaint)
+                .padding(.vertical, 7)
+                .padding(.horizontal, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(hovering ? Brand.surfaceHi : Color.clear)
+                )
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 7)
-            .padding(.horizontal, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(hovering ? Brand.surfaceHi : Color.clear)
-            )
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .accessibilityHint(detail)
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .accessibilityHint(detail)
     }
 }
 
