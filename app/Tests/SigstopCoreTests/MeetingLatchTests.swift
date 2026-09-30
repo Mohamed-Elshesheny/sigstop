@@ -356,8 +356,8 @@ struct MeetingLatchTests {
         l = l.resettingDailyHold()
         let signal = l.signal(at: 20, wall: Self.wall0, policy: Self.policy)
         #expect(signal.isHolding, "a call you declared is still a call after you delete your history")
-        #expect(signal.heldSecondsToday == 0)
-        #expect(signal.inhibition == nil)
+        #expect(l.heldSecondsToday == 0)
+        #expect(l.inhibition == nil)
     }
 
     @Test("The setting ends a manual hold too, because that is what the row says it does")

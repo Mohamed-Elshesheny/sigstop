@@ -82,34 +82,19 @@ public struct MeetingLatchSignal: Sendable, Codable, Hashable {
     public var suspectsCall: Bool
     public var basis: Basis
     public var anchorName: String?
-    public var captureEndedAt: Date?
-    public var closesAt: Date?
-    public var heldSecondsThisEpisode: TimeInterval
-    public var heldSecondsToday: TimeInterval
-    public var inhibition: Inhibition?
 
     public init(
         isHolding: Bool = false,
         captureLive: Bool = false,
         suspectsCall: Bool = false,
         basis: Basis = .none,
-        anchorName: String? = nil,
-        captureEndedAt: Date? = nil,
-        closesAt: Date? = nil,
-        heldSecondsThisEpisode: TimeInterval = 0,
-        heldSecondsToday: TimeInterval = 0,
-        inhibition: Inhibition? = nil
+        anchorName: String? = nil
     ) {
         self.isHolding = isHolding
         self.captureLive = captureLive
         self.suspectsCall = suspectsCall
         self.basis = basis
         self.anchorName = anchorName
-        self.captureEndedAt = captureEndedAt
-        self.closesAt = closesAt
-        self.heldSecondsThisEpisode = heldSecondsThisEpisode
-        self.heldSecondsToday = heldSecondsToday
-        self.inhibition = inhibition
     }
 
     public static let closed = MeetingLatchSignal()
@@ -157,7 +142,6 @@ public struct MeetingLatch: Sendable, Codable, Hashable {
     var anchor: CallCapableApp?
     var anchorPresent: Bool = false
     var basis: MeetingLatchSignal.Basis = .none
-    var captureEndedWall: Date?
     var quietSinceMono: Double?
     var inhibitUntilMono: Double?
     var manualHoldUntilMono: Double?
@@ -210,23 +194,12 @@ public struct MeetingLatch: Sendable, Codable, Hashable {
         let manual = manualHoldUntilMono.map { monotonic < $0 } ?? false
         let holding = manual || isHolding
         let coldStart = monotonic - constructedMono < policy.latchColdStartGrace && callCapablePresent
-        var closes: Date?
-        if manual, let until = manualHoldUntilMono {
-            closes = wall.addingTimeInterval(until - monotonic)
-        } else if phase == .held, let live = lastLiveMono {
-            closes = wall.addingTimeInterval(max(0, holdBudget(policy) - (monotonic - live)))
-        }
         return MeetingLatchSignal(
             isHolding: holding,
             captureLive: !manual && phase == .live && liveNeedsLatch,
             suspectsCall: !holding && (phase == .arming || phase == .live || coldStart),
             basis: manual ? .manual : basis,
-            anchorName: anchor?.name,
-            captureEndedAt: captureEndedWall,
-            closesAt: closes,
-            heldSecondsThisEpisode: heldSecondsThisEpisode,
-            heldSecondsToday: heldSecondsToday,
-            inhibition: inhibition
+            anchorName: anchor?.name
         )
     }
 
@@ -306,7 +279,6 @@ public struct MeetingLatch: Sendable, Codable, Hashable {
                 l.phase = .held
                 l.liveNeedsLatch = false
                 l.lastLiveMono = input.monotonic - observedGap
-                l.captureEndedWall = input.wall.addingTimeInterval(-observedGap)
                 l.unobservedHeldThisEpisode += observedGap
 
             case .held:
@@ -351,7 +323,6 @@ public struct MeetingLatch: Sendable, Codable, Hashable {
             l.lastLiveMono = input.monotonic
             l.heldSecondsThisEpisode = 0
             l.unobservedHeldThisEpisode = 0
-            l.captureEndedWall = nil
             l.closeReason = nil
             l.adoptAnchor(input)
             l.basis = Self.basis(for: input)
@@ -370,7 +341,6 @@ public struct MeetingLatch: Sendable, Codable, Hashable {
             } else {
                 l.phase = .held
                 l.liveNeedsLatch = false
-                l.captureEndedWall = input.wall
             }
 
         case .held:
