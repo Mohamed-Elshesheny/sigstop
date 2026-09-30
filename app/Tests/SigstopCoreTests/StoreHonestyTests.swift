@@ -136,6 +136,7 @@ struct StoreHonestyTests {
         let read = try store.readAllSummaries()
         #expect(read[day]?.breakCount == 4)
         #expect(read.count == 1, "a planted Int.max has to be dropped, not summed")
+        #expect(try store.readSummaries(year: 2026, month: 8) == read, "reading one month drops it too")
         let days = read.values.map { BadgeDay(summary: $0) }
         let evidence = BadgeEvaluator.evidence(for: days, calendar: Self.utc, policy: .default)
         #expect(evidence.breaksTaken == 4)

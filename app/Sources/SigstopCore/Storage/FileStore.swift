@@ -212,7 +212,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
         let path = summariesDirectory.appendingPathComponent(name)
         guard let file = unlockedReadSummaryFile(path) else { return [:] }
         var out: [CalendarDay: DailySummary] = [:]
-        for (key, value) in file.days {
+        for (key, value) in file.days where value.isPlausible {
             if let day = CalendarDay.parse(key) { out[day] = value }
         }
         return out
