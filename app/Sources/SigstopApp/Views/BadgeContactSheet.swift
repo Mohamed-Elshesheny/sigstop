@@ -235,7 +235,7 @@ enum PromptRenderer {
             let message = RenderedMessage(
                 templateID: template.id, title: nil, text: template.text,
                 tone: template.tone, category: template.category, escalation: level,
-                isFallback: false, theatrical: false
+                isFallback: false
             )
             let url = URL(fileURLWithPath: "\(base)-\(suffix).png")
             do {

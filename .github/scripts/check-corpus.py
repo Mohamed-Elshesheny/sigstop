@@ -137,8 +137,8 @@ def main() -> int:
         #
         # MESSAGE-ENGINE.md offered `"theatrical": true` as an alternative "with a named
         # reviewer". There is no reviewer field in the format, so that clause was a free
-        # opt-out: all eleven nuclear lines set the flag, and the check could not fire on
-        # anything. It is the shouted run or nothing. All eleven pass on merit.
+        # opt-out: every nuclear line set the flag, and the check could not fire on
+        # anything. The flag is gone from the format now. It is the shouted run or nothing.
         if tone == "nuclear" and not SHOUT.search(body):
             warns.append(f"W2 {mid}: nuclear with no shouted run, so it may just be mean")
 

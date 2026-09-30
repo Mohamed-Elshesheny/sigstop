@@ -46,11 +46,10 @@ public struct RenderedMessage: Sendable, Hashable {
     public let category: String
     public let escalation: EscalationLevel
     public let isFallback: Bool
-    public let theatrical: Bool
 
     public init(
         templateID: String, title: String?, text: String, tone: Tone, category: String,
-        escalation: EscalationLevel, isFallback: Bool, theatrical: Bool
+        escalation: EscalationLevel, isFallback: Bool
     ) {
         self.templateID = templateID
         self.title = title
@@ -59,7 +58,6 @@ public struct RenderedMessage: Sendable, Hashable {
         self.category = category
         self.escalation = escalation
         self.isFallback = isFallback
-        self.theatrical = theatrical
     }
 }
 
@@ -220,8 +218,7 @@ public final class MessageEngine: @unchecked Sendable {
             tone: template.tone,
             category: template.category,
             escalation: ctx.escalation,
-            isFallback: template.isFallback,
-            theatrical: template.theatrical
+            isFallback: template.isFallback
         )
         return SelectionResult(message: message, trace: trace)
     }

@@ -192,9 +192,6 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
     public let authorPriority: Int
     public let cooldownHours: Int?
     public let isFallback: Bool
-    public let theatrical: Bool
-    public let plural: [SlotKey: [String: String]]?
-    public let notes: String?
 
     public init(
         id: String,
@@ -212,10 +209,7 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
         weight: Double = 1.0,
         authorPriority: Int = 0,
         cooldownHours: Int? = nil,
-        isFallback: Bool = false,
-        theatrical: Bool = false,
-        plural: [SlotKey: [String: String]]? = nil,
-        notes: String? = nil
+        isFallback: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -233,9 +227,6 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
         self.authorPriority = min(max(authorPriority, -10), 10)
         self.cooldownHours = cooldownHours
         self.isFallback = isFallback
-        self.theatrical = theatrical
-        self.plural = plural
-        self.notes = notes
     }
 
     public var allSlots: [SlotKey] { requiredSlots + optionalSlots }
@@ -254,7 +245,7 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         case id, title, text, altText, tone, category, escalation, minConfidence
         case claimsActivity, requiredSlots, optionalSlots, when, weight, authorPriority
-        case cooldownHours, isFallback, theatrical, plural, notes
+        case cooldownHours, isFallback
     }
 
     private struct EscalationBounds: Codable {
@@ -285,10 +276,7 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
             weight: try c.decodeIfPresent(Double.self, forKey: .weight) ?? 1.0,
             authorPriority: try c.decodeIfPresent(Int.self, forKey: .authorPriority) ?? 0,
             cooldownHours: try c.decodeIfPresent(Int.self, forKey: .cooldownHours),
-            isFallback: try c.decodeIfPresent(Bool.self, forKey: .isFallback) ?? false,
-            theatrical: try c.decodeIfPresent(Bool.self, forKey: .theatrical) ?? false,
-            plural: try c.decodeIfPresent([SlotKey: [String: String]].self, forKey: .plural),
-            notes: try c.decodeIfPresent(String.self, forKey: .notes)
+            isFallback: try c.decodeIfPresent(Bool.self, forKey: .isFallback) ?? false
         )
     }
 
@@ -312,9 +300,6 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
         try c.encode(authorPriority, forKey: .authorPriority)
         try c.encodeIfPresent(cooldownHours, forKey: .cooldownHours)
         try c.encode(isFallback, forKey: .isFallback)
-        try c.encode(theatrical, forKey: .theatrical)
-        try c.encodeIfPresent(plural, forKey: .plural)
-        try c.encodeIfPresent(notes, forKey: .notes)
     }
 }
 

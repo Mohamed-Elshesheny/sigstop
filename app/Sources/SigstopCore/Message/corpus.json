@@ -199,8 +199,7 @@
           ]
         }
       ],
-      "claimsActivity": true,
-      "theatrical": true
+      "claimsActivity": true
     },
     {
       "id": "cursor.ai.no-actually",
@@ -388,8 +387,7 @@
           ]
         }
       ],
-      "claimsActivity": true,
-      "theatrical": true
+      "claimsActivity": true
     },
     {
       "id": "vscode.status.spinner-gave-up",
@@ -794,8 +792,7 @@
           ]
         }
       ],
-      "claimsActivity": true,
-      "theatrical": true
+      "claimsActivity": true
     },
     {
       "id": "xcode.signing.no-fixing-this",
@@ -1214,8 +1211,7 @@
             "absurd"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "terminal.make.hope-is-not-a-build-system",
@@ -1446,8 +1442,7 @@
           ]
         }
       ],
-      "claimsActivity": true,
-      "theatrical": true
+      "claimsActivity": true
     },
     {
       "id": "debug.breakpoint.commuting-through-a-loop",
@@ -1866,8 +1861,7 @@
           ]
         }
       ],
-      "claimsActivity": true,
-      "theatrical": true
+      "claimsActivity": true
     },
     {
       "id": "review.diff.doomscrolling-with-highlighting",
@@ -2307,8 +2301,7 @@
             "absurd"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "browse.generic.lap-around-the-room",
@@ -2546,8 +2539,7 @@
             "docker"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "docker.compose.one-service-that-works",
@@ -2707,8 +2699,7 @@
             "absurd"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "long.negotiating.stopped-writing-code",
@@ -2912,8 +2903,7 @@
             "lateNight"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "night.lastone.overtaken-by-events",
@@ -3344,8 +3334,7 @@
           "key": "skippedToday",
           "atLeast": 5
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "streak.snooze.more-than-the-test-suite",
@@ -3628,8 +3617,7 @@
       ],
       "optionalSlots": [],
       "when": [],
-      "isFallback": true,
-      "theatrical": true
+      "isFallback": true
     },
     {
       "id": "generic.unknown.then-back-in",
@@ -3801,8 +3789,7 @@
             "absurd"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "generic.sincebreak.two-hours-is-the-number",
@@ -4120,8 +4107,7 @@
             "absurd"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "shell.scrollback.nothing-expires",
@@ -4349,8 +4335,7 @@
             "absurd"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "chat.scroll.no-last-page",
@@ -4619,8 +4604,7 @@
             "absurd"
           ]
         }
-      ],
-      "theatrical": true
+      ]
     },
     {
       "id": "browse.blindspot.tabs-titles-urls",

@@ -672,11 +672,12 @@ actually hurt somebody was enforced by a paragraph. What is below is what runs.
   author priority ranges (L12).** These assume a multi-pack format with `appFamily`,
   `weight` and `authorPriority` fields. The shipped corpus is one pack and has none of
   them. When packs land, these come with them.
-- **`theatrical` is no longer an exemption for W2.** The old text let a line skip the
-  absurdity check by setting `"theatrical": true` "with a named reviewer", and the format
-  has no reviewer field, so the flag was a free opt-out. All eleven nuclear lines set it,
-  which means the check could not fire on anything. It is the shouted run or nothing now,
-  and all eleven still pass.
+- **`theatrical` is gone, and was never an exemption worth having.** The old text let a
+  line skip the absurdity check by setting `"theatrical": true` "with a named reviewer", and
+  the format has no reviewer field, so the flag was a free opt-out: every nuclear line set
+  it, and the check could not fire on anything. Nothing else read it either, so it was
+  removed from the format and the corpus. W2 is the shouted run or nothing, and all sixteen
+  nuclear lines pass it.
 
 **Every check above has been run against a deliberately broken copy of the corpus and
 seen to fail.** A lint nobody has watched fail is a lint nobody should trust, and this one
@@ -940,18 +941,7 @@ be a consolation prize; it carries ~10% of the corpus and gets the same rubric.
         "weight":         { "type": "number", "minimum": 0.1, "maximum": 5.0, "default": 1.0 },
         "authorPriority": { "type": "integer", "minimum": -10, "maximum": 10, "default": 0 },
         "cooldownHours":  { "type": "integer", "minimum": 1, "maximum": 720 },
-        "isFallback":     { "type": "boolean", "default": false },
-        "theatrical":     { "type": "boolean", "default": false },
-        "plural": {
-          "type": "object",
-          "description": "Slot -> CLDR plural category -> variant text. See localization notes.",
-          "additionalProperties": {
-            "type": "object",
-            "additionalProperties": { "type": "string", "maxLength": 240 },
-            "propertyNames": { "enum": ["zero","one","two","few","many","other"] }
-          }
-        },
-        "notes": { "type": "string", "maxLength": 300 }
+        "isFallback":     { "type": "boolean", "default": false }
       }
     }
   }
@@ -982,9 +972,6 @@ public struct MessageTemplate: Codable, Sendable, Hashable, Identifiable {
     public let authorPriority: Int
     public let cooldownHours: Int?
     public let isFallback: Bool
-    public let theatrical: Bool
-    public let plural: [SlotKey: [String: String]]?
-    public let notes: String?
 ```
 
 and of a pack, `MessagePack` in the same `MessageTemplate.swift`:
@@ -1030,9 +1017,11 @@ Humor does not translate; it gets rewritten. The format is built for that.
 - **Locale packs are originals, not translations.** `de-DE` is a pack a German-speaking
   developer wrote, not a machine rendering of `en-US`. The schema has no `sourceId` field on
   purpose — there is nothing to trace back to.
-- **Sparse locale packs are expected.** If the active locale's packs can't fill a context,
-  the engine falls back to the base-locale pool with the tone ceiling clamped to `sarcastic`.
-  Reading a ROAST in a second language reads meaner than it is; clamping is the cheap fix.
+- **Locale fallback is not built.** The plan was that a sparse locale pack falls back to the
+  base-locale pool with the tone ceiling clamped to `sarcastic`, because a ROAST in a second
+  language reads meaner than it is. Nothing does that today: one `en-US` pack ships,
+  `MessagePack.locale` is decoded and never read, and the engine selects from every pack it
+  was given. A second locale needs that fallback written first.
 - **Slots are named, never positional.** `{branch}`, not `%@` or `%1$s`. Translators can
   reorder freely, and the lint's slot invariant still applies per locale.
 - **Numbers and times format at fill time, in English with Latin digits.** `{minutes}` and
@@ -1043,9 +1032,11 @@ Humor does not translate; it gets rewritten. The format is built for that.
   `WaitingLine`, the menu bar subtitle and every SwiftUI root. That is right for the one pack
   that ships, `en-US`, and a pack in another language would have to change it. Never
   `"\(minutes)"`.
-- **Plurals use the `plural` map**, keyed by slot and CLDR category — the JSON equivalent of
-  a `.stringsdict`. English needs `one`/`other`; Arabic, Polish and Russian need more, and the
-  schema already accepts all six categories.
+- **Plurals are not built.** The format once carried a `plural` map, keyed by slot and CLDR
+  category, that nothing read, so it was removed. English gets away without it in practice,
+  because a prompt arrives long after "1 minutes" could be printed and the `{streak}` lines
+  are gated at three or more, but nothing enforces that. A locale that needs `few` or `many`
+  needs the map put back and read by `SlotResolver.fill`.
 - **Length budget.** Translations run roughly 35% longer than English. `text` caps at 240, but
   localizable lines should target ≤ 180 so a translation still fits a notification body
   without truncation.
@@ -1053,9 +1044,10 @@ Humor does not translate; it gets rewritten. The format is built for that.
   never joins fragments. Possessives and contractions live inside the localized string.
 - **RTL-safe.** No ASCII art, no alignment that depends on LTR, no leading emoji adjacent to
   a slot (bidi reordering moves it).
-- **The ALL-CAPS convention for NUCLEAR is English-specific.** Locales without case (Japanese,
-  Arabic, Chinese) satisfy the W2 absurdity check via the `theatrical` flag plus their own
-  emphasis conventions, and the lint accepts that path for non-cased scripts.
+- **The ALL-CAPS convention for NUCLEAR is English-specific.** W2 looks for a shouted run and
+  nothing else, so a nuclear line in a script without case (Japanese, Arabic, Chinese) would
+  always warn. There is no exemption path: the `theatrical` flag that once pretended to be one
+  is gone (§4.4). A caseless locale needs its own absurdity check written before it ships.
 
 ---
 
