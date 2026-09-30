@@ -349,7 +349,8 @@ final class AppModel {
             userPaused: isPaused,
             application: sample.context.application,
             activity: sample.context.activity,
-            confidence: sample.context.confidence
+            confidence: sample.context.confidence,
+            calendar: .current
         )
         let sessionEvents = tracker.tick(tickSample)
 

@@ -231,6 +231,10 @@ let delta = max(0, mono - lastTickMono)
 let wallDelta = now.timeIntervalSince(lastTickWall)
 let skew = wallDelta - delta
 let skewed = abs(skew) > policy.wallClockSkewTolerance
+if let next = sample.calendar, next != calendar {
+    calendar = next
+    dayIndex = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
+}
 if skewed {
     dayIndex = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
     events.append(.wallClockSkewIgnored(seconds: skew))
@@ -254,6 +258,13 @@ running, and the tick credits nothing for it: `creditIfPossible(delta: discontin
 
 The invariant this protects: **credited active work can never exceed elapsed wall-clock time.** It is
 the first property test (§15).
+
+The calendar comes with the sample, the same way the engine's `calendarSystem` does: `AppModel`
+passes `Calendar.current` on every tick. The tracker used to keep the calendar it was built with,
+so after a time zone change without a relaunch its 04:00 reset and session end (§4.1 row 17) fired
+at 04:00 in the old zone while the engine rolled its counters at 04:00 in the new one. A changed
+calendar re-indexes the day without resetting anything, as a wall-clock jump does, because moving
+zones is not a new day; the next 04:00 in the new zone is. `ZoneChangeTests` holds it.
 
 ### 3.3 Micro-idle: why 30 s of reading does not reset the clock
 

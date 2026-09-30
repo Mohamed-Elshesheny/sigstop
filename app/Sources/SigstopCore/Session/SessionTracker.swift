@@ -9,6 +9,7 @@ public struct TickSample: Sendable, Hashable {
     public var application: AppIdentity?
     public var activity: Activity
     public var confidence: Confidence
+    public var calendar: Calendar?
 
     public init(
         idleSeconds: TimeInterval = 0,
@@ -18,7 +19,8 @@ public struct TickSample: Sendable, Hashable {
         userPaused: Bool = false,
         application: AppIdentity? = nil,
         activity: Activity = .unknown,
-        confidence: Confidence = .none
+        confidence: Confidence = .none,
+        calendar: Calendar? = nil
     ) {
         self.idleSeconds = idleSeconds
         self.screenLocked = screenLocked
@@ -28,6 +30,7 @@ public struct TickSample: Sendable, Hashable {
         self.application = application
         self.activity = activity
         self.confidence = confidence
+        self.calendar = calendar
     }
 }
 
@@ -63,7 +66,7 @@ public struct SessionTracker: Sendable {
 
     public private(set) var policy: BreakPolicy
     private let time: any TimeSource
-    private let calendar: Calendar
+    private var calendar: Calendar
 
     public private(set) var session: DeveloperSession
     public private(set) var sessionCount: Int = 1
@@ -160,6 +163,10 @@ public struct SessionTracker: Sendable {
         let wallDelta = now.timeIntervalSince(lastTickWall)
         let skew = wallDelta - delta
         let skewed = abs(skew) > policy.wallClockSkewTolerance
+        if let next = sample.calendar, next != calendar {
+            calendar = next
+            dayIndex = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
+        }
         if skewed {
             dayIndex = LocalDay.index(of: now, calendar: calendar, boundaryHour: policy.dayBoundaryHour)
             events.append(.wallClockSkewIgnored(seconds: skew))
