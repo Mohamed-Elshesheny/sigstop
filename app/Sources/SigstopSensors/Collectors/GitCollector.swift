@@ -143,20 +143,28 @@ public final class GitCollector: @unchecked Sendable {
     ) async -> Result<GitSignal, GitReadFailure>? {
         let once = ResumeOnce()
         return await withCheckedContinuation { continuation in
-            once.attach(continuation)
+            let timer = DispatchSource.makeTimerSource(queue: deadlineQueue)
+            timer.schedule(deadline: .now() + deadline)
+            timer.setEventHandler { once.resume(nil) }
+            once.attach(continuation, deadline: timer)
+            timer.resume()
             queue.async { [reader] in once.resume(reader(folder, now)) }
-            deadlineQueue.asyncAfter(deadline: .now() + deadline) { once.resume(nil) }
         }
     }
 
-    private final class ResumeOnce: @unchecked Sendable {
+    final class ResumeOnce: @unchecked Sendable {
         private let lock = NSLock()
         private var continuation: CheckedContinuation<Result<GitSignal, GitReadFailure>?, Never>?
+        private var deadline: (any DispatchSourceTimer)?
         private var done = false
 
-        func attach(_ value: CheckedContinuation<Result<GitSignal, GitReadFailure>?, Never>) {
+        func attach(
+            _ value: CheckedContinuation<Result<GitSignal, GitReadFailure>?, Never>,
+            deadline timer: any DispatchSourceTimer
+        ) {
             lock.lock(); defer { lock.unlock() }
             continuation = value
+            deadline = timer
         }
 
         func resume(_ value: Result<GitSignal, GitReadFailure>?) {
@@ -164,7 +172,10 @@ public final class GitCollector: @unchecked Sendable {
             guard !done, let continuation else { lock.unlock(); return }
             done = true
             self.continuation = nil
+            let timer = deadline
+            deadline = nil
             lock.unlock()
+            timer?.cancel()
             continuation.resume(returning: value)
         }
     }
