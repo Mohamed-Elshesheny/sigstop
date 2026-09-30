@@ -163,4 +163,26 @@ struct ProviderHonestyTests {
         )
         #expect(elsewhere.activity == .aiCoding, "a debugger in some other app is not a rival in this one")
     }
+
+    @Test("a notes app or a text editor is never shown as coding")
+    func notesAppsAreNotCoding() {
+        let apps = [
+            Self.app(BundleIDs.notion, "Notion"), Self.app(BundleIDs.obsidian, "Obsidian"),
+            Self.app("com.apple.Notes", "Notes"), Self.app("com.apple.TextEdit", "TextEdit"),
+        ]
+        for app in apps {
+            for tiers: SignalTierSet in [[.tier0], [.tier0, .tier1, .tier2]] {
+                let signals = Self.signals(app, title: "Groceries", tiers: tiers)
+                let classified = ProviderRegistry().classify(signals)
+                let observation = ConfidenceEngine.observation(
+                    verdict: classified.verdict,
+                    providerID: classified.providerID,
+                    signals: signals,
+                    concurrent: ConcurrentStates()
+                )
+                let shown = classified.verdict.labelOverride ?? observation.claimableActivity.displayName
+                #expect(shown != Activity.coding.displayName, "\(app.localizedName) was shown as \(shown)")
+            }
+        }
+    }
 }

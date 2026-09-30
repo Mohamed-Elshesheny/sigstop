@@ -820,7 +820,7 @@ everything else is evidence fed into it via `SignalContext`.
 | `APIToolProvider` | Postman | CODING, marked degraded: an API client does not say which kind of work it is |
 | `ContainerProvider` | Docker Desktop, and its Electron helper ID (§5.6) | TERMINAL_WORK |
 | `AIAssistantProvider` | Claude, ChatGPT/Codex (and the legacy ID), Gemini, Antigravity (§5.6) | AI_CODING only with corroboration (§7.6) |
-| `NotesProvider` | Notion, Obsidian, Linear | DOCUMENTATION capped at 0.55; Linear is an issue tracker and reads BROWSING |
+| `NotesProvider` | Notion, Obsidian, Linear | DOCUMENTATION capped at 0.55 and labelled "notes app" (§7.7); Linear is an issue tracker and reads BROWSING |
 | `GenericProvider` | `.*` | category from `GenericProvider.categories`, a Swift dictionary of bundle IDs, else UNKNOWN |
 
 `BuiltinProviders.all` lists the thirteen above `GenericProvider`, in this order; `GenericProvider`
@@ -1228,6 +1228,14 @@ It produces no observable signal at any tier we are willing to use. The app clas
 Tier 0 only: a notes app gives `DOCUMENTATION @ ≤0.55`; an editor gives `CODING` (we cannot see the
 extension). Honest note: Notion is also a project-management tool, so the notes-app signal is
 weaker than it looks; it is capped at 0.55 even with Tier 1 unless a title confirms a document.
+
+That cap sits under the 0.60 claim threshold, so `claimableActivity` (§3) names the parent, and
+the parent of `DOCUMENTATION` is `CODING`: Notion, Obsidian, Apple Notes and TextEdit were shown as
+"coding", the overclaim "Never overclaim" forbids, pointed the other way. So these verdicts carry a label that
+states the fact instead, "notes app" (`NotesProvider`, and `com.apple.Notes` in
+`GenericProvider`) or "text editor" (`com.apple.TextEdit`), the way an uncorroborated AI app says
+"AI assistant". The activity underneath is still `DOCUMENTATION`, and the message corpus cannot
+pick a coding line from it, because every line that names `coding` asks for at least 0.70.
 
 ### 7.8 BROWSING
 

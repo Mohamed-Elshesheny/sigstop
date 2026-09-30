@@ -998,6 +998,7 @@ public struct NotesProvider: ActivityProvider {
         return ProviderVerdict(
             activity: .documentation,
             evidence: [Ev.notesAppFrontmost(name)],
+            labelOverride: "notes app",
             maximumConfidence: 0.55
         )
     }
@@ -1027,6 +1028,11 @@ public struct GenericProvider: ActivityProvider {
         "com.mongodb.compass":    (.terminalWork, 1.0, "a database client"),
     ]
 
+    static let labels: [String: String] = [
+        "com.apple.TextEdit": "text editor",
+        "com.apple.Notes":    "notes app",
+    ]
+
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
         let name = context.frontmost.localizedName
         guard let id = context.frontmost.bundleID, let entry = Self.categories[id] else {
@@ -1036,7 +1042,7 @@ public struct GenericProvider: ActivityProvider {
         if let idle = context.input.knownIdleSeconds, idle < 60 {
             evidence.append(Ev.recentInput(idle, 0.4))
         }
-        return ProviderVerdict(activity: entry.0, evidence: evidence)
+        return ProviderVerdict(activity: entry.0, evidence: evidence, labelOverride: Self.labels[id])
     }
 }
 
