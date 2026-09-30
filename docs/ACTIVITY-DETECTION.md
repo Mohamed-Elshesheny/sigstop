@@ -1525,7 +1525,10 @@ Notes that matter under strict concurrency:
   Titles routinely contain customer names and ticket subjects; retaining them, whole or in parts,
   is not justified by anything the product does with them.
 - Browser data is reduced to a **host**, only under the separate Tier 1b opt-in, and the host is
-  not stored either. It can decide the activity, which is logged as `act`.
+  not stored either. It buys two things: the menu bar names the site instead of the browser, and
+  `github.com`, `gitlab.com` or `bitbucket.org` add +0.6 of forge evidence (§7.4), which can lift a
+  review-shaped title over the claim threshold. It never decides a meeting, which comes from the
+  title alone, and never changes the activity logged as `act`, which the title decides.
 - Every observation is **explainable**: the menu bar can show "why?" and list the evidence summaries.
   If the app cannot explain a conclusion in one sentence, it should not be drawing it.
 - A visible, always-available **pause** that suspends all collection, and a one-click **delete all
