@@ -254,6 +254,7 @@ final class StatusItemController: NSObject, NSWindowDelegate {
 
         guard let image = renderer.nsImage else { return }
         image.isTemplate = false
+        image.accessibilityDescription = MenuBarIcon.label(for: key.indicator)
         item.button?.image = image
     }
 
