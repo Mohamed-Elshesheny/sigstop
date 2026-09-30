@@ -1231,6 +1231,13 @@ Frontmost Slack/Discord/Zoom/Mail/Messages: **+2.0**. Reliable at Tier 0 because
 signal and we need nothing inside it. Tier 0 only: 0.55; with a title confirming a channel/DM view:
 0.80.
 
+"Confirming" is narrow on purpose, and matched case-sensitively: Slack's `(Channel)` or `(DM)`, or
+a Discord title component that starts with `#` and a letter (`#general | Server - Discord`). Both
+forms are ⚠️ UNVERIFIED, taken from how those apps title their windows rather than read on the
+authoring machine. Mail, Messages, Zoom and Teams are never checked. This used to be any `#` or
+any `dm`, ignoring case, so a mail subject like `Invoice #4411` or `Re: admin access` was cited as
+a conversation and moved the number.
+
 We do **not** try to distinguish "reading Slack" from "writing in Slack". No permission-free signal
 separates them, and idle time is too coarse (reading is idle).
 

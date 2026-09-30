@@ -838,7 +838,7 @@ public struct CommunicationProvider: ActivityProvider {
             if isConferencing,
                BrowserTitlePatterns.isMeeting(title) || title.caseInsensitiveCompare("Zoom Meeting") == .orderedSame {
                 meetingEvidence.append(Ev.meetingTitle("a meeting is in progress"))
-            } else if title.contains("#") || title.localizedCaseInsensitiveContains("DM") {
+            } else if Self.namesAChannel(title, bundleID: context.frontmost.bundleID) {
                 evidence.append(Ev.communicationTitle())
             }
         }
@@ -848,6 +848,22 @@ public struct CommunicationProvider: ActivityProvider {
             evidence: evidence,
             concurrentHints: ConcurrentHints(meetingEvidence: meetingEvidence)
         )
+    }
+
+    static let slackChannelMarkers = ["(Channel)", "(DM)"]
+
+    static func namesAChannel(_ title: String, bundleID: String?) -> Bool {
+        switch bundleID {
+        case BundleIDs.slack:
+            return slackChannelMarkers.contains { title.contains($0) }
+        case BundleIDs.discord:
+            return TitleParsing.components(title).contains { part in
+                guard part.hasPrefix("#"), let first = part.dropFirst().first else { return false }
+                return first.isLetter
+            }
+        default:
+            return false
+        }
     }
 }
 
