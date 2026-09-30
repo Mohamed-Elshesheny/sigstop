@@ -751,13 +751,6 @@ public enum RateLimit: String, Sendable, Codable, Hashable {
     case cycleNotificationCap
     case minimumSpacing
     case ignoreBackoff
-
-    public var isTerminalForCycle: Bool {
-        switch self {
-        case .ignoreBackoff, .cycleNotificationCap: return true
-        case .minimumSpacing, .quietHours, .dailyCapReached: return false
-        }
-    }
 }
 ```
 

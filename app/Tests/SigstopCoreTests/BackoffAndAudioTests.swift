@@ -154,15 +154,6 @@ struct BackoffTests {
         #expect(!IndicatorState.held.isStoodDown)
         #expect(!IndicatorState.onBreak.isStoodDown)
     }
-
-    @Test("only the limits that cannot lift are terminal")
-    func terminalLimitsAreTheOnesThatCannotLift() {
-        #expect(RateLimit.ignoreBackoff.isTerminalForCycle)
-        #expect(RateLimit.cycleNotificationCap.isTerminalForCycle)
-        #expect(!RateLimit.minimumSpacing.isTerminalForCycle)
-        #expect(!RateLimit.quietHours.isTerminalForCycle)
-        #expect(!RateLimit.dailyCapReached.isTerminalForCycle)
-    }
 }
 
 @Suite("a microphone is a fact, but it is not a call")
