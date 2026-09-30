@@ -907,6 +907,7 @@ osascript -e 'id of app "Zed"'
 |---|---|---|
 | VS Code | `com.microsoft.VSCode` | ✅ VERIFIED |
 | VS Code Insiders | `com.microsoft.VSCodeInsiders` | ⚠️ UNVERIFIED |
+| VSCodium | `com.vscodium` | ⚠️ UNVERIFIED |
 | Cursor | `com.todesktop.230313mzl4w4u92` | ✅ VERIFIED — note this is a ToDesktop-generated opaque ID and is *not* stable across a rebrand; keep a `localizedName == "Cursor"` fallback claim |
 | Zed | `dev.zed.Zed` | ⚠️ UNVERIFIED (also expect `dev.zed.Zed-Preview`, `dev.zed.Zed-Dev` — claim via `.bundleIDPrefix("dev.zed.")`) |
 | IntelliJ IDEA (Ultimate) | `com.jetbrains.intellij` | ⚠️ UNVERIFIED |
@@ -927,6 +928,7 @@ osascript -e 'id of app "Zed"'
 | Ghostty | `com.mitchellh.ghostty` | ⚠️ UNVERIFIED |
 | Alacritty | `org.alacritty` | ⚠️ UNVERIFIED |
 | Kitty | `net.kovidgoyal.kitty` | ⚠️ UNVERIFIED |
+| Termius | `com.termius-dmg.mac` | ✅ VERIFIED (read from the bundle on macOS 27.0, 2026-09-30) |
 
 **Browsers**
 
@@ -936,6 +938,8 @@ osascript -e 'id of app "Zed"'
 | Arc | `company.thebrowser.Browser` | ✅ VERIFIED |
 | Safari | `com.apple.Safari` | ✅ VERIFIED |
 | Firefox | `org.mozilla.firefox` | ⚠️ UNVERIFIED |
+| Brave | `com.brave.Browser` | ✅ VERIFIED (read from the bundle on macOS 27.0, 2026-09-30) |
+| Microsoft Edge | `com.microsoft.edgemac` | ⚠️ UNVERIFIED |
 
 **Communication**
 
@@ -944,6 +948,9 @@ osascript -e 'id of app "Zed"'
 | Slack | `com.tinyspeck.slackmacgap` | ✅ VERIFIED |
 | Discord | `com.hnc.Discord` | ✅ VERIFIED |
 | Zoom | `us.zoom.xos` | ✅ VERIFIED |
+| Microsoft Teams | `com.microsoft.teams2` | ✅ VERIFIED (read from the bundle on macOS 27.0, 2026-09-30) |
+| Mail | `com.apple.mail` | ✅ VERIFIED (read from the bundle on macOS 27.0, 2026-09-30) |
+| Messages | `com.apple.MobileSMS` | ✅ VERIFIED (read from the bundle on macOS 27.0, 2026-09-30) |
 
 **Design / tools / AI / notes**
 
@@ -955,6 +962,7 @@ osascript -e 'id of app "Zed"'
 | Claude (desktop) | `com.anthropic.claudefordesktop` | ✅ VERIFIED |
 | ChatGPT (desktop) | `com.openai.codex` | ✅ VERIFIED — **and this is a surprise worth flagging.** `/Applications/ChatGPT.app` on the authoring machine (v26.901.51231) reports `com.openai.codex`, not the historically documented `com.openai.chat`. Claim **both**; treat `com.openai.chat` as ⚠️ UNVERIFIED-legacy. Do not assume either is correct on an arbitrary user's machine. |
 | Antigravity | `com.google.antigravity` | ✅ VERIFIED (read from `/Applications/Antigravity.app`, 2.13.0). **Not an editor, whatever the name suggests.** Its own `package.json` calls it an "Agentic Desktop Application", and it offers to install the editor separately as `Antigravity IDE.app`. So this ID is claimed by `AIAssistantProvider` and is not in `BundleIDs.editors`, which is what gates the git and process reads. The IDE's own ID is ⚠️ UNVERIFIED (not installed on the authoring machine) and is not claimed; it falls to `GenericProvider` until someone reads it from the bundle |
+| Gemini (desktop) | `com.google.GeminiMacOS` | ✅ VERIFIED (read from the bundle on macOS 27.0, 2026-09-30) |
 | Linear | `com.linear` | ✅ VERIFIED |
 | Notion | `notion.id` | ✅ VERIFIED |
 | Obsidian | `md.obsidian` | ⚠️ UNVERIFIED |
