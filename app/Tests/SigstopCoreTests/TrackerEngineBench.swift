@@ -86,8 +86,6 @@ struct TrackerEngineBench {
             case .beginBreak(_, let origin, _): tracker.beginBreak(origin: origin)
             case .endBreak(_, let origin, _, _, let threshold): tracker.endBreak(origin: origin, threshold: threshold)
             case .recordSkip: tracker.recordSkip()
-            case .recordSnooze: tracker.recordSnooze()
-            case .recordIgnoredPrompt: tracker.recordIgnoredPrompt()
             default: break
             }
         }
