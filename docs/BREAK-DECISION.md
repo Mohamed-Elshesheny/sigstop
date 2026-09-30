@@ -915,12 +915,11 @@ Summary of the two extremes and the specific mechanisms against each:
 | Passive menu-bar indicator (icon state + title) | no | **always**, including quiet hours, DND, daily cap, hard blocks |
 | Standard notification (`.active`, silent by default) | yes | not hard-blocked, not rate-limited |
 | Notification with sound | yes | escalation level 3+ only, never twice in a cycle, and never while a microphone or camera is live |
-| Card drawn by the app: about 420 pt wide, in the top-right corner under the menu bar of the display the frontmost window is on, no dimming, non-activating | yes | levels 1 and 2 when the system will not show them as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears |
-| Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 outside Low Power Mode, and levels 3 and 4 when the system will not show them as a notification, for the same three reasons. Level 4 becomes a notification in Low Power Mode (§7.6) and, when the system will not show it, is still drawn full screen |
+| Panel drawn by the app: full screen on every display, 78 % black, non-activating | yes | level 4 outside Low Power Mode, and every level when the system will not show it as a notification: *Use macOS notifications instead* is off (the default), permission is denied, or the banner never appears. Level 4 becomes a notification in Low Power Mode (§7.6) and, when the system will not show it, is still drawn full screen |
 
-Nothing in the app is ever modal, and neither surface activates the app. The panel covers every
-display until it is answered; the card covers one corner of one. *Ignore it* is always one of the
-answers on both, so there is no configuration in which the app can prevent the user from working.
+Nothing in the app is ever modal, and the panel never activates the app. It covers every display
+until it is answered, and *Ignore it* is always one of its answers, so there is no configuration in
+which the app can prevent the user from working.
 
 Live capture suppresses the sound channel for the same reason low battery does, and it matters more
 now that §7.1.1 lets a prompt reach a Mac with a microphone open: the rung still arrives, it just
@@ -945,68 +944,43 @@ app mid-break, ends the break silently. So does a break whose end passed while t
 waking, minutes or hours late, and Glass at wake would be a chime for a break nobody is on. The
 microphone and camera rule above applies unchanged, read on the same tick.
 
-**The first two rungs are a card. The last two are full screen.** When system notifications are
-off, which is the default, every rung is drawn by the app itself, because there is no other
-channel. What gets drawn depends on the level, and `PromptSurface` in `Core` is the one place that
-says so: `SIGTSTP` and `SIGINT` are a card, `SIGTERM` and `SIGSTOP` are the panel.
-`PromptSurfaceTests` pins the mapping.
+**Every rung covers the screen.** When system notifications are off, which is the default, every
+rung is drawn by the app itself, because there is no other channel, and every rung is the same
+panel: full screen on every display at 78 % black, `SIGTSTP` exactly as `SIGSTOP`.
 
-This section used to say that every rung was full screen, and it was: an L1 covered the machine
-exactly as `SIGSTOP` did, on every display, at 78 % black. That contradicted the ladder.
-`SIGTSTP` is the rung you are allowed to ignore, and a rung you are allowed to
-ignore has no business covering every screen to say so. The users of the other break reminders say
-what that costs. Full-screen breaks are called "jarring and too much"
+0.2.0 drew the first two rungs as a card in the top-right corner of one display, dimming nothing,
+and 0.2.1 took the card out. The case for it is kept here, because it is real and the next person
+to propose the card will make it: full-screen breaks are called "jarring and too much"
 (https://news.ycombinator.com/item?id=31631926); the author of Sane Break writes that skipping
-"becomes an almost instinctive habit" and built a two-phase system in answer, a small window first
-and full screen only when the small one is ignored (https://github.com/AllanChain/sane-break); and
-a Hacker News commenter reports having "skipped absolutely all breaks for 8 hours"
-(https://news.ycombinator.com/item?id=12623390). A prompt that arrives at full force every time
-teaches a reflex, the reflex is dismissal, and the rungs that then get dismissed unread are L3 and
-L4, the ones that carry the weight. Keeping the first two small is what keeps the last two
-meaningful.
+"becomes an almost instinctive habit" and built a small window first, with full screen only when
+the small one is ignored (https://github.com/AllanChain/sane-break); and a Hacker News commenter
+reports having "skipped absolutely all breaks for 8 hours"
+(https://news.ycombinator.com/item?id=12623390). The decision went the other way. The dimmed screen
+is the moment this app is built around, and a card in the corner of one display has the shape and
+the place of every notification banner on the machine. So the rungs are told apart by everything
+except size: the signal and its level, the face, the copy, the sound, what the rung offers, and what
+the footer says ignoring it costs. Covering the screen never means holding it: *Ignore it* is on
+every rung, and nothing takes the keyboard.
 
-The card is about 420 points wide and as tall as its text, in the top-right corner under the menu
-bar (`NSScreen.visibleFrame`, inset 12 points, the arithmetic in `PromptCardPlacement`) of the
-display the user is working on. That is the display of the frontmost app's frontmost window, read
-from the window list as an owner pid, a layer and a rectangle, the same call and the same three
-fields `SystemStateCollector` already reads for the full-screen hint, with no window name and no
-permission; `PromptCardPlacement.display(for:among:)` picks the display holding the window's centre,
-or the one with most of the window, and `PromptCardDisplayTests` pins it. When the app in front has
-no window, the card goes to the display the pointer is on, then the screen with the key window,
-then the first screen. It used to go to the pointer's display first, and the pointer is not where the
-work is: Cmd-Tab, typing and a Space switch move nothing, so a card could be drawn on the far
-display, confirmed on screen by the window server, and counted as ignored 90 seconds later by a user
-who never had a chance to see it. It stays under the menu bar even when the bar is set to hide:
-`visibleFrame` then reaches the top of the screen, and the card sat over the right end of the bar as
-it slid in, since the bar draws at `.mainMenu`, one level under the card. `PromptCardPlacement.belowMenuBar`
-reserves the bar's height whenever the visible frame reaches the top, taking the largest of the main
-menu's `menuBarHeight` (33 points on a notched display, measured), the status bar thickness and the
-safe-area inset, and does nothing when the bar is showing, because the visible frame is exact then.
-`PromptCardMenuBarTests` pins both. It dims nothing. It appears and stays still: no slide, no fade, nothing for Reduce Motion to switch
-off. In every other respect it is the panel: the same `NonActivatingPanel` at the same
-`.statusBar` level, `sharingType = .none`, joins every Space, sits over full-screen apps, and never
-takes the keyboard from the app underneath. It carries the same content and the same answers,
-*Take it*, *Snooze (SIGALRM)* when offered, *Skip* labelled with its cost and dimmed for the same
-three seconds (§9), and *Ignore it*, with the same footer, so nothing the notification would have
-offered is lost by being small. The footer says
-what ignoring costs, and the engine is the one that knows: `PromptRequest.ifIgnored` is
-`.anotherRung` when a later rung will follow, `.cooldown` when this is the cycle's last prompt
-(`SIGSTOP`, the fourth notification, or the backoff's single one, §11) and `.quietForTheDay` when it
-is the prompt that reached the daily cap. `PromptFollowUpTests` pins that a prompt promises another
-rung exactly when one follows. Both surfaces used to decide the footer from the level alone, so the
-backoff's only prompt said "it asks again in a few minutes" over a cycle that was about to close for
-25 minutes, and the card, which never shows `SIGSTOP`, could not say anything else. It goes away
-exactly when the panel would, on an answer, on `withdrawPrompt`, on `closeCycle` and on
-`beginBreak`, and it is confirmed on screen the same way (§10, `kCGWindowIsOnscreen` on its window
-number), so a card the window server never composited is not counted as ignored either.
+The panel carries *Take it*, *Snooze (SIGALRM)* when offered, *Skip* labelled with its cost and
+dimmed for its first three seconds (§9), and *Ignore it*, above a footer that says what ignoring
+costs, because the engine is the one that knows: `PromptRequest.ifIgnored` is `.anotherRung` when a
+later rung will follow, `.cooldown` when this is the cycle's last prompt (`SIGSTOP`, the fourth
+notification, or the backoff's single one, §11) and `.quietForTheDay` when it is the prompt that
+reached the daily cap. `PromptFollowUpTests` pins that a prompt promises another rung exactly when
+one follows. The footer used to be decided from the level alone, so the backoff's only prompt said
+"it asks again in a few minutes" over a cycle that was about to close for 25 minutes. The panel goes
+away on an answer, on `withdrawPrompt`, on `closeCycle` and on `beginBreak`, and it counts as shown
+only once the window server confirms it is on screen (§10, `kCGWindowIsOnscreen` on its window
+number), so a panel that was never composited is not counted as ignored.
 
-What separates the rungs beyond size is what the surface offers. A rung whose channel is a
+What else separates the rungs is what the panel offers. A rung whose channel is a
 notification (L1 to L3, and L4 on low power) offers the notification's answers, as §9 lists. L4 on
 AC power offers *Take it* and *Ignore it*.
 
 **The face.** Every panel and the break screen carry one character: the two bars of the mark, in
 amber on their own dark squircle (`Brand.Dark.bg`, `#101317`), drawn once when the panel appears:
-72 points above the signal row on the full-screen panel, 40 points beside it on the L1 and L2 card.
+72 points, above the signal row.
 Nothing about it moves. Only the eyes differ, and they are set once per panel by the rung:
 
 | Rung | `FaceMood` | Eyes | Reads as |
@@ -1260,7 +1234,7 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
 
 ## 9. Snooze semantics
 
-- **One snooze length.** The notification and the card offer one *Snooze (SIGALRM)*, and
+- **One snooze length.** The notification and the panel offer one *Snooze (SIGALRM)*, and
   it lasts `snoozeMinutes`, 5 minutes by default. `init(settings:)` fills `snoozeDurations` with 1, 2
   and 3 times that, and the `.snooze` action takes the first entry `offeredSnoozes` returns, so the
   longer two are never used. Snooze is offered on level 1 prompts only; the rungs above it offer none.
@@ -1269,7 +1243,7 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   5-minute snooze the cap never binds; a longer one shrinks the last snooze to fit (with
   `snoozeMinutes` at 20: 20 minutes, then 10).
 - **After the cap:** the prompt no longer offers snooze. The notification offers *Take it* and
-  *Skip*, and the card adds *Ignore it*. Removing the option is honest; offering a third
+  *Skip*, and the panel adds *Ignore it*. Removing the option is honest; offering a third
   snooze that silently behaves like the second is not.
 - **What a snooze does to the work clock: nothing.** The clock keeps running. Snoozing defers the
   question, it does not buy credit. If you snooze 5 minutes at 45 minutes of work, you are at 50
@@ -1295,15 +1269,15 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   escape hatch and it is deliberately cheap to use.
 - **Skip is not the cheap gesture, and the UI must not let it look like one.** Twenty minutes of
   silence is the longest suppression in the engine, so the control that buys it says so, and Escape
-  does not call it. Escape and *Ignore it* take the card or panel down and tell the engine nothing
-  (Escape reaches either only after a click on it, because neither takes the keyboard from the app
+  does not call it. Escape and *Ignore it* take the panel down and tell the engine nothing
+  (Escape reaches it only after a click on it, because it never takes the keyboard from the app
   you are in, which may be showing a password field), so the
   prompt stands in the engine: `promptTimeout` (90 s) after it was delivered it is classified
   ignored, which is what §10 means by ignored and what the product means by a rung you are allowed
   to catch. The next rung waits for its own ladder time (§11, L2 at `t0 + 5 min`), and after L4, or
   whichever rung spends the cycle's four notifications, has had its own `promptTimeout`, the
   cycle closes as `.ignoredExhausted` with its 25-minute cooldown.
-- **Skip needs a moment.** On the card and the panel, *Skip* is drawn from the first frame but dimmed,
+- **Skip needs a moment.** On the panel, *Skip* is drawn from the first frame but dimmed,
   and it becomes clickable `BreakPolicy.skipArmsAfter` (3 s, not a setting) after the surface appears; *Take
   it*, *Snooze* and *Ignore it* work at once, so the guard delays the expensive answer without ever
   holding anyone. A click that lands inside those seconds was a reflex, not an answer, and a reflex
@@ -1312,8 +1286,8 @@ burn a cycle's notification budget), rate limits precede the floor, and a seam b
   button, not a hidden one" still holds: it is shown, just not live for three seconds.
 - **The same answers with or without system notifications.** Any rung whose channel is a
   notification (L1, L2, L3, and L4 on low power) is drawn by the app when system notifications are
-  off, which is the default, or denied, as a card at L1 and L2 and as the full-screen panel above
-  that (§7.5), and that surface offers what the notification would have:
+  off, which is the default, or denied, as the full-screen panel
+  (§7.5), and that panel offers what the notification would have:
   *Take it*, *Snooze (SIGALRM)* when `snoozeOffered` is not empty, *Skip*, and *Ignore it*. L4 on
   AC power is a panel by channel and offers *Take it* and *Ignore it*, so whether L4 offers Skip
   depends on the power state. The app's own surface used to offer only *Take it* and *Ignore it*,
@@ -1339,7 +1313,7 @@ A prompt is **ignored** when all of the following hold:
 
 "Reached the screen" is decided in the app layer, not the engine, because only the app can
 see its own window. When the app draws the prompt itself (the default), it asks the window
-server whether its card or panel is composited (`kCGWindowIsOnscreen` for the window number,
+server whether its panel is composited (`kCGWindowIsOnscreen` for the window number,
 the same bit a screenshot sees), re-orders it on every tick until it is, and writes the
 `break_prompt` line only at that moment. A prompt the window server never confirmed therefore
 has no `break_prompt` line, is never recorded as ignored (`recordIgnoredPrompt` is dropped in
@@ -1356,7 +1330,7 @@ who is not there is the purest form of the failure this design is trying to avoi
 A rule that kept an unconfirmed notification from climbing past level 2 was designed and not
 built: Focus is never known, so the ladder climbs the same way whether or not a notification was
 seen. The default is unaffected, because with system notifications off every rung is the app's own
-card or panel, which no Focus mode can swallow.
+panel, which no Focus mode can swallow.
 
 ---
 
@@ -1373,9 +1347,8 @@ card or panel, which no Focus mode can swallow.
 
 The channel is what `channelFor` in `BreakDecisionEngine` returns, and every rung that delivers adds
 one to `notificationsThisCycle` and to the day's `notificationsDelivered`. With *Use macOS
-notifications instead* off, the default, a `.notification` rung is drawn by the app (§7.5), as a
-card at L1 and L2 and full screen above that, so the channel decides what the rung offers and the
-level decides how much of the screen it takes.
+notifications instead* off, the default, a `.notification` rung is drawn by the app (§7.5), full
+screen, so the channel decides what the rung offers.
 
 After level 4 with no response: cycle → `.ignoredExhausted`, `consecutiveIgnoredCycles += 1`, engine
 returns to `working` with a **25-minute cooldown** before a new cycle may open. No further

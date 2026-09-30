@@ -124,95 +124,10 @@ final class BreakOverlayController {
             }
         }
 
-        switch PromptSurface(level: request.level) {
-        case .card:
-            let screen = Self.workingScreen(among: screens)
-            fallbackPanels.append(cardPanel(on: screen, request: request, message: message, model: model))
-        case .fullScreen:
-            for screen in screens {
-                fallbackPanels.append(fullScreenPanel(on: screen, request: request, message: message, model: model))
-            }
+        for screen in screens {
+            fallbackPanels.append(fullScreenPanel(on: screen, request: request, message: message, model: model))
         }
         return !fallbackPanels.isEmpty
-    }
-
-    private static func workingScreen(among screens: [NSScreen]) -> NSScreen {
-        if let screen = frontmostWindowScreen(among: screens) { return screen }
-        let mouse = NSEvent.mouseLocation
-        return screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? screens[0]
-    }
-
-    private static func frontmostWindowScreen(among screens: [NSScreen]) -> NSScreen? {
-        guard let primary = screens.first,
-              let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-              let windows = CGWindowListCopyWindowInfo(
-                  [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
-              ) as? [[String: Any]]
-        else { return nil }
-        let displays = screens.map { screen in
-            PromptCardPlacement.Box(
-                x: screen.frame.minX, y: screen.frame.minY,
-                width: screen.frame.width, height: screen.frame.height
-            )
-        }
-        for window in windows {
-            guard let owner = window[kCGWindowOwnerPID as String] as? pid_t, owner == pid,
-                  let layer = window[kCGWindowLayer as String] as? Int, layer == 0,
-                  let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: boundsDict), !bounds.isEmpty
-            else { continue }
-            let box = PromptCardPlacement.Box(
-                x: bounds.minX, y: bounds.minY, width: bounds.width, height: bounds.height
-            ).flippedVertically(primaryHeight: primary.frame.height)
-            guard let index = PromptCardPlacement.display(for: box, among: displays) else { return nil }
-            return screens[index]
-        }
-        return nil
-    }
-
-    private func cardPanel(
-        on screen: NSScreen, request: PromptRequest, message: RenderedMessage, model: AppModel
-    ) -> NonActivatingPanel {
-        let hosting = promptHosting(
-            PromptCardView(
-                request: request,
-                message: message,
-                skipQuiet: model.policy.rearmAfterSkip,
-                quietAfterLast: model.policy.cooldownAfterExhausted,
-                skipArmsAfter: model.policy.skipArmsAfter,
-                onTake: { [weak model, weak self] in self?.dismissPromptPanel(); model?.acceptBreak() },
-                onSnooze: { [weak model, weak self] in self?.dismissPromptPanel(); model?.snooze() },
-                onIgnore: { [weak model, weak self] in self?.dismissPromptPanel(); model?.ignorePrompt() },
-                onSkip: { [weak model, weak self] in self?.dismissPromptPanel(); model?.skip() }
-            )
-            .frame(width: PromptCardPlacement.width)
-        )
-        hosting.layoutSubtreeIfNeeded()
-        let size = hosting.fittingSize
-        let visible = screen.visibleFrame
-        let menuBar = max(
-            NSApp.mainMenu?.menuBarHeight ?? 0, NSStatusBar.system.thickness, screen.safeAreaInsets.top
-        )
-        let box = PromptCardPlacement.place(
-            width: size.width,
-            height: size.height,
-            in: PromptCardPlacement.belowMenuBar(
-                PromptCardPlacement.Box(
-                    x: visible.minX, y: visible.minY, width: visible.width, height: visible.height
-                ),
-                screenTop: screen.frame.maxY,
-                hiddenMenuBar: menuBar
-            )
-        )
-        hosting.sizingOptions = []
-        let panel = promptPanel(
-            frame: NSRect(x: box.x, y: box.y, width: box.width, height: box.height), model: model
-        )
-        panel.hasShadow = true
-        panel.contentView = hosting
-        panel.orderFrontRegardless()
-        panel.invalidateShadow()
-        return panel
     }
 
     private func fullScreenPanel(
@@ -524,6 +439,19 @@ struct FallbackPromptView: View {
             try? await Task.sleep(for: .seconds(skipArmsAfter))
             guard !Task.isCancelled else { return }
             skipArmed = true
+        }
+    }
+}
+
+enum PromptFooter {
+    static func text(for request: PromptRequest, quietAfterLast: TimeInterval) -> String {
+        switch request.ifIgnored {
+        case .anotherRung:
+            return "ignore it, and it asks again in a few minutes"
+        case .cooldown:
+            return "ignore it, and it leaves you alone for \(DurationText.short(quietAfterLast))"
+        case .quietForTheDay:
+            return "ignore it, and nothing more today: the cap is spent"
         }
     }
 }

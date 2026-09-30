@@ -157,7 +157,7 @@ struct SettingsView: View {
                 }
                 SettingRow(
                     "Use macOS notifications instead",
-                    detail: "Off by default. An unsigned build's notification is reported as delivered and macOS never draws it, so on this build you see no banner and no card until SIGSTOP. Leave it off unless you signed the app yourself."
+                    detail: "Off by default. An unsigned build's notification is reported as delivered and macOS never draws it, so on this build you see no banner and no panel until SIGSTOP. Leave it off unless you signed the app yourself."
                 ) {
                     TerminalSwitch(isOn: settings.useSystemNotifications)
                 }
