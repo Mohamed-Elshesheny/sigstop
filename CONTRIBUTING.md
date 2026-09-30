@@ -37,6 +37,31 @@ the editor. Do not add a `.xcodeproj`.
 The landing site is a separate repository,
 [`sigstop-web`](https://github.com/Mohamed-Elshesheny/sigstop-web).
 
+### Rendering views to PNG
+
+With no UI test harness, a change to something a person sees is checked by drawing it. The
+binary takes a render flag, writes PNGs under a path relative to the current folder, prints
+each path and exits. None of them opens the event log or writes anything of yours.
+
+```sh
+swift build
+.build/debug/sigstop --render-prompt out/prompt streak.gentle.first-skip   # stem, then a corpus id
+```
+
+| Flag | Draws | Reads |
+|---|---|---|
+| `--render-prompt [stem] [id]` | The prompt at every rung and follow-up | The corpus line you name, as raw text with its slots unfilled |
+| `--render-break [stem]` | The break screen at its start and last minute, and the face sheet | Nothing |
+| `--render-panel [stem]` | The menu bar panel, light and dark, as it is and staged with a sample day | Your saved settings, permission state and today's call hold |
+| `--render-settings [pane] [stem]` | One Settings pane, light and dark: `rhythm`, `voice`, `badges`, `access`, `data` or `about` | Your saved settings, permission state and today's call hold |
+| `--render-badges [stem]` | The badge contact sheet | Nothing |
+| `--render-icon [stem]` | The menu bar mark in every state | Nothing |
+| `--render-installer [stem]` | The disk image backdrop. `Scripts/dmg.sh` runs this one | Nothing |
+
+`--bench-break` is not a render flag: it is the whole app, which starts a break three seconds
+after launch so `make bench` can measure the break screen. It writes to your real data like
+any other launch.
+
 ## The rules a PR cannot break
 
 This table is where they are stated. The reasoning lives in the design doc each row names.
