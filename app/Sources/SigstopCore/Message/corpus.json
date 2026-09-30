@@ -3649,8 +3649,8 @@
       ]
     },
     {
-      "id": "streak.speed.point-four-seconds",
-      "text": "You dismissed the last one in 0.4 seconds. You didn't read it. There was a joke in there and everything. Read this one: stand up.",
+      "id": "streak.unanswered.joke-in-each",
+      "text": "The last two went by without an answer. There was a joke in each of them and everything. Read this one: stand up.",
       "tone": "roast",
       "category": "skip_streak",
       "escalation": {
