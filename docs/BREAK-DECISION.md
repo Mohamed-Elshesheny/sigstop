@@ -1775,6 +1775,15 @@ Measured on the same instant: the writer files it under `2025-09-22`, and Islami
 calls it `1447-03-30`, a file that never exists. `interval(boundaryHour:calendar:)` makes the same
 substitution, and `CalendarSystemTests` pins both.
 
+**The day is reported, not narrated.** The uptime panel shows these numbers as a readout and
+`--doctor` prints them as one plain line, `SummaryNarrator.detail(for:)`. There used to be a second
+voice as well: `SummaryNarrator.line(for:seed:)` picked a joke about the day from four tones of
+templates. The panel stopped showing it when it became a readout, and after that only tests read it,
+so it is gone, templates and all. A day summed up in a quip is the app grading you, which §16 rules
+out; the jokes belong at the break, where they are asking for something. If a line about the day
+comes back, it comes back as corpus lines under `docs/MESSAGE-ENGINE.md` §4 and its lint, not as a
+second template table that nothing checks.
+
 ### 14.1 Definitions, exactly
 
 - **`totalActiveWork`** — the sum of credited ticks (§3.3) across every session whose credit fell inside the

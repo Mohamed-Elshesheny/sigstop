@@ -602,7 +602,7 @@ enum Doctor {
             let today = CalendarDay.local(of: Date(), calendar: .current, boundaryHour: BreakPolicy.default.dayBoundaryHour)
             do {
                 let summary = try DailyRollup.compute(day: today, from: store)
-                out.append("  today            \(SummaryNarrator(tone: .friendly).detail(for: summary))")
+                out.append("  today            \(SummaryNarrator().detail(for: summary))")
             } catch StoreError.unreadable(let days) {
                 out.append("  today            could not read \(days.map(\.description).joined(separator: ", ")), the file is there but would not open")
             } catch {

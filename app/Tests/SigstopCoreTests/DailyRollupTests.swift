@@ -658,55 +658,8 @@ struct SummaryNarratorTests {
         sessionCount: 2
     )
 
-    @Test func selection_is_deterministic_in_the_seed() {
-        let narrator = SummaryNarrator(tone: .sarcastic)
-        let a = narrator.line(for: Self.busyDay, seed: 42)
-        let b = narrator.line(for: Self.busyDay, seed: 42)
-        #expect(a == b)
-    }
-
-    @Test func different_seeds_produce_different_lines() {
-        let narrator = SummaryNarrator(tone: .sarcastic)
-        let lines = Set((0..<200).map { narrator.line(for: Self.busyDay, seed: UInt64($0)) })
-        #expect(lines.count > 8)
-        #expect(lines.count <= narrator.variantCount())
-    }
-
-    @Test func every_tone_has_several_variants_and_renders_every_slot() {
-        for tone in Tone.allCases {
-            let narrator = SummaryNarrator(tone: tone)
-            #expect(narrator.variantCount() >= 36)
-            for seed in UInt64(0)..<200 {
-                let line = narrator.line(for: Self.busyDay, seed: seed)
-                #expect(!line.isEmpty)
-                #expect(!line.contains("{"))
-                #expect(!line.contains("}"))
-            }
-        }
-    }
-
-    @Test func a_day_with_no_attributed_app_never_renders_an_app_slot() {
-        let bare = DailySummary(day: Fix.day, totalActiveWork: 1800)
-        for tone in Tone.allCases {
-            let narrator = SummaryNarrator(tone: tone)
-            for seed in UInt64(0)..<120 {
-                let line = narrator.line(for: bare, seed: seed)
-                #expect(!line.contains("{"))
-            }
-        }
-    }
-
-    @Test func an_empty_day_gets_its_own_line_and_never_scolds() {
-        let empty = DailySummary(day: Fix.day)
-        for tone in Tone.allCases {
-            let line = SummaryNarrator(tone: tone).line(for: empty, seed: 7)
-            #expect(!line.isEmpty)
-            #expect(!line.contains("{"))
-        }
-    }
-
     @Test func the_detail_line_always_carries_the_parenthetical() {
-        let detail = SummaryNarrator(tone: .friendly).detail(for: Self.busyDay)
+        let detail = SummaryNarrator().detail(for: Self.busyDay)
         #expect(detail.contains("75% (6 of 8; 1 not asked)"))
         #expect(detail.contains("Active work 8h"))
         #expect(detail.contains("longest stretch 1h 37m"))
@@ -722,37 +675,6 @@ struct SummaryNarratorTests {
         #expect(DurationText.long(3600) == "1 hour")
         #expect(DurationText.long(2 * 3600 + 60) == "2 hours 1 minute")
         #expect(DurationText.long(0) == "0 minutes")
-    }
-
-    @Test func every_template_clears_the_content_rails() throws {
-        let banned = [
-            "fat", "ugly", "weight", "calorie", "skinny",
-            "eye strain", "eyestrain", "carpal", "posture", "spine", "wrist", "back pain",
-            "health", "healthy", "medical", "doctor", "injury", "strain",
-            "burnout", "burned out", "burnt out", "depress", "anxi", "addict", "mental",
-            "incompetent", "stupid", "idiot", "lazy", "sloppy",
-            "fired", "performance review", "your manager", "promotion",
-        ]
-        let traitDetector = try Regex(#"(?i)\byou(?:'re| are)\s+(?:a|an|so|such|just)\b"#)
-
-        for text in SummaryNarrator.allTemplateTexts {
-            let lower = text.lowercased()
-            for stem in banned {
-                #expect(!lower.contains(stem), "rail violation: \"\(stem)\" in \(text)")
-            }
-            #expect(
-                text.firstMatch(of: traitDetector) == nil,
-                "trait detector (lint W1) hit: \(text)"
-            )
-            #expect(text.count <= 240, "too long for a notification: \(text)")
-        }
-    }
-
-    @Test func the_signal_vocabulary_is_respected() {
-        for text in SummaryNarrator.allTemplateTexts {
-            #expect(!text.contains("SIGKILL"))
-            #expect(!text.uppercased().contains("SIGHUP"))
-        }
     }
 
     @Test func bundle_identifiers_are_spoken_without_asking_the_os() {
