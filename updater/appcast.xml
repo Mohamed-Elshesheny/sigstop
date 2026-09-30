@@ -3,13 +3,13 @@
     <channel>
         <title>sigstop</title>
         <item>
-            <title>0.2.1</title>
-            <pubDate>Wed, 30 Sep 2026 05:59:18 +0300</pubDate>
+            <title>0.2.2</title>
+            <pubDate>Wed, 30 Sep 2026 08:11:17 +0300</pubDate>
             <link>https://github.com/Mohamed-Elshesheny/sigstop</link>
-            <sparkle:version>11</sparkle:version>
-            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/Mohamed-Elshesheny/sigstop/releases/download/v0.2.1/sigstop-0.2.1-wood-frog.dmg" length="5131544" type="application/octet-stream" sparkle:edSignature="42aYC9mhAn7yqo8uM9tGiCAtx2m76KTn41ZM1k96tSRCT5d4Vu5prm2CgRwdGUAKNJHmheliot8+s97gi92jCA=="/>
+            <enclosure url="https://github.com/Mohamed-Elshesheny/sigstop/releases/download/v0.2.2/sigstop-0.2.2-wood-frog.dmg" length="5115601" type="application/octet-stream" sparkle:edSignature="zGONUO0okQqyplGM7XXKU05MmS2Aa0yC0K3DARfZ+TsPBb5KQ4Wmt2yJ1o+hmeffLoESM2AHR70Z4Zz+mTfCAQ=="/>
         </item>
     </channel>
 </rss>
