@@ -1426,6 +1426,8 @@ cooldown, with the work clock still climbing against a threshold nothing was wai
    one, the backoff was unescapable for the rest of the day for everyone who did not answer inside 90
    seconds, which is the window the backoff exists to shorten. `honoredOpportunities` stays conditional
    on an open cycle, because the compliance denominator only grows when an opportunity was opened.
+   The day boundary ends it too: `DailyCounters.rolledOver` used to carry the count into the new
+   day, and a night's sleep records no break (§4.1 row 13), so a morning began in last night's backoff.
 6. **Daily cap** (19 at the default settings, §4.2) overrides everything above. On reaching it, the
    app sends nothing more, and once the prompt that reached it has had its `promptTimeout` it goes
    passive-only until the next day boundary and records `quiet(.dailyCapReached)`. That

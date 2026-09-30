@@ -54,6 +54,11 @@ enum EngineHarness {
             monotonic += Self.tick
             now = now.addingTimeInterval(Self.tick)
             if case .breakActive = state {} else { continuousWork += Self.tick }
+            if day.dayIndex == 0 {
+                day.dayIndex = LocalDay.index(
+                    of: now, calendar: calendarSystem, boundaryHour: engine.policy.dayBoundaryHour
+                )
+            }
 
             let context = DeveloperContext(
                 timestamp: now,

@@ -468,7 +468,7 @@ public struct DailyCounters: Sendable, Codable, Hashable {
     }
 
     public func rolledOver(to newDay: Int) -> DailyCounters {
-        DailyCounters(dayIndex: newDay, consecutiveIgnoredCycles: consecutiveIgnoredCycles, nextCycle: nextCycle)
+        DailyCounters(dayIndex: newDay, nextCycle: nextCycle)
     }
 
     mutating func takeCycle() -> CycleID {
