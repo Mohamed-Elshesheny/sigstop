@@ -23,7 +23,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
     private var deviceNames: [String] = []
     private var deviceListeners: [CMIOObjectID: CMIOObjectPropertyListenerBlock] = [:]
     private var hardwareListener: CMIOObjectPropertyListenerBlock?
-    private var continuations: [UUID: AsyncStream<CameraInputState>.Continuation] = [:]
 
     public init(time: any TimeSource = SystemTimeSource()) {
         self.time = time
@@ -34,7 +33,6 @@ public final class CameraDeviceCollector: @unchecked Sendable {
 
     deinit {
         removeAllListeners()
-        for c in continuations.values { c.finish() }
     }
 
     public func start() {
@@ -113,41 +111,17 @@ public final class CameraDeviceCollector: @unchecked Sendable {
             + "\(pct)% of the last day. It never turns off, so it cannot indicate a call."
     }
 
-    public var events: AsyncStream<CameraInputState> {
-        let id = UUID()
-        return AsyncStream(bufferingPolicy: .bufferingNewest(8)) { continuation in
-            lock.lock()
-            continuations[id] = continuation
-            lock.unlock()
-            continuation.onTermination = { [weak self] _ in
-                guard let self else { return }
-                self.lock.lock()
-                self.continuations[id] = nil
-                self.lock.unlock()
-            }
-        }
-    }
-
     private func update(raw: Bool?) {
         lock.lock()
         let now = time.continuousSeconds
         accountLocked(at: now)
-        let changed = raw != isRunningRaw
         isRunningRaw = raw
         if raw == true {
             if runningSince == nil { runningSince = now }
         } else {
             runningSince = nil
         }
-        let sinks = changed ? Array(continuations.values) : []
-        let unreliable = isUnreliableLocked(at: now)
         lock.unlock()
-
-        guard changed else { return }
-        let published: CameraInputState = unreliable
-            ? .unreliable
-            : (raw == nil ? .noCameraDevice : (raw == true ? .running : .notRunning))
-        for sink in sinks { sink.yield(published) }
     }
 
     private func accountLocked(at now: Double) {
