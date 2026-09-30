@@ -619,18 +619,45 @@ public struct CursorProvider: ActivityProvider {
     public init() {}
 
     public func observe(_ context: SignalContext) -> ProviderVerdict? {
-        var verdict = EditorClassifier.verdict(
+        let verdict = EditorClassifier.verdict(
             context, editorName: "Cursor", parse: TitleParsing.fileFirst
         )
-        if let processes = context.processesIfPermitted,
-           let tool = processes.firstChildMatch(in: ToolToken.aiCLIs) {
-            var evidence = verdict.evidence
-            evidence.append(Ev.aiCLIProcess(tool, childOfFrontmost: true))
-            verdict = ProviderVerdict(
-                activity: .aiCoding, evidence: evidence, context: verdict.context
+        guard let processes = context.processesIfPermitted,
+              let tool = processes.firstChildMatch(in: ToolToken.aiCLIs)
+        else { return verdict }
+        let evidence = verdict.evidence + [Ev.aiCLIProcess(tool, childOfFrontmost: true)]
+        let titleRival = verdict.activity == .documentation
+            || verdict.evidence.contains { $0.id == EvidenceID("title.testFile") }
+        if titleRival || !AICLIRivals.evidence(processes).isEmpty {
+            return ProviderVerdict(
+                activity: .coding,
+                evidence: evidence,
+                context: verdict.context,
+                degradedFromAmbiguity: true,
+                maximumConfidence: verdict.maximumConfidence
             )
         }
-        return verdict
+        return ProviderVerdict(
+            activity: .aiCoding,
+            evidence: evidence,
+            context: verdict.context,
+            degradedFromAmbiguity: verdict.degradedFromAmbiguity,
+            maximumConfidence: verdict.activity == .coding ? verdict.maximumConfidence : nil
+        )
+    }
+}
+
+enum AICLIRivals {
+    static func evidence(_ processes: ProcessSnapshot) -> [Evidence] {
+        var rivals: [Evidence] = []
+        if processes.tracedUnderFrontmost { rivals.append(Ev.tracedUnderFrontmost()) }
+        if let tool = processes.firstChildMatch(in: ToolToken.debuggers) {
+            rivals.append(Ev.debuggerProcess(tool, childOfFrontmost: true))
+        }
+        if let tool = processes.firstChildMatch(in: ToolToken.testRunners) {
+            rivals.append(Ev.testRunnerProcess(tool, childOfFrontmost: true))
+        }
+        return rivals
     }
 }
 
@@ -702,6 +729,15 @@ public struct TerminalProvider: ActivityProvider {
 
         if let tool = processes.firstChildMatch(in: ToolToken.aiCLIs) {
             evidence.append(Ev.aiCLIProcess(tool, childOfFrontmost: true))
+            let rivals = AICLIRivals.evidence(processes)
+            guard rivals.isEmpty else {
+                return ProviderVerdict(
+                    activity: .coding,
+                    evidence: evidence + rivals,
+                    context: activityContext,
+                    degradedFromAmbiguity: true
+                )
+            }
             return ProviderVerdict(activity: .aiCoding, evidence: evidence, context: activityContext)
         }
         if processes.tracedUnderFrontmost {

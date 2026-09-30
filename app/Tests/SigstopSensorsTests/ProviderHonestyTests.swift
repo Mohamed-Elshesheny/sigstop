@@ -81,4 +81,86 @@ struct ProviderHonestyTests {
             #expect(!BrowserTitlePatterns.isMeeting(title), "\(title)")
         }
     }
+
+    static func classify(
+        _ app: AppIdentity,
+        title: String?,
+        matched: Set<ToolToken>,
+        children: Set<ToolToken>,
+        traced: Bool = false
+    ) -> ActivityObservation {
+        let signals = SignalContext(
+            now: Date(timeIntervalSince1970: 1_700_000_000),
+            available: [.tier0, .tier1, .tier2],
+            frontmost: app,
+            input: InputActivity(idleSeconds: 3, source: .hidSystemState),
+            windowTitle: title,
+            processes: ProcessSnapshot(
+                matchedTools: matched,
+                childrenOfFrontmost: children,
+                tracedUnderFrontmost: traced,
+                tracedElsewhere: false,
+                capturedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            )
+        )
+        let classified = ProviderRegistry().classify(signals)
+        return ConfidenceEngine.observation(
+            verdict: classified.verdict,
+            providerID: classified.providerID,
+            signals: signals,
+            concurrent: ConcurrentStates()
+        )
+    }
+
+    static let cursor = app(BundleIDs.cursor, "Cursor")
+    static let terminal = app(BundleIDs.terminal, "Terminal")
+
+    @Test("an AI CLI beside a debugger in Cursor is coding, not a guess between the two")
+    func cursorDebuggerAndAIDegrade() {
+        let seen = Self.classify(
+            Self.cursor, title: "main.swift \u{2014} sigstop",
+            matched: [.claudeCLI, .lldb], children: [.claudeCLI, .lldb], traced: true
+        )
+        #expect(seen.activity == .coding)
+        #expect(seen.confidence.value <= ConfidenceEngine.degradedCeiling)
+        #expect(seen.evidence.contains { $0.id.rawValue == "process.aiCLI" })
+        #expect(seen.evidence.contains { $0.id.rawValue == "process.traced" })
+    }
+
+    @Test("an AI CLI beside a debugger in a terminal is coding, and both are cited")
+    func terminalDebuggerAndAIDegrade() {
+        let seen = Self.classify(
+            Self.terminal, title: "zsh",
+            matched: [.claudeCLI, .lldb], children: [.claudeCLI, .lldb], traced: true
+        )
+        #expect(seen.activity == .coding)
+        #expect(seen.confidence.value <= ConfidenceEngine.degradedCeiling)
+        #expect(seen.evidence.contains { $0.id.rawValue == "process.aiCLI" })
+        #expect(seen.evidence.contains { $0.id.rawValue == "process.traced" })
+    }
+
+    @Test("an AI CLI while Cursor has a prose file open is coding, not AI coding")
+    func cursorDocsAndAIDegrade() {
+        let seen = Self.classify(
+            Self.cursor, title: "README.md \u{2014} sigstop",
+            matched: [.claudeCLI], children: [.claudeCLI]
+        )
+        #expect(seen.activity == .coding)
+        #expect(seen.evidence.contains { $0.id.rawValue == "title.docExtension" })
+        #expect(seen.evidence.contains { $0.id.rawValue == "process.aiCLI" })
+    }
+
+    @Test("an AI CLI with nothing rival beside it is still AI coding")
+    func aiAloneIsStillAICoding() {
+        let cursor = Self.classify(
+            Self.cursor, title: "main.swift \u{2014} sigstop", matched: [.claudeCLI], children: [.claudeCLI]
+        )
+        #expect(cursor.activity == .aiCoding)
+        let terminal = Self.classify(Self.terminal, title: "zsh", matched: [.claudeCLI], children: [.claudeCLI])
+        #expect(terminal.activity == .aiCoding)
+        let elsewhere = Self.classify(
+            Self.terminal, title: "zsh", matched: [.claudeCLI, .lldb], children: [.claudeCLI]
+        )
+        #expect(elsewhere.activity == .aiCoding, "a debugger in some other app is not a rival in this one")
+    }
 }

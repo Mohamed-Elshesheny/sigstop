@@ -809,7 +809,7 @@ everything else is evidence fed into it via `SignalContext`.
 | Provider | Claims | Primary job |
 |---|---|---|
 | `VSCodeProvider` | VS Code, Insiders, VSCodium, exact IDs | title → project/file with `TitleParsing.fileFirst`, the shared parser in `BuiltinProviders.swift` |
-| `CursorProvider` | Cursor's ToDesktop ID | same parser, plus AI-CLI-child awareness |
+| `CursorProvider` | Cursor's ToDesktop ID | same parser, plus AI-CLI-child awareness, degrading to CODING when it meets a sibling (§7.6) |
 | `ZedProvider` | `dev.zed.` prefix | same `TitleParsing.fileFirst` parser |
 | `JetBrainsProvider` | `com.jetbrains.` prefix + `com.google.android.studio` | one provider for the whole family; titles share a format (`TitleParsing.projectFirst`) |
 | `XcodeProvider` | `com.apple.dt.Xcode` | uses `kAXDocument` (real path!) and `debugserver`/`xctest` children |
@@ -1171,7 +1171,8 @@ test-run counts as exhaustive.
 
 `TERMINAL_WORK` is the **default** for a frontmost terminal and yields to a more specific class only
 when Tier 2 identifies the tool: an editor child → `CODING`, a test runner → `TESTING`, a debugger →
-`DEBUGGING`, an AI CLI → `AI_CODING`. With Tier 0 only, a terminal is honestly just a terminal:
+`DEBUGGING`, an AI CLI → `AI_CODING`, and an AI CLI beside a debugger or test runner of its own
+→ `CODING`, degraded (§7.6). With Tier 0 only, a terminal is honestly just a terminal:
 **0.55**.
 
 ### 7.6 AI_CODING
@@ -1189,6 +1190,16 @@ other, because [the design documents are normative](../CONTRIBUTING.md#commits-a
 is running on the maintainer's Mac nearly all the time, so the bare name made every terminal window
 read `AI_CODING` at the ceiling, permanently. The same rule applies to `vim`,
 `nvim`, `helix`, `emacs` and `nano`.
+
+**When it meets a sibling, neither wins.** `AI_CODING`, `DEBUGGING`, `TESTING` and
+`DOCUMENTATION` are all children of `CODING`, and an AI CLI in this terminal or in Cursor can
+coexist with evidence for another of them: a process under this app is being debugged, a debugger
+or a test runner is this app's child, or Cursor's title names a prose file or a test file. The
+provider used to settle that by order, `AI_CODING` in the terminal because it was checked first,
+`AI_CODING` in Cursor because it overwrote the editor's verdict, and a traced `lldb` beside
+`claude` read `AI_CODING` at 0.93. It now returns `CODING`, marked degraded (≤ 0.60), citing both
+sides. A debugger or test runner that is *not* under this app is not a rival: it is about some
+other window, and the child AI CLI still decides.
 
 **Unreliable (Tier 0):** a desktop AI assistant app is frontmost. This tells us nothing about
 *whether it is about code*. The user could be asking about a recipe.
