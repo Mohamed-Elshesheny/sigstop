@@ -51,6 +51,12 @@ and separately:
 | **record break** | `breakCount += 1`, `lastBreakAt = gap.start`, `lastBreakEndedAt = gap.end` |
 | **end session** | finalize the `DeveloperSession`, start a new one on return |
 
+`gap.end` is the return, not the tick that decided the gap was a break. An idle-inferred break is
+recorded the moment the gap reaches `qualifyingBreak`, with `lastBreakEndedAt` at that tick, and
+`closeGap` moves it on to the tick the user comes back (`DeveloperSession.extendLastBreak(to:)`).
+It used to stay at the fifth minute, so twenty minutes away came back as "15 minutes since your
+last break", and the settle-in block (§7.1) had already run out before anyone sat down.
+
 A reset is not a break. A break always implies a reset. A pause implies neither. Conflating these
 three is the single most common bug in this class of app, so the model keeps them orthogonal.
 

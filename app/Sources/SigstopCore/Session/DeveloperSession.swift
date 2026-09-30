@@ -133,6 +133,11 @@ public struct DeveloperSession: Sendable, Codable, Hashable, Identifiable {
         lastBreakEndedAt = end
     }
 
+    mutating func extendLastBreak(to end: Date) {
+        guard let current = lastBreakEndedAt, end > current else { return }
+        lastBreakEndedAt = end
+    }
+
     mutating func recordAbandonedBreak() { abandonedBreakCount += 1 }
     mutating func recordSkip() { skippedBreakCount += 1 }
     mutating func recordSnooze() { snoozeCount += 1 }

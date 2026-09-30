@@ -289,6 +289,7 @@ public struct SessionTracker: Sendable {
             events.append(.gapClassified(.microIdle, duration: duration, cause: existing.cause))
         }
         gap = nil
+        if existing.didRecordBreak { session.extendLastBreak(to: now) }
         if existing.paused, !session.isStopped {
             session.resumeClock()
             events.append(.clockResumed(at: now))
