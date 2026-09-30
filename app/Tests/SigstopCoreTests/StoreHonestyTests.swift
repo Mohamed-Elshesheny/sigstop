@@ -397,4 +397,29 @@ struct StoreHonestyTests {
         #expect(report.keptLock)
         #expect(report.userFacingSummary.contains("Kept: its .lock"))
     }
+
+    @Test("a summaries month written by a newer sigstop is neither read nor rewritten")
+    func newerSummariesMonthIsLeftAlone() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("sigstop-newer-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try FileEventStore(root: root)
+        let month = store.summariesDirectory.appendingPathComponent("2026-09.json")
+        let future = """
+        {"v": \(EventSchema.version + 1), "days": {"2026-09-01": {"day": "2026-09-01", "totalActiveWork": 60,
+        "activeWorkByActivity": {}, "applicationDistribution": {}, "longestContinuousSession": 60,
+        "breakCount": 1, "breaksAccepted": 1, "breaksIdleInferred": 0, "breaksUserInitiated": 0,
+        "breaksAbandoned": 0, "skippedBreakCount": 0, "snoozeCount": 0, "ignoredPromptCount": 0,
+        "breakOpportunities": 0, "honoredOpportunities": 0, "excludedOpportunities": 0,
+        "notificationsDelivered": 0, "sessionCount": 1, "malformedLines": 0, "addedLater": 7}}}
+        """
+        try Data(future.utf8).write(to: month)
+
+        #expect(try store.readAllSummaries().isEmpty)
+        #expect(try store.readSummaries(year: 2026, month: 9).isEmpty)
+        #expect(throws: StoreError.self) {
+            try store.writeSummary(DailySummary(day: CalendarDay(year: 2026, month: 9, day: 2), breakCount: 1))
+        }
+        #expect(try String(contentsOf: month, encoding: .utf8) == future, "a newer file is not rewritten without its new fields")
+    }
 }

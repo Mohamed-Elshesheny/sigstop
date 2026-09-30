@@ -6,6 +6,7 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     static let largestRecordFile = 32 * 1024 * 1024
     static let leftAsItIs = "it is there but will not open, so it is left as it is rather than replaced"
     static let undecodableLeftAsItIs = "it is there but will not decode, so it is left as it is rather than replaced"
+    static let newerLeftAsItIs = "a newer sigstop wrote it, so it is left as it is rather than replaced"
 
     public let root: URL
     public let eventsDirectory: URL
@@ -182,6 +183,9 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
             throw StoreError.notWritable(path: path.path, reason: Self.leftAsItIs)
         case .contents(let data):
             if let decoded = try? JSONDecoder().decode(SummaryFile.self, from: data) {
+                guard decoded.v <= EventSchema.version else {
+                    throw StoreError.notWritable(path: path.path, reason: Self.newerLeftAsItIs)
+                }
                 file = decoded
             } else {
                 var aside = path.appendingPathExtension("unreadable")
@@ -220,8 +224,12 @@ public final class FileEventStore: EventStore, @unchecked Sendable {
     }
 
     private func unlockedReadSummaryFile(_ url: URL) -> SummaryFile? {
-        guard case .contents(let data) = SecureFile.read(url, limit: Self.largestRecordFile) else { return nil }
-        return try? JSONDecoder().decode(SummaryFile.self, from: data)
+        guard
+            case .contents(let data) = SecureFile.read(url, limit: Self.largestRecordFile),
+            let file = try? JSONDecoder().decode(SummaryFile.self, from: data),
+            file.v <= EventSchema.version
+        else { return nil }
+        return file
     }
 
     public func readAllSummaries() throws -> [CalendarDay: DailySummary] {
