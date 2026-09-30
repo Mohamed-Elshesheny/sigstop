@@ -106,8 +106,6 @@ public struct PromptOutlook: Sendable, Hashable {
                 detail: [
                     "The next opportunity needs \(DurationText.long(policy.targetContinuousWork))"
                         + " of continuous active work.",
-                    "There is also a \(DurationText.long(policy.settleInAfterBreak)) settle-in"
-                        + " window after a break in which nothing is delivered.",
                 ]
             )
         }
