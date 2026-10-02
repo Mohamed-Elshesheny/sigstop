@@ -414,6 +414,28 @@ There is no substitute for this test. Everything upstream of it can be green whi
 the tag is misspelled, or the signature was generated against a key the shipped build does not carry.
 All three of those have happened here.
 
+### 3.6 Update the Homebrew tap
+
+`brew install --cask mohamed-elshesheny/sigstop/sigstop` reads
+[`homebrew-sigstop`](https://github.com/Mohamed-Elshesheny/homebrew-sigstop), a personal tap, because
+the official `homebrew/cask` tap audits for a notarized app and this build is ad-hoc signed. The cask
+pins one version and one checksum, so a release is not finished until it points at the new image.
+Sparkle updates the people who already installed; the tap is what new people get.
+
+```sh
+cd ../homebrew-sigstop
+V=0.2.2
+SHA=$(shasum -a 256 ../sigstop/app/dist/sigstop-$V-*.dmg | cut -d' ' -f1)
+sed -i '' "s/^  version \".*\"/  version \"$V\"/; s/^  sha256 \".*\"/  sha256 \"$SHA\"/" Casks/sigstop.rb
+brew style Casks/sigstop.rb
+git commit -am "sigstop $V" && git push
+brew update && brew fetch --cask mohamed-elshesheny/sigstop/sigstop   # must print the new version
+```
+
+The `url` stanza carries the codename (`sigstop-#{version}-wood-frog.dmg`), so a release that changes
+the codename changes that line too. `brew audit` needs Command Line Tools that match the current
+Xcode; when it refuses to run, `brew style` plus a `brew fetch` of the new version is the check.
+
 ---
 
 ## 4. The release checklist
@@ -430,6 +452,7 @@ commit land straight on `main`, like everything else here.
 - [ ] `sparkle:edSignature` present on the new enclosure in `updater/appcast.xml`
 - [ ] `main` pushed, its Pages run green, and the served feed carries the new version, not just a 200
 - [ ] Previous build updates itself successfully, end to end
+- [ ] The Homebrew tap points at the new image, and `brew fetch` of the cask prints the new version (§3.6)
 - [ ] `docs/PRIVACY.md` reviewed if anything about the network behaviour changed (§9 requires it)
 
 ---
