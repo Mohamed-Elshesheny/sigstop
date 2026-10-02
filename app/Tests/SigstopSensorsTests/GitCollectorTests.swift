@@ -50,8 +50,39 @@ private func collector(gitOn: Bool) -> GitCollector {
     return GitCollector(permissions: PermissionBroker(settings: settings, trustCheck: { false }))
 }
 
+private final class ReaderLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var calls = 0
+    private var stuckFinished = 0
+
+    func called() {
+        lock.lock()
+        calls += 1
+        lock.unlock()
+    }
+
+    func finishedStuck() {
+        lock.lock()
+        stuckFinished += 1
+        lock.unlock()
+    }
+
+    var callCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return calls
+    }
+
+    var stuckFinishedCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return stuckFinished
+    }
+}
+
 @Test func aFolderThatNeverAnswersDoesNotHoldUpTheCaller() async {
     let stuck = DispatchSemaphore(value: 0)
+    let log = ReaderLog()
     var settings = SigstopSettings.default
     settings.gitContextEnabled = true
     let collector = GitCollector(
@@ -59,7 +90,11 @@ private func collector(gitOn: Bool) -> GitCollector {
         memoWindow: 0,
         deadline: 0.1,
         reader: { folder, now in
-            if folder.hasSuffix("dead") { _ = stuck.wait(timeout: .now() + 10) }
+            log.called()
+            if folder.hasSuffix("dead") {
+                _ = stuck.wait(timeout: .now() + 10)
+                log.finishedStuck()
+            }
             return .success(GitSignal(branch: "main", repoState: .clean, readAt: now))
         }
     )
@@ -71,19 +106,20 @@ private func collector(gitOn: Bool) -> GitCollector {
             windowTitle: "a.swift — dead", now: Date()
         )
         #expect(attempt == nil)
-        let spent = Date().timeIntervalSince(started)
-        #expect(spent < 5, "the deadline, not the ten-second reader, decides when the caller gets back")
-        #expect(spent >= 0.1)
+        #expect(
+            log.stuckFinishedCount == 0,
+            "the deadline, not the ten-second reader, decides when the caller gets back"
+        )
+        #expect(Date().timeIntervalSince(started) >= 0.1)
         #expect(collector.lastOutcome == .timedOut(folder: "dead"))
     }
 
-    let secondStarted = Date()
     let second = await collector.read(
         frontmost: editor, folders: ["/Users/x/dead"], documentURL: nil,
         windowTitle: "a.swift — dead", now: Date()
     )
     #expect(second == nil)
-    #expect(Date().timeIntervalSince(secondStarted) < 0.05)
+    #expect(log.callCount == GitCollector.strikesBeforeSettingAside, "a folder set aside is not read again")
     #expect(collector.lastOutcome == .timedOut(folder: "dead"))
 
     let live = await collector.read(
@@ -91,6 +127,7 @@ private func collector(gitOn: Bool) -> GitCollector {
         windowTitle: "a.swift — live", now: Date()
     )
     #expect(live?.branch == "main")
+    #expect(log.callCount == GitCollector.strikesBeforeSettingAside + 1)
 
     for _ in 0..<GitCollector.strikesBeforeSettingAside { stuck.signal() }
 }
