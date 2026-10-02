@@ -51,7 +51,7 @@ brew install --cask mohamed-elshesheny/sigstop/sigstop
 Either download needs the quarantine cleared once, then open it:
 
 > [!IMPORTANT]
-> sigstop isn't signed with a paid Apple Developer ID, so macOS blocks it the first time. That's expected, not a malware warning, and you only do it once. Notarization costs 99 USD a year; [sponsoring the project](https://github.com/sponsors/Mohamed-Elshesheny) is what pays for it.
+> sigstop isn't signed with a paid Apple Developer ID, so macOS blocks it the first time. That's expected, not a malware warning, and you only do it once. Notarization needs Apple's Developer Program at 99 USD a year, which this project does not have.
 
 **Recommended: Terminal**
 
