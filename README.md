@@ -35,12 +35,23 @@ A timer fires in the middle of your standup. sigstop doesn't.
 
 ## 📦 Install
 
+**Homebrew**
+
+```sh
+brew install --cask mohamed-elshesheny/sigstop/sigstop
+```
+
+**Or the disk image**
+
 1. [Download `sigstop.dmg`](https://github.com/Mohamed-Elshesheny/sigstop/releases/latest/download/sigstop.dmg)
 2. Open it and drag **sigstop** into **Applications**
-3. Clear the quarantine once (below), then open it
+
+**Or build it yourself.** Command Line Tools only, no Xcode, about a minute. An app you build on your own Mac is never quarantined, so the step below does not apply to it. See [Build from source](#build).
+
+Either download needs the quarantine cleared once, then open it:
 
 > [!IMPORTANT]
-> sigstop isn't signed with a paid Apple Developer ID, so macOS blocks it the first time. That's expected, not a malware warning, and you only do it once.
+> sigstop isn't signed with a paid Apple Developer ID, so macOS blocks it the first time. That's expected, not a malware warning, and you only do it once. Notarization costs 99 USD a year; [sponsoring the project](https://github.com/sponsors/Mohamed-Elshesheny) is what pays for it.
 
 **Recommended: Terminal**
 
@@ -67,6 +78,8 @@ shasum -a 256 ~/Downloads/sigstop.dmg
 That proves the file matches what GitHub serves, not who built it. For that, [build it yourself](#build).
 
 **Updates:** Settings → About → **Check for updates**. Every update is checked against a signing key built into the app, from 0.1.8 on before it is even unpacked.
+
+**Where to get it:** the only official downloads are this repository's [releases](https://github.com/Mohamed-Elshesheny/sigstop/releases), the Homebrew tap above and [sigstop-app.vercel.app](https://sigstop-app.vercel.app). Any other site offering sigstop is not ours.
 
 ## 🔒 Privacy
 
@@ -209,9 +222,12 @@ Command Line Tools are enough. No Xcode.
 ```sh
 git clone https://github.com/Mohamed-Elshesheny/sigstop
 cd sigstop/app
+make bundle  # dist/sigstop.app, built and signed on your Mac
 make run     # build and launch
 make test    # the test suite, no GUI needed
 ```
+
+Drag `dist/sigstop.app` into Applications if you want to keep it. It never had the quarantine attribute, because nothing downloaded it, so macOS opens it without the step in [Install](#install).
 
 How it works is in [`docs/`](docs). Want to help? Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
