@@ -33,7 +33,7 @@ let package = Package(
     dependencies: [
         // Pinned exactly, not by range. An updater that quietly changes version underneath
         // you is the wrong thing to be relaxed about.
-        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1")
     ],
     targets: [
         // Pure domain. No AppKit, no I/O, no clock reads. Fully unit-testable.
